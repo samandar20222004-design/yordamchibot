@@ -5,8 +5,8 @@ Muammo (AUDIT-002 qoldig'i): `retry_post` scheduled_time'ni o'zgartiradi -> deli
 `attempt_count` 0 dan. Natija: backoff (30s/2m/5m/15m) o'smaydi va "5-urinishdan keyin dead_letter" qoidasi tarmoq-xatosi retry
 yo'lida ishlamaydi (cheksiz retry, har safar yangi qator).
 
-Tuzatish OPT-IN (`DELIVERY_CARRY_ATTEMPTS=1`, sukut O'CHIQ): sukut xulq O'ZGARMAGAN, chunki dead_letter'ga tushish uzoq Telegram uzilishida
-(~22 daqiqa) postni 'failed' qilib YO'QOTADI — bu biznes qarori. Bu test ikkala rejimni qotiradi.
+Tuzatish: `DELIVERY_CARRY_ATTEMPTS` SUKUT YOQILGAN (`0/false/no/off` o'chiradi). Yoqilganda uzoq Telegram uzilishida (~22 daqiqa+) post
+dead_letter -> 'failed' bo'ladi. Bu test ikkala rejimni (sukut=yoqilgan va ochiq o'chirilgan) qotiradi.
 
 Telegram yuborish natijasi noaniq bo'lishi mumkin; bu test exactly-once VA'DA QILMAYDI — faqat sanagich/backoff/dead_letter mantig'ini tekshiradi.
 """
@@ -103,29 +103,29 @@ try:
     q("INSERT INTO users (user_id, username, plan_type) VALUES (%s, %s, 'free')", (USER, "attempts"))
     q("INSERT INTO channels (user_id, channel_id, channel_title, is_active) VALUES (%s, %s, 'AT', TRUE)", (USER, CHAN))
 
-    # 1) SUKUT (flag o'chiq): hozirgi xulq qotiriladi
-    os.environ.pop("DELIVERY_CARRY_ATTEMPTS", None)
+    # 1) O'CHIRILGAN (DELIVERY_CARRY_ATTEMPTS=0): eski xulq qotiriladi (cheksiz retry, sanagich yig'ilmaydi)
+    os.environ["DELIVERY_CARRY_ATTEMPTS"] = "0"
     pid = new_post()
     out = loop(pid, 7)
     counts = [o["res"].get("attempt_count") for o in out if o.get("claimed")]
     backs = [o["res"].get("backoff_seconds") for o in out if o.get("claimed")]
-    check("SUKUT: 7 ta ketma-ket tarmoq xatosidan keyin ham dead_letter YO'Q (hozirgi xulq)",
+    check("O'CHIQ: 7 ta ketma-ket tarmoq xatosidan keyin ham dead_letter YO'Q (hozirgi xulq)",
           all(o.get("claimed") and o["res"].get("status") == "failed" for o in out) and len(out) == 7, str(out)[:200])
-    check("SUKUT: attempt_count har retry'da 1 ga qaytadi (yig'ilmaydi)", counts == [1] * 7, str(counts))
-    check("SUKUT: backoff o'smaydi (har safar 30 s)", backs == [30] * 7, str(backs))
-    check("SUKUT: har retry yangi delivery qatori", q("SELECT COUNT(*) FROM post_deliveries WHERE post_id = %s", (pid,))[0][0] == 7)
-    check("SUKUT: post yo'qolmadi — hali 'pending' (retry qilinadi)", q("SELECT status FROM scheduled_posts WHERE id = %s", (pid,))[0][0] == "pending")
+    check("O'CHIQ: attempt_count har retry'da 1 ga qaytadi (yig'ilmaydi)", counts == [1] * 7, str(counts))
+    check("O'CHIQ: backoff o'smaydi (har safar 30 s)", backs == [30] * 7, str(backs))
+    check("O'CHIQ: har retry yangi delivery qatori", q("SELECT COUNT(*) FROM post_deliveries WHERE post_id = %s", (pid,))[0][0] == 7)
+    check("O'CHIQ: post yo'qolmadi — hali 'pending' (retry qilinadi)", q("SELECT status FROM scheduled_posts WHERE id = %s", (pid,))[0][0] == "pending")
 
-    # 2) OPT-IN (DELIVERY_CARRY_ATTEMPTS=1): hujjatlangan qoida — sanagich yig'iladi, backoff o'sadi, 5-urinishda dead_letter
-    os.environ["DELIVERY_CARRY_ATTEMPTS"] = "1"
+    # 2) SUKUT (env berilmagan = YOQILGAN): hujjatlangan qoida — sanagich yig'iladi, backoff o'sadi, 5-urinishda dead_letter
+    os.environ.pop("DELIVERY_CARRY_ATTEMPTS", None)
     pid2 = new_post()
     out = loop(pid2, 7)
     counts = [o["res"].get("attempt_count") for o in out if o.get("claimed")]
     backs = [o["res"].get("backoff_seconds") for o in out if o.get("claimed") and o["res"].get("status") == "failed"]
     last = out[-1]["res"] if out and out[-1].get("claimed") else {}
-    check("OPT-IN: attempt_count yig'iladi 1,2,3,4,5", counts == [1, 2, 3, 4, 5], str(counts))
-    check("OPT-IN: backoff 30 -> 120 -> 300 -> 900 o'sadi", backs == [30, 120, 300, 900], str(backs))
-    check("OPT-IN: 5-urinishda dead_letter (attempts_exhausted), sikl to'xtaydi", last.get("status") == "dead_letter" and len(out) == 5, str(out)[-200:])
+    check("SUKUT(yoqilgan): attempt_count yig'iladi 1,2,3,4,5", counts == [1, 2, 3, 4, 5], str(counts))
+    check("SUKUT(yoqilgan): backoff 30 -> 120 -> 300 -> 900 o'sadi", backs == [30, 120, 300, 900], str(backs))
+    check("SUKUT(yoqilgan): 5-urinishda dead_letter (attempts_exhausted), sikl to'xtaydi", last.get("status") == "dead_letter" and len(out) == 5, str(out)[-200:])
     # 'sent' predecessor'dan hech narsa ko'chmasligi
     pid3 = new_post()
     t = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (pid3,))[0][0]
@@ -136,7 +136,7 @@ try:
     t2 = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (pid3,))[0][0]
     c2 = sr.claim_post_delivery(pid3, CHAN, t2)
     n2 = q("SELECT attempt_count FROM post_deliveries WHERE idempotency_key = %s", (c2["idempotency_key"],))[0][0]
-    check("OPT-IN: 'sent' predecessor'dan attempt_count ko'chmaydi (0)", n2 == 0, str(n2))
+    check("SUKUT(yoqilgan): 'sent' predecessor'dan attempt_count ko'chmaydi (0)", n2 == 0, str(n2))
     # verify markeri ham flagdan mustaqil ko'chadi
     pid4 = new_post()
     t = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (pid4,))[0][0]
@@ -144,7 +144,7 @@ try:
     sr.mark_post_delivery_verify_pending(k, "TimedOut", 1, 1.0)
     db.retry_post(pid4, datetime.now(timezone.utc) - timedelta(seconds=3))
     c = sr.claim_post_delivery(pid4, CHAN, q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (pid4,))[0][0])
-    check("OPT-IN: verify markeri (AUDIT-002) flag yoqilganda ham ko'chadi", c.get("verify_pending") is True, str(c))
+    check("SUKUT(yoqilgan): verify markeri (AUDIT-002) flag yoqilganda ham ko'chadi", c.get("verify_pending") is True, str(c))
 finally:
     os.environ.pop("DELIVERY_CARRY_ATTEMPTS", None)
     cleanup()

@@ -290,10 +290,10 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                 # TEKSHIRMAY ko'r-ko'rona qayta yuborar edi (AUDIT-002). Faqat shu marker ko'chiriladi;
                 # 'sent' qatordan (recurring keyingi davr) va markersiz qatordan HECH NARSA ko'chmaydi,
                 # attempt_count/backoff semantikasi o'zgarmaydi.
-                # ``DELIVERY_CARRY_ATTEMPTS=1`` (OPT-IN, sukut O'CHIQ): oldingi 'failed' qatorning attempt_count'i ham
-                # ko'chadi — hujjatlangan backoff (30s/2m/5m/15m) va "5-urinishda dead_letter" qoidasi retry'larda
-                # ishlaydi. O'chiq bo'lsa sanagich 0 dan boshlanadi (hozirgi xulq): dead_letter uzoq uzilishda postni
-                # 'failed' qilib yo'qotadi — bu biznes qarori.
+                # ``DELIVERY_CARRY_ATTEMPTS`` (SUKUT YOQILGAN; ``0/false/no/off`` o'chiradi): oldingi 'failed' qatorning
+                # attempt_count'i ham ko'chadi — hujjatlangan backoff (30s/2m/5m/15m) va "5-urinishda dead_letter" qoidasi
+                # retry'larda ishlaydi. O'chirilsa sanagich har retry'da 0 dan boshlanadi (eski xulq, cheksiz retry).
+                # Diqqat: uzoq (~22 daqiqa+) Telegram uzilishida post 'failed' (dead_letter) bo'ladi.
                 cur.execute(
                     "UPDATE post_deliveries d SET last_error = p.last_error "
                     "FROM (SELECT status, last_error FROM post_deliveries "
@@ -301,7 +301,7 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                     "WHERE d.idempotency_key = %s AND p.status = 'failed' AND p.last_error LIKE %s",
                     (int(post_id), key, key, DELIVERY_VERIFY_MARKER + "%"),
                 )
-                if os.getenv("DELIVERY_CARRY_ATTEMPTS", "").strip().lower() in ("1", "true", "yes", "on"):
+                if os.getenv("DELIVERY_CARRY_ATTEMPTS", "1").strip().lower() not in ("0", "false", "no", "off"):
                     cur.execute(
                         "UPDATE post_deliveries d SET attempt_count = COALESCE(p.attempt_count, 0) "
                         "FROM (SELECT status, attempt_count FROM post_deliveries "
@@ -360,15 +360,23 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                     return {"claimed": False, "sent": False, "dead": True,
                             "status": "dead_letter", "attempt_count": new_attempt,
                             "idempotency_key": key}
+                # AUDIT-008: avvalgi worker Telegram'ga yuborib ulgurgan-ulgurmagani NOMA'LUM (crash). Marker qo'yiladi:
+                # scheduler yuborishdan OLDIN kanalni tekshiradi (bor -> yubormaydi; yo'q -> yuboradi; o'qib bo'lmasa ->
+                # keyinroq, so'ng 'unknown'). Mavjud marker (urinish raqami) saqlanadi.
                 cur.execute(
                     "UPDATE post_deliveries SET status = 'processing', "
-                    "attempt_count = %s, updated_at = NOW() "
+                    "attempt_count = %s, "
+                    "last_error = CASE WHEN last_error LIKE %s THEN last_error ELSE %s END, "
+                    "updated_at = NOW() "
                     "WHERE idempotency_key = %s",
-                    (new_attempt, key),
+                    (new_attempt, DELIVERY_VERIFY_MARKER + "%",
+                     DELIVERY_VERIFY_MARKER + " attempt=0 | stale processing", key),
                 )
+                stale_error = last_error if verify_pending else DELIVERY_VERIFY_MARKER + " attempt=0 | stale processing"
                 return {"claimed": True, "sent": False, "status": "processing",
                         "attempt_count": new_attempt, "stale_reclaim": True,
-                        "idempotency_key": key, **_verify_fields()}
+                        "idempotency_key": key, "last_error": stale_error,
+                        "verify_pending": True, "verify_attempt": verify_attempt}
             if status == "failed" and next_retry_at is not None:
                 from datetime import timezone as _tz
                 now_utc = datetime.now(_tz.utc)
@@ -554,9 +562,10 @@ def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
                 ids = [int(r[0]) for r in rows]
                 cur.execute(
                     "UPDATE post_deliveries SET status = 'failed', next_retry_at = NULL, "
-                    "last_error = COALESCE(last_error, 'restart recovery'), updated_at = NOW() "
+                    "last_error = CASE WHEN last_error LIKE %s THEN last_error "
+                    "ELSE %s || COALESCE(last_error, 'restart recovery') END, updated_at = NOW() "
                     "WHERE status = 'processing' AND post_id = ANY(%s)",
-                    (ids,),
+                    (DELIVERY_VERIFY_MARKER + "%", DELIVERY_VERIFY_MARKER + " attempt=0 | ", ids),
                 )
         _cache_clear("system_stats")
     except Exception as e:

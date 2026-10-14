@@ -287,6 +287,14 @@ def candidate_matches_signature(signature, item, *,
     """
     if not signature or item is None:
         return False
+    # Vaqt oynasi himoyasi (AUDIT-008): sanasi ma'lum va oynadan ESKI xabar bu postning o'zi bo'la olmaydi —
+    # aks holda har kuni bir xil matnli takrorlanuvchi postda kechagi xabar "bugungisi chiqib ketgan" deb
+    # tanilib, bugungi post yo'qolardi. Sana yo'q/o'qilmasa avvalgidek (faqat matn bo'yicha) solishtiriladi.
+    if isinstance(now, datetime) and isinstance(item, dict):
+        item_stamp = _parse_moment(next(
+            (item.get(k) for k in _CANDIDATE_DATE_KEYS if item.get(k)), None))
+        if item_stamp is not None and abs((now - item_stamp).total_seconds()) > float(window):
+            return False
     text = _candidate_text(item)
     expected_text_hash = signature.get("text_hash") or ""
     tail_hash = signature.get("tail_hash") or ""
