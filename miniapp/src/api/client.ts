@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, ChannelList, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
 import {
   parseAi, parseCancelled, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parsePostResult, parseScheduled,
+  parseDeleted, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -11,7 +11,7 @@ const KNOWN_CODES: readonly string[] = [
   'service_unavailable', 'auth_unavailable',
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
-  'ai_unavailable', 'save_failed',
+  'ai_unavailable', 'save_failed', 'draft_not_found', 'media_unavailable',
 ]
 
 export class ApiClientError extends Error {
@@ -147,7 +147,23 @@ export function createApiClient(opts: ClientOptions) {
       get(`/scheduled-posts?limit=${limit}&offset=${offset}${status === 'history' ? '&status=history' : ''}`, parseScheduled, signal),
     post: (id: number, signal?: AbortSignal): Promise<ScheduledPost> =>
       get(`/posts/${encodeURIComponent(String(id))}`, parsePostEnvelope, signal),
-    createPost: (input: { channel_id: string; text: string; scheduled_at?: string; send_now?: boolean }): Promise<PostResult> =>
+    draft: (signal?: AbortSignal): Promise<Draft | null> => get('/draft', parseDraft, signal),
+    deleteDraft: (): Promise<{ deleted: boolean }> => send('DELETE', '/draft', undefined, parseDeleted),
+    /** Qoralamadagi rasm (blob). Auth sarlavhasi kerak, shuning uchun <img src> emas, fetch. Xatoda `null`. */
+    draftMedia: async (signal?: AbortSignal): Promise<Blob | null> => {
+      const initData = opts.getInitData()
+      if (!initData) return null
+      try {
+        const res = await fetchImpl(`${base}/draft/media`, {
+          headers: { Authorization: `tma ${initData}` }, signal, cache: 'no-store' })
+        if (!res.ok) return null
+        const blob = await res.blob()
+        return blob.type.startsWith('image/') ? blob : null
+      } catch {
+        return null
+      }
+    },
+    createPost: (input: CreatePostInput): Promise<PostResult> =>
       send('POST', '/posts', input, parsePostResult),
     updatePost: (id: number, input: { text?: string; scheduled_at?: string }): Promise<ScheduledPost> =>
       send('PATCH', `/posts/${encodeURIComponent(String(id))}`, input, parsePostEnvelope),

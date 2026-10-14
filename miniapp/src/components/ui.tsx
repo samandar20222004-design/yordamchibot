@@ -74,6 +74,8 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   ai_limit_reached: 'err.ai_limit_reached',
   ai_unavailable: 'err.ai_unavailable',
   save_failed: 'err.save_failed',
+  draft_not_found: 'err.draft_not_found',
+  media_unavailable: 'err.media_unavailable',
 }
 /** Qayta urinish foyda bermaydigan kodlar: ilovani qayta ochish yoki botda amal kerak. */
 const FATAL = new Set(['unauthorized', 'auth_expired', 'https_required', 'not_registered', 'beta_access_required'])

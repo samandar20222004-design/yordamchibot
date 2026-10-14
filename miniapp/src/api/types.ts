@@ -72,7 +72,7 @@ export type ErrorCode =
   | 'internal_error' | 'service_unavailable' | 'auth_unavailable'
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
-  | 'ai_unavailable' | 'save_failed'
+  | 'ai_unavailable' | 'save_failed' | 'draft_not_found' | 'media_unavailable'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -87,3 +87,32 @@ export interface AiResult {
 }
 
 export type PostFilter = 'pending' | 'history'
+
+/** Botdan kelgan qoralama (media `file_id` mijozga berilmaydi — faqat tur). */
+export interface DraftMedia {
+  type: string
+  previewable: boolean
+  count: number | null
+}
+
+export interface Draft {
+  post_type: string
+  text: string
+  button_text: string | null
+  button_url: string | null
+  channel_id: string | null
+  reactions: boolean
+  delete_after_hours: number
+  media: DraftMedia | null
+  updated_at: string | null
+}
+
+export interface CreatePostInput {
+  channel_id: string
+  text: string
+  scheduled_at?: string
+  send_now?: boolean
+  button_text?: string
+  button_url?: string
+  use_draft?: boolean
+}

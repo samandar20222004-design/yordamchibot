@@ -54,6 +54,10 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `DELETE /posts/{id}` | `pending` postni bekor qiladi (`status=cancelled`; qator saqlanadi) -> `200 {id,status}` |
 | `PATCH /me/settings` | `{language: uz\|ru\|en}` -> `users.language_code` (botdagi til ham o'zgaradi) |
 | `POST /ai/generate` | `{text<=3500, style: sales\|premium\|casual\|ads\|informative}` -> `{text, style}`; botdagi Magic Post bilan AYNAN bir xil kvota/kredit bron-qaytarish (`services.ai_quota`), provayder yo'q/xato -> `503 ai_unavailable` (soxta javob yo'q, bron qaytariladi) |
+| `GET /draft` | botdan kelgan joriy qoralama: `{draft: null \| {post_type, text, button_text, button_url, channel_id, reactions, delete_after_hours, media: {type, previewable, count}}}`; `file_id` mijozga CHIQMAYDI; 48 soatdan eskisi ko'rinmaydi |
+| `GET /draft/media` | qoralamadagi RASM baytlari (Bot API `getFile`, token serverda; faqat jpeg/png/webp, <=8 MB) |
+| `DELETE /draft` | qoralamani o'chiradi |
+| `POST /posts` (qo'shimcha) | `use_draft: true` — media (`post_type`, `file_id`), reaksiya va avto-o'chirish qoralamadan olinadi, post yaratilgach qoralama o'chadi; `button_text`+`button_url` — inline tugma (faqat http/https/tg havola) |
 
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti
