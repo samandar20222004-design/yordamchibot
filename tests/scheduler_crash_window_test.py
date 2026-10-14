@@ -4,9 +4,10 @@ yuborish natijasi noaniq bo'lishi mumkin, shuning uchun bu test dublikat/yo'qoti
 
 A) XAVFSIZ oynalar (kafolatlangan): crash yuborishdan OLDIN -> post yo'qolmaydi (qayta navbatga); crash `mark_post_as_sent`'dan KEYIN
    ('posted' + delivery 'sent' bitta tranzaksiyada) -> qayta YUBORILMAYDI; recovery 'sent' dalilini hurmat qiladi.
-B) OCHIQ oyna (KNOWN-OPEN, hujjatlangan): Telegram'ga CHIQDI, lekin `mark_post_as_sent` COMMIT bo'lmasdan jarayon o'ldi (SENT_JOURNAL_PATH yo'q).
-   DB'da yuborilgan dalil YO'Q, shuning uchun restart recovery postni qayta navbatga qo'yadi va keyingi claim kanalni TEKSHIRMAY yuboradi
-   (dublikat mumkin). Tuzatish dublikat va "post yo'qolishi" (kanal o'qib bo'lmasa -> 'unknown') o'rtasidagi BIZNES qarori (docs/AUDIT_OPEN_RISKS.md).
+B) Telegram'ga CHIQDI, lekin `mark_post_as_sent` COMMIT bo'lmasdan jarayon o'ldi (AUDIT-008). Exactly-once YO'Q; lekin recovery/stale-reclaim
+   delivery'ga AMBIGUOUS_VERIFY markerini qo'yadi va scheduler qayta yuborishdan OLDIN kanalni o'qiydi: post bor -> yuborilmaydi; yo'q -> yuboriladi;
+   o'qib bo'lmasa -> 3 urinishdan keyin 'unknown' (admin ko'radi). QOLGAN xavf: kanal o'qilgan, post yo'q deb topilgan, lekin aslida chiqqan
+   (probe kechikishi / 15 daqiqadan keyingi restart) -> dublikat mumkin.
 C) Crash-loop himoyasi: 5-marta stale 'processing' qayta olinsa delivery 'dead_letter' (post 'failed').
 D) Recurring: 'yuborildi' + keyingi davr BITTA tranzaksiyada (TUZATILGAN; oldin KNOWN-OPEN edi)."""
 from __future__ import annotations
@@ -123,15 +124,74 @@ try:
     sr.recover_processing_posts_on_startup(0)
     check("A3: delivery 'sent' dalili bo'lsa recovery 'posted' qiladi (dublikat yo'q)", st(pid3) == "posted", st(pid3))
 
-    # B) OCHIQ OYNA: Telegram'ga chiqdi, DB marker YO'Q -> recovery qayta navbatga, keyingi claim kanalni tekshirmay yuboradi
+    # B) Telegram'ga chiqdi, DB marker YO'Q (AUDIT-008). Exactly-once YO'Q, lekin qayta yuborishdan OLDIN kanal tekshiriladi:
+    #    recovery/stale-reclaim delivery'ga AMBIGUOUS_VERIFY markerini qo'yadi, scheduler esa kanalni o'qiydi.
+    import asyncio
+    import scheduler as sched
+
+    VERIFY = sr.DELIVERY_VERIFY_MARKER
     pid4, t4 = due_post()
     c = claim_as_scheduler(pid4, t4)
-    # ... bu yerda bot Telegram'ga yubordi va crash bo'ldi: DB'da hech narsa yozilmadi ...
+    # ... bot Telegram'ga yubordi va crash bo'ldi: DB'da hech narsa yozilmadi ...
     sr.recover_processing_posts_on_startup(0)
     again = sr.claim_post_delivery(pid4, CHAN, t4)
-    check("B [KNOWN-OPEN]: DB'da yuborilgan dalil yo'q -> post qayta navbatga qo'yiladi", st(pid4) == "pending")
-    check("B [KNOWN-OPEN]: keyingi claim verify markersiz (kanal tekshirilmaydi) — dublikat MUMKIN (Telegram exactly-once bermaydi)",
-          again.get("claimed") is True and not again.get("verify_pending"), str(again))
+    check("B1: restart recovery postni qayta navbatga qo'yadi (yo'qotmaydi)", st(pid4) == "pending")
+    check("B1: keyingi claim verify_pending=True (kanal tekshirilmaguncha ko'r-ko'rona yuborilmaydi)",
+          again.get("claimed") is True and again.get("verify_pending") is True and VERIFY in str(again.get("last_error")), str(again))
+
+    # B2) stale reclaim (processing qotib qolgan): marker shu yerda ham qo'yiladi
+    pid6, t6 = due_post()
+    c6 = claim_as_scheduler(pid6, t6)
+    q("UPDATE post_deliveries SET updated_at = NOW() - interval '20 minutes' WHERE idempotency_key = %s", (c6["idempotency_key"],))
+    r6 = sr.claim_post_delivery(pid6, CHAN, t6)
+    row6 = q("SELECT last_error FROM post_deliveries WHERE idempotency_key = %s", (c6["idempotency_key"],))[0][0]
+    check("B2: stale reclaim: claimed + verify_pending=True va DB'da marker bor",
+          r6.get("claimed") is True and r6.get("stale_reclaim") is True and r6.get("verify_pending") is True
+          and VERIFY in str(row6), f"{r6} {row6}")
+
+    # B3) scheduler darvozasi (_verify_no_duplicate_before_send) kanal natijasiga qarab qaror qiladi
+    def gate(pid, claim_key, items, verify_attempt=0, status="ok"):
+        async def fake_probe(bot, channel_id, limit=None):
+            return {"status": status, "items": items}
+        orig = sched._probe_channel_recent_posts
+        sched._probe_channel_recent_posts = fake_probe
+        try:
+            claim = {"last_error": VERIFY + f" attempt={verify_attempt} | restart recovery"}
+            ctx = {"delivery_marker_key": claim_key, "delivery_claim": claim, "delivery_claim_verify_attempt": verify_attempt,
+                   "post_id": pid, "channel_id": CHAN, "post_type": "text", "file_id": None}
+            return asyncio.run(sched._verify_no_duplicate_before_send(None, ctx, "crash"))
+        finally:
+            sched._probe_channel_recent_posts = orig
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    # B3a) kanalda post BOR -> qayta yuborilmaydi, delivery 'sent'
+    pa, ta = due_post()
+    ca = claim_as_scheduler(pa, ta)
+    sr.recover_processing_posts_on_startup(0)
+    ka = ca["idempotency_key"]
+    check("B3a: kanalda post bor -> darvoza False (QAYTA YUBORILMAYDI)", gate(pa, ka, [{"text": "crash", "date": now_iso}]) is False)
+    check("B3a: delivery 'sent'", q("SELECT status FROM post_deliveries WHERE idempotency_key = %s", (ka,))[0][0] == "sent")
+    # B3b) kanal o'qildi va post YO'Q -> xavfsiz yuborish
+    pb, tb = due_post()
+    cb = claim_as_scheduler(pb, tb)
+    check("B3b: kanal o'qildi, post yo'q -> darvoza True (yuborish mumkin)",
+          gate(pb, cb["idempotency_key"], [{"text": "boshqa xabar", "date": now_iso}]) is True)
+    # B3c) kecha yuborilgan BIR XIL matn (takrorlanuvchi post) bugungisini YO'QOTMAYDI
+    pc, tc = due_post()
+    cc = claim_as_scheduler(pc, tc)
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    check("B3c: kechagi bir xil matn bugungi postni bloklamaydi (vaqt oynasi) -> yuborish mumkin",
+          gate(pc, cc["idempotency_key"], [{"text": "crash", "date": yesterday}]) is True)
+    # B3d) kanalni o'qib bo'lmaydi -> HECH QACHON True emas; 3-urinishda 'unknown' (admin ko'radi)
+    pd_, td = due_post()
+    cd = claim_as_scheduler(pd_, td)
+    kd = cd["idempotency_key"]
+    r1 = gate(pd_, kd, [], 0, status="unavailable")
+    r2 = gate(pd_, kd, [], 1, status="unavailable")
+    r3 = gate(pd_, kd, [], 2, status="unavailable")
+    check("B3d: kanal o'qilmasa darvoza hech qachon True qaytarmaydi (ko'r-ko'rona yuborish yo'q)", (r1, r2, r3) == (False, False, False), str((r1, r2, r3)))
+    check("B3d: urinishlar tugagach delivery 'unknown' (avtomatik yuborish taqiqlangan)",
+          q("SELECT status FROM post_deliveries WHERE idempotency_key = %s", (kd,))[0][0] == "unknown")
 
     # C) crash-loop himoyasi: stale 'processing' delivery 5-marta qayta olinsa dead_letter
     pid5, t5 = due_post()
@@ -145,8 +205,6 @@ try:
 
     # D) recurring: yuborildi -> qayta rejalash oralig'i (AUDIT-009 qoldig'i). TUZATILDI: `mark_post_as_sent(next_time=...)`
     #    'posted' markeri va keyingi davrni BITTA tranzaksiyada yozadi -> oraliq yo'q.
-    import asyncio
-    import scheduler as sched
 
     nxt = datetime.now(timezone.utc) + timedelta(days=1)
     rid = int(db.add_post(USER, CHAN, "text", "rec", None, datetime.now(timezone.utc) - timedelta(minutes=3), recurrence_type="daily"))

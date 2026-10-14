@@ -82,7 +82,7 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 
 - **Bot -> Mini App qoralama (PostBot uslubi):** Mini App yoqilgan bo'lsa botdagi post tasdiqlash kartasida «📱 Mini App'da» (web_app) tugmasi; post `miniapp_drafts` ga yoziladi (bitta joriy qoralama, 48 soat). Mini App qoralama bilan ochilsa to'g'ridan-to'g'ri tahrirlagichga tushadi (format paneli, Telegram ko'rinishi, tugma, tez vaqt). Kod: `miniapp_api/drafts.py`, `handlers/new_post.py:_save_miniapp_draft`; test: `tests/miniapp_draft_test.py`, `miniapp/src/draft.test.tsx`.
 
-- **Audit tuzatishlari:** AUDIT-001/002/003/004/005/009/010/011/013/014 + P3 (qarang `docs/AUDIT_OPEN_RISKS.md` — tuzatilganlar (recurring 'yuborildi'+qayta rejalash endi bitta tranzaksiya) va ATAYLAB qoldirilgan qarorlar: 002 attempt_count, 006 Stars refund, 007 chek takrori, 008 sent-journal, 015 global AI budget). Regression testlar `run_tests.sh` oxirida (`scheduler_*`, `subscription_downgrade_race`, `stars_rejected_payment`, `team_i18n`, ...).
+- **Audit tuzatishlari:** AUDIT-001/002/003/004/005/009/010/011/013/014 + P3 (qarang `docs/AUDIT_OPEN_RISKS.md` — tuzatilganlar (recurring 'yuborildi'+qayta rejalash endi bitta tranzaksiya) va ATAYLAB qoldirilgan qarorlar: 006 Stars refund, 007 chek takrori, 015 global AI budget; 008 qisman (recovery'da kanal tekshiruvi, dublikat to'liq yo'qolmagan); 002: `DELIVERY_CARRY_ATTEMPTS` sukut yoqilgan). Regression testlar `run_tests.sh` oxirida (`scheduler_*`, `subscription_downgrade_race`, `stars_rejected_payment`, `team_i18n`, ...).
 
 ## Bilish kerak
 

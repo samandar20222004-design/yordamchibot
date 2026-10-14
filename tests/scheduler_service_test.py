@@ -237,10 +237,13 @@ def test_claim_pending_success():
     q = _queries_text(cur)
     check("INSERT ... ON CONFLICT", "INSERT INTO post_deliveries" in q and "ON CONFLICT DO NOTHING" in q)
     check("SELECT ... FOR UPDATE (atomik)", "FOR UPDATE" in q)
-    check("claim urinishni oshirmaydi",
-          not any(str(x).strip().upper().startswith("UPDATE") and "attempt_count" in str(x)
-                  for x in cur._queries),
-          str(cur._queries))
+    # Claim urinishni OSHIRMAYDI. Yagona ruxsat etilgan attempt_count UPDATE — oldingi 'failed' qatordan KO'CHIRISH
+    # (AUDIT-002, DELIVERY_CARRY_ATTEMPTS): `attempt_count = COALESCE(p.attempt_count, 0)`; `+ 1` hech qachon.
+    attempt_updates = [str(x) for x in cur._queries
+                       if str(x).strip().upper().startswith("UPDATE") and "attempt_count" in str(x)]
+    check("claim urinishni oshirmaydi (faqat predecessor'dan ko'chirish)",
+          all("COALESCE(p.attempt_count, 0)" in u and "+ 1" not in u for u in attempt_updates),
+          str(attempt_updates))
     check("claim'da next_retry_at o'qiladi", "next_retry_at" in q)
 
 

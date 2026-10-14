@@ -8,7 +8,7 @@ sabablarni qayd etadi. "Tuzatildi" bo'limi qisqacha; to'liq tafsilot — commit 
 | ID | Nima | Test |
 |---|---|---|
 | AUDIT-001 | Mini App CSP `img-src` ga `blob:` (qoralama rasmi) — boshqa direktivalar kengaytirilmagan | `tests/miniapp_static_regression_test.py`; Chromium'da tekshirildi |
-| AUDIT-002 | `retry_post` kalitni o'zgartirganda "kanal tekshiruvi kutilmoqda" (AMBIGUOUS_VERIFY) markeri yangi delivery qatoriga ko'chiriladi | `tests/scheduler_retry_idempotency_test.py` (real PG) |
+| AUDIT-002 | `attempt_count` retry'larda yig'iladi (`DELIVERY_CARRY_ATTEMPTS`, sukut yoqilgan); `retry_post` kalitni o'zgartirganda "kanal tekshiruvi kutilmoqda" (AMBIGUOUS_VERIFY) markeri yangi delivery qatoriga ko'chiriladi | `tests/scheduler_retry_idempotency_test.py` (real PG) |
 | AUDIT-003 | Recurring postni restart/stale recovery `posted`ga o'tkazib seriyani o'ldirmaydi (dalil — faqat shu davr delivery'si) | `tests/scheduler_recurring_recovery_test.py` (real PG) |
 | AUDIT-004 | Lazy downgrade shartli UPDATE (`expires <= NOW()`): parallel to'lov faol obunani `free`ga tushirmaydi | `tests/subscription_downgrade_race_test.py` (real PG) |
 | AUDIT-005 | Stars `SuccessfulPayment` validatsiyadan o'tmasa: PRO berilmaydi, lekin log + adminlarga ogohlantirish + foydalanuvchiga xabar | `tests/stars_rejected_payment_test.py` |
@@ -22,21 +22,15 @@ sabablarni qayd etadi. "Tuzatildi" bo'limi qisqacha; to'liq tafsilot — commit 
 
 ## Ataylab O'ZGARTIRILMAGAN (qaror yoki qo'shimcha dalil kerak)
 
-### AUDIT-002 (qoldiq) — `attempt_count` retry'lar orasida yig'ilmaydi
-**Holat (real PG testi `scheduler_attempt_count_test` bilan qotirilgan):** kalit `(post, kanal, scheduled_time)`; `retry_post` vaqtni
-o'zgartirgani uchun har retry YANGI delivery qatori va `attempt_count` 1 ga qaytadi, backoff doim 30 s, `dead_letter` (5-urinish)
-tarmoq-xatosi retry yo'lida HECH QACHON ishga tushmaydi (cheksiz retry, har retry yangi qator).
-**Variantlar:**
-1. *Hozirgi (sukut):* cheksiz retry. Afzal: Telegram uzilishi (soatlab) postni yo'qotmaydi. Xavf: doimiy "tranzient" xato (noto'g'ri
-   tasniflangan) har 30 s urinib, `post_deliveries` ni to'ldiradi (≈120 qator/soat/post), admin ogohlantirilmaydi.
-2. *Opt-in `DELIVERY_CARRY_ATTEMPTS=1` (kodda bor, sukut O'CHIQ):* sanagich oldingi `failed` qatordan ko'chadi → backoff 30s/2m/5m/15m
-   va 5-urinishda `dead_letter` (hujjatlangan qoida). Xavf: ~22 daqiqalik Telegram uzilishida post `failed` bo'ladi (avtomatik qayta
-   yuborilmaydi) — foydalanuvchi "post yo'qoldi" deydi. Yoqishdan oldin dead_letter postlari uchun admin ogohlantirishi/qayta
-   navbatga qo'yish buyrug'i kerak.
-3. *Aralash (tavsiya):* sanagich ko'chadi, lekin tarmoq xatosi (`NetworkError`/`TimedOut`) uchun dead_letter o'rniga backoff 15 daqiqada
-   "plato" qiladi, doimiy xatolar (`BadRequest`, `Forbidden`) darhol dead_letter. Bu biznes qarori + kichik kod o'zgarishi.
-DB sxemasi o'zgarmaydi (hech bir variant migratsiya talab qilmaydi); qaytarish — env o'zgaruvchini olib tashlash.
-Marker ko'chirilishi (dublikat xavfi) bu qarorga bog'liq emas va tuzatilgan.
+### AUDIT-002 (qoldiq) — `attempt_count` retry'lar orasida yig'iladi — TUZATILDI (sukut YOQILGAN)
+**Oldin:** kalit `(post, kanal, scheduled_time)`; `retry_post` vaqtni o'zgartirgani uchun har retry YANGI delivery qatori va
+`attempt_count` 1 ga qaytardi, backoff doim 30 s, `dead_letter` hech qachon ishga tushmadi (cheksiz retry).
+**Hozir:** `DELIVERY_CARRY_ATTEMPTS` SUKUT YOQILGAN (`0/false/no/off` o'chiradi). Yangi qator oldingi `failed` qatorning `attempt_count`ini
+oladi → backoff 30s/2m/5m/15m o'sadi, 5-urinishda `dead_letter` (post `failed`). `sent` qatordan (recurring keyingi davr) hech narsa
+ko'chmaydi. Test: `scheduler_attempt_count_test` (yoqilgan va o'chirilgan rejimlar, real PG).
+**Xavf (bilib qabul qilingan):** ~22 daqiqadan uzoq Telegram uzilishida post `failed` bo'ladi va avtomatik qayta yuborilmaydi. Yumshatish
+variantlari (kod yozilmagan): tarmoq xatosi uchun backoff 15 daqiqada "plato" qilish, dead_letter postlari uchun admin ogohlantirishi /
+qayta navbatga qo'yish buyrug'i. DB sxemasi o'zgarmaydi; qaytarish — `DELIVERY_CARRY_ATTEMPTS=0`.
 
 ### AUDIT-003 / 009 (qoldiq) — yuborildi → qayta rejalash oralig'idagi crash — TUZATILDI
 **Oldin:** `mark_post_as_sent` (`posted`) va `reschedule_recurring_post` ikki alohida tranzaksiya edi; oraliqda crash bo'lsa recurring
@@ -71,14 +65,18 @@ chek rasmi adminga ketadi, admin summani ko'z bilan solishtiradi; `_approve_rece
 (rad etmaydi, xavfi eng past). Xavf (1): bir chek ikki foydalanuvchi uchun qonuniy bo'lishi (oila) — blok soxta rad bo'ladi.
 Eslatma: cheklarni faqat `ADMIN_IDS_SET` tasdiqlay oladi (DB-rolli `finance` emas).
 
-### AUDIT-008 — `SENT_JOURNAL_PATH` berilmasa (crash oynasi)
-**Holat (`scheduler_crash_window_test` B, KNOWN-OPEN):** Telegram'ga chiqdi → `mark_post_as_sent` COMMIT bo'lmadi → jarayon o'ldi:
-DB'da yuborilgan dalil yo'q, recovery postni qayta navbatga qo'yadi va keyingi claim kanalni tekshirmay yuboradi (dublikat mumkin).
-Telegram `sendMessage` uchun exactly-once kafolat bermaydi; oyna — yuborish bilan `mark_post_as_sent` (qayta urinishlar bilan
-0.5–4 s) orasi. Xavfsiz oynalar (yuborishdan oldin crash; `mark_post_as_sent`dan keyin crash; `sent` dalili) testlar bilan tasdiqlangan.
-**Variantlar:** (1) hozirgi — dublikat xavfi, yo'qotish yo'q; (2) restart/stale-reclaim'da AMBIGUOUS_VERIFY markeri: avval kanal o'qiladi
-(`channel_posts_history` yoki ochiq kanal `t.me/s/`) — private kanalda o'qib bo'lmasa post `unknown`ga o'tadi (dublikat yo'q, lekin post
-avtomatik chiqmaydi, admin kerak). Tanlov: dublikat vs "qo'lda tasdiq". Hozir (1).
+### AUDIT-008 — Telegram'ga chiqdi, DB marker yozilmadi (crash oynasi) — QISMAN TUZATILDI
+**Oldin:** recovery postni qayta navbatga qo'yardi va keyingi claim kanalni tekshirmay yuborardi → dublikat.
+**Hozir:** restart recovery va stale-reclaim delivery'ga `AMBIGUOUS_VERIFY attempt=0` markerini qo'yadi; scheduler qayta yuborishdan OLDIN
+kanalni o'qiydi (`channel_posts_history` yoki ochiq kanal `t.me/s/`): post bor → yuborilmaydi (delivery `sent`); yo'q → yuboriladi;
+o'qib bo'lmasa → 30 s oralig'ida 3 urinish, so'ng `unknown` (avtomatik yuborish taqiqlanadi, admin ko'radi).
+Tekshiruvga vaqt oynasi himoyasi qo'shildi: sanasi ma'lum va 15 daqiqadan eski xabar mos kelmaydi — takrorlanuvchi bir xil matnli
+postda kechagi xabar bugungi postni "yuborilgan" deb yo'qotmaydi. Testlar: `scheduler_crash_window_test` B1–B3d (real PG; tuzatishsiz B1, B2, B3c qizil).
+**Telegram exactly-once BERMAYDI; dublikat to'liq yo'qolmadi.** Qolgan oynalar: (a) kanal o'qildi, lekin yuborilgan xabar hali ko'rinmadi
+(history/`t.me/s` kechikishi) → "yo'q" deb topilib qayta yuboriladi; (b) restart 15 daqiqadan keyin bo'lsa eski xabar oynadan chiqadi;
+(c) bot o'z postlarini `channel_posts_history`ga yozmasa va kanal yopiq bo'lsa tekshirib bo'lmaydi.
+**Narx:** crash yuborishdan OLDIN bo'lgan bo'lsa ham, yopiq/o'qib bo'lmaydigan kanalda post `unknown` bo'ladi va admin qo'lda qaror qiladi
+(dublikat o'rniga "qo'lda tasdiq" tanlandi). `SENT_JOURNAL_PATH` (eski opt-in journal) bunga bog'liq emas.
 
 ### AUDIT-015 — `AI_GLOBAL_DAILY_USD=0` va kredit ekspluatatsiyasi
 **Mavjud kod/hujjat:** `services/ai/budget.py:184` (`max(0.0, _float_env(...,0.0))`), `CLAUDE.md`, `DEPLOYMENT.md`: `0` = global

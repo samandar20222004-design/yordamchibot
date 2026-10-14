@@ -115,7 +115,10 @@ try:
     check("2-claim verify markerini KO'RADI (kanal tekshiruvisiz ko'r-ko'rona yuborilmaydi)",
           sr.delivery_verify_pending(c2.get("last_error")) and c2.get("verify_pending") is True, str(c2))
     check("verify urinish raqami saqlanadi (attempt=1)", sr.delivery_verify_attempt(c2.get("last_error")) == 1, str(c2.get("last_error")))
-    check("attempt_count semantikasi O'ZGARMADI (yangi qator 0 dan)", row(key2)[1] == 0, str(row(key2)))
+    # AUDIT-002: DELIVERY_CARRY_ATTEMPTS sukut YOQILGAN — yangi qator oldingi 'failed' qatorning urinishlar sonini oladi
+    # (retry'lar bo'yicha yig'iladi); oshirmaydi va 0 ga tushirmaydi.
+    check("attempt_count oldingi urinishdan ko'chadi (kamaymaydi, sakramaydi)",
+          row(key2)[1] == row(key1)[1] and row(key2)[1] >= 1, f"{row(key1)} -> {row(key2)}")
 
     # 2) zanjir: tekshiruv 'post kanalda yo'q' dedi -> marker tozalanadi -> keyingi retry'da marker qaytib kelmaydi
     check("marker tozalandi (clear_post_delivery_verify_pending)", sr.clear_post_delivery_verify_pending(key2) is True)
