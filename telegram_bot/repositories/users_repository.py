@@ -1764,11 +1764,17 @@ def refund_ai_request(user_id: int, reservation_id) -> dict:
             if source == AI_RESERVE_SOURCE_QUOTA:
                 # Kunlik kvota qaytadi (manfiyga tushib ketmaydi).
                 _ensure_limit_reset(cur, uid)
+                # Faqat HOZIRGI kunlik davrdagi bron hisoblagichni kamaytiradi: kecha (reset'dan oldin)
+                # yaratilgan bron qaytarilganda bugungi hisoblagichga TEGILMAYDI (aks holda foydalanuvchi
+                # bepul so'rov ortiqcha oladi). Davr boshi = users.last_limit_reset; bron sanasi
+                # created_at::date (CURRENT_DATE bilan bir xil sessiya zonasida). Sxema o'zgarmaydi.
                 cur.execute(
                     "UPDATE users SET ai_requests_today = GREATEST("
                     "COALESCE(ai_requests_today, 0) - %s, 0) "
-                    "WHERE user_id = %s",
-                    (cost, uid),
+                    "WHERE user_id = %s AND (last_limit_reset IS NULL OR last_limit_reset <= "
+                    "COALESCE((SELECT created_at::date FROM ai_reservations "
+                    "WHERE id = %s AND user_id = %s), CURRENT_DATE))",
+                    (cost, uid, rid, uid),
                 )
             else:
                 # Kredit qaytadi + audit yozuvi (BIR tranzaksiyada).

@@ -280,11 +280,15 @@ class PaymentService:
                             "payment_method": method, "currency": curcy}
 
                 # 4) Obuna uzaytirish: max(current_expiry, NOW()) + days (additive)
+                # Enterprise (muddatsiz) foydalanuvchi huquqini yo'qotmaydi: tarif saqlanadi, muddatsiz
+                # bo'lsa muddat NULL qoladi (qoida: users_repository.sync_stars_subscription bilan bir xil).
                 cur.execute(
-                    "UPDATE users SET plan_type = %s, "
-                    "subscription_expires_at = GREATEST("
-                    "COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL "
+                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+                    "THEN plan_type ELSE %s END, "
+                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
+                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+                    "+ (%s || ' days')::INTERVAL END "
                     "WHERE user_id = %s",
                     (plan, str(int(duration_days)), user_id),
                 )
@@ -509,11 +513,14 @@ class PaymentService:
                         log_silent_failure("services.payment_service:PaymentService._approve_receipt:506", _silent_exc, receipt_id=receipt_id)
 
                 # 5) PRO berish: max(current_expiry, NOW()) + days (additive)
+                # Enterprise (muddatsiz) huquqi saqlanadi (qarang: process_stars_payment).
                 cur.execute(
-                    "UPDATE users SET plan_type = 'pro', "
-                    "subscription_expires_at = GREATEST("
-                    "   COALESCE(subscription_expires_at, NOW()), NOW())"
-                    "   + (%s || ' days')::INTERVAL "
+                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+                    "THEN plan_type ELSE 'pro' END, "
+                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
+                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+                    "+ (%s || ' days')::INTERVAL END "
                     "WHERE user_id = %s",
                     (str(grant_days), int(user_id)),
                 )

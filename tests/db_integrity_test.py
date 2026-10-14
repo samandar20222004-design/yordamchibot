@@ -172,8 +172,8 @@ def test_flows_use_single_transaction_block():
             ("_reject_receipt", "UPDATE payment_receipts SET status = 'rejected'"),
         ],
         "services/subscription_service.py": [
-            ("activate", "UPDATE users SET plan_type = %s"),
-            ("extend", "subscription_expires_at = GREATEST"),
+            ("activate", "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise'"),
+            ("extend", "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW())"),
             ("revoke", "plan_type = 'free'"),
         ],
         "services/promo_service.py": [

@@ -68,6 +68,12 @@ Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
   `tests/ai_usage_persistence_test.py` (jonli qism: `AI_BUDGET_TEST_DATABASE_URL` —
   FAQAT sinov bazasi, jadvallar tozalanadi).
 
+- **Tarif/kredit qoidalari (tuzatilgan):** enterprise (muddatsiz) foydalanuvchi to'lov/obuna/promo orqali PRO ga
+  TUSHMAYDI (Stars/karta, `SubscriptionService.activate/extend`, Payme grant/revoke, promo; qoida
+  `sync_stars_subscription` dan olingan); kecha yaratilgan AI bron bugungi kunlik hisoblagichni kamaytirmaydi
+  (`refund_ai_request`); kunlik faollik bonusi parallel chaqiruvda ikki marta berilmaydi (users qatori `FOR UPDATE`).
+  Testlar: `enterprise_plan_preservation_test`, `ai_refund_period_test`, `credits_bonus_concurrency_test` (real PG, SKIP agar URL yo'q).
+
 ## 📱 Mini App (yangi, `MINIAPP_ENABLED=0` — sukut bo'yicha O'CHIQ)
 
 Vite + React + TS frontend `miniapp/`, backend qatlami `telegram_bot/miniapp_api/` (o'qish: `/api/v1/health|me|channels|scheduled-posts|posts/{id}`;

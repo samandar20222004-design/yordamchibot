@@ -3,7 +3,9 @@
 
 DIQQAT: faqat ALOHIDA SINOV BAZASI. `PREMIUM_REPRO_DATABASE_URL` berilmasa SKIP. Skript
 `init_db()` ni shu bazada ishga tushiradi va 9100000+ oralig'idagi user_id'larni yozib/o'chiradi.
-`tests/run_tests.sh` ga ULANMAGAN: u hali TUZATILMAGAN xulq-atvorni hujjatlaydi (biznes qarori kutilmoqda).
+`tests/run_tests.sh` ga ULANMAGAN. Holat: A (bonus) VA B (enterprise) VA C (kechagi bron) TUZATILGAN —
+bu skript endi `--strict` rejimida regressiya sifatida ishlatilishi mumkin; doimiy regressiyalar: credits_bonus_concurrency_test,
+enterprise_plan_preservation_test, ai_refund_period_test.
 
   A. Kunlik faollik bonusi parallel chaqiruvda ikki marta berilishi (credits_service.py:333-362).
   B. Enterprise (muddatsiz) foydalanuvchi PRO sotib olganda tarifi/muddati o'zgarishi

@@ -1291,6 +1291,8 @@ echo
 echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
 "$PY" tests/credits_referral_test.py || fail "tests/credits_referral_test.py"
 "$PY" tests/credits_bonus_concurrency_test.py || fail "tests/credits_bonus_concurrency_test.py"
+"$PY" tests/enterprise_plan_preservation_test.py || fail "tests/enterprise_plan_preservation_test.py"
+"$PY" tests/ai_refund_period_test.py || fail "tests/ai_refund_period_test.py"
 
 echo
 echo "===== STEP 2 — ORGANIC GROWTH (action-based referral + TTFV) ====="
