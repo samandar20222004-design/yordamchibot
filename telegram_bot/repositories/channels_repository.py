@@ -960,15 +960,22 @@ def save_channel_post_history(
     channel_id: str | int,
     message_id: int = None,
     content: str = "",
-    views: int = 0,
-    post_date=None
+    views: int | None = None,
+    post_date=None,
+    views_source: str | None = None,
 ) -> int:
-    """Yangi kelgan kanal postini channel_posts_history jadvaliga saqlaydi yoki yangilaydi."""
+    """Yangi kelgan kanal postini channel_posts_history jadvaliga saqlaydi yoki yangilaydi.
+
+    ``views`` — Telegram Bot API xabar ko'rishlarini BERMAYDI: ``None`` = NOMA'LUM (NULL yoziladi, soxta 0 EMAS) va
+    mavjud bilingan qiymatni O'CHIRMAYDI. Raqam berilsa ``views_source`` (masalan ``tme_preview``) va yig'ilgan vaqt
+    saqlanadi; ko'rishlar kamaymaydi (GREATEST).
+    """
     ch_id = str(channel_id or "").strip()
     if not ch_id:
         return -1
     text = str(content or "").strip()
-    v_count = max(0, int(views or 0))
+    v_count = None if views is None else max(0, int(views))
+    source = (str(views_source).strip()[:64] or None) if (views_source and v_count is not None) else None
     if post_date is None:
         post_date = datetime.now(pytz.UTC)
     try:
@@ -980,26 +987,41 @@ def save_channel_post_history(
                 )
                 row = cur.fetchone()
                 if row:
-                    cur.execute(
-                        """
-                        UPDATE channel_posts_history
-                        SET content = COALESCE(NULLIF(%s, ''), content),
-                            views = GREATEST(views, %s),
-                            post_date = COALESCE(%s, post_date)
-                        WHERE id = %s
-                        RETURNING id
-                        """,
-                        (text, v_count, post_date, row[0])
-                    )
+                    if v_count is None:
+                        cur.execute(
+                            """
+                            UPDATE channel_posts_history
+                            SET content = COALESCE(NULLIF(%s, ''), content),
+                                post_date = COALESCE(%s, post_date)
+                            WHERE id = %s
+                            RETURNING id
+                            """,
+                            (text, post_date, row[0])
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            UPDATE channel_posts_history
+                            SET content = COALESCE(NULLIF(%s, ''), content),
+                                views = GREATEST(views, %s),
+                                views_source = %s,
+                                views_collected_at = NOW(),
+                                post_date = COALESCE(%s, post_date)
+                            WHERE id = %s
+                            RETURNING id
+                            """,
+                            (text, v_count, source, post_date, row[0])
+                        )
                     res = cur.fetchone()
                     return int(res[0]) if res else row[0]
             cur.execute(
                 """
-                INSERT INTO channel_posts_history (channel_id, message_id, content, views, post_date)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO channel_posts_history
+                    (channel_id, message_id, content, views, views_source, views_collected_at, post_date)
+                VALUES (%s, %s, %s, %s, %s, CASE WHEN %s IS NULL THEN NULL ELSE NOW() END, %s)
                 RETURNING id
                 """,
-                (ch_id, message_id, text, v_count, post_date)
+                (ch_id, message_id, text, v_count, source, v_count, post_date)
             )
             row = cur.fetchone()
             return int(row[0]) if row else -1
@@ -1018,7 +1040,8 @@ def get_channel_posts_history(channel_id: str | int, limit: int = 5) -> list[dic
         with db_cursor() as cur:
             cur.execute(
                 """
-                SELECT id, channel_id, message_id, content, views, post_date, created_at
+                SELECT id, channel_id, message_id, content, views, post_date, created_at,
+                       views_source, views_collected_at
                 FROM channel_posts_history
                 WHERE channel_id = %s
                 ORDER BY post_date DESC, id DESC
@@ -1034,7 +1057,11 @@ def get_channel_posts_history(channel_id: str | int, limit: int = 5) -> list[dic
                     "message_id": r[2],
                     "text": r[3] or "",
                     "content": r[3] or "",
+                    # Eski iste'molchilar uchun int (noma'lum -> 0); haqiqiy "noma'lum" holat `views_known` da.
                     "views": r[4] or 0,
+                    "views_known": r[4] is not None,
+                    "views_source": r[7],
+                    "views_collected_at": r[8].isoformat() if r[8] else None,
                     "post_date": r[5].isoformat() if r[5] else "",
                     "date": r[5].isoformat() if r[5] else "",
                     "created_at": r[6].isoformat() if r[6] else "",
@@ -1043,6 +1070,118 @@ def get_channel_posts_history(channel_id: str | int, limit: int = 5) -> list[dic
             ]
     except Exception as e:
         logger.error(f"Kanal postlari tarixini olishda xato: {e}")
+        return []
+
+
+MEMBER_COUNT_SOURCE = "bot_api_getChatMemberCount"
+MEMBER_HISTORY_MAX_DAYS = 400
+
+
+def save_channel_member_count(channel_id: str | int, member_count, *, snapshot_date=None,
+                              source: str = MEMBER_COUNT_SOURCE) -> bool:
+    """Kanal obunachilari soni snapshot'i (kuniga BITTA: bir kunda qayta chaqirilsa oxirgi qiymat yangilanadi).
+
+    Telegram ``getChatMemberCount`` joriy sonni beradi, tarixni EMAS — tarix shu kunlik snapshot'lardan quriladi.
+    Noto'g'ri qiymat (None/manfiy/bo'sh kanal) rad etiladi. Qaytadi: yozildimi (DB xatosida ``False``).
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return False
+    try:
+        count = int(member_count)
+    except (TypeError, ValueError):
+        return False
+    if count < 0:
+        return False
+    day = snapshot_date or datetime.now(pytz.timezone("Asia/Tashkent")).date()
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                """
+                INSERT INTO channel_member_counts (channel_id, snapshot_date, member_count, source)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (channel_id, snapshot_date)
+                DO UPDATE SET member_count = EXCLUDED.member_count,
+                              source = EXCLUDED.source,
+                              collected_at = NOW()
+                """,
+                (ch_id, day, count, str(source or MEMBER_COUNT_SOURCE)[:64]),
+            )
+        return True
+    except Exception as e:
+        logger.error(f"Obunachilar snapshot'ini saqlash xatosi (kanal={ch_id}): {e}")
+        return False
+
+
+def get_channel_member_history(channel_id: str | int, days: int = 90, user_id: int | None = None) -> list[dict]:
+    """Kanalning oxirgi ``days`` kunlik obunachilar snapshot'lari (yangidan eskiga). DB xatosida bo'sh ro'yxat.
+
+    ``user_id`` berilsa natija FAQAT shu foydalanuvchi egasi bo'lgan kanal uchun qaytadi (IDOR himoyasi: handler
+    callback'dan kelgan kanal ID'si egalikka tekshirilmagan bo'lishi mumkin). Berilmasa — ichki (tizim) chaqiruv.
+    """
+    ch_id = str(channel_id or "").strip()
+    if not ch_id:
+        return []
+    try:
+        span = max(1, min(int(days), MEMBER_HISTORY_MAX_DAYS))
+    except (TypeError, ValueError):
+        span = 90
+    since = datetime.now(pytz.timezone("Asia/Tashkent")).date() - timedelta(days=span)
+    try:
+        with db_cursor() as cur:
+            if user_id is None:
+                cur.execute(
+                    """
+                    SELECT m.snapshot_date, m.member_count, m.source, m.collected_at
+                    FROM channel_member_counts m
+                    WHERE m.channel_id = %s AND m.snapshot_date >= %s
+                    ORDER BY m.snapshot_date DESC
+                    """,
+                    (ch_id, since),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT m.snapshot_date, m.member_count, m.source, m.collected_at
+                    FROM channel_member_counts m
+                    JOIN channels c ON c.channel_id = m.channel_id AND c.user_id = %s
+                    WHERE m.channel_id = %s AND m.snapshot_date >= %s
+                    ORDER BY m.snapshot_date DESC
+                    """,
+                    (int(user_id), ch_id, since),
+                )
+            return [
+                {"date": r[0].isoformat(), "member_count": int(r[1]), "source": r[2],
+                 "collected_at": r[3].isoformat() if r[3] else None}
+                for r in cur.fetchall()
+            ]
+    except Exception as e:
+        logger.error(f"Obunachilar tarixini o'qish xatosi (kanal={ch_id}): {e}")
+        return []
+
+
+def get_channels_for_member_snapshot() -> list[str]:
+    """Bugun hali snapshot olinmagan FAOL kanallar (channel_id, tartiblangan). DB xatosida bo'sh ro'yxat.
+
+    Faqat "bugun yo'q" kanallar qaytadi: ish kuniga bir necha marta ishga tushsa ham (restart, FloodWait, vaqtinchalik
+    xato) takroriy so'rov yubormaydi va yarim qolgan ishni davom ettiradi.
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.channel_id FROM channels c
+                WHERE c.is_active = TRUE
+                  AND NOT EXISTS (
+                      SELECT 1 FROM channel_member_counts m
+                      WHERE m.channel_id = c.channel_id AND m.snapshot_date = %s)
+                ORDER BY c.id
+                """,
+                (datetime.now(pytz.timezone("Asia/Tashkent")).date(),),
+            )
+            return [str(r[0]) for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Snapshot uchun kanallar ro'yxatini o'qish xatosi: {e}")
         return []
 
 

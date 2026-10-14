@@ -302,8 +302,10 @@ class FakeStore:
                 ch_id, limit = str(params[0]), int(params[1])
                 texts = st.history.get(ch_id, [])[:limit]
                 now = datetime(2026, 9, 16, 12, 0, 0)
+                # Real SELECT ustun tartibi (9 ustun): id, channel_id, message_id, content, views, post_date,
+                # created_at, views_source, views_collected_at (oxirgi ikkitasi analitika asosida qo'shilgan).
                 self._rows = [
-                    (1000 + i, ch_id, 500 + i, text, 100, now, now)
+                    (1000 + i, ch_id, 500 + i, text, 100, now, now, "tme_preview", now)
                     for i, text in enumerate(texts)
                 ]
                 return

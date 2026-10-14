@@ -340,9 +340,10 @@ async def channel_stats_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     title = _channel_title(channel)
     try:
-        from handlers.analytics import _build_dashboard
+        from handlers.analytics import _attach_member_growth, _build_dashboard
 
         stats = await db.run_db(db.get_channel_post_stats, user_id, channel_id)
+        stats = await _attach_member_growth(stats or {}, user_id, channel_id)
         text = _build_dashboard(stats or {}, title, lang)
     except Exception:
         # Statistika o'qilmasa ham foydalanuvchi JAVOB olishi shart —
@@ -1731,7 +1732,10 @@ async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     channel_id = str(msg.chat.id)
     message_id = getattr(msg, "message_id", None)
     text = (msg.text or msg.caption or "").strip()
-    views = getattr(msg, "views", 0) or 0
+    # Telegram Bot API `Message` da `views` YO'Q: atribut yo'q -> NOMA'LUM (NULL), soxta 0 emas. Mavjud bo'lsa
+    # (boshqa transport/kelajak API) — manba bilan saqlanadi.
+    views = getattr(msg, "views", None)
+    views_source = "bot_api_event" if views is not None else None
     post_date = getattr(msg, "date", None)
 
     content = text
@@ -1757,6 +1761,7 @@ async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
             message_id=message_id,
             content=content,
             views=views,
+            views_source=views_source,
             post_date=post_date,
         )
     except Exception as e:

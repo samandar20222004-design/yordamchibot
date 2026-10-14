@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlsplit
 from types import SimpleNamespace
 import logging
@@ -39,6 +39,7 @@ from scheduler import (
     check_and_send_posts,
     check_and_delete_expired_posts,
     notify_post_problems,
+    snapshot_channel_member_counts_job,
     cleanup_old_data_job,
     cleanup_old_records_job,
     poll_content_sources_job,
@@ -1034,6 +1035,14 @@ async def main():
         notify_post_problems, 'interval', minutes=1, args=[application.bot],
         id="notify_post_problems", timezone=tashkent_tz,
         max_instances=1, coalesce=True, misfire_grace_time=300,
+    )
+    # Kanal obunachilari kunlik snapshot'i (analitika asosi): har 6 soatda, faqat BUGUN hali olinmagan kanallar
+    # (idempotent; restart/FloodWait/vaqtinchalik xatodan keyin davom etadi).
+    scheduler.add_job(
+        snapshot_channel_member_counts_job, 'interval', hours=6, args=[application.bot],
+        id="snapshot_channel_member_counts", timezone=tashkent_tz,
+        max_instances=1, coalesce=True, misfire_grace_time=1800,
+        next_run_time=now_tashkent() + timedelta(seconds=120),
     )
     scheduler.add_job(
         check_and_delete_expired_posts, 'interval', minutes=1, args=[application.bot],

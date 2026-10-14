@@ -245,6 +245,8 @@ PAYME_TABLES = ("payme_orders", "payme_transactions")
 
 # 📱 Mini App qoralamalari (bot -> Mini App): schema.sql, frozen EXPECTED_* dan ALOHIDA.
 MINIAPP_TABLES = ("miniapp_drafts",)
+# 📊 Kanal analitikasi asosi (obunachilar kunlik snapshot'i): schema.sql, frozen EXPECTED_* dan ALOHIDA.
+ANALYTICS_TABLES = ("channel_member_counts",)
 PAYME_INDEXES = ("idx_payme_orders_user", "uq_payme_tx_active_order", "idx_payme_tx_payme_time")
 
 # PHASE E names are also kept in separate lists for migration tooling and
@@ -2131,7 +2133,7 @@ def _verify_schema(cur) -> None:
     )
     tables = {row[0] for row in cur.fetchall()}
     required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES, *MINIAPP_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
@@ -2223,7 +2225,7 @@ def _schema_bootstrap_complete(cur) -> bool:
         )
         tables = {row[0] for row in cur.fetchall()}
         required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES, *MINIAPP_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES)
         if any(t not in tables for t in required_tables):
             return False
 
@@ -2435,6 +2437,8 @@ from repositories.channels_repository import (  # noqa: E402, F401
     remove_sponsor_channel, reset_channel_post_count, save_channel,
     save_channel_dna, save_channel_dna_profile,
     save_channel_intelligence_profile, save_channel_post_history,
+    MEMBER_COUNT_SOURCE, MEMBER_HISTORY_MAX_DAYS, get_channel_member_history,
+    get_channels_for_member_snapshot, save_channel_member_count,
     save_source_item, set_ad_active, set_ad_interval, set_ad_status,
     set_channel_ad_interval, set_channel_ad_status, set_channel_tone,
     set_comment_analysis, set_content_source_autopublish,
@@ -2918,6 +2922,10 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;",
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS post_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;",
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;",
+        # Analitika asosi: ko'rishlar manbasi/vaqti; noma'lum ko'rishlar NULL (soxta 0 emas).
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_source TEXT;",
+        "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_collected_at TIMESTAMPTZ;",
+        "ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT;",
         # persistent delivery + backoff ustunlari.
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",
