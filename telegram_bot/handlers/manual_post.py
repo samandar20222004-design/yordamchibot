@@ -40,7 +40,6 @@ bilan konfliktsiz (430–442 magic/voice, 460+ post_score/calendar):
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from datetime import datetime, timedelta
@@ -84,6 +83,15 @@ from keyboards.inline import (
     strip_variation_selector,
 )
 from locales.translations import clear_fsm_data, get_lang, get_text
+from services.album_gate import take_album_payload
+from services.media_group_collector import (
+    ALBUM_DEBOUNCE_SECONDS as _CANONICAL_ALBUM_DEBOUNCE_SECONDS,
+)
+from services.media_group_collector import (
+    MediaGroupCollector,
+    build_album_preview,
+    send_album_preview,
+)
 from translations import manual_post_t
 from utils.date_format import format_datetime, format_time
 from utils.helpers import (
@@ -156,14 +164,22 @@ _SUPPORTED_MEDIA = ("photo", "video", "animation", "document")
 # xatti-harakat: har fayl uchun yangi preview chiqardi va postda faqat OXIRGI
 # fayl qolar edi (10 ta rasm = 10 preview, kanalda 1 rasm). Endi:
 #   * guruhning barcha fayllari (10 tagacha) bitta draftga yig'iladi;
-#   * oraliq fayllar uchun preview SPAM qilinmaydi (bitta xabar yetarli);
+#   * birinchi/oraliq fayllar uchun partial preview umuman yuborilmaydi;
 #   * "jimlik" oynasi tugagach BITTA yakuniy xabar chiqadi (nechta fayl) va
 #     post `post_type="album"` sifatida saqlanadi (bitta DB yozuvi = bitta
 #     kvota birligi);
 #   * albom to'lsa (10) — qo'shimcha fayl uchun aniq ogohlantirish.
-_MANUAL_ALBUM_TASKS: dict = {}          # user_id -> asyncio.Task (yakunlovchi)
-_MANUAL_ALBUM_WAIT_SECONDS = 2.5        # oxirgi fayldan keyingi jimlik oynasi
+_MANUAL_ALBUM_TASKS: dict = {}          # user_id -> yagona collector worker task'i
+_MANUAL_ALBUM_KEYS: dict = {}           # user_id -> (user_id, media_group_id)
+# Oxirgi fayldan keyingi jimlik oynasi — YAGONA manba (qat'iy 2.0s).
+_MANUAL_ALBUM_WAIT_SECONDS = _CANONICAL_ALBUM_DEBOUNCE_SECONDS
 _MANUAL_ALBUM_MAX_ITEMS = 10            # Telegram media-guruh chegarasi
+# Umumiy collector har media_group uchun bitta worker + bitta asyncio.Lock
+# ishlatadi. Handlerlar faqat item qo'shadi; oraliq preview yubormaydi.
+_MANUAL_ALBUMS = MediaGroupCollector(
+    delay=_MANUAL_ALBUM_WAIT_SECONDS,
+    max_items=_MANUAL_ALBUM_MAX_ITEMS,
+)
 
 
 def _extract_media(msg):
@@ -259,51 +275,141 @@ def _manual_album_caption(items: list) -> str:
 
 
 def _manual_album_cancel(user_id: int) -> None:
-    """Yig'ishni yakunlovchi fon vazifasini bekor qiladi (post buzilmaydi)."""
+    """Foydalanuvchining faol media-group collectorini bekor qiladi."""
+    key = _MANUAL_ALBUM_KEYS.pop(user_id, None)
+    if key is not None:
+        _MANUAL_ALBUMS.cancel(key)
+    # Moslik/cleanup: task odatda collector tomonidan bekor qilinadi.
     task = _MANUAL_ALBUM_TASKS.pop(user_id, None)
-    if task is not None and not task.done() and not task.cancelled():
+    if key is None and task is not None and not task.done() and not task.cancelled():
         task.cancel()
 
 
-def _manual_album_schedule(user_id: int, context, lang: str) -> None:
-    """Jimlik oynasi tugagach albomni BITTA post sifatida yakunlaydi.
+def _manual_album_schedule(user_id: int, context, lang: str, chat_id,
+                           group_id, item: dict) -> str:
+    """Item'ni bitta lock'langan, last-item debounce collectoriga qo'shadi.
 
-    Har bir yangi fayl vazifani qaytadan boshlaydi (idle timeout) — sekin
-    kelgan albom ham bo'linib ketmaydi. Handler ICHIDA sleep qilinmaydi
-    (per-user lock bloklanmasligi uchun vazifa arka fonda ishlaydi).
+    Birinchi item bitta worker ochadi. Keyingi itemlar o'sha buferga append
+    qilinadi va debounce taymerini reset qiladi; yangi preview task'i yoki
+    oraliq ``"1 ta media"`` javobi yaratilmaydi.
     """
-    _manual_album_cancel(user_id)
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:  # pragma: no cover — sinxron chaqiruv
-        return
-    _MANUAL_ALBUM_TASKS[user_id] = loop.create_task(
-        _manual_album_finalize(user_id, context, lang)
-    )
+    key = (user_id, str(group_id))
+    previous = _MANUAL_ALBUM_KEYS.get(user_id)
+    if previous is not None and previous != key:
+        _MANUAL_ALBUMS.cancel(previous)
+
+    # Testlar oynani qisqartira oladi; production qiymati qat'iy 1.5 soniya.
+    _MANUAL_ALBUMS.delay = max(0.0, float(_MANUAL_ALBUM_WAIT_SECONDS))
+    _MANUAL_ALBUMS.max_wait = max(_MANUAL_ALBUMS.delay, _MANUAL_ALBUMS.max_wait)
+
+    async def ready(items):
+        await _manual_album_finalize(
+            user_id, context, lang, chat_id, items=items, collector_key=key,
+        )
+
+    outcome = _MANUAL_ALBUMS.add(key, item, ready)
+    _MANUAL_ALBUM_KEYS[user_id] = key
+    task = _MANUAL_ALBUMS.task_for(key)
+    if task is not None:
+        # Eski test/cleanup kontrakti: har user uchun aynan bitta worker.
+        _MANUAL_ALBUM_TASKS[user_id] = task
+    return outcome
 
 
-async def _manual_album_finalize(user_id: int, context, lang: str) -> None:
-    """Albom yig'ishni yakunlaydi va YAGONA xabar (nechta fayl) yuboradi."""
-    try:
-        await asyncio.sleep(_MANUAL_ALBUM_WAIT_SECONDS)
-    except asyncio.CancelledError:
-        return
+def _manual_album_schedule_many(user_id: int, context, lang: str, chat_id,
+                                group_id, items: list) -> str:
+    """Yig'ilgan TO'LIQ albomni (barcha fayllar) bitta collector buferiga yozadi.
+
+    ``services/album_gate.py`` media guruhni bitta update qilib qaytargan
+    bo'lsa, fayllar bir yo'la (atomik) qo'shiladi: FAQAT bitta worker va
+    jimlik oynasidan keyin FAQAT bitta preview/publish bo'ladi.
+
+    Qaytaradi: collector natijasi (``ADDED_STARTED`` / ``ADDED`` / ...).
+    """
+    key = (user_id, str(group_id))
+    previous = _MANUAL_ALBUM_KEYS.get(user_id)
+    if previous is not None and previous != key:
+        _MANUAL_ALBUMS.cancel(previous)
+
+    # Testlar oynani qisqartira oladi; production qiymati qat'iy 2.0 soniya.
+    _MANUAL_ALBUMS.delay = max(0.0, float(_MANUAL_ALBUM_WAIT_SECONDS))
+    _MANUAL_ALBUMS.max_wait = max(_MANUAL_ALBUMS.delay, _MANUAL_ALBUMS.max_wait)
+
+    async def ready(ready_items):
+        await _manual_album_finalize(
+            user_id, context, lang, chat_id, items=ready_items, collector_key=key,
+        )
+
+    outcome = _MANUAL_ALBUMS.add_many(key, list(items), ready)
+    _MANUAL_ALBUM_KEYS[user_id] = key
+    task = _MANUAL_ALBUMS.task_for(key)
+    if task is not None:
+        _MANUAL_ALBUM_TASKS[user_id] = task
+    return outcome
+
+
+def _album_ack_text(lang: str, count: int, content: str = "") -> str:
+    """🖼 Albom qabul tasdig'i + foydalanuvchi izohi — BITTA preview matni.
+
+    Albom yakunlanganda chiqadigan yagona matn: nechta fayl bitta post
+    bo'lishi (``np_album_received``) va albomga bog'langan izoh. Shu matn
+    unified preview kartasining caption'iga yoziladi (media, caption va
+    boshqaruv tugmalari BITTA xabarda chiqadi).
+    """
+    ack = get_text("np_album_received", lang, count=int(count or 0))
+    body = (content or "").strip()
+    return f"{ack}\n\n{body}" if body else ack
+
+
+async def _manual_album_finalize(user_id: int, context, lang: str, chat_id=None,
+                                 *, items: list | None = None,
+                                 collector_key=None) -> None:
+    """To'liq albomni saqlaydi va faqat BIRTA konsolidatsiyalangan preview beradi.
+
+    🖼 BIRLASHTIRILGAN PREVIEW: media, caption va boshqaruv tugmalari BITTA
+    xabarda chiqadi (``services.media_group_collector.build_album_preview``).
+    Avvalgi xatti-harakatda avval matn + panel, keyin esa albom fayllari
+    ALOHIDA ``sendMediaGroup`` xabari yuborilardi — bitta preview holati ikki
+    uzilgan xabarga bo'linib ketardi. Albomning barcha fayllari draftda
+    saqlanadi va kanalga bitta ``sendMediaGroup`` bilan chiqadi.
+    """
+    if collector_key is not None and _MANUAL_ALBUM_KEYS.get(user_id) != collector_key:
+        return  # sessiya/guruh almashtirilgan — eski callback hech narsa yubormaydi
+    _MANUAL_ALBUM_KEYS.pop(user_id, None)
     _MANUAL_ALBUM_TASKS.pop(user_id, None)
-    items = _manual_album_items(context)
-    if len(items) < 2:
+    items = list(items or _manual_album_items(context))
+    if not items:
         return
-    _manual_album_store(context, items)
+    if len(items) > 1:
+        _manual_album_store(context, items)
+    else:
+        # Telegram juda kam hollarda media_group_id bilan bitta item berishi
+        # mumkin; u oddiy media bo'lib qoladi, lekin baribir timeoutdan keyin
+        # faqat bir marta preview qilinadi.
+        only = items[0]
+        context.user_data[UD_POST_TYPE] = only["type"]
+        context.user_data[UD_FILE_ID] = only["file_id"]
+        context.user_data[UD_CONTENT] = only.get("caption") or ""
+        context.user_data[UD_MEDIA_GROUP] = False
     bot = getattr(context, "bot", None)
-    chat_id = getattr(context, "chat_id", None)
+    chat_id = chat_id or getattr(context, "chat_id", None)
     if bot is None or chat_id is None or not hasattr(bot, "send_message"):
         return
     try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=get_text("np_album_received", lang, count=len(items)),
+        # 🖼 BIRLASHTIRILGAN (UNIFIED) PREVIEW — media + caption + tugmalar
+        # BITTA xabarda. Telegram ``sendMediaGroup`` ga inline tugma ulashga
+        # ruxsat bermaydi, shu sababli albom muqova fayli + butun albomga
+        # tegishli caption + boshqaruv paneli bo'lgan yagona karta chiqadi
+        # (media fayllar va menyu ALOHIDA xabarlarga ajratilmaydi).
+        content = context.user_data.get(UD_CONTENT, "")
+        preview = build_album_preview(
+            items,
+            text=_album_ack_text(lang, len(items), content),
             reply_markup=_manual_preview_markup(context, lang),
             parse_mode="HTML",
+            sanitizer=sanitize_html,
         )
+        await send_album_preview(bot, preview, chat_id=chat_id)
     except Exception as _silent_exc:
         log_silent_failure("handlers.manual_post:_manual_album_finalize",
                            _silent_exc, user_id=user_id)
@@ -328,9 +434,13 @@ def _manual_album_take(context, item: dict, group_id) -> tuple:
         context.user_data[UD_ALBUM_GROUP] = group_id
         context.user_data[UD_ALBUM_ITEMS] = json.dumps([item], ensure_ascii=False)
         return True, False, False
+    message_id = item.get("message_id")
+    if message_id is not None and any(i.get("message_id") == message_id for i in items):
+        return True, True, False
     if len(items) >= _MANUAL_ALBUM_MAX_ITEMS:
         return True, True, True
     items.append(item)
+    items.sort(key=lambda i: i.get("message_id") or 0)
     _manual_album_store(context, items)
     return True, True, False
 
@@ -699,6 +809,13 @@ async def _show_preview(target_msg, context, lang: str):
     qo'shimchasi YO'Q: foydalanuvchi nima yuborgan bo'lsa, aynan o'sha chiqadi.
     Tanlangan reaksiyalar va havolali tugma bo'lsa — preview matnida xulosa
     qatori, markup'da esa TUGMALAR ko'rinadi (2-qadam UI/UX polish).
+
+    🖼 ALBOM: preview BITTA tuzilgan xabar — muqova media + butun albomga
+    tegishli caption + boshqaruv paneli (``build_album_preview`` /
+    ``send_album_preview``). Media fayllar va menyu ikki alohida xabarga
+    AJRATILMAYDI: Telegram ``sendMediaGroup`` ga inline tugma ulashga ruxsat
+    bermaydi, shu sababli albom muqova fayli bilan yagona kartada ko'rsatiladi
+    va barcha fayllar kanalga bitta ``sendMediaGroup`` bilan chiqadi.
     """
     content = context.user_data.get(UD_CONTENT, "") or ""
     post_type = context.user_data.get(UD_POST_TYPE, "text")
@@ -708,15 +825,19 @@ async def _show_preview(target_msg, context, lang: str):
     foot = manual_post_t("mp_preview_foot", lang)
     extras = _manual_extras_text(context, lang)
 
-    # 🖼 ALBOM: preview'da birinchi fayl "muqova" sifatida ko'rsatiladi,
-    # qolgan fayllar soni esa matnda (mp_album_summary) yoziladi — kanalga
-    # esa barcha fayllar BITTA albom bo'lib chiqadi.
+    # 🖼 ALBOM — BIRLASHTIRILGAN PREVIEW (media + caption + tugmalar = 1 xabar).
     preview_kind, preview_file = post_type, file_id
     if post_type == "album" and file_id:
         items = _manual_album_items(context)
         if items:
-            preview_kind = items[0].get("type") or "photo"
-            preview_file = items[0].get("file_id")
+            album_preview = build_album_preview(
+                items,
+                text=f"{title}{content}{extras}{foot}",
+                reply_markup=panel,
+                parse_mode="HTML",
+                sanitizer=sanitize_html,
+            )
+            return await send_album_preview(target_msg, album_preview, reply=True)
     if preview_kind in _SUPPORTED_MEDIA and preview_file:
         # Caption Telegram chegarasi 1024 — preview matni ham caption'da.
         caption_text = f"{title}{content}{extras}{foot}"
@@ -1106,9 +1227,10 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
     rad etiladi — lekin oqim uzilmaydi.
 
     🖼 ALBOM (media_group): guruhning BARCHA fayllari (10 tagacha) bitta
-    postga yig'iladi. Birinchi fayl uchun preview odatdagidek chiqadi;
-    qolganlarida preview TAKRORLANMAYDI (spam yo'q) — jimlik oynasi tugagach
-    bitta yakuniy xabar (nechta fayl) chiqadi va post ``album`` bo'ladi.
+    postga yig'iladi. Birinchi fayl ham partial preview chiqarmaydi;
+    jimlik oynasi oxirgi update'dan keyin tugagach BITTA birlashtirilgan
+    preview chiqadi (muqova media + "N ta fayl" tasdig'i + boshqaruv paneli
+    bir xabarda). Albom fayllari alohida xabarga ajratilmaydi.
     """
     msg = update.message
     lang = get_lang(context)
@@ -1126,8 +1248,37 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
         )
         return MANUAL_AWAIT_CONTENT
 
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib BITTA update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la albom draftiga yoziladi va jimlikdan keyin FAQAT BITTA preview
+    # (muqova + "N ta fayl") chiqadi. Har bir fayl alohida preview qilmaydi.
+    _payload = take_album_payload(context, msg)
+    if _payload is not None and _payload.is_album:
+        user_id = _manual_user_id(context) or getattr(
+            getattr(update, "effective_user", None), "id", 0) or 0
+        album_items = []
+        for raw_item in _payload.media_items():
+            if (raw_item.get("type") or "") in ("voice", "sticker"):
+                continue
+            album_items.append({
+                "type": raw_item.get("type") or "photo",
+                "file_id": raw_item.get("file_id"),
+                "caption": raw_item.get("caption") or "",
+                "message_id": raw_item.get("message_id"),
+            })
+        album_items = [i for i in album_items if i.get("file_id")]
+        if len(album_items) > 1:
+            context.user_data[UD_ALBUM_GROUP] = group_id
+            _manual_album_store(context, album_items)
+            _manual_album_schedule_many(
+                user_id, context, lang, msg.chat_id, group_id, album_items,
+            )
+            return MANUAL_PREVIEW
+
     if file_id and group_id:
-        item = {"type": post_type, "file_id": file_id, "caption": text_input}
+        text_input = getattr(msg, "caption_html", None) or text_input
+        item = {"type": post_type, "file_id": file_id, "caption": text_input,
+                "message_id": getattr(msg, "message_id", None)}
         user_id = _manual_user_id(context) or getattr(
             getattr(update, "effective_user", None), "id", 0) or 0
         is_album, silent, over_limit = _manual_album_take(context, item, group_id)
@@ -1146,18 +1297,22 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
                         "handlers.manual_post:manual_content_received:album_limit",
                         _silent_exc, user_id=user_id)
                 return MANUAL_PREVIEW
-            # Jimlik oynasini yangilaymiz (har yangi fayl hisobga olinadi).
-            _manual_album_schedule(user_id, context, lang)
+            # Bitta per-media_group worker: yangi item debounce'ni reset qiladi,
+            # lekin mustaqil finalizer/preview yaratmaydi.
+            _manual_album_schedule(
+                user_id, context, lang, msg.chat_id, group_id, item,
+            )
             if silent:
                 # Oraliq fayl — preview SPAM qilinmaydi; yakuniy xabar
                 # (nechta fayl saqlangani) fondagi vazifa tomonidan yuboriladi.
                 return MANUAL_PREVIEW
-            # Birinchi fayl — oddiy media sifatida ko'rsatiladi (quyida),
-            # albom holati esa ikkinchi fayldan boshlab o'rnatiladi.
+            # Birinchi update ham partial "1 ta media" preview yubormaydi.
+            # Qolgan Telegram update'lari kelguncha draft ichki holatda turadi.
             context.user_data[UD_POST_TYPE] = post_type
             context.user_data[UD_FILE_ID] = file_id
             context.user_data[UD_CONTENT] = text_input
             context.user_data[UD_MEDIA_GROUP] = False
+            return MANUAL_PREVIEW
     else:
         context.user_data[UD_CONTENT] = text_input
         context.user_data[UD_POST_TYPE] = post_type if file_id else "text"

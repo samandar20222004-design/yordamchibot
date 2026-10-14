@@ -475,6 +475,25 @@ class RateLimitMiddleware(BaseHandler):
             scope.update = None
             self._admitted_update.reset(token)
 
+    @asynccontextmanager
+    async def pre_admitted(self, update: Any):
+        """Update'ni "allaqachon qabul qilingan" deb belgilaydi (qayta sanamaydi).
+
+        Albom (media_group) yig'uvchisi kabi fon komponentlar bir nechta xom
+        update'ni bitta konsolidatsiyalangan update sifatida qayta uzatadi.
+        Bunday update allaqachon qabul zanjiridan o'tgan — bu scope uning
+        uchun granula hisoblagichlarini QAYTA oshirmaydi va bloklab
+        qo'ymaydi (masalan, 5 ta albom fayli + 1 ta konsolidatsiya = 1 ta
+        to'lov emas, 5 ta xom xabar hisobi).
+        """
+        scope = _AdmissionScope(update)
+        token = self._admitted_update.set(scope)
+        try:
+            yield True
+        finally:
+            scope.update = None
+            self._admitted_update.reset(token)
+
     # --- PTB handler interfeysi ----------------------------------------
     def check_update(self, update: Any) -> bool:
         """Har bir update tekshiriladi (lekin «qo'lda ushlanmaydi»)."""

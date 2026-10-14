@@ -211,7 +211,7 @@ def test_compose_post_text():
 
 
 def test_apply_post_watermark():
-    """Bepul foydalanuvchi postiga @PostAssistrobot qo'shiladi, PRO/adminga yo'q."""
+    """Bepul foydalanuvchi postining BOSHIGA @PostAssistrobot qo'yiladi, PRO/adminga yo'q."""
     print("== watermark: free vs pro vs admin ==")
     import asyncio
     import database as db_mod
@@ -230,7 +230,9 @@ def test_apply_post_watermark():
     admin_id = next(iter(ADMIN_IDS_SET), None)
     try:
         free = asyncio.run(apply_post_watermark("Salom", 555, "PostAssistrobot"))
-        check("free: watermark OXIRIGA qo'shildi", free == "Salom\n\n🤖 @PostAssistrobot", free)
+        check("free: watermark BOSHIGA qo'yildi", free == "🤖 @PostAssistrobot\n\nSalom", free)
+        check("free: watermark oxirida EMAS",
+              not free.endswith("🤖 @PostAssistrobot"), free)
 
         empty = asyncio.run(apply_post_watermark("", 555, "@PostAssistrobot"))
         check("free: bo'sh matn -> faqat nishon qatori", empty == "🤖 @PostAssistrobot", empty)
@@ -4214,8 +4216,10 @@ def test_post_enhancer_channel_dispatch():
         check("dispatch: kanalga xabar yuborildi", len(sent) == 1, str([c[1] for c in sent]))
         chat_id, text, markup = sent[0][1], sent[0][2], sent[0][3]
         check("dispatch: to'g'ri kanalga (-1001234567890)", chat_id == -1001234567890, str(chat_id))
-        check("dispatch: free → @PostAssistrobot belgisi bor",
-              text.endswith("🤖 @PostAssistrobot"), text)
+        check("dispatch: free → @PostAssistrobot belgisi BOSHIDA bor",
+              text.startswith("🤖 @PostAssistrobot\n\n"), text)
+        check("dispatch: free → nishon oxirida EMAS",
+              not text.endswith("🤖 @PostAssistrobot"), text)
         check("dispatch: asl matn buzilmadi", "Asl post matni" in text, text)
         flat = [b for row in markup.inline_keyboard for b in row] if markup else []
         check("dispatch: URL tugma kanalga chiqdi",

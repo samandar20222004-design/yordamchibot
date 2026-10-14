@@ -12,7 +12,7 @@ Foydalanuvchi oqimi:
 4. Tayyor post kanalga yuboriladi: «⚡ Darhol yuborish» yoqilgan va bitta
    kanal bo'lsa — avtomatik, aks holda post ostidagi kanal tugmasi bilan.
 
-Albom (bir nechta rasm/video) ``media_group_id`` bo'yicha 1 soniyalik
+Albom (bir nechta rasm/video) ``media_group_id`` bo'yicha 1.5 soniyalik
 debounce bilan yig'iladi va BITTA post (``album``) sifatida tozalanadi: izoh
 butun albomga biriktiriladi (``services/media_group_collector.py``).
 
@@ -55,10 +55,14 @@ from services.post_cleaner import (
     signature_problems,
     wrap_signature_link,
 )
+from services.album_gate import take_album_payload
+from services.media_group_collector import (
+    ALBUM_DEBOUNCE_SECONDS as _ALBUM_DEBOUNCE_SECONDS,
+)
 from services.media_group_collector import FULL, MediaGroupCollector
 from translations import settings_stats_t as t
 from utils.channel_labels import channel_label_html, sent_notice
-from utils.helpers import html_escape, watermark_footer_length
+from utils.helpers import html_escape, watermark_footer, watermark_footer_length
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -100,9 +104,11 @@ _MEDIA_TYPES = ("photo", "video", "animation", "document", "audio", "voice")
 _ALBUM_KINDS = ("photo", "video", "document", "audio", "animation")
 
 #: Albom (media_group) yig'uvchi: bir nechta fayl BITTA post bo'lib tozalanadi.
-#: Debounce — oxirgi fayldan 1 soniya jimlik; kutish fon vazifada (handler
-#: bloklanmaydi, foydalanuvchi updatelari ketma-ket ishlanadi).
-ALBUM_DEBOUNCE_SECONDS = 1.0
+#: Debounce — oxirgi fayldan keyingi jimlik oynasi; YAGONA manba
+#: ``services.media_group_collector.ALBUM_DEBOUNCE_SECONDS`` (qat'iy 2.0s).
+#: Kutish fon vazifada (handler bloklanmaydi, foydalanuvchi updatelari ketma-ket
+#: ishlanadi).
+ALBUM_DEBOUNCE_SECONDS = _ALBUM_DEBOUNCE_SECONDS
 _ALBUMS = MediaGroupCollector(delay=ALBUM_DEBOUNCE_SECONDS)
 
 
@@ -436,6 +442,29 @@ async def post_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not session["signature"]:
         await message.reply_text(t("ss_cl_no_sig", lang), parse_mode="HTML")
         return ConversationHandler.END
+    # 🖼 KONSOLIDATSIYALANGAN ALBOM: ``services/album_gate.py`` butun media
+    # guruhni yig'ib BITTA update qilib qaytargan bo'lsa — barcha fayllar bir
+    # yo'la buferga yoziladi. Natijada bitta albom = bitta tozalangan post,
+    # bitta preview (kanalga esa bitta ``sendMediaGroup``).
+    _payload = take_album_payload(context, message)
+    if _payload is not None and _payload.is_album:
+        entries = [
+            {
+                "message_id": raw_item.get("message_id"),
+                "type": raw_item.get("type") or "photo",
+                "file_id": raw_item.get("file_id"),
+                "caption": raw_item.get("caption") or "",
+                "entities": tuple(raw_item.get("entities") or ()),
+            }
+            for raw_item in _payload.media_items()
+        ]
+        entries = [entry for entry in entries if entry["file_id"]]
+        if entries:
+            key = (user_id, str(_payload.media_group_id))
+            _ALBUMS.add_many(key, entries, functools.partial(
+                _album_ready, context, user_id, lang, message.chat_id))
+            return CLEANER_POST_INPUT
+
     if message.media_group_id:
         # Albom: fayllar fon kollektorida yig'iladi (handler darhol qaytadi),
         # jimlikdan keyin BITTA post sifatida tozalanadi (izoh — albom izohi).
@@ -523,7 +552,12 @@ async def _album_ready(context, user_id: int, lang: str, chat_id: int, entries: 
         rows = [[_btn(t("ss_cl_btn_pub", lang, channel=title[:40]),
                       f"{CB_PUBLISH}:{token}:{index}")]
                 for index, (_cid, title) in enumerate(channels[:_CHANNEL_BUTTONS_MAX])]
-        await _send_preview(bot, chat_id, item,
+        # Preview the same Free-tier footer that the scheduler applies at
+        # delivery time; keep the stored body independent of tier changes.
+        preview_item = dict(item)
+        if session["reserve"]:
+            preview_item["html"] += watermark_footer(BOT_USERNAME)
+        await _send_preview(bot, chat_id, preview_item,
                             InlineKeyboardMarkup(rows) if rows else None, lang)
     except Exception as exc:  # noqa: BLE001 — fon vazifa foydalanuvchiga xabar beradi
         log_silent_failure("handlers.post_cleaner_flow:_album_ready", exc, user_id=user_id)
