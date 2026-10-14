@@ -49,11 +49,13 @@ def main() -> int:
 
     import database as db
     import scheduler as sched
+    from config import BOT_USERNAME
     from miniapp_api import app as appmod
     from miniapp_api.db import ReadOnlyRunner
     from miniapp_api.service import MiniAppService
     from miniapp_api.settings import load_settings
     from miniapp_api.writes import PostWriter
+    from utils.helpers import watermark_line
 
     db.init_db()
     loop = asyncio.new_event_loop()
@@ -117,7 +119,17 @@ def main() -> int:
             T.check("AYNAN 1 ta sendMessage (ikki parallel tick, bitta post)", len(sends) == 1, str([s.get("text") for s in sends]))
             if sends:
                 T.check("to'g'ri kanal", str(sends[0].get("chat_id")) == CHAN, str(sends[0].get("chat_id")))
-                T.check("matn Mini App'da yozilgan matn bilan boshlanadi", str(sends[0].get("text", "")).startswith("Mini App: hozir yuborilsin"))
+                # Bepul tarif (test foydalanuvchisi 'free') posti BOSHIDA «🤖 @bot»
+                # nishoni turadi (apply_post_watermark), undan keyin Mini App'da
+                # yozilgan matn keladi; matn sichqoncha/tekshiruv uchun
+                # o'zgarishsiz saqlanadi va nishon faqat BIR marta chiqadi.
+                badge, body = watermark_line(BOT_USERNAME), "Mini App: hozir yuborilsin"
+                expected = f"{badge}\n\n{body}" if badge else body
+                sent_text = str(sends[0].get("text", ""))
+                T.check("matn: bepul tarif nishoni BOSHDA, so'ngra Mini App matni",
+                        sent_text == expected, sent_text[:80])
+                T.check("matn: nishon takrorlanmaydi va matn o'zgarmagan",
+                        sent_text.count(body) == 1 and sent_text.endswith(body), sent_text[:80])
             pid = now_post["post"]["id"]
             status, mid = q("SELECT status, sent_message_id FROM scheduled_posts WHERE id = %s", (pid,))[0]
             T.check("DB: yuborilgan post 'posted/published', sent_message_id = soxta Telegram id",
