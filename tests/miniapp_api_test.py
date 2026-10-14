@@ -369,7 +369,10 @@ def test_access():
     st, b, _ = call_me(9)
     T.check("pending -> 403 beta_access_required", st == 403 and b["error"]["code"] == "beta_access_required")
     st, b, _ = call_me(10)
-    T.check("approved/pending'da yo'q (eski foydalanuvchi) -> RAD (REASON_EXISTING qo'llanmaydi)",
+    T.check("approved/pending'da yo'q (eski foydalanuvchi) -> 200 (bot qoidasi REASON_EXISTING bilan bir xil)",
+            st == 200)
+    st, b, _ = call_me(9)
+    T.check("pending baribir RAD (eski foydalanuvchi qoidasi pending'ga tegmaydi)",
             st == 403 and b["error"]["code"] == "beta_access_required")
     st, b, _ = call_me(10, admin=lambda u, r: u == 10)
     T.check("admin -> 200", st == 200)
@@ -377,10 +380,10 @@ def test_access():
     T.check("darvoza o'chiq (config) -> 200", st == 200)
     st, b, _ = call_me(10, raw={"enabled": False, "approved": {}, "pending": {}})
     T.check("holat 'enabled=false' override -> 200", st == 200)
-    st, b, _ = call_me(10, invite_only=False, raw={"enabled": True, "approved": {}, "pending": {}})
-    T.check("holat 'enabled=true' override config'dan ustun -> 403", st == 403)
+    st, b, _ = call_me(9, invite_only=False, raw={"enabled": True, "approved": {}, "pending": {"9": {}}})
+    T.check("holat 'enabled=true' override config'dan ustun (pending) -> 403", st == 403)
     st, b, _ = call_me(10, raw=None)
-    T.check("beta holati yo'q (qator yo'q) = bo'sh holat -> rad", st == 403)
+    T.check("beta holati yo'q (qator yo'q) = bo'sh holat -> eski foydalanuvchi 200", st == 200)
     for label, raw in {"buzuq JSON": "{bad json", "ro'yxat": "[1,2]", "approved ro'yxat": '{"approved":[1]}',
                        "pending satr": '{"pending":"x"}', "enabled satr": '{"enabled":"yes"}'}.items():
         st, b, _ = call_me(8, raw=raw)
@@ -395,7 +398,10 @@ def test_access():
     T.check("beta uchun yozuvchi SQL yo'q", not any(("INSERT" in s or "UPDATE" in s) for s, _ in m.log))
     # to'g'ridan-to'g'ri evaluate_access
     d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False, beta_raw=None, config_invite_only=True)
-    T.check("evaluate_access: invite_only + ro'yxatda yo'q -> rad", not d.allowed)
+    T.check("evaluate_access: invite_only + ro'yxatda yo'q -> eski foydalanuvchi, ruxsat", d.allowed and d.reason == "existing_user")
+    d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False,
+                        beta_raw='{"pending": {"5": {}}}', config_invite_only=True)
+    T.check("evaluate_access: invite_only + pending -> rad", not d.allowed)
     d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False, beta_raw=None, config_invite_only=False)
     T.check("evaluate_access: darvoza o'chiq -> ruxsat", d.allowed)
     T.check("default admin tekshiruvi: ADMIN_ID (legacy) admin", _is_admin(123456789, None) is True)

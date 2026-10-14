@@ -90,11 +90,9 @@ Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_re
   > sinov **o'tkazilmagan**; Mini App'ni yoqishdan oldin shu birinchi smoke-test majburiy.
 - **Maxfiylik:** `BOT_TOKEN`, `initData`, `Authorization` log/javob/xato matniga tushmaydi (testlangan).
 - **Ruxsat:** `users` da qator bo'lishi va `deleted_at IS NULL`; API foydalanuvchi YARATMAYDI.
-  `BETA_INVITE_ONLY` yoqiq bo'lsa: admin yoki `approved` kiradi, `pending` kirmaydi, **ro'yxatda yo'q = rad**
-  (botdagi `REASON_EXISTING` ataylab qo'llanmaydi: beta yoqilgan vaqt saqlanmaydi, `users.created_at`
-  semantikasi tasdiqlanmagan). Beta holati o'qilmasa/JSON buzuq bo'lsa `503`. `BetaGate.check()` chaqirilmaydi
-  (u `pending` ga yozadi). Tasdiqlanmagan eski foydalanuvchilar botda `/beta` orqali tasdiqlanishi yoki
-  `BETA_INVITE_ONLY=false` bo'lishi kerak.
+  `BETA_INVITE_ONLY` yoqiq bo'lsa botdagi qoida bilan BIR XIL: admin yoki `approved` kiradi, `pending` kirmaydi,
+  ro'yxatda yo'q (qator bor) = eski foydalanuvchi (`REASON_EXISTING`) — kiradi. Beta holati o'qilmasa/JSON buzuq bo'lsa
+  `503`. `BetaGate.check()` chaqirilmaydi (u `pending` ga yozadi).
 - **Ownership:** har bir SQL `user_id = %s`; xato bo'sh ro'yxatga aylantirilmaydi (mavjud `get_user_channels`/
   `get_queue_posts` xatoni yutadi, shu sababli ishlatilmaydi).
 - **PRO holati:** faqat `users.plan_type`/`subscription_expires_at` dan, DB vaqti bo'yicha. To'lov yo'q.
