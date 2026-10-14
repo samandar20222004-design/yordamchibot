@@ -248,7 +248,9 @@ def test_claim_sent_skips_duplicate():
     print("== Claim: sent → skip (0 duplikat) ==")
     from services.scheduler_service import SchedulerService
 
-    cur = _fresh_cur(rows=[("sent", 1, 555, None, FRESH_TS)])
+    # Qator allaqachon bor ('sent'): INSERT ... ON CONFLICT DO NOTHING haqiqiy PG'da rowcount=0 beradi
+    # (AUDIT-002: yangi qator yaratilgandagina verify markeri ko'chiriladi, shuning uchun mock shuni aks ettiradi).
+    cur = _fresh_cur(rows=[("sent", 1, 555, None, FRESH_TS)], rowcount=0)
     with patch("database.db_cursor", _make_mock_dc(cur)):
         res = SchedulerService.claim_post_for_delivery(502, "-100123", NOW)
     check("claimed False", res.get("claimed") is False, str(res))

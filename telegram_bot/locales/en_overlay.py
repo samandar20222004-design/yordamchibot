@@ -1935,6 +1935,13 @@ EN_OVERLAY = {
         "You have been granted a <b>{days}-day PRO plan</b>!\n"
         "You can enjoy all PRO features."
     ),
+    "team_err_post_id": "❌ Invalid post identifier.",
+    "team_approved": "✅ Post approved. It can now be scheduled.",
+    "team_approve_denied": "⛔ You are not allowed to approve this post, or its status has changed.",
+    "team_rejected": "❌ Post rejected and returned to drafts.",
+    "team_reject_failed": "⛔ The post could not be rejected.",
+    "team_edit_prompt": "✏️ Send the new text. The post will go back for approval.",
+    "team_approval_pending": "📝 <b>Awaiting approval</b>",
     "sub_pay_activate_error": (
         "⚠️ Payment received, but plan activation failed.\n"
         "Please contact the admin."

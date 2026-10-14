@@ -1645,6 +1645,22 @@ echo "===== 📱 MINI APP (API poydevori: auth, proksi, limiter, ownership, stat
 "$PY" tests/miniapp_security_audit_test.py || fail "tests/miniapp_security_audit_test.py"
 "$PY" tests/miniapp_redis_real_test.py || fail "tests/miniapp_redis_real_test.py"
 
+# Audit tuzatishlari (AUDIT-001..014 + P3): regression testlar (real-PG testlari URL/pgserver bo'lmasa SKIP)
+"$PY" tests/miniapp_media_lifecycle_test.py || fail "tests/miniapp_media_lifecycle_test.py"
+"$PY" tests/subscription_downgrade_race_test.py || fail "tests/subscription_downgrade_race_test.py"
+"$PY" tests/stars_rejected_payment_test.py || fail "tests/stars_rejected_payment_test.py"
+"$PY" tests/team_i18n_test.py || fail "tests/team_i18n_test.py"
+"$PY" tests/channel_tone_ownership_test.py || fail "tests/channel_tone_ownership_test.py"
+"$PY" tests/channel_tone_guard_static_test.py || fail "tests/channel_tone_guard_static_test.py"
+"$PY" tests/scheduler_retry_idempotency_test.py || fail "tests/scheduler_retry_idempotency_test.py"
+"$PY" tests/scheduler_attempt_count_test.py || fail "tests/scheduler_attempt_count_test.py"
+"$PY" tests/scheduler_crash_window_test.py || fail "tests/scheduler_crash_window_test.py"
+"$PY" tests/scheduler_recurring_recovery_test.py || fail "tests/scheduler_recurring_recovery_test.py"
+"$PY" tests/scheduler_recurring_end_date_test.py || fail "tests/scheduler_recurring_end_date_test.py"
+"$PY" tests/rate_limiter_ai_actions_test.py || fail "tests/rate_limiter_ai_actions_test.py"
+"$PY" tests/exception_text_leak_test.py || fail "tests/exception_text_leak_test.py"
+"$PY" tests/miniapp_drafts_cleanup_test.py || fail "tests/miniapp_drafts_cleanup_test.py"
+
 echo
 echo "=============================================================="
 if [ "$EXIT_CODE" -eq 0 ]; then

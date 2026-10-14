@@ -1372,9 +1372,11 @@ def test_scheduler_sent_journal_survives_restart(tmp_path=None):
         assert sch_mod._UNPERSISTED_SENT[555]["message_id"] == 77
         # DB tiklangach flush: posted + reschedule + pending; journal tozalanadi
         calls = []
+        kw_calls = []
 
         async def ok_db(fn, *a, **k):
             calls.append((getattr(fn, "__name__", ""), a))
+            kw_calls.append((getattr(fn, "__name__", ""), k))
             return True
         orig = sch_mod.db.run_db
         sch_mod.db.run_db = ok_db
@@ -1383,8 +1385,9 @@ def test_scheduler_sent_journal_survives_restart(tmp_path=None):
         finally:
             sch_mod.db.run_db = orig
         names = [c[0] for c in calls]
-        assert names == ["mark_post_as_sent", "reschedule_recurring_post", "mark_post_status"], names
-        assert ("mark_post_status", (555, "pending")) in calls
+        # AUDIT-009: 'posted' markeri va keyingi davr BITTA atomik chaqiruvda (alohida reschedule/pending yo'q)
+        assert names == ["mark_post_as_sent"], names
+        assert kw_calls[0][1].get("next_time") == _dt.datetime.fromisoformat(marker["next_time"]), kw_calls
         assert not os.path.isfile(path) and not sch_mod._UNPERSISTED_SENT
     finally:
         sch_mod.SENT_JOURNAL_PATH = orig_path

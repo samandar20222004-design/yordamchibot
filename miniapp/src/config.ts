@@ -10,6 +10,11 @@ export const config = {
   /** Matn chegaralari (server bilan bir xil: backend writes.py). */
   maxPostChars: 4096,
   maxAiInputChars: 3500,
+  /** Rasm/video ostidagi matn (Telegram caption; backend: writes.MAX_CAPTION_CHARS). */
+  maxCaptionChars: 1024,
+  /** Inline tugma (backend: writes.MAX_BUTTON_TEXT / MAX_BUTTON_URL). */
+  maxButtonTextChars: 64,
+  maxButtonUrlChars: 2000,
   /** Rejalashtirish: eng erta vaqt (server kamida 60 s talab qiladi). */
   minLeadMs: 120_000,
   /** Faqat GET uchun, faqat tarmoq/timeout/502/503/504 da. */

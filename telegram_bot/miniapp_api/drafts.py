@@ -54,6 +54,11 @@ def build_payload(user_data) -> dict | None:
     except (TypeError, ValueError):
         hours = 0
     channel_id = user_data.get("selected_channel_id")
+    # Bot postni saqlaganda ham shunday qiladi (``handlers.new_post._content_for_db``): sizib chiqqan
+    # reaksiya emojilari prefiksi matnga/sarlavhaga tushmaydi.
+    from keyboards.inline import strip_leading_reaction_glyphs
+
+    content = strip_leading_reaction_glyphs(content, emojis)
     return {
         "post_type": post_type,
         "content": _clean_str(content, MAX_TEXT) or "",

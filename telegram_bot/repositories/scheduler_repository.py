@@ -17,6 +17,7 @@ nuqtalari bu modulga ko'chirilgandan keyin ham kuchini yo'qotmaydi.
 """
 
 import hashlib
+import os
 from datetime import datetime, timedelta
 import logging
 import re
@@ -283,6 +284,31 @@ def claim_post_delivery(post_id: int, channel_id, scheduled_timestamp) -> dict:
                 (int(post_id), _delivery_channel_number(channel_id), key,
                  scheduled_timestamp),
             )
+            if cur.rowcount == 1:
+                # YANGI qator (masalan ``retry_post`` scheduled_time'ni o'zgartirgani uchun kalit o'zgardi):
+                # oldingi qatordagi "kanal tekshiruvi kutilmoqda" markeri yo'qolsa, keyingi urinish kanalni
+                # TEKSHIRMAY ko'r-ko'rona qayta yuborar edi (AUDIT-002). Faqat shu marker ko'chiriladi;
+                # 'sent' qatordan (recurring keyingi davr) va markersiz qatordan HECH NARSA ko'chmaydi,
+                # attempt_count/backoff semantikasi o'zgarmaydi.
+                # ``DELIVERY_CARRY_ATTEMPTS=1`` (OPT-IN, sukut O'CHIQ): oldingi 'failed' qatorning attempt_count'i ham
+                # ko'chadi — hujjatlangan backoff (30s/2m/5m/15m) va "5-urinishda dead_letter" qoidasi retry'larda
+                # ishlaydi. O'chiq bo'lsa sanagich 0 dan boshlanadi (hozirgi xulq): dead_letter uzoq uzilishda postni
+                # 'failed' qilib yo'qotadi — bu biznes qarori.
+                cur.execute(
+                    "UPDATE post_deliveries d SET last_error = p.last_error "
+                    "FROM (SELECT status, last_error FROM post_deliveries "
+                    "      WHERE post_id = %s AND idempotency_key <> %s ORDER BY id DESC LIMIT 1) p "
+                    "WHERE d.idempotency_key = %s AND p.status = 'failed' AND p.last_error LIKE %s",
+                    (int(post_id), key, key, DELIVERY_VERIFY_MARKER + "%"),
+                )
+                if os.getenv("DELIVERY_CARRY_ATTEMPTS", "").strip().lower() in ("1", "true", "yes", "on"):
+                    cur.execute(
+                        "UPDATE post_deliveries d SET attempt_count = COALESCE(p.attempt_count, 0) "
+                        "FROM (SELECT status, attempt_count FROM post_deliveries "
+                        "      WHERE post_id = %s AND idempotency_key <> %s ORDER BY id DESC LIMIT 1) p "
+                        "WHERE d.idempotency_key = %s AND p.status = 'failed'",
+                        (int(post_id), key, key),
+                    )
             cur.execute(
                 "SELECT status, attempt_count, telegram_message_id, next_retry_at, updated_at, "
                 "last_error "
@@ -481,6 +507,9 @@ def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
     Qaytadi: ``{"posted": n, "unknown": n, "requeued": n, "error": str|None}``.
     """
     result = {"posted": 0, "unknown": 0, "requeued": 0, "error": None}
+    # Recurring post: oldingi davrlardan qolgan ``sent_message_id`` / ``sent_post_messages`` / eski 'sent' delivery
+    # "shu davr yuborildi" isboti EMAS (AUDIT-003). Recurring uchun dalil — FAQAT shu davrning delivery yozuvi:
+    # ``post_deliveries.status='sent'`` va ``scheduled_time`` = postning joriy ``scheduled_time``.
     try:
         age = max(0, int(max_age_seconds or 0))
     except (TypeError, ValueError):
@@ -491,9 +520,14 @@ def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
                 UPDATE scheduled_posts
                 SET status = 'posted'
                 WHERE status = 'processing'
-                  AND (sent_message_id IS NOT NULL
-                       OR id IN (SELECT post_id FROM sent_post_messages)
-                       OR id IN (SELECT post_id FROM post_deliveries WHERE status = 'sent'))
+                  AND ((COALESCE(recurrence_type, 'none') IN ('none', '')
+                        AND (sent_message_id IS NOT NULL
+                             OR id IN (SELECT post_id FROM sent_post_messages)
+                             OR id IN (SELECT post_id FROM post_deliveries WHERE status = 'sent')))
+                       OR (COALESCE(recurrence_type, 'none') NOT IN ('none', '')
+                           AND EXISTS (SELECT 1 FROM post_deliveries d
+                                        WHERE d.post_id = scheduled_posts.id AND d.status = 'sent'
+                                          AND d.scheduled_time = scheduled_posts.scheduled_time)))
             """)
             result["posted"] = int(cur.rowcount or 0)
             cur.execute("""
@@ -507,8 +541,9 @@ def recover_processing_posts_on_startup(max_age_seconds: int = 0) -> dict:
                 UPDATE scheduled_posts
                 SET status = 'pending', processing_started_at = NULL
                 WHERE status = 'processing'
-                  AND sent_message_id IS NULL
-                  AND id NOT IN (SELECT post_id FROM sent_post_messages)
+                  AND (COALESCE(recurrence_type, 'none') NOT IN ('none', '')
+                       OR (sent_message_id IS NULL
+                           AND id NOT IN (SELECT post_id FROM sent_post_messages)))
                   AND (processing_started_at IS NULL
                        OR processing_started_at < NOW() - (%s || ' seconds')::INTERVAL)
                 RETURNING id
@@ -539,21 +574,30 @@ def recover_stale_processing_posts():
     2. Yuborilmagan va 10 daqiqadan ko'p vaqt 'processing' holatida qolgan postlar
        qayta navbatga ('pending') qaytariladi.
     """
+    # Recurring post: oldingi davrlardan qolgan ``sent_message_id`` / ``sent_post_messages`` / eski 'sent' delivery
+    # "shu davr yuborildi" isboti EMAS (AUDIT-003). Recurring uchun dalil — FAQAT shu davrning delivery yozuvi:
+    # ``post_deliveries.status='sent'`` va ``scheduled_time`` = postning joriy ``scheduled_time``.
     try:
         with db_cursor(commit=True) as cur:
             cur.execute("""
                 UPDATE scheduled_posts
                 SET status = 'posted'
                 WHERE status = 'processing'
-                  AND (sent_message_id IS NOT NULL 
-                       OR id IN (SELECT post_id FROM sent_post_messages));
+                  AND ((COALESCE(recurrence_type, 'none') IN ('none', '')
+                        AND (sent_message_id IS NOT NULL
+                             OR id IN (SELECT post_id FROM sent_post_messages)))
+                       OR (COALESCE(recurrence_type, 'none') NOT IN ('none', '')
+                           AND EXISTS (SELECT 1 FROM post_deliveries d
+                                        WHERE d.post_id = scheduled_posts.id AND d.status = 'sent'
+                                          AND d.scheduled_time = scheduled_posts.scheduled_time)))
             """)
             cur.execute("""
                 UPDATE scheduled_posts
                 SET status = 'pending', processing_started_at = NULL
                 WHERE status = 'processing'
-                  AND sent_message_id IS NULL
-                  AND id NOT IN (SELECT post_id FROM sent_post_messages)
+                  AND (COALESCE(recurrence_type, 'none') NOT IN ('none', '')
+                       OR (sent_message_id IS NULL
+                           AND id NOT IN (SELECT post_id FROM sent_post_messages)))
                   AND processing_started_at < NOW() - INTERVAL '10 minutes';
             """)
         _cache_clear("system_stats")
@@ -610,6 +654,15 @@ def cleanup_old_data() -> dict:
 
             cur.execute("DELETE FROM channel_posts_history WHERE created_at < NOW() - INTERVAL '90 days'")
             deleted["channel_posts_history"] = cur.rowcount
+        # Mini App qoralamalari: o'qishda 48 soatdan eskisi hisobga olinmaydi (miniapp_api.drafts.DRAFT_TTL_HOURS);
+        # jadval cheksiz to'planmasligi uchun 7 kundan eskisi o'chiriladi. ALOHIDA tranzaksiya: jadval bo'lmasa
+        # yuqoridagi tozalash bekor bo'lmaydi.
+        try:
+            with db_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM miniapp_drafts WHERE updated_at < NOW() - INTERVAL '7 days'")
+                deleted["miniapp_drafts"] = cur.rowcount
+        except Exception as e:
+            logger.warning(f"Mini App qoralamalarini tozalash xatosi: {e}")
         _cache_clear()
         return deleted
     except Exception as e:

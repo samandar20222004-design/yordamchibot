@@ -436,7 +436,8 @@ def mark_post_status(post_id: int, status: str) -> bool:
         return False
 
 
-def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None, delivery_key: str = None) -> bool:
+def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None, delete_after_hours: int = 0, extra_message_ids: list = None, delivery_key: str = None,
+                      next_time=None, completed: bool = False) -> bool:
     """Telegramga yuborilgan postni 'posted' deb belgilaydi va xabar ID'larini saqlaydi.
 
     Bitta tranzaksiyada bajariladi (yarim yozilgan holat bo'lmaydi). Qaytaradi:
@@ -447,15 +448,33 @@ def mark_post_as_sent(post_id: int, sent_message_id: int, channel_id: str = None
     AYNI SHU tranzaksiyada ``'sent'`` bo'ladi — scheduled_posts 'posted' va
     delivery 'sent' markerlari hech qachon bir-biridan ajralib qolmaydi
     (crash oralig'ida "biri yozildi, biri yo'q" holati bo'lmaydi).
+
+    Takrorlanuvchi post uchun (AUDIT-009 qoldig'i) ``next_time`` berilsa post AYNI tranzaksiyada keyingi davrga
+    'pending' qilib rejalanadi, ``completed=True`` bo'lsa 'completed' bo'ladi — "yuborildi" va "qayta rejalash" orasida
+    crash oynasi qolmaydi (seriya 'posted'da qotib qolmaydi).
     """
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("""
-                UPDATE scheduled_posts
-                   SET status = CASE WHEN status = 'scheduled' THEN 'published' ELSE 'posted' END,
-                       sent_message_id = %s
-                 WHERE id = %s
-            """, (sent_message_id, post_id))
+            if next_time is not None:
+                cur.execute("""
+                    UPDATE scheduled_posts
+                       SET status = 'pending', scheduled_time = %s, processing_started_at = NULL,
+                           sent_message_id = %s
+                     WHERE id = %s
+                """, (next_time, sent_message_id, post_id))
+            elif completed:
+                cur.execute("""
+                    UPDATE scheduled_posts
+                       SET status = 'completed', sent_message_id = %s
+                     WHERE id = %s
+                """, (sent_message_id, post_id))
+            else:
+                cur.execute("""
+                    UPDATE scheduled_posts
+                       SET status = CASE WHEN status = 'scheduled' THEN 'published' ELSE 'posted' END,
+                           sent_message_id = %s
+                     WHERE id = %s
+                """, (sent_message_id, post_id))
             if delivery_key:
                 cur.execute(
                     "UPDATE post_deliveries SET status = 'sent', telegram_message_id = %s, "
@@ -537,9 +556,16 @@ def defer_post_deletion(message_row_id: int, delay_seconds: int = 300) -> bool:
 
 
 def reschedule_recurring_post(post_id: int, next_time):
+    """Takrorlanuvchi postning keyingi davrini rejalashtiradi.
+
+    Vaqt va 'pending' holati BITTA UPDATE'da yoziladi (AUDIT-009): ilgari vaqt alohida, 'pending' alohida
+    tranzaksiyada edi — oralig'ida crash bo'lsa post 'posted'da qolib seriya to'xtardi.
+    """
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (next_time, post_id))
+            cur.execute(
+                "UPDATE scheduled_posts SET scheduled_time = %s, status = 'pending', processing_started_at = NULL "
+                "WHERE id = %s", (next_time, post_id))
         _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Qayta rejalashtirish xatosi: {e}")

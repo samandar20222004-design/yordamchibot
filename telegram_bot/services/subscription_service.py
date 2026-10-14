@@ -195,8 +195,14 @@ class SubscriptionService:
                 # Muddat o'tgan — free ga tushiramiz
                 try:
                     with db_cursor(commit=True) as wcur:
+                        # Shartli UPDATE (AUDIT-004): o'qish va yozish orasida parallel to'lov muddatni
+                        # uzaytirgan bo'lsa, READ COMMITTED da qator qulfi kutilgach shart qayta baholanadi
+                        # va faol obuna 'free'ga TUSHIRILMAYDI.
                         wcur.execute(
-                            "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
+                            "UPDATE users SET plan_type = 'free' WHERE user_id = %s "
+                            "AND plan_type IN ('pro', 'enterprise') "
+                            "AND subscription_expires_at IS NOT NULL "
+                            "AND subscription_expires_at <= NOW()",
                             (user_id,),
                         )
                 except Exception as _silent_exc:

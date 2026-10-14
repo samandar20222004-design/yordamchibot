@@ -18,7 +18,7 @@ CSP = (
     "default-src 'self'; "
     "script-src 'self' https://telegram.org; "
     "style-src 'self' 'unsafe-inline'; "
-    "img-src 'self' data: https:; "
+    "img-src 'self' data: blob: https:; "  # blob: faqat rasm — qoralama rasmi fetch + createObjectURL bilan ko'rsatiladi
     "font-src 'self' data:; "
     "connect-src 'self'; "
     "base-uri 'none'; object-src 'none'; form-action 'none'; "

@@ -58,6 +58,8 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `GET /draft/media` | qoralamadagi RASM baytlari (Bot API `getFile`, token serverda; faqat jpeg/png/webp, <=8 MB) |
 | `DELETE /draft` | qoralamani o'chiradi |
 | `POST /posts` (qo'shimcha) | `use_draft: true` — media (`post_type`, `file_id`), reaksiya va avto-o'chirish qoralamadan olinadi, post yaratilgach qoralama o'chadi; `button_text`+`button_url` — inline tugma (faqat http/https/tg havola) |
+| Chegaralar | matn <= 4096; **media sarlavhasi <= 1024** (`422 caption_too_long`, yaratishda ham, `PATCH`da ham — jimgina kesilmaydi); tugma matni <= 64, tugma havolasi <= 2000 (bot validatori <= 2048). Frontend (`miniapp/src/config.ts`), backend (`writes.py`) va scheduler (`TELEGRAM_CAPTION_LIMIT`) mosligi `tests/miniapp_media_lifecycle_test.py` da tekshiriladi |
+| Rasm proksisi | `GET /draft/media` uchun bitta PTB `Bot` qayta ishlatiladi va ilova to'xtaganda yopiladi (`PostWriter.aclose`) |
 
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti

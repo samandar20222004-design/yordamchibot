@@ -83,7 +83,7 @@ async def cancel_post_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
     except Exception as e:
         try:
-            await query.message.reply_text(get_text("pend_error", lang, error=e))
+            await query.message.reply_text(get_text("pend_error", lang, error=type(e).__name__))
         except Exception as _silent_exc:
             log_silent_failure("handlers.pending:cancel_post_callback:84", _silent_exc)
 

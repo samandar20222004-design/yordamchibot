@@ -11,7 +11,7 @@ const KNOWN_CODES: readonly string[] = [
   'service_unavailable', 'auth_unavailable',
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
-  'ai_unavailable', 'save_failed', 'draft_not_found', 'media_unavailable',
+  'ai_unavailable', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
 ]
 
 export class ApiClientError extends Error {
