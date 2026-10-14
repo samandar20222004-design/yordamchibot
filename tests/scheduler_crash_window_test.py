@@ -7,12 +7,14 @@ A) XAVFSIZ oynalar (kafolatlangan): crash yuborishdan OLDIN -> post yo'qolmaydi 
 B) OCHIQ oyna (KNOWN-OPEN, hujjatlangan): Telegram'ga CHIQDI, lekin `mark_post_as_sent` COMMIT bo'lmasdan jarayon o'ldi (SENT_JOURNAL_PATH yo'q).
    DB'da yuborilgan dalil YO'Q, shuning uchun restart recovery postni qayta navbatga qo'yadi va keyingi claim kanalni TEKSHIRMAY yuboradi
    (dublikat mumkin). Tuzatish dublikat va "post yo'qolishi" (kanal o'qib bo'lmasa -> 'unknown') o'rtasidagi BIZNES qarori (docs/AUDIT_OPEN_RISKS.md).
-C) Crash-loop himoyasi: 5-marta stale 'processing' qayta olinsa delivery 'dead_letter' (post 'failed')."""
+C) Crash-loop himoyasi: 5-marta stale 'processing' qayta olinsa delivery 'dead_letter' (post 'failed').
+D) Recurring: 'yuborildi' + keyingi davr BITTA tranzaksiyada (TUZATILGAN; oldin KNOWN-OPEN edi)."""
 from __future__ import annotations
 
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from datetime import time as dtime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -141,20 +143,57 @@ try:
     check("C: 5-stale-reclaim -> dead_letter (crash-loop to'xtatiladi, post avtomatik qayta yuborilmaydi)",
           last.get("dead") is True and last.get("status") == "dead_letter", str(last))
 
-    # D) recurring: yuborildi -> qayta rejalash oralig'ida crash (AUDIT-003/009 qoldig'i)
+    # D) recurring: yuborildi -> qayta rejalash oralig'i (AUDIT-009 qoldig'i). TUZATILDI: `mark_post_as_sent(next_time=...)`
+    #    'posted' markeri va keyingi davrni BITTA tranzaksiyada yozadi -> oraliq yo'q.
+    import asyncio
+    import scheduler as sched
+
+    nxt = datetime.now(timezone.utc) + timedelta(days=1)
     rid = int(db.add_post(USER, CHAN, "text", "rec", None, datetime.now(timezone.utc) - timedelta(minutes=3), recurrence_type="daily"))
     rt = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid,))[0][0]
     c = claim_as_scheduler(rid, rt)
-    db.mark_post_as_sent(rid, 556, CHAN, 0, None, c["idempotency_key"])
-    # ... crash: reschedule_recurring_post chaqirilmadi ...
+    ok = db.mark_post_as_sent(rid, 556, CHAN, 0, None, c["idempotency_key"], next_time=nxt)
     sr.recover_processing_posts_on_startup(0)
     sr.recover_stale_processing_posts()
-    check("D [KNOWN-OPEN]: recurring post 'posted'da QOLADI (keyingi davr rejalashtirilmaydi, seriya to'xtaydi) — recovery tuzatmaydi",
-          st(rid) == "posted", st(rid))
-    nxt = datetime.now(timezone.utc) + timedelta(days=1)
-    db.reschedule_recurring_post(rid, nxt)
-    check("D: normal oqimda (reschedule chaqirilsa) post 'pending' va keyingi vaqt yozilgan",
-          st(rid) == "pending" and abs((q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid,))[0][0] - nxt).total_seconds()) < 1)
+    row = q("SELECT status, scheduled_time, sent_message_id FROM scheduled_posts WHERE id = %s", (rid,))[0]
+    check("D: atomik yozuv: post 'pending' va keyingi davr vaqti, sent_message_id yozilgan (crash oynasi yo'q)",
+          ok is True and row[0] == "pending" and abs((row[1] - nxt).total_seconds()) < 1 and row[2] == 556, str(row))
+    check("D: delivery shu tranzaksiyada 'sent' (qayta yuborilmaydi)",
+          q("SELECT status FROM post_deliveries WHERE idempotency_key = %s", (c["idempotency_key"],))[0][0] == "sent")
+    check("D: recovery atomik yozilgan keyingi davrni buzmaydi", st(rid) == "pending")
+
+    # D2) scheduler `_apply_sent_marker` yo'li (daily, haqiqiy marker) — bitta chaqiruvda 'pending' + yangi vaqt
+    rid2 = int(db.add_post(USER, CHAN, "text", "rec2", None, datetime.now(timezone.utc) - timedelta(minutes=3),
+                           recurrence_type="daily"))
+    rt2 = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid2,))[0][0]
+    c2 = claim_as_scheduler(rid2, rt2)
+    marker = sched._build_sent_marker(rid2, 557, CHAN, 0, None, recurrence_type="daily", recurrence_time=dtime(9, 0),
+                                      idempotency_key=c2["idempotency_key"])
+    applied = asyncio.run(sched._apply_sent_marker(marker))
+    check("D2: _apply_sent_marker recurring uchun True, 'pending', vaqt oldinga surilgan",
+          applied is True and st(rid2) == "pending" and q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid2,))[0][0] > rt2
+          and marker.get("reschedule_done") is True, f"{applied} {st(rid2)} {marker}")
+
+    # D3) end_date o'tgan: 'completed' ham shu tranzaksiyada
+    rid3 = int(db.add_post(USER, CHAN, "text", "rec3", None, datetime.now(timezone.utc) - timedelta(minutes=3), recurrence_type="daily"))
+    rt3 = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid3,))[0][0]
+    c3 = claim_as_scheduler(rid3, rt3)
+    ok3 = db.mark_post_as_sent(rid3, 558, CHAN, 0, None, c3["idempotency_key"], completed=True)
+    check("D3: completed=True -> 'completed' (seriya yakunlandi), 'posted'da qolmaydi", ok3 is True and st(rid3) == "completed", st(rid3))
+
+    # D4) oddiy (recurring bo'lmagan) post — xulq o'zgarmagan: 'posted'
+    nid, nt = due_post()
+    cn = claim_as_scheduler(nid, nt)
+    db.mark_post_as_sent(nid, 559, CHAN, 0, None, cn["idempotency_key"])
+    check("D4: oddiy post 'posted' (xulq o'zgarmagan)", st(nid) == "posted", st(nid))
+
+    # D5) eski ikki bosqichli yo'l (next_time yo'q) hanuz 'posted'da qoldiradi — legacy adapterlar uchun, scheduler endi ishlatmaydi
+    rid5 = int(db.add_post(USER, CHAN, "text", "rec5", None, datetime.now(timezone.utc) - timedelta(minutes=3), recurrence_type="daily"))
+    rt5 = q("SELECT scheduled_time FROM scheduled_posts WHERE id = %s", (rid5,))[0][0]
+    c5 = claim_as_scheduler(rid5, rt5)
+    db.mark_post_as_sent(rid5, 560, CHAN, 0, None, c5["idempotency_key"])
+    check("D5: next_time'siz eski chaqiruv 'posted' (faqat legacy yo'l; scheduler recurring uchun next_time uzatadi)",
+          st(rid5) == "posted", st(rid5))
 finally:
     cleanup()
 

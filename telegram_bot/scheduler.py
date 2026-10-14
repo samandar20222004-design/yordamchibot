@@ -245,13 +245,22 @@ async def _apply_sent_marker(marker: dict) -> bool:
     if not marker.get("marker_done"):
         ok = False
         try:
+            # Takrorlanuvchi post: "yuborildi" va qayta rejalash BITTA tranzaksiyada (AUDIT-009 qoldig'i) —
+            # oralig'ida crash bo'lsa seriya 'posted'da qotib qolmaydi. Oddiy postda qo'shimcha argument yo'q.
+            recurrence_kwargs = {}
+            if marker.get("next_time"):
+                recurrence_kwargs["next_time"] = datetime.fromisoformat(marker["next_time"])
+            elif marker.get("completed"):
+                recurrence_kwargs["completed"] = True
             ok = _db_ok(await db.run_db(
                 db.mark_post_as_sent, pid, marker.get("message_id"), marker.get("channel_id"),
                 int(marker.get("delete_after_hours") or 0), marker.get("extra_ids") or None,
-                delivery_key,
+                delivery_key, **recurrence_kwargs,
             ))
             if ok and delivery_key:
                 marker["delivery_done"] = True
+            if ok and recurrence_kwargs:
+                marker["reschedule_done"] = True
         except TypeError:
             # Legacy/fake adapter: delivery_key parametrini bilmaydi —
             # eski ikki bosqichli oqim (avval delivery, keyin posted).
@@ -288,6 +297,8 @@ async def _apply_sent_marker(marker: dict) -> bool:
         marker["delivery_done"] = True
 
     next_time_raw = marker.get("next_time")
+    if marker.get("reschedule_done"):
+        return True   # keyingi davr / yakun 'posted' markeri bilan bir tranzaksiyada yozilgan
     try:
         if next_time_raw:
             next_time = datetime.fromisoformat(next_time_raw)

@@ -38,17 +38,18 @@ tarmoq-xatosi retry yo'lida HECH QACHON ishga tushmaydi (cheksiz retry, har retr
 DB sxemasi o'zgarmaydi (hech bir variant migratsiya talab qilmaydi); qaytarish — env o'zgaruvchini olib tashlash.
 Marker ko'chirilishi (dublikat xavfi) bu qarorga bog'liq emas va tuzatilgan.
 
-### AUDIT-003 / 009 (qoldiq) — yuborildi → qayta rejalash oralig'idagi crash
-**Holat (`scheduler_crash_window_test` D bo'limi, KNOWN-OPEN):** `mark_post_as_sent` (`posted`) va `reschedule_recurring_post` ikki
-alohida tranzaksiya. Oraliqda crash bo'lsa recurring post `posted`da qoladi, recovery uni tuzatmaydi (seriya to'xtaydi). Vaqt va
-`pending` endi bitta UPDATE'da (oraliq yo'q), lekin sent→reschedule oralig'i qoldi. Jarayon ichidagi marker (`_apply_sent_marker`)
-qayta urinadi, shuning uchun faqat jarayon o'lsa yo'qoladi.
+### AUDIT-003 / 009 (qoldiq) — yuborildi → qayta rejalash oralig'idagi crash — TUZATILDI
+**Oldin:** `mark_post_as_sent` (`posted`) va `reschedule_recurring_post` ikki alohida tranzaksiya edi; oraliqda crash bo'lsa recurring
+post `posted`da qolib seriya to'xtardi (journal sukutda o'chiq, shuning uchun jarayon ichidagi marker ham yo'qolardi).
+**Hozir:** `mark_post_as_sent(..., next_time=...)` 'posted' markerini, delivery `sent` va keyingi davrni (`pending` + yangi vaqt) BITTA
+tranzaksiyada yozadi; end_date o'tgan bo'lsa `completed=True` — `completed`. Scheduler (`_apply_sent_marker`) recurring marker uchun shuni
+ishlatadi; oddiy postda argument yo'q (xulq o'zgarmagan). Test: `scheduler_crash_window_test` D–D5 (real PG; tuzatishsiz D2 qizil).
+**Qolgan eslatma:** `reschedule_recurring_post` va `mark_post_status` ning alohida chaqiruvlari faqat zaxira yo'l (atomik yozuv xato bersa
+yoki legacy adapter `TypeError` bersa) sifatida qoldi. Telegram'ga chiqdi → DB commit oralig'i (008/B) bunga kirmaydi va ochiq.
 **Ataylab saqlangan xulq:** recurring postda OLDINGI davrdan qolgan `unknown` delivery bo'lsa, 'processing'da qotgan post `unknown`ga
 o'tadi (davr bo'yicha toraytirilmagan; `scheduler_recurring_recovery_test` `r4` buni qayd etadi). Bu konservativ: ko'r-ko'rona retry
 va dublikat yo'q, lekin admin ko'rib chiqmaguncha seriya to'xtaydi. Toraytirish — egasi qarori.
-**Variantlar:** (a) `mark_post_as_sent` ga ixtiyoriy `next_time` qo'shib bitta tranzaksiyada reschedule (signatura o'zgaradi,
-`new_requirements_test` call-ketma-ketligi moslanadi); (b) davriy "heal" job: recurring `posted` postlarni `calculate_next_time` bilan
-`pending`ga qaytarish (soat/zona xatosi xavfi). `calculate_next_time` xatosi jimgina yutiladi (post `posted`da qoladi) — log bor, alert yo'q.
+`calculate_next_time` xatosi jimgina yutiladi (post `posted`da qoladi) — log bor, alert yo'q.
 
 ### AUDIT-006 — Telegram Stars refund qayta ishlanmaydi
 **Mavjud kod:** `handlers/subscription.py` faqat `pre_checkout` va `successful_payment` ni qayta ishlaydi; `refunded_payment`
