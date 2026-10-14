@@ -222,6 +222,175 @@ async def collector_edge():
 asyncio.run(collector_edge())
 
 
+# =========================================== 1b) 🖼 BIRLASHTIRILGAN (UNIFIED) PREVIEW
+# Albom to'liq yig'ilgach preview BITTA tuzilgan javob bo'lishi kerak:
+# muqova media + butun albomga tegishli caption + boshqaruv tugmalari.
+# Media fayllar va menyu IKKI alohida xabarga ajratilmaydi.
+print("== unified albom preview: media + caption + tugmalar = BITTA xabar ==")
+
+from services.media_group_collector import (  # noqa: E402
+    ALBUM_CAPTION_LIMIT,
+    ALBUM_TEXT_LIMIT,
+    AlbumPayload,
+    build_album_preview,
+    send_album_preview,
+    _utf16_length,
+)
+
+
+class _PreviewTransport:
+    """Unified preview transporti (bot yoki xabar adapteri o'rniga)."""
+
+    def __init__(self, *, media_error=None, text_error=None):
+        self.calls = []
+        self.media_error = media_error
+        self.text_error = text_error
+
+    async def _record(self, method, kwargs, error=None):
+        self.calls.append((method, dict(kwargs)))
+        if error is not None:
+            raise error
+        return SimpleNamespace(method=method)
+
+    def _text_error(self, kwargs):
+        return self.text_error if kwargs.get("parse_mode") else None
+
+    async def reply_photo(self, **kw):
+        return await self._record("reply_photo", kw, self.media_error)
+
+    async def reply_video(self, **kw):
+        return await self._record("reply_video", kw, self.media_error)
+
+    async def reply_text(self, **kw):
+        return await self._record("reply_text", kw, self._text_error(kw))
+
+    async def send_photo(self, **kw):
+        return await self._record("send_photo", kw, self.media_error)
+
+    async def send_message(self, **kw):
+        return await self._record("send_message", kw, self._text_error(kw))
+
+    def methods(self):
+        return [m for m, _ in self.calls]
+
+
+async def unified_preview_build():
+    items = [{"type": "photo", "file_id": "p1", "caption": "Izoh"},
+             {"type": "video", "file_id": "v2", "caption": ""},
+             {"type": "photo", "file_id": "p3", "caption": ""}]
+    markup = SimpleNamespace(inline_keyboard=[[SimpleNamespace(text="btn")]])
+    preview = build_album_preview(items, text="Albom: 3 ta fayl", reply_markup=markup)
+    check("muqova — birinchi renderlanadigan fayl",
+          preview.kind == "photo" and preview.file_id == "p1", str(preview.to_dict())[:160])
+    check("butun albom birlashtirilgan javobda saqlanadi (3 fayl)",
+          preview.count == 3 and len(preview.items) == 3 and preview.is_album)
+    check("boshqaruv tugmalari SHU javobga biriktiriladi (alohida xabar yo'q)",
+          preview.reply_markup is markup)
+    check("caption va zaxira matn bitta manbadan",
+          preview.caption == "Albom: 3 ta fayl" and preview.body() == preview.caption)
+
+    mixed = [{"type": "voice", "file_id": "vx"}, {"type": "video", "file_id": "v"}]
+    p2 = build_album_preview(mixed, text="t")
+    check("qo'llab-quvvatlanmaydigan tur muqova bo'lmaydi (keyingi fayl)",
+          p2.kind == "video" and p2.file_id == "v", str(p2.to_dict())[:160])
+
+    p3 = build_album_preview([], text="matn", reply_markup=markup)
+    check("bo'sh albom → matnli karta (tugmalar baribir biriktiriladi)",
+          not p3.is_media and p3.body() == "matn" and p3.reply_markup is markup)
+
+    p4 = build_album_preview(items, text="a" * 5000)
+    check("caption Telegram chegarasida (1024)",
+          _utf16_length(p4.caption) <= ALBUM_CAPTION_LIMIT, str(len(p4.caption)))
+    check("zaxira matn Telegram chegarasida (4096)",
+          _utf16_length(p4.text) <= ALBUM_TEXT_LIMIT, str(len(p4.text)))
+    p5 = build_album_preview(items, text="🖼" * 900)
+    check("emoji (UTF-16 = 2 birlik) hisobida ham caption 1024 dan oshmaydi",
+          _utf16_length(p5.caption) <= ALBUM_CAPTION_LIMIT
+          and p5.caption.endswith("…"), str(_utf16_length(p5.caption)))
+
+    def fake_sanitizer(text, limit):
+        return f"<b>{text[:limit]}</b>"
+
+    p6 = build_album_preview(items, text="salom", sanitizer=fake_sanitizer)
+    check("HTML sanitizer natijasi caption'da ishlatiladi",
+          p6.caption == "<b>salom</b>", p6.caption)
+
+    many = [{"type": "photo", "file_id": f"f{i}"} for i in range(14)]
+    p7 = build_album_preview(many, text="t")
+    check("albom 10 fayldan oshmaydi (Telegram chegarasi)", p7.count == 10, str(p7.count))
+
+    payload = AlbumPayload(media_group_id="G", items=[dict(i) for i in items],
+                           caption="Izoh")
+    p8 = payload.preview(reply_markup=markup)
+    check("AlbumPayload.preview: media + caption + tugmalar BITTA javobda",
+          p8.is_media and p8.caption == "Izoh" and p8.reply_markup is markup
+          and p8.count == 3, str(p8.to_dict())[:160])
+    p9 = payload.preview(text="maxsus matn")
+    check("AlbumPayload.preview: berilgan matn ustun", p9.caption == "maxsus matn")
+
+
+asyncio.run(unified_preview_build())
+
+
+async def unified_preview_send():
+    items = [{"type": "photo", "file_id": "p1"}, {"type": "photo", "file_id": "p2"}]
+    markup = SimpleNamespace(inline_keyboard=[])
+    preview = build_album_preview(items, text="caption matni", reply_markup=markup)
+
+    t1 = _PreviewTransport()
+    await send_album_preview(t1, preview, reply=True)
+    check("xabar adapteri: AYNAN BITTA xabar (reply_photo)",
+          t1.methods() == ["reply_photo"], str(t1.calls)[:160])
+    kw = t1.calls[0][1]
+    check("bitta xabarda media + caption + tugmalar birga",
+          kw.get("photo") == "p1" and kw.get("caption") == "caption matni"
+          and kw.get("reply_markup") is markup and kw.get("parse_mode") == "HTML",
+          str(kw)[:200])
+    check("xabar adapteridan chat_id so'ralmaydi", "chat_id" not in kw, str(kw)[:120])
+
+    t2 = _PreviewTransport()
+    await send_album_preview(t2, preview, chat_id=42)
+    check("bot: AYNAN BITTA xabar (send_photo) + chat_id",
+          t2.methods() == ["send_photo"] and t2.calls[0][1].get("chat_id") == 42,
+          str(t2.calls)[:160])
+
+    t3 = _PreviewTransport(media_error=RuntimeError("media xatosi"))
+    await send_album_preview(t3, preview, reply=True)
+    check("media xatosida matnli kartaga o'tiladi (oqim to'xtamaydi)",
+          t3.methods() == ["reply_photo", "reply_text"], str(t3.methods()))
+    check("zaxira kartada ham caption va tugmalar bor (ajratilmagan)",
+          t3.calls[-1][1].get("reply_markup") is markup
+          and t3.calls[-1][1].get("text") == preview.text, str(t3.calls[-1])[:200])
+
+    t4 = _PreviewTransport(text_error=RuntimeError("can't parse entities"))
+    text_only = build_album_preview([], text="matn", reply_markup=markup)
+    await send_album_preview(t4, text_only, reply=True)
+    check("HTML xatosida parse_mode=None bilan qayta urinish",
+          len(t4.calls) == 2 and t4.calls[-1][1].get("parse_mode") is None,
+          str(t4.calls)[:200])
+
+    class _TextOnlyAdapter:
+        def __init__(self):
+            self.calls = []
+
+        async def reply_text(self, **kw):
+            self.calls.append(kw)
+            return SimpleNamespace(message_id=1)
+
+    t5 = _TextOnlyAdapter()
+    await send_album_preview(t5, preview, reply=True)
+    check("media metodi yo'q adapterda ham BITTA xabar (matn + tugmalar)",
+          len(t5.calls) == 1 and t5.calls[0].get("reply_markup") is markup
+          and t5.calls[0].get("text") == preview.text, str(t5.calls)[:200])
+
+    check("bo'sh preview/transport xato qaytarmaydi",
+          await send_album_preview(None, preview) is None
+          and await send_album_preview(_PreviewTransport(), None) is None)
+
+
+asyncio.run(unified_preview_send())
+
+
 # ====================================================================== 2) TOZALAGICH
 print("== tozalagich: albom BITTA post ==")
 
@@ -241,6 +410,9 @@ class FakeSent:
 class FakeBot:
     def __init__(self):
         self.groups, self.texts = [], []
+        # 🖼 BIRLASHTIRILGAN preview kartalari: media + caption + tugmalar
+        # BITTA xabarda (muqova fayl turi va file_id bilan yozib boriladi).
+        self.cards = []
 
     async def send_media_group(self, chat_id, media=None, **kw):
         self.groups.append((chat_id, list(media)))
@@ -249,6 +421,29 @@ class FakeBot:
     async def send_message(self, chat_id, text, **kw):
         self.texts.append((chat_id, text, kw.get("reply_markup")))
         return FakeSent(self, "text")
+
+    def _record_card(self, kind, chat_id, file_id, kw):
+        self.cards.append({
+            "kind": kind, "chat_id": chat_id, "file_id": file_id,
+            "caption": kw.get("caption"), "reply_markup": kw.get("reply_markup"),
+            "parse_mode": kw.get("parse_mode"),
+        })
+        return FakeSent(self, kind)
+
+    async def send_photo(self, chat_id, photo=None, **kw):
+        return self._record_card("photo", chat_id, photo, kw)
+
+    async def send_video(self, chat_id, video=None, **kw):
+        return self._record_card("video", chat_id, video, kw)
+
+    async def send_animation(self, chat_id, animation=None, **kw):
+        return self._record_card("animation", chat_id, animation, kw)
+
+    async def send_document(self, chat_id, document=None, **kw):
+        return self._record_card("document", chat_id, document, kw)
+
+    async def send_audio(self, chat_id, audio=None, **kw):
+        return self._record_card("audio", chat_id, audio, kw)
 
 
 class Msg:
@@ -609,27 +804,59 @@ asyncio.run(scenario_enhancer_serial_updates())
 async def scenario_manual_album_preview():
     from unittest.mock import AsyncMock, patch
     from handlers import manual_post as mp
+    from locales.translations import get_text
 
+    ack_prefix = get_text("np_album_received", "uz").split("{")[0].strip()
     ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=FakeBot(), _user_id=7, chat_id=42)
     with patch.object(mp, "_MANUAL_ALBUM_WAIT_SECONDS", 0.05):
         messages = [Msg(803, "manual", kind="video"),
                     Msg(801, "manual", caption="Manual caption"),
                     Msg(802, "manual"), Msg(802, "manual")]
         await asyncio.gather(*(mp.manual_content_received(upd(m), ctx) for m in messages))
-        check("manual handler does not preview an incomplete album", not ctx.bot.groups)
+        check("manual handler does not preview an incomplete album",
+              not ctx.bot.groups and not ctx.bot.cards and not ctx.bot.texts)
         await asyncio.gather(*list(mp._MANUAL_ALBUM_TASKS.values()))
-        check("manual collector sends one complete album preview", len(ctx.bot.groups) == 1)
-        media = ctx.bot.groups[0][1]
-        check("manual album sorted and duplicate update ignored",
-              [m.media for m in media] == ["F801", "F802", "F803"])
-        check("manual caption belongs to the entire album",
-              media[0].caption == "Manual caption" and all(m.caption is None for m in media[1:]))
-        target = SimpleNamespace(reply_media_group=AsyncMock(), reply_text=AsyncMock())
-        await mp._show_preview(target, ctx, "uz")
-        check("manual preview screen renders the whole media group",
-              target.reply_media_group.await_count == 1
-              and len(target.reply_media_group.await_args.kwargs["media"]) == 3)
-        check("album controls use a separate message", target.reply_text.await_count == 1)
+    # 🖼 BIRLASHTIRILGAN (UNIFIED) PREVIEW: media + caption + boshqaruv
+    # tugmalari BITTA xabarda chiqadi — media fayllar va menyu ikki alohida
+    # (uzilgan) xabarga AJRATILMAYDI.
+    check("manual collector sends exactly ONE unified album preview",
+          len(ctx.bot.cards) == 1 and not ctx.bot.texts,
+          f"cards={ctx.bot.cards} texts={ctx.bot.texts}")
+    check("album media is NOT detached into a separate media-group message",
+          ctx.bot.groups == [], str(ctx.bot.groups)[:160])
+    card = ctx.bot.cards[0] if ctx.bot.cards else {}
+    check("unified preview renders the album cover media",
+          card.get("kind") == "photo" and card.get("file_id") == "F801", str(card)[:160])
+    check("unified preview carries the control buttons",
+          card.get("reply_markup") is not None, str(card.get("reply_markup"))[:120])
+    check("album ack (file count) lives in the SAME caption",
+          ack_prefix in (card.get("caption") or "")
+          and "3" in (card.get("caption") or ""),
+          str(card.get("caption"))[:160])
+    draft = json.loads(ctx.user_data.get(mp.UD_ALBUM_ITEMS) or "[]")
+    check("manual album sorted and duplicate update ignored",
+          [i.get("file_id") for i in draft] == ["F801", "F802", "F803"], str(draft)[:160])
+    check("manual caption belongs to the entire album",
+          draft and draft[0]["caption"] == "Manual caption"
+          and all(i["caption"] == "" for i in draft[1:]), str(draft)[:160])
+    check("unified caption keeps the album caption",
+          "Manual caption" in (card.get("caption") or ""), str(card.get("caption"))[:160])
+    check("whole album stays in the draft (no file is lost)",
+          ctx.user_data.get(mp.UD_POST_TYPE) == "album" and len(draft) == 3, str(draft)[:120])
+
+    target = SimpleNamespace(reply_photo=AsyncMock(), reply_video=AsyncMock(),
+                             reply_document=AsyncMock(), reply_animation=AsyncMock(),
+                             reply_media_group=AsyncMock(), reply_text=AsyncMock())
+    await mp._show_preview(target, ctx, "uz")
+    check("manual preview screen renders ONE unified card (cover + caption + buttons)",
+          target.reply_photo.await_count == 1
+          and target.reply_photo.await_args.kwargs.get("reply_markup") is not None
+          and "Manual caption" in (target.reply_photo.await_args.kwargs.get("caption") or ""),
+          str(target.reply_photo.await_args)[:200])
+    check("album controls are NOT detached into a second message",
+          target.reply_text.await_count == 0
+          and target.reply_media_group.await_count == 0,
+          f"text={target.reply_text.await_count} group={target.reply_media_group.await_count}")
 
 
 asyncio.run(scenario_manual_album_preview())

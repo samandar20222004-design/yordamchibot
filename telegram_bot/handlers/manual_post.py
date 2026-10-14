@@ -87,7 +87,11 @@ from services.album_gate import take_album_payload
 from services.media_group_collector import (
     ALBUM_DEBOUNCE_SECONDS as _CANONICAL_ALBUM_DEBOUNCE_SECONDS,
 )
-from services.media_group_collector import MediaGroupCollector
+from services.media_group_collector import (
+    MediaGroupCollector,
+    build_album_preview,
+    send_album_preview,
+)
 from translations import manual_post_t
 from utils.date_format import format_datetime, format_time
 from utils.helpers import (
@@ -344,10 +348,31 @@ def _manual_album_schedule_many(user_id: int, context, lang: str, chat_id,
     return outcome
 
 
+def _album_ack_text(lang: str, count: int, content: str = "") -> str:
+    """🖼 Albom qabul tasdig'i + foydalanuvchi izohi — BITTA preview matni.
+
+    Albom yakunlanganda chiqadigan yagona matn: nechta fayl bitta post
+    bo'lishi (``np_album_received``) va albomga bog'langan izoh. Shu matn
+    unified preview kartasining caption'iga yoziladi (media, caption va
+    boshqaruv tugmalari BITTA xabarda chiqadi).
+    """
+    ack = get_text("np_album_received", lang, count=int(count or 0))
+    body = (content or "").strip()
+    return f"{ack}\n\n{body}" if body else ack
+
+
 async def _manual_album_finalize(user_id: int, context, lang: str, chat_id=None,
                                  *, items: list | None = None,
                                  collector_key=None) -> None:
-    """To'liq albomni saqlaydi va faqat BIRTA konsolidatsiyalangan preview beradi."""
+    """To'liq albomni saqlaydi va faqat BIRTA konsolidatsiyalangan preview beradi.
+
+    🖼 BIRLASHTIRILGAN PREVIEW: media, caption va boshqaruv tugmalari BITTA
+    xabarda chiqadi (``services.media_group_collector.build_album_preview``).
+    Avvalgi xatti-harakatda avval matn + panel, keyin esa albom fayllari
+    ALOHIDA ``sendMediaGroup`` xabari yuborilardi — bitta preview holati ikki
+    uzilgan xabarga bo'linib ketardi. Albomning barcha fayllari draftda
+    saqlanadi va kanalga bitta ``sendMediaGroup`` bilan chiqadi.
+    """
     if collector_key is not None and _MANUAL_ALBUM_KEYS.get(user_id) != collector_key:
         return  # sessiya/guruh almashtirilgan — eski callback hech narsa yubormaydi
     _MANUAL_ALBUM_KEYS.pop(user_id, None)
@@ -371,21 +396,20 @@ async def _manual_album_finalize(user_id: int, context, lang: str, chat_id=None,
     if bot is None or chat_id is None or not hasattr(bot, "send_message"):
         return
     try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=get_text("np_album_received", lang, count=len(items)),
+        # 🖼 BIRLASHTIRILGAN (UNIFIED) PREVIEW — media + caption + tugmalar
+        # BITTA xabarda. Telegram ``sendMediaGroup`` ga inline tugma ulashga
+        # ruxsat bermaydi, shu sababli albom muqova fayli + butun albomga
+        # tegishli caption + boshqaruv paneli bo'lgan yagona karta chiqadi
+        # (media fayllar va menyu ALOHIDA xabarlarga ajratilmaydi).
+        content = context.user_data.get(UD_CONTENT, "")
+        preview = build_album_preview(
+            items,
+            text=_album_ack_text(lang, len(items), content),
             reply_markup=_manual_preview_markup(context, lang),
             parse_mode="HTML",
+            sanitizer=sanitize_html,
         )
-        from scheduler import _build_album_media, _send_single_media
-        content = context.user_data.get(UD_CONTENT, "")
-        if len(items) > 1:
-            # Barcha InputMediaPhoto/InputMediaVideo elementlari BITTA
-            # sendMediaGroup chaqiruviga uzatiladi.
-            await bot.send_media_group(chat_id=chat_id, media=_build_album_media(items, content))
-        else:
-            await _send_single_media(bot, chat_id, items[0]["type"], items[0]["file_id"],
-                                     content, None, "HTML")
+        await send_album_preview(bot, preview, chat_id=chat_id)
     except Exception as _silent_exc:
         log_silent_failure("handlers.manual_post:_manual_album_finalize",
                            _silent_exc, user_id=user_id)
@@ -785,6 +809,13 @@ async def _show_preview(target_msg, context, lang: str):
     qo'shimchasi YO'Q: foydalanuvchi nima yuborgan bo'lsa, aynan o'sha chiqadi.
     Tanlangan reaksiyalar va havolali tugma bo'lsa — preview matnida xulosa
     qatori, markup'da esa TUGMALAR ko'rinadi (2-qadam UI/UX polish).
+
+    🖼 ALBOM: preview BITTA tuzilgan xabar — muqova media + butun albomga
+    tegishli caption + boshqaruv paneli (``build_album_preview`` /
+    ``send_album_preview``). Media fayllar va menyu ikki alohida xabarga
+    AJRATILMAYDI: Telegram ``sendMediaGroup`` ga inline tugma ulashga ruxsat
+    bermaydi, shu sababli albom muqova fayli bilan yagona kartada ko'rsatiladi
+    va barcha fayllar kanalga bitta ``sendMediaGroup`` bilan chiqadi.
     """
     content = context.user_data.get(UD_CONTENT, "") or ""
     post_type = context.user_data.get(UD_POST_TYPE, "text")
@@ -794,21 +825,19 @@ async def _show_preview(target_msg, context, lang: str):
     foot = manual_post_t("mp_preview_foot", lang)
     extras = _manual_extras_text(context, lang)
 
-    # Send the complete album; Telegram requires controls in a separate message.
-    # Older message adapters retain the cover-photo fallback.
+    # 🖼 ALBOM — BIRLASHTIRILGAN PREVIEW (media + caption + tugmalar = 1 xabar).
     preview_kind, preview_file = post_type, file_id
     if post_type == "album" and file_id:
         items = _manual_album_items(context)
         if items:
-            if hasattr(target_msg, "reply_media_group"):
-                from scheduler import _build_album_media
-                await target_msg.reply_media_group(
-                    media=_build_album_media(items, content))
-                return await target_msg.reply_text(
-                    f"{title}{extras}{foot}", reply_markup=panel, parse_mode="HTML")
-            # Compatibility fallback for message adapters without album support.
-            preview_kind = items[0].get("type") or "photo"
-            preview_file = items[0].get("file_id")
+            album_preview = build_album_preview(
+                items,
+                text=f"{title}{content}{extras}{foot}",
+                reply_markup=panel,
+                parse_mode="HTML",
+                sanitizer=sanitize_html,
+            )
+            return await send_album_preview(target_msg, album_preview, reply=True)
     if preview_kind in _SUPPORTED_MEDIA and preview_file:
         # Caption Telegram chegarasi 1024 — preview matni ham caption'da.
         caption_text = f"{title}{content}{extras}{foot}"
@@ -1199,8 +1228,9 @@ async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_
 
     🖼 ALBOM (media_group): guruhning BARCHA fayllari (10 tagacha) bitta
     postga yig'iladi. Birinchi fayl ham partial preview chiqarmaydi;
-    jimlik oynasi oxirgi update'dan keyin tugagach bitta yakuniy xabar
-    (nechta fayl) va bitta to'liq media-group preview chiqadi.
+    jimlik oynasi oxirgi update'dan keyin tugagach BITTA birlashtirilgan
+    preview chiqadi (muqova media + "N ta fayl" tasdig'i + boshqaruv paneli
+    bir xabarda). Albom fayllari alohida xabarga ajratilmaydi.
     """
     msg = update.message
     lang = get_lang(context)
