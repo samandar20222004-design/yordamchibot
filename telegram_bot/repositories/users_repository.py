@@ -2015,6 +2015,7 @@ _ACCOUNT_DELETE_CHANNEL_SCOPED = (
     ("channel_post_events", "channel_id", str),
     ("channel_post_counters", "channel_id", str),
     ("channel_posts_history", "channel_id", str),
+    ("channel_member_counts", "channel_id", str),
     ("sent_post_messages", "channel_id", str),
     ("post_deliveries", "channel_id", int),
 )

@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import re
+import time as _time
 from datetime import date, datetime, timedelta
 import pytz
 from telegram import (
@@ -14,7 +15,7 @@ from telegram import (
     InputMediaDocument,
     InputMediaAudio,
 )
-from telegram.error import BadRequest, Conflict, InvalidToken, TelegramError, RetryAfter, TimedOut, NetworkError
+from telegram.error import BadRequest, Conflict, Forbidden, InvalidToken, TelegramError, RetryAfter, TimedOut, NetworkError
 from config import (
     ADMIN_IDS_SET,
     BOT_USERNAME,
@@ -2031,6 +2032,70 @@ async def notify_post_problems(bot) -> int:
         except Exception as exc:  # noqa: BLE001 — bot bloklangan / chat yo'q: xabar muhim emas, ish davom etadi
             logger.info("Post muammosi xabari yuborilmadi (user=%s): %s", user_id, type(exc).__name__)
     return notified
+
+
+# ── Kanal obunachilari kunlik snapshot'i (analitika asosi) ───────────────────────────────────────────
+SNAPSHOT_MAX_CHANNELS_PER_RUN = 3000
+SNAPSHOT_REQUEST_TIMEOUT = 15.0
+SNAPSHOT_DELAY_SECONDS = 0.05
+#: Bot chiqarilgan / chat topilmagan ("o'lik") kanal shuncha vaqt qayta so'ralmaydi: aks holda ular ``ORDER BY id`` tartibida
+#: navbat boshida turib har ishga tushirishda behuda so'rov sarflaydi va 3000 cheklovdan keyin sog'lom kanallarni to'sadi.
+SNAPSHOT_SKIP_SECONDS = 24 * 3600
+_SNAPSHOT_SKIP_UNTIL: dict = {}   # channel_id -> time.monotonic() gacha o'tkazib yuboriladi (jarayon xotirasi; restartda tiklanadi)
+
+
+async def snapshot_channel_member_counts_job(bot) -> dict:
+    """Bugun hali snapshot olinmagan faol kanallar uchun ``getChatMemberCount`` ni saqlaydi.
+
+    Telegram tarixni bermaydi — o'sish shu kunlik snapshot'lardan quriladi. Bitta kanal xatosi (bot chiqarilgan, chat
+    topilmadi, timeout) ishni to'xtatmaydi; ``RetryAfter`` (FloodWait) da ish to'xtaydi va qolgan kanallar keyingi
+    ishga tushirishda olinadi. Hech qachon istisno tashlamaydi. Qaytadi: ``{saved, skipped, failed, rate_limited}``.
+    """
+    result = {"saved": 0, "skipped": 0, "failed": 0, "rate_limited": False}
+    try:
+        channel_ids = await db.run_db(db.get_channels_for_member_snapshot)
+    except Exception:
+        logger.exception("Obunachilar snapshot'i: kanallar ro'yxatini o'qishda xato")
+        return result
+    now_mono = _time.monotonic()
+    candidates = [cid for cid in (channel_ids or []) if _SNAPSHOT_SKIP_UNTIL.get(str(cid), 0.0) <= now_mono]
+    for raw_id in candidates[:SNAPSHOT_MAX_CHANNELS_PER_RUN]:
+        if lifecycle.is_shutting_down():
+            break
+        chat_id = int(raw_id) if str(raw_id).lstrip("-").isdigit() else raw_id
+        try:
+            count = await asyncio.wait_for(bot.get_chat_member_count(chat_id), timeout=SNAPSHOT_REQUEST_TIMEOUT)
+        except RetryAfter as exc:
+            logger.warning("Obunachilar snapshot'i: FloodWait (%.0fs) — ish to'xtatildi, qolganlari keyingi safar",
+                           flood_wait_seconds(exc))
+            result["rate_limited"] = True
+            break
+        except (Forbidden, BadRequest) as exc:
+            logger.debug("Obunachilar snapshot'i: kanal %s o'tkazib yuborildi (%s)", raw_id, type(exc).__name__)
+            _SNAPSHOT_SKIP_UNTIL[str(raw_id)] = _time.monotonic() + SNAPSHOT_SKIP_SECONDS
+            result["skipped"] += 1
+            continue
+        except (TimedOut, NetworkError, asyncio.TimeoutError) as exc:
+            logger.info("Obunachilar snapshot'i: kanal %s vaqtincha olinmadi (%s)", raw_id, type(exc).__name__)
+            result["skipped"] += 1
+            continue
+        except Exception:
+            logger.exception("Obunachilar snapshot'i: kanal %s kutilmagan xato", raw_id)
+            result["failed"] += 1
+            continue
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            result["failed"] += 1
+            continue
+        try:
+            ok = await db.run_db(db.save_channel_member_count, str(raw_id), count)
+        except Exception:
+            logger.exception("Obunachilar snapshot'ini saqlashda xato (kanal %s)", raw_id)
+            ok = False
+        result["saved" if ok else "failed"] += 1
+        await asyncio.sleep(SNAPSHOT_DELAY_SECONDS)
+    if result["saved"] or result["failed"] or result["rate_limited"]:
+        logger.info("Obunachilar snapshot'i: %s", result)
+    return result
 
 
 async def check_and_delete_expired_posts(bot):

@@ -8,7 +8,7 @@ o'tgan obunani YOZADI, bu esa o'qish tranzaksiyasi).
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import drafts
 from . import repository as repo
@@ -133,6 +133,31 @@ class MiniAppService:
         def query(cur, _account):
             items = repo.list_channels(cur, user_id)
             return {"items": items, "total": len(items)}
+
+        return await self._authorized(user_id, query)
+
+    async def channel_analytics(self, user_id: int, channel_id: str) -> dict:
+        """Kanal analitikasi (faqat EGASI). Begona / yo'q kanal bir xil ``not_found`` (mavjudlik sizdirilmaydi).
+
+        Faqat haqiqiy ma'lumotlar: obunachi snapshot'lari (o'sish extrapolyatsiyasiz), botning o'z postlari va MANBALI
+        ko'rishlar. Ma'lumot yo'q -> ``None`` / ``available=False`` (0 emas).
+        """
+        from services.channels.growth import compute_member_growth, tashkent_today
+
+        def query(cur, _account):
+            title = repo.channel_title(cur, user_id, channel_id)
+            if title is None:
+                raise ApiError("not_found")
+            today = tashkent_today()
+            history = repo.member_history(cur, channel_id, today - timedelta(days=60))
+            growth = compute_member_growth(history, today=today)
+            growth["history"] = [{"date": h["date"], "member_count": h["member_count"]} for h in history[:30]]
+            return {
+                "channel": {"id": str(channel_id), "title": title},
+                "members": growth,
+                "posts": repo.channel_post_counts(cur, user_id, channel_id),
+                "views": repo.views_summary(cur, channel_id),
+            }
 
         return await self._authorized(user_id, query)
 

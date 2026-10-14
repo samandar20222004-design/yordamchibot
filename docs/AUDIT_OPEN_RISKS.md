@@ -21,11 +21,17 @@ Manba: 1-bosqich audit hisoboti (5 ta o'qish-faqat agent + qo'lda tekshiruv). Ha
 | P-3 | Payme refund (`PAYME_ALLOW_REFUNDS=1`) muddatsiz PRO (admin bergan) ni `free` ga tushirmaydi (enterprise bilan bir xil qoida). | `tests/enterprise_plan_preservation_test.py` |
 | P-4 (variant 1) | Stars `refunded_payment`: log + adminlarga ogohlantirish. PRO huquqi va `payments` AVTOMATIK O'ZGARTIRILMAYDI (refund siyosati egasi qarori, AUDIT-006). | `tests/stars_refund_notice_test.py` |
 
+## Analitika asosi (ikkinchi audit, P1) — qilindi
+`views` noma'lum bo'lsa NULL (soxta 0 emas) + `views_source`/`views_collected_at`; obunachilar kunlik snapshot'i (`channel_member_counts`,
+6 soatlik idempotent ish), halol o'sish hisobi (extrapolyatsiyasiz, ishonch darajasi bilan), dashboard qatori (uz/ru/en), tozalash,
+maxfiylik bilan o'chirish va IDOR himoyasi. To'liq tavsif va cheklovlar — `docs/ANALYTICS.md`. Hali yo'q: haqiqiy `views`/reaksiya oqimi
+(Bot API bermaydi; MTProto/`t.me/s` — alohida qaror), Mini App analitika sahifasi (P2).
+
 ### Ataylab qoldirilgan (dizayn/biznes qarori kerak)
 * **P-1 — `photo_check` ✅ idempotent emas** (`handlers/photo_check.py:271`): har bosish +30 kun PRO, rasm BARCHA adminlarga alohida boradi. Variantlar: (a) so'rov uchun bitta qator (pending/approved) + `UPDATE ... WHERE status='pending'` — yangi jadval/migratsiya; (b) `payments` jadvaliga `photocheck:<uid>:<msg_id>` kaliti bilan 0-summali yozuv (callback_data formati o'zgaradi, daromad hisobotlariga ta'sirini tekshirish kerak). Xavf: callback formati va hisobotlar.
 * **P-2 — Payme `perform_transaction` PRO berilmaganini (foydalanuvchi qatori yo'q) e'tiborsiz qoldiradi.** Variantlar: (a) `PaymeError(ERR_CANNOT_PERFORM)` — tranzaksiya rollback, pul olinmaydi (Payme protokol xulqi o'zgaradi); (b) muvaffaqiyat + admin alert. Tanlov protokol/biznes qarori.
 * **D-3 — Telegram 5xx da ommaviy `unknown`:** qayta baholandi — 504 (Gateway Timeout) Telegram xabarni ALLAQACHON qayta ishlagan bo'lishi mumkin, shuning uchun "aniq yetkazilmagan" deb retry qilish dublikat xavfini qaytaradi. Hozirgi konservativ yo'l to'g'ri; zarari D-4 (egasiga xabar) bilan kamaytirildi.
-* **D-6/D-8** (kanal limiti 60/daq vs Telegram ~20/daq; 100 post/daq sig'im), **PTB pin va CI qattiqlashtirish** (`docs/ci-hardening.yml` ni egasi ko'chiradi; PTB versiyasini production `pip freeze` ga moslab pin qilish), **analitika sxemasi** (`views` NULL, `source`, `collected_at`; `getChatMemberCount` snapshot) — alohida, ko'rib chiqiladigan o'zgarishlar.
+* **D-6/D-8** (kanal limiti 60/daq vs Telegram ~20/daq; 100 post/daq sig'im), **PTB pin va CI qattiqlashtirish** (`docs/ci-hardening.yml` ni egasi ko'chiradi; PTB versiyasini production `pip freeze` ga moslab pin qilish) — alohida, ko'rib chiqiladigan o'zgarishlar.
 
 **Tuzatma:** yuqoridagi "~22 daqiqa" taxmini noto'g'ri edi. Umumiy (`Exception`) xatoda post 60 s oralig'ida qayta uriniladi, shuning uchun 5 urinish ~5 daqiqada tugaydi; backoff jadvali (30s/2m/5m/15m) faqat noaniq-tarmoq yo'lida (`_handle_ambiguous_send_error`) qo'llanadi. Real uzilishda postlar `failed` bo'lishi mumkin; endi egasi xabar oladi (D-4).
 

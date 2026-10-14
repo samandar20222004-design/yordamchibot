@@ -170,3 +170,11 @@ fieldset.segmented legend { padding: 0; margin-bottom: var(--s2); }
   .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .stat-wide { grid-column: span 2; }
 }
+
+/* Kanal tahlili (StatsPage) */
+.stat-big { display: grid; gap: var(--s1); }
+.stat-big .stat-value { font-size: 2rem; }
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s2); }
+.hist li { display: grid; grid-template-columns: 6.5rem 1fr auto; align-items: center; gap: var(--s2); font-size: 0.8125rem; }
+.hist .bar { height: 6px; border-radius: 3px; background: var(--accent); min-width: 4px; }
+.small { font-size: 0.8125rem; }

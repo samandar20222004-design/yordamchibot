@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, Channel, ChannelList, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { AiResult, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -87,6 +87,59 @@ export function parseMe(v: unknown): Me {
 function parseChannel(v: unknown): Channel {
   const c = rec(v, 'channel')
   return { id: str(c.id, 'channel.id'), title: strOrNull(c.title, 'channel.title') }
+}
+
+function intOrNull(v: unknown, what: string): number | null {
+  if (v === null || v === undefined) return null
+  return int(v, what)
+}
+function numOrNull(v: unknown, what: string): number | null {
+  if (v === null || v === undefined) return null
+  if (typeof v !== 'number' || !Number.isFinite(v)) throw new ShapeError(what)
+  return v
+}
+function confidence(v: unknown): Confidence {
+  return v === 'low' || v === 'medium' || v === 'high' ? v : 'none'
+}
+
+export function parseChannelAnalytics(v: unknown): ChannelAnalytics {
+  const o = rec(v, 'analytics')
+  const ch = rec(o.channel, 'analytics.channel')
+  const m = rec(o.members, 'analytics.members')
+  const p = rec(o.posts, 'analytics.posts')
+  const w = rec(o.views, 'analytics.views')
+  return {
+    channel: { id: str(ch.id, 'channel.id'), title: strOrNull(ch.title, 'channel.title') ?? '' },
+    members: {
+      current: intOrNull(m.current, 'members.current'),
+      as_of: strOrNull(m.as_of, 'members.as_of'),
+      delta_7d: intOrNull(m.delta_7d, 'members.delta_7d'),
+      delta_30d: intOrNull(m.delta_30d, 'members.delta_30d'),
+      points: int(m.points, 'members.points'),
+      span_days: int(m.span_days, 'members.span_days'),
+      confidence: confidence(m.confidence),
+      stale: bool(m.stale, 'members.stale'),
+      source: strOrNull(m.source, 'members.source'),
+      collected_at: strOrNull(m.collected_at, 'members.collected_at'),
+      history: arr(m.history, 'members.history').map((h) => {
+        const r = rec(h, 'members.history[]')
+        return { date: str(r.date, 'history.date'), member_count: int(r.member_count, 'history.member_count') }
+      }),
+    },
+    posts: {
+      sent_7d: int(p.sent_7d, 'posts.sent_7d'), sent_30d: int(p.sent_30d, 'posts.sent_30d'),
+      sent_all: int(p.sent_all, 'posts.sent_all'), pending: int(p.pending, 'posts.pending'),
+      failed: int(p.failed, 'posts.failed'), unknown: int(p.unknown, 'posts.unknown'),
+    },
+    views: {
+      available: bool(w.available, 'views.available'),
+      with_views: int(w.with_views, 'views.with_views'),
+      avg: numOrNull(w.avg, 'views.avg'),
+      max: intOrNull(w.max, 'views.max'),
+      collected_at: strOrNull(w.collected_at, 'views.collected_at'),
+      sources: arr(w.sources, 'views.sources').map((x) => str(x, 'views.sources[]')),
+    },
+  }
 }
 
 export function parseChannels(v: unknown): ChannelList {

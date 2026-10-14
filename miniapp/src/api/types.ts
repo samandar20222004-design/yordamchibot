@@ -37,6 +37,34 @@ export interface Channel {
   title: string | null
 }
 
+export type Confidence = 'none' | 'low' | 'medium' | 'high'
+
+export interface MemberPoint {
+  date: string
+  member_count: number
+}
+
+/** Kanal analitikasi: faqat HAQIQIY ma'lumot; noma'lum qiymat `null` / `available: false` (0 emas). */
+export interface ChannelAnalytics {
+  channel: { id: string; title: string }
+  members: {
+    current: number | null
+    as_of: string | null
+    delta_7d: number | null
+    delta_30d: number | null
+    points: number
+    span_days: number
+    confidence: Confidence
+    stale: boolean
+    source: string | null
+    collected_at: string | null
+    history: MemberPoint[]
+  }
+  /** Botning O'Z postlari (kanalning haqiqiy natijasi emas). */
+  posts: { sent_7d: number; sent_30d: number; sent_all: number; pending: number; failed: number; unknown: number }
+  views: { available: boolean; with_views: number; avg: number | null; max: number | null; collected_at: string | null; sources: string[] }
+}
+
 export interface ChannelList {
   items: Channel[]
   total: number

@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 
 API_PREFIX = "/api/v1"
 _INT_RE = re.compile(r"\A[0-9]{1,7}\Z")
+_CHANNEL_ID_RE = re.compile(r"\A-?[0-9]{5,20}\Z")   # Telegram chat_id (kanal: -100...)
 
 _K_SETTINGS = web.AppKey("miniapp_settings", MiniAppSettings)
 _K_SERVICE = web.AppKey("miniapp_service", MiniAppService)
@@ -99,6 +100,18 @@ async def me_handler(request: web.Request):
 async def channels_handler(request: web.Request):
     data = await request.app[_K_SERVICE].channels(request["user_id"])
     return web.json_response(data)
+
+
+def _channel_id(request: web.Request) -> str:
+    raw = request.match_info.get("channel_id", "")
+    if not _CHANNEL_ID_RE.match(raw):
+        raise ApiError("not_found")
+    return raw
+
+
+async def channel_analytics_handler(request: web.Request):
+    data = await request.app[_K_SERVICE].channel_analytics(request["user_id"], _channel_id(request))
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
 async def scheduled_handler(request: web.Request):
@@ -288,6 +301,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/health", health_handler)
     api.router.add_get("/me", me_handler)
     api.router.add_get("/channels", channels_handler)
+    api.router.add_get("/channels/{channel_id}/analytics", channel_analytics_handler)
     api.router.add_get("/scheduled-posts", scheduled_handler)
     api.router.add_get("/posts/{post_id}", post_detail_handler)
     api.router.add_get("/draft", draft_handler)

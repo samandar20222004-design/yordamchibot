@@ -115,6 +115,56 @@ def _type_label(ptype: str, lang: str = "uz") -> str:
     return _TYPE_LABEL.get(ptype, ptype)
 
 
+#: Snapshot manbasi -> foydalanuvchiga ko'rsatiladigan nom. Noma'lum manba o'z nomi bilan (HTML-escape) ko'rsatiladi.
+_MEMBER_SOURCE_LABELS = {"bot_api_getChatMemberCount": "Telegram"}
+
+
+def _fmt_count(n) -> str:
+    """12345 -> '12 345' (bo'sh joy ajratgich; barcha tillar uchun betaraf)."""
+    return f"{int(n):,}".replace(",", " ")
+
+
+def _fmt_delta(value, nodata: str) -> str:
+    """O'sish: +50 / -120 / 0; ma'lumot yo'q (None) -> 0 EMAS, 'ma'lumot yetarli emas'."""
+    if value is None:
+        return nodata
+    return "0" if int(value) == 0 else f"{int(value):+d}"
+
+
+def _member_lines(growth, lang: str) -> list:
+    """Obunachilar qatorlari (``stats["member_growth"]`` bo'lsa). Soxta raqam yo'q: faqat haqiqiy snapshot'lar."""
+    if not isinstance(growth, dict):
+        return []
+    if growth.get("current") is None:
+        return [get_text("an_dash_members_pending", lang)]
+    nodata = get_text("an_dash_members_nodata", lang)
+    lines = [
+        get_text("an_dash_members", lang, n=_fmt_count(growth["current"]), date=html_escape(str(growth.get("as_of") or ""))),
+        get_text("an_dash_members_delta", lang,
+                 d7=_fmt_delta(growth.get("delta_7d"), nodata), d30=_fmt_delta(growth.get("delta_30d"), nodata)),
+    ]
+    if growth.get("confidence") in ("none", "low") or growth.get("stale"):
+        source = str(growth.get("source") or "")
+        label = _MEMBER_SOURCE_LABELS.get(source) or html_escape(source) or "?"
+        lines.append(get_text("an_dash_members_low", lang, source=label))
+    return lines
+
+
+async def _attach_member_growth(stats: dict, user_id: int, channel_id) -> dict:
+    """Bitta kanal tanlangan bo'lsa stats'ga ``member_growth`` qo'shadi. Tarix FAQAT egasi uchun o'qiladi (IDOR);
+    har qanday xatoda stats o'zgarishsiz qaytadi (dashboard hech qachon buzilmaydi)."""
+    if not channel_id:
+        return stats
+    try:
+        from services.channels.growth import compute_member_growth
+
+        history = await db.run_db(db.get_channel_member_history, channel_id, 60, user_id)
+        return {**(stats or {}), "member_growth": compute_member_growth(history)}
+    except Exception as exc:  # noqa: BLE001
+        log_silent_failure("handlers.analytics:_attach_member_growth", exc)
+        return stats
+
+
 def _build_dashboard(stats: dict, channel_title: str = "Barcha kanallar", lang: str = "uz") -> str:
     """Statistika ma'lumotlarini chiroyli matnli dashboard ko'rinishida formatlaydi."""
     sent_7d = stats.get("sent_7d", 0)
@@ -162,6 +212,7 @@ def _build_dashboard(stats: dict, channel_title: str = "Barcha kanallar", lang: 
         "",
         get_text("an_dash_peak", lang, hours=html_escape(hours_str)),
         get_text("an_dash_types", lang, types=html_escape(types_str)),
+        *_member_lines(stats.get("member_growth"), lang),
         div,
     ]
     return "\n".join(lines)
@@ -315,6 +366,7 @@ async def analytics_channel_chosen(update: Update, context: ContextTypes.DEFAULT
     context.user_data["analytics_channel_title"] = channel_title
 
     stats = await db.run_db(db.get_channel_post_stats, user_id, channel_id)
+    stats = await _attach_member_growth(stats, user_id, channel_id)
     dashboard = _build_dashboard(stats, channel_title, lang)
 
     await query.message.reply_text(
@@ -398,6 +450,7 @@ async def analytics_view_callback(update: Update, context: ContextTypes.DEFAULT_
         )
 
         stats = await db.run_db(db.get_channel_post_stats, user_id, channel_id)
+        stats = await _attach_member_growth(stats, user_id, channel_id)
         dashboard = _build_dashboard(stats, channel_title, lang)
         view_kb = _get_analytics_view_keyboard(show_pro=show_pro, lang=lang)
 

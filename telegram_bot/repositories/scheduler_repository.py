@@ -694,6 +694,21 @@ def cleanup_old_data() -> dict:
 
             cur.execute("DELETE FROM channel_posts_history WHERE created_at < NOW() - INTERVAL '90 days'")
             deleted["channel_posts_history"] = cur.rowcount
+        # Obunachilar snapshot'lari: 400 kundan eskisi o'chiriladi (yillik taqqoslash uchun yetarli). ALOHIDA tranzaksiya:
+        # jadval hali yo'q bo'lsa yuqoridagi tozalash bekor bo'lmaydi.
+        try:
+            with db_cursor(commit=True) as cur:
+                cur.execute("DELETE FROM channel_member_counts WHERE snapshot_date < CURRENT_DATE - INTERVAL '400 days'")
+                deleted["channel_member_counts"] = cur.rowcount
+                # Kanal qatori o'chirilgan (90 kunlik nofaol tozalash) bo'lsa snapshot'lari ham ketadi: qayta ulansa
+                # eski hisoblar "tarix" bo'lib qaytib chiqmasligi va egasiz saqlanmasligi uchun.
+                cur.execute(
+                    "DELETE FROM channel_member_counts m "
+                    "WHERE NOT EXISTS (SELECT 1 FROM channels c WHERE c.channel_id = m.channel_id)"
+                )
+                deleted["channel_member_counts"] += cur.rowcount
+        except Exception as e:
+            logger.warning(f"Obunachilar snapshot'larini tozalash xatosi: {e}")
         # Mini App qoralamalari: o'qishda 48 soatdan eskisi hisobga olinmaydi (miniapp_api.drafts.DRAFT_TTL_HOURS);
         # jadval cheksiz to'planmasligi uchun 7 kundan eskisi o'chiriladi. ALOHIDA tranzaksiya: jadval bo'lmasa
         # yuqoridagi tozalash bekor bo'lmaydi.

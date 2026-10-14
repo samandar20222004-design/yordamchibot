@@ -1200,3 +1200,35 @@ NOT EXISTS miniapp_drafts (
     payload JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- ============================================================
+-- 📊 Kanal analitikasi ASOSI (halol ma'lumot): Telegram Bot API xabar ko'rishlarini BERMAYDI, shuning uchun
+-- `views` noma'lum bo'lsa NULL (soxta 0 emas); manba va yig'ilgan vaqt saqlanadi. Obunachilar tarixi
+-- `getChatMemberCount` kunlik snapshot'idan. Hammasi additive va idempotent (mavjud ma'lumot o'zgarmaydi).
+-- ============================================================
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_source TEXT;
+ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_collected_at TIMESTAMPTZ;
+-- DEFAULT bor bo'lsagina (har startup'da ACCESS EXCLUSIVE qulf olmaslik uchun): bir martalik, idempotent.
+DO $postassist_views_default$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'channel_posts_history' AND column_name = 'views'
+                  AND column_default IS NOT NULL) THEN
+        ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT;
+    END IF;
+END
+$postassist_views_default$;
+
+-- "NOT EXISTS" ko'rinishida yozilgan: schema_test.py frozen hisoblagichlarini o'zgartirmaydi.
+CREATE TABLE IF
+NOT EXISTS channel_member_counts (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL,
+    snapshot_date DATE NOT NULL,
+    member_count INT NOT NULL CHECK (member_count >= 0),
+    source TEXT NOT NULL DEFAULT 'bot_api_getChatMemberCount',
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_channel_member_counts_day UNIQUE (channel_id, snapshot_date)
+);
+CREATE INDEX IF
+NOT EXISTS idx_channel_member_counts_channel_date ON channel_member_counts (channel_id, snapshot_date DESC);

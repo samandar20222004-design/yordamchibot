@@ -1,7 +1,7 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
 import {
-  parseAi, parseCancelled, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
+  parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
   parseDeleted, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
@@ -143,6 +143,8 @@ export function createApiClient(opts: ClientOptions) {
   return {
     me: (signal?: AbortSignal): Promise<Me> => get('/me', parseMe, signal),
     channels: (signal?: AbortSignal): Promise<ChannelList> => get('/channels', parseChannels, signal),
+    channelAnalytics: (channelId: string, signal?: AbortSignal): Promise<ChannelAnalytics> =>
+      get(`/channels/${encodeURIComponent(channelId)}/analytics`, parseChannelAnalytics, signal),
     scheduledPosts: (limit: number, offset: number, signal?: AbortSignal, status: PostFilter = 'pending'): Promise<ScheduledPage> =>
       get(`/scheduled-posts?limit=${limit}&offset=${offset}${status === 'history' ? '&status=history' : ''}`, parseScheduled, signal),
     post: (id: number, signal?: AbortSignal): Promise<ScheduledPost> =>
