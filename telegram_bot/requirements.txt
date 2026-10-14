@@ -10,3 +10,7 @@ defusedxml==0.7.1
 # 10-BOSQICH: xato monitoringi (ixtiyoriy — config.py sdk bo'lmasa ham
 # ishlayveradi, lekin production image'da o'rnatilgan bo'lishi kerak).
 sentry-sdk>=2.13.0
+# httpx/httpcore (python-telegram-bot orqali) har chaqiruvda `sniffio` ni import
+# qiladi; u o'rnatilmagan bo'lsa import har so'rovda qayta urinadi va yuk ostida
+# (1000 parallel) p99 kechikish ~5 s dan oshadi.
+sniffio>=1.3.1

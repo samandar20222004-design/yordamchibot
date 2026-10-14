@@ -109,6 +109,14 @@ def build_web_app() -> web.Application:
     # enforced inside the handler; without PAYME_KEY every call is rejected
     # with -32504 (fail closed), so mounting it is always safe.
     register_payme_routes(app)
+    # 📱 Mini App (/api/v1, /app). MINIAPP_ENABLED=0 (sukut) yoki xavfsiz
+    # bo'lmagan sozlamada hech narsa ulanmaydi; xato botning web serverini
+    # HECH QACHON to'xtatmaydi.
+    try:
+        from miniapp_api.app import register_miniapp_routes
+        register_miniapp_routes(app)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Mini App ulanmadi (%s)", type(exc).__name__)
     return app
 
 

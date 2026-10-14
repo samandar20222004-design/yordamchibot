@@ -1200,6 +1200,8 @@ echo "================ NEW REQUIREMENTS TEST ==============="
 echo
 echo "================= ALBOM & SKIP TEST ================="
 "$PY" tests/album_skip_test.py || fail "tests/album_skip_test.py"
+"$PY" tests/album_followup_failure_test.py || fail "tests/album_followup_failure_test.py"
+"$PY" tests/album_execute_send_test.py || fail "tests/album_execute_send_test.py"
 
 echo "=========== ALBOM OG'HOHLANTIRISH + TOZA KANAL ==========="
 "$PY" tests/album_warning_test.py || fail "tests/album_warning_test.py"
@@ -1294,6 +1296,7 @@ echo "===== PHASE 10 — STRUCTURED OBSERVABILITY + PRIVATE READINESS ====="
 echo
 echo "============ CREDITS LEDGER & REFERRAL TEST (8-BOSQICH) =========="
 "$PY" tests/credits_referral_test.py || fail "tests/credits_referral_test.py"
+"$PY" tests/credits_bonus_concurrency_test.py || fail "tests/credits_bonus_concurrency_test.py"
 
 echo
 echo "===== STEP 2 — ORGANIC GROWTH (action-based referral + TTFV) ====="
@@ -1611,6 +1614,31 @@ echo "===== 🧹 TEZKOR POST TOZALASH (oxirini tozalash + imzo + kanalga yuboris
 echo
 echo "===== 🐢 SEKIN JAVOB LOGI (shaxsiy matn logga tushmaydi) ====="
 "$PY" tests/slow_update_log_test.py || fail "tests/slow_update_log_test.py"
+
+echo
+echo "===== 📱 MINI APP (API poydevori: auth, proksi, limiter, ownership, static) ====="
+# `MINIAPP_ENABLED=0` (sukut) — marshrutlar ulanmaydi. Testlar:
+#   miniapp_auth_test.py             — initData HMAC, takroriy kalit, auth_date, token (fail-closed), log maxfiyligi;
+#   miniapp_initdata_smoke_test.py   — scripts/miniapp_initdata_smoke.py: natija mantiqi va maxfiylik (chiqishda sir yo'q);
+#   miniapp_proxy_ratelimit_test.py  — X-Forwarded-* soxtalashtirish, qat'iy limiter (Redis xatosi -> 503);
+#   miniapp_api_test.py              — endpointlar, beta/ruxsat, ownership, DB xatosi -> 503, timeout/semafor;
+#   miniapp_static_regression_test.py— /app/* SPA, path traversal, /health* va /payments/payme regressiyasi;
+#   miniapp_db_real_test.py          — REAL PostgreSQL (MINIAPP_TEST_DATABASE_URL yo'q bo'lsa SKIP/BLOCKED);
+#   miniapp_navigation_test.py       — Post/PRO -> bot navigatsiya kontrakti, /start payload xavfi;
+#   miniapp_security_audit_test.py   — HMAC/takroriy kalit, Sentry maxfiylik, Redis fail-closed, production bypass, ownership SQL;
+#   miniapp_redis_real_test.py       — REAL lokal Redis (umumiy limiter, uzilish -> 503, tiklanish); `redis` paketi/binary yo'q bo'lsa SKIP.
+"$PY" tests/miniapp_auth_test.py || fail "tests/miniapp_auth_test.py"
+"$PY" tests/miniapp_initdata_smoke_test.py || fail "tests/miniapp_initdata_smoke_test.py"
+"$PY" tests/miniapp_proxy_ratelimit_test.py || fail "tests/miniapp_proxy_ratelimit_test.py"
+"$PY" tests/miniapp_api_test.py || fail "tests/miniapp_api_test.py"
+"$PY" tests/miniapp_menu_test.py || fail "tests/miniapp_menu_test.py"
+"$PY" tests/miniapp_ai_writes_test.py || fail "tests/miniapp_ai_writes_test.py"
+"$PY" tests/miniapp_writes_real_test.py || fail "tests/miniapp_writes_real_test.py"
+"$PY" tests/miniapp_static_regression_test.py || fail "tests/miniapp_static_regression_test.py"
+"$PY" tests/miniapp_db_real_test.py || fail "tests/miniapp_db_real_test.py"
+"$PY" tests/miniapp_navigation_test.py || fail "tests/miniapp_navigation_test.py"
+"$PY" tests/miniapp_security_audit_test.py || fail "tests/miniapp_security_audit_test.py"
+"$PY" tests/miniapp_redis_real_test.py || fail "tests/miniapp_redis_real_test.py"
 
 echo
 echo "=============================================================="

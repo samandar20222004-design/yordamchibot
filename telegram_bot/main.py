@@ -574,9 +574,18 @@ async def set_bot_commands(application) -> dict:
     # 3) «Menu» tugmasining turi — standart BUYRUQLAR ro'yxati.
     button_setter = getattr(bot, "set_chat_menu_button", None)
     if callable(button_setter):
+        # 📱 Mini App yoqilgan va MINIAPP_URL to'g'ri HTTPS bo'lsagina «Menu» tugmasi
+        # Mini App'ni ochadi; aks holda (sukut) avvalgidek buyruqlar ro'yxati.
+        menu_button = default_menu_button()
+        try:
+            from miniapp_api.menu import miniapp_menu_button
+
+            menu_button = miniapp_menu_button() or menu_button
+        except Exception as exc:  # noqa: BLE001 — Mini App xatosi bot startini buzmasin
+            logger.warning("Mini App menyu tugmasi tayyorlanmadi (%s)", type(exc).__name__)
         report["menu_button"] = await _safe_bot_api_call(
-            "set_chat_menu_button(commands)",
-            button_setter, menu_button=default_menu_button(),
+            "set_chat_menu_button",
+            button_setter, menu_button=menu_button,
         )
     else:  # pragma: no cover - juda eski kutubxona/mock
         logger.warning("Bot.set_chat_menu_button mavjud emas — tugma turi "

@@ -19,3 +19,6 @@ tests/
 .github/
 docker-compose.yml
 Dockerfile
+# Mini App: lokal build artefaktlari image kontekstiga kirmasin (Docker ichida qayta quriladi)
+miniapp/node_modules/
+miniapp/dist/

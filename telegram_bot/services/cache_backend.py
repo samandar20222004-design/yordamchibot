@@ -667,6 +667,16 @@ class ResilientCacheBackend(CacheBackend):
 
     # --- breaker holati -------------------------------------------------
     @property
+    def primary(self) -> CacheBackend:
+        """Birlamchi (Redis) backend — FAQAT o'qish uchun.
+
+        In-Memory fallback'siz, to'g'ridan-to'g'ri primary'ga murojaat qilish
+        kerak bo'lgan qat'iy iste'molchilar (masalan Mini App auth limiteri,
+        xotira hisoblagichini UMUMIY deb hisoblamasligi shart) uchun.
+        """
+        return self._primary
+
+    @property
     def using_fallback(self) -> bool:
         """Hozir In-Memory rejimda ekanini bildiradi (teshiruv/log uchun).
 

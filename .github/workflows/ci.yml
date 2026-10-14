@@ -5,6 +5,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  # Qo'lda ishga tushirish (PR ochmasdan branch'ni tekshirish uchun): Actions -> Run workflow.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -54,3 +56,67 @@ jobs:
           PYTHONPATH: .
         run: |
           bash tests/run_tests.sh
+
+  # 📱 Mini App frontend: tip tekshiruvi + testlar + production build (mavjud Python job'iga tegmaydi).
+  miniapp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    defaults:
+      run:
+        working-directory: miniapp
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: miniapp/package-lock.json
+
+      - name: Install (npm ci)
+        run: npm ci --no-audit --no-fund
+
+      - name: Frontend tests (vitest)
+        run: npm test
+
+      - name: Typecheck + production build (+ dist tekshiruvi)
+        run: npm run build
+
+      - name: Dependency audit (advisory, production deps)
+        continue-on-error: true
+        run: npm audit --omit=dev
+
+  # 🐳 Docker image: FAQAT build va image ichidagi tekshiruvlar (push/deploy YO'Q; bot konteyneri
+  # ishga tushirilmaydi — u DB/tokenni talab qiladi).
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image (push qilinmaydi)
+        run: docker build --progress=plain -t postassist:ci .
+
+      - name: Image ichidagi bog'liqliklar (sniffio, httpcore, aiohttp, miniapp_api)
+        run: |
+          docker run --rm --entrypoint python postassist:ci -c "import sniffio, httpcore, aiohttp, psycopg2, telegram, miniapp_api; print('deps ok, sniffio', sniffio.__file__)"
+
+      - name: tini, curl, non-root, Mini App dist
+        run: |
+          docker run --rm --entrypoint tini postassist:ci --version
+          docker run --rm --entrypoint curl postassist:ci --version | head -n 1
+          test "$(docker run --rm --entrypoint id postassist:ci -u)" = "10001"
+          docker run --rm --entrypoint test postassist:ci -f /app/miniapp/dist/index.html
+          docker run --rm --entrypoint sh postassist:ci -c 'command -v node >/dev/null && { echo "runtime image ichida node bo'"'"'lmasligi kerak"; exit 1; } || echo "node yo'"'"'q (kutilgan)"'
+
+      - name: HEALTHCHECK va ENTRYPOINT/STOPSIGNAL sozlamasi
+        run: |
+          docker inspect --format '{{json .Config.Healthcheck.Test}}' postassist:ci | tee /dev/stderr | grep -q 'health/live'
+          docker inspect --format '{{json .Config.Entrypoint}}' postassist:ci | tee /dev/stderr | grep -q 'tini'
+          docker inspect --format '{{.Config.StopSignal}}' postassist:ci | grep -qx 'SIGTERM'

@@ -14,7 +14,7 @@ from telegram import (
     InputMediaDocument,
     InputMediaAudio,
 )
-from telegram.error import TelegramError, RetryAfter, TimedOut, NetworkError
+from telegram.error import BadRequest, TelegramError, RetryAfter, TimedOut, NetworkError
 from config import (
     ADMIN_IDS_SET,
     BOT_USERNAME,
@@ -1637,12 +1637,22 @@ async def _dispatch_post_to_telegram(bot, ctx: dict, payload: dict, send_state: 
             extra_ids = [m.message_id for m in (sent_group or [])[1:] if getattr(m, "message_id", None)]
             # sendMediaGroup reply_markup'ni qo'llab quvvatlamaydi — tugmalarni alohida xabar
             if reply_markup:
-                follow = await _delivery_send(
-                    bot, "send_message",
-                    chat_id=target_chat, **delivery_kwargs, text="🔗", reply_markup=reply_markup
-                )
-                if follow and follow.message_id:
-                    extra_ids.append(follow.message_id)
+                # Albom ALLAQACHON kanalda: tugma-xabari xato bersa (flood/BadRequest/tarmoq)
+                # istisno ko'tarilmaydi — aks holda post qayta navbatga qo'yilib albom ikki
+                # marta chiqadi yoki nashr qilingan post "failed" bo'ladi. Tugmalar yo'qolishi
+                # dublikatdan yengilroq; xato logga yoziladi.
+                try:
+                    follow = await _delivery_send(
+                        bot, "send_message",
+                        chat_id=target_chat, **delivery_kwargs, text="🔗", reply_markup=reply_markup
+                    )
+                    if follow and follow.message_id:
+                        extra_ids.append(follow.message_id)
+                except Exception as follow_exc:  # noqa: BLE001
+                    logger.warning(
+                        "Albom yuborildi, tugma-xabari yuborilmadi (Post ID: %s): %s",
+                        post_id, type(follow_exc).__name__,
+                    )
     elif pt == "photo":
         sent_msg = await _delivery_send(bot, "send_photo", chat_id=target_chat, **delivery_kwargs, photo=file_id, caption=safe_final_content, reply_markup=reply_markup, parse_mode=final_parse_mode)
     elif pt == "video":
@@ -1690,6 +1700,23 @@ async def _finalize_sent_post(bot, ctx: dict, sent_marker: dict, sent_msg_id, ta
     # qancha yuborilgani (shu orqali eng ko'p/kam ishlatilgan formatlar
     # keyinchalik ``event_tracker.usage_report()`` bilan aniqlanadi).
     event_tracker.track(ctx["user_id"], f"post_sent:{str(ctx['post_type']).lower()}")
+
+
+async def _fail_post_permanently(post_id, delivery_key, error) -> None:
+    """Doimiy Telegram xatosi (BadRequest va h.k.): dead_letter + 'failed'.
+
+    Avvalgi ``except TelegramError`` shoxining AYNAN o'sha tanasi (xatti-harakat
+    o'zgarmagan); BadRequest ham shu yerga yo'naltiriladi.
+    """
+    delivery_result = await _mark_delivery_failed(delivery_key, error, is_transient=False)
+    logger.error(f"Post yuborishda xato (Post ID: {post_id}): {error}")
+    if not _delivery_is_dead(delivery_result) and isinstance(delivery_result, dict):
+        # Kutilmagan holat (masalan, transient deb topildi) — backoff bilan qayta.
+        delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
+        retry_at = now_tashkent() + timedelta(seconds=delay)
+        await db.run_db(db.retry_post, post_id, retry_at)
+        return
+    await db.run_db(db.mark_post_status, post_id, "failed")
 
 
 async def _execute_send(bot, post):
@@ -1798,6 +1825,12 @@ async def _execute_send(bot, post):
         )
         await db.run_db(db.retry_post, post_id, retry_at)
         return
+    except BadRequest as e:
+        # PTB'da BadRequest — NetworkError SUBKLASSI: pastdagi (TimedOut, NetworkError)
+        # shoxiga tushib "noaniq yuborish" deb qayta urinilmasligi uchun AVVAL ushlanadi.
+        # BadRequest = Telegram so'rovni RAD etdi (hech narsa yuborilmagan) → doimiy xato.
+        await _fail_post_permanently(post_id, delivery_key, e)
+        return
     except (TimedOut, NetworkError) as e:
         # noaniq holat — ko'r-ko'rrona retry TAQIQLANADI. Avval
         # kanalning oxirgi xabarlari tekshiriladi (SHA256 fingerprint):
@@ -1814,15 +1847,7 @@ async def _execute_send(bot, post):
         # (noto'g'ri so'rov) — takrorlash foydasiz, dead_letter + 'failed'.
         # SchedulerService ichida ham chat_not_found/bot_kicked naqshlari
         # qo'shimcha tekshiriladi.
-        delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=False)
-        logger.error(f"Post yuborishda xato (Post ID: {post_id}): {e}")
-        if not _delivery_is_dead(delivery_result) and isinstance(delivery_result, dict):
-            # Kutilmagan holat (masalan, transient deb topildi) — backoff bilan qayta.
-            delay = _delivery_retry_delay(delivery_result, NETWORK_RETRY_DELAY)
-            retry_at = now_tashkent() + timedelta(seconds=delay)
-            await db.run_db(db.retry_post, post_id, retry_at)
-            return
-        await db.run_db(db.mark_post_status, post_id, "failed")
+        await _fail_post_permanently(post_id, delivery_key, e)
         return
     except Exception as e:
         delivery_result = await _mark_delivery_failed(delivery_key, e, is_transient=True)

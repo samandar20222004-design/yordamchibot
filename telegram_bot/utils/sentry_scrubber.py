@@ -112,6 +112,10 @@ _SECRET_ASSIGNMENT_RE = re.compile(
     + r"['\"]?\s*[:=]\s*)(?!['\"]|\[REDACTED\b)(?P<value>[^\s&;,\"'\]}]+)"
 )
 _BEARER_RE = re.compile(r"(?i)(\bBearer\s+)[A-Za-z0-9._~+/-]{8,}={0,2}")
+# Telegram Mini App ``Authorization: tma <initData>`` (initData = qisqa muddatli kirish tokeni) va
+# xom ``initData`` ichidagi ``hash=<64 hex>``.
+_TMA_RE = re.compile(r"(?i)(\btma\s+)[^\s\"']{16,}")
+_INITDATA_HASH_RE = re.compile(r"(?i)(\bhash=)[0-9a-f]{64}\b")
 _PRIVATE_KEY_RE = re.compile(
     r"-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----.*?-----END [A-Z0-9 ]*PRIVATE KEY-----",
     re.DOTALL,
@@ -213,6 +217,10 @@ def scrub_text(text: str) -> str:
     # 4) Bot tokenni umumiy ``token=...`` assignment'dan OLDIN aniqlaymiz,
     # maxsus BOT_TOKEN markerini saqlash uchun.
     text = _BOT_TOKEN_RE.sub(REDACTED_TOKEN, text)
+
+    # 4b) Mini App initData: generic ``authorization=...`` qoidasi faqat "tma" so'zini yopardi.
+    text = _TMA_RE.sub(r"\1" + REDACTED, text)
+    text = _INITDATA_HASH_RE.sub(r"\1" + REDACTED, text)
 
     # 5) .env/JSON/query-string ko'rinishida yozilib qolgan maxfiy qiymatlar.
     text = _QUOTED_SECRET_ASSIGNMENT_RE.sub(
