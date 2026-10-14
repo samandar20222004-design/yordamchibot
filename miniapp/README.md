@@ -209,7 +209,11 @@ ogohlantirishi chiqadi, lekin ishlaydi). Dockerfile `node:22-slim` (suzuvchi 22.
 
 - Frontend: `npm test` (vitest + jsdom; API klient, validatorlar, tarjimalar, sahifalar/holatlar), `npm run build` (`tsc` + vite).
 - Backend: `tests/miniapp_*_test.py` (`tests/run_tests.sh` ichida). Yozuv oqimlari: `miniapp_writes_real_test.py` (REAL PostgreSQL + to'liq HTTP: yaratish, takroriy yuborish, IDOR, tahrirlash, bekor, navbat limiti, til),
-  `miniapp_ai_writes_test.py` (AI bron/qaytarish, parallel, timeout, validatsiya, marshrut limitlari), `miniapp_menu_test.py`. Real Redis testi (`miniapp_redis_real_test.py`, ixtiyoriy `MINIAPP_TEST_REDIS_URL` — faqat lokal host): `redis-server` binary + Python
+  `miniapp_ai_writes_test.py` (AI bron/qaytarish, parallel, timeout, validatsiya, marshrut limitlari), `miniapp_menu_test.py`,
+  `miniapp_bot_api_test.py` («Menu» tugmasi: HAQIQIY PTB `Bot` -> soxta Bot API serveri, `tests/fake_bot_api.py`), `miniapp_scheduler_e2e_test.py`
+  (Mini App'da yaratilgan post -> HAQIQIY scheduler -> soxta Bot API: aynan 1 ta yuborish, parallel tick, bekor/kelajak/xato holatlari).
+  Real PostgreSQL testlari URL bo'lmasa `pgserver` (CI) ishlatadi, u ham yo'q bo'lsa SKIP. Soxta server haqiqiy Telegram o'rnini BOSMAYDI.
+  Haqiqiy Bot API'da «Menu» tugmasini tekshirish (TEST bot bilan, qo'lda): `python scripts/miniapp_menu_smoke.py` (docstring'ga qarang). Real Redis testi (`miniapp_redis_real_test.py`, ixtiyoriy `MINIAPP_TEST_REDIS_URL` — faqat lokal host): `redis-server` binary + Python
   `redis` paketi bo'lsa o'zi vaqtincha lokal server ishga tushiradi (127.0.0.1, persistence yo'q), aks holda SKIP/BLOCKED.
   Real PostgreSQL testi:
   `MINIAPP_TEST_DATABASE_URL=postgresql://... python tests/miniapp_db_real_test.py` (faqat SINOV bazasi).

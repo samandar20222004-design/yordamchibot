@@ -18,12 +18,11 @@ import re
 import sys
 from pathlib import Path
 
-URL = ""
-for _var in ("INTEGRITY_TEST_DATABASE_URL", "P0_TEST_DATABASE_URL", "STEP5_TEST_DATABASE_URL", "MINIAPP_TEST_DATABASE_URL"):
-    _v = os.getenv(_var, "")
-    if _v and "user:pass" not in _v:
-        URL = _v
-        break
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pg_support import real_pg_url  # noqa: E402
+
+URL = real_pg_url("INTEGRITY_TEST_DATABASE_URL", "P0_TEST_DATABASE_URL", "STEP5_TEST_DATABASE_URL",
+                  "MINIAPP_TEST_DATABASE_URL", server_dir="yordamchi_pg_enterprise")
 if URL:
     os.environ["DATABASE_URL"] = URL
 os.environ.setdefault("BOT_TOKEN", "123456:TEST_TOKEN")
