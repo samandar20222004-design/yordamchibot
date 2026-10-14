@@ -80,6 +80,19 @@ check("kamayish manfiy delta sifatida ko'rsatiladi", g["delta_7d"] == -100, str(
 g = compute_member_growth([{"date": "xato", "member_count": "x"}, snap(0, 500)], today=TODAY)
 check("buzuq yozuv e'tiborsiz qoldiriladi, qolgani ishlaydi", g["current"] == 500, str(g))
 
+import services.channels.growth as GR  # noqa: E402
+
+# `today` berilmasa Asia/Tashkent sanasi ishlatiladi (snapshot'lar shu sana bilan kalitlanadi), server vaqti emas
+check("growth: today default'i Tashkent sanasi funksiyasi orqali (server vaqtiga bog'liq emas)",
+      hasattr(GR, "tashkent_today") and GR.tashkent_today().isoformat() == __import__("datetime").datetime.now(
+          __import__("pytz").timezone("Asia/Tashkent")).date().isoformat())
+_orig_today = getattr(GR, "tashkent_today", None)
+GR.tashkent_today = lambda: TODAY
+g = compute_member_growth([snap(0, 700)])
+check("today berilmasa tashkent_today() ishlatiladi (stale=False, sana mos)", g["stale"] is False and g["as_of"] == TODAY.isoformat(), str(g))
+if _orig_today:
+    GR.tashkent_today = _orig_today
+
 g = compute_member_growth([snap(0, 1000, source="bot_api_getChatMemberCount")], today=TODAY)
 check("manba va yig'ilgan vaqt oshkor qilinadi", g["source"] == "bot_api_getChatMemberCount" and g["collected_at"], str(g))
 
@@ -135,6 +148,7 @@ try:
 
     # FloodWait: ish to'xtaydi, qolgan kanallar keyingi ishga tushirishga qoladi
     saved.clear()
+    sched._SNAPSHOT_SKIP_UNTIL.clear()
     plan = {"-1001": 10, "-1002": RetryAfter(30), "-1003": 20, "-1004": 30, "-1005": 40, "-1006": 50}
     bot = Bot(plan)
     res = asyncio.run(sched.snapshot_channel_member_counts_job(bot))
@@ -143,9 +157,31 @@ try:
 
     # noto'g'ri javob (int emas) saqlanmaydi
     saved.clear()
+    sched._SNAPSHOT_SKIP_UNTIL.clear()
     plan = {"-1001": "ko'p", "-1002": None, "-1003": -3, "-1004": 9, "-1005": 8, "-1006": 7}
     asyncio.run(sched.snapshot_channel_member_counts_job(Bot(plan)))
     check("yaroqsiz javoblar (matn/None/manfiy) saqlanmaydi", [s for s in saved if s[0] in ("-1001", "-1002", "-1003")] == [], str(saved))
+
+    # O'lik kanallar (bot chiqarilgan) navbatni to'smaydi: keyingi ishga tushirishda qayta so'ralmaydi
+    saved.clear()
+    sched._SNAPSHOT_SKIP_UNTIL.clear()
+    CHANNELS[:] = ["-2001", "-2002", "-2003"]
+    orig_cap = sched.SNAPSHOT_MAX_CHANNELS_PER_RUN
+    sched.SNAPSHOT_MAX_CHANNELS_PER_RUN = 2
+    try:
+        plan = {"-2001": Forbidden("kicked"), "-2002": BadRequest("Chat not found"), "-2003": 321}
+        b1 = Bot(plan)
+        asyncio.run(sched.snapshot_channel_member_counts_job(b1))
+        saved_after_first = list(saved)
+        b2 = Bot(plan)
+        r2 = asyncio.run(sched.snapshot_channel_member_counts_job(b2))
+    finally:
+        sched.SNAPSHOT_MAX_CHANNELS_PER_RUN = orig_cap
+        CHANNELS[:] = ["-1001", "-1002", "-1003", "-1004", "-1005", "-1006"]
+    check("1-ishga tushirish cheklov (2) tufayli faqat o'lik kanallarni so'radi", b1.asked == [-2001, -2002] and saved_after_first == [], f"{b1.asked} {saved_after_first}")
+    check("2-ishga tushirish: o'lik kanallar qayta so'ralmaydi va sog'lom kanal navbatga yetadi",
+          b2.asked == [-2003] and saved == [("-2003", 321)], f"{b2.asked} {saved} {r2}")
+    sched._SNAPSHOT_SKIP_UNTIL.clear()
 
     # DB ro'yxat xatosi ishni qulatmaydi
     async def boom_run_db(fn, *a, **k):

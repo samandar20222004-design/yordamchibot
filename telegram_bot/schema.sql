@@ -1208,7 +1208,16 @@ NOT EXISTS miniapp_drafts (
 -- ============================================================
 ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_source TEXT;
 ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_collected_at TIMESTAMPTZ;
-ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT;
+-- DEFAULT bor bo'lsagina (har startup'da ACCESS EXCLUSIVE qulf olmaslik uchun): bir martalik, idempotent.
+DO $postassist_views_default$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'channel_posts_history' AND column_name = 'views'
+                  AND column_default IS NOT NULL) THEN
+        ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT;
+    END IF;
+END
+$postassist_views_default$;
 
 -- "NOT EXISTS" ko'rinishida yozilgan: schema_test.py frozen hisoblagichlarini o'zgartirmaydi.
 CREATE TABLE IF

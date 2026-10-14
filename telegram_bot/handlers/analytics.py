@@ -115,6 +115,10 @@ def _type_label(ptype: str, lang: str = "uz") -> str:
     return _TYPE_LABEL.get(ptype, ptype)
 
 
+#: Snapshot manbasi -> foydalanuvchiga ko'rsatiladigan nom. Noma'lum manba o'z nomi bilan (HTML-escape) ko'rsatiladi.
+_MEMBER_SOURCE_LABELS = {"bot_api_getChatMemberCount": "Telegram"}
+
+
 def _fmt_count(n) -> str:
     """12345 -> '12 345' (bo'sh joy ajratgich; barcha tillar uchun betaraf)."""
     return f"{int(n):,}".replace(",", " ")
@@ -140,7 +144,9 @@ def _member_lines(growth, lang: str) -> list:
                  d7=_fmt_delta(growth.get("delta_7d"), nodata), d30=_fmt_delta(growth.get("delta_30d"), nodata)),
     ]
     if growth.get("confidence") in ("none", "low") or growth.get("stale"):
-        lines.append(get_text("an_dash_members_low", lang))
+        source = str(growth.get("source") or "")
+        label = _MEMBER_SOURCE_LABELS.get(source) or html_escape(source) or "?"
+        lines.append(get_text("an_dash_members_low", lang, source=label))
     return lines
 
 

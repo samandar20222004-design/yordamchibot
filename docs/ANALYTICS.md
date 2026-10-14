@@ -24,6 +24,13 @@ Dashboard `none/low/stale` da "Ishonch past" izohini ko'rsatadi.
   handler hali yo'q. Hozir faqat bot qo'ygan inline tugma bosilishlari (`post_reactions`) haqiqiy.
 * **Auditoriya faolligi, saqlashlar, ulashishlar** — Bot API bermaydi.
 
+### Eski (soxta) `0` qiymatlar
+Bu o'zgarishdan OLDIN saqlangan `channel_posts_history.views = 0` qatorlari o'lchanmagan (Bot API ko'rishlarni bermaydi), lekin haqiqiy `0`
+dan ajratib bo'lmaydi — shuning uchun **avtomatik o'zgartirilmadi** (production ma'lumotiga tegilmaydi). Ular yangi NULL'lar bilan aralashib
+`AVG/SUM` ni pasaytirishi mumkin; Python iste'molchilari (advisor, recycle, content-loop) NULL ni ham `0` deb o'qiydi (`views_known` dan hali
+foydalanmaydi). Egasi tasdiqlasa, bir martalik tuzatish (ma'lumotni O'ZGARTIRADI, avval zaxira oling):
+`UPDATE channel_posts_history SET views = NULL WHERE views = 0 AND views_source IS NULL;`
+
 ## Kelajakdagi manbalar (qurilmagan; faqat cheklovlar)
 | Manba | Nima beradi | Cheklov |
 |---|---|---|
@@ -34,10 +41,12 @@ Dashboard `none/low/stale` da "Ishonch past" izohini ko'rsatadi.
 
 ## Maxfiylik va xavfsizlik
 * `get_channel_member_history(..., user_id)` natijani FAQAT kanal egasi uchun qaytaradi (callback'dagi kanal ID'siga ishonilmaydi).
+* Kanal qatori o'chirilganda (90 kunlik nofaol tozalash) uning snapshot'lari ham keyingi `cleanup_old_data` da o'chadi (yetim qoldirilmaydi).
 * Snapshot'lar 400 kundan keyin o'chiriladi (`cleanup_old_data`); hisob o'chirilganda kanal bilan bog'liq qatorlar ham o'chadi
   (`_ACCOUNT_DELETE_CHANNEL_SCOPED`).
 * Snapshot ishi (`snapshot_channel_member_counts_job`): har 6 soatda, faqat BUGUN hali olinmagan faol kanallar (idempotent);
-  bitta kanal xatosi ishni to'xtatmaydi, FloodWait'da to'xtaydi.
+  bitta kanal xatosi ishni to'xtatmaydi, FloodWait'da to'xtaydi. Bot chiqarilgan / chat topilmagan ("o'lik") kanal 24 soat qayta
+  so'ralmaydi (jarayon xotirasida), shuning uchun u navbat boshida turib sog'lom kanallarni to'smaydi.
 
 ## Testlar
 `analytics_foundation_test` (real PG: sxema, NULL views, snapshot, tozalash, IDOR), `analytics_channel_post_test`,

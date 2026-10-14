@@ -2437,7 +2437,7 @@ from repositories.channels_repository import (  # noqa: E402, F401
     remove_sponsor_channel, reset_channel_post_count, save_channel,
     save_channel_dna, save_channel_dna_profile,
     save_channel_intelligence_profile, save_channel_post_history,
-    MEMBER_COUNT_SOURCE, MEMBER_HISTORY_MAX_DAYS, get_channel_member_history,
+    MEMBER_COUNT_SOURCE, MEMBER_HISTORY_MAX_DAYS, get_channel_member_history, member_snapshot_today,
     get_channels_for_member_snapshot, save_channel_member_count,
     save_source_item, set_ad_active, set_ad_interval, set_ad_status,
     set_channel_ad_interval, set_channel_ad_status, set_channel_tone,
@@ -2925,7 +2925,11 @@ def _ddl_user_settings_and_migrations(cur):
         # Analitika asosi: ko'rishlar manbasi/vaqti; noma'lum ko'rishlar NULL (soxta 0 emas).
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_source TEXT;",
         "ALTER TABLE channel_posts_history ADD COLUMN IF NOT EXISTS views_collected_at TIMESTAMPTZ;",
-        "ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT;",
+        # DEFAULT bor bo'lsagina (har startup'da ACCESS EXCLUSIVE qulf olmaslik uchun): bir martalik.
+        "DO $postassist_views_default$ BEGIN IF EXISTS (SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'channel_posts_history' AND column_name = 'views' AND column_default IS NOT NULL) "
+        "THEN ALTER TABLE channel_posts_history ALTER COLUMN views DROP DEFAULT; END IF; END "
+        "$postassist_views_default$;",
         # persistent delivery + backoff ustunlari.
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS scheduled_time TIMESTAMPTZ;",
         "ALTER TABLE post_deliveries ADD COLUMN IF NOT EXISTS next_retry_at TIMESTAMPTZ;",

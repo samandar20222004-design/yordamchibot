@@ -47,11 +47,17 @@ txt = AN._build_dashboard({**BASE, "member_growth": grow}, "Kanal <X>", "uz")
 check("obunachilar soni ajratgich bilan (12 345) va sana ko'rsatiladi", "12 345" in txt and "2026-10-14" in txt, txt)
 check("7 kunlik o'sish +50, 30 kunlik 'ma'lumot yetarli emas' (0 emas)",
       "+50" in txt and get_text("an_dash_members_nodata", "uz") in txt and "30" in txt, txt)
-check("ishonch 'medium' da past-ishonch izohi YO'Q", get_text("an_dash_members_low", "uz") not in txt)
+check("ishonch 'medium' da past-ishonch izohi YO'Q", get_text("an_dash_members_low", "uz", source="Telegram") not in txt)
 
 low = dict(grow, confidence="low", delta_7d=None, points=2)
 txt = AN._build_dashboard({**BASE, "member_growth": low}, "Kanal", "ru")
-check("ishonch past: izoh ko'rsatiladi (ru)", get_text("an_dash_members_low", "ru") in txt, txt)
+check("ishonch past: izoh ko'rsatiladi (ru)", get_text("an_dash_members_low", "ru", source="Telegram") in txt, txt)
+
+check("past-ishonch izohida manba qattiq yozilmagan: {source} to'ldirilgan",
+      "{source}" not in txt and "Telegram" in txt, txt)
+other = dict(low, source="mtproto_session")
+txt = AN._build_dashboard({**BASE, "member_growth": other}, "Kanal", "en")
+check("boshqa manba o'z nomi bilan ko'rsatiladi (HTML-escape)", "mtproto_session" in txt and "Telegram)" not in txt, txt)
 
 neg = dict(grow, delta_7d=-120)
 txt = AN._build_dashboard({**BASE, "member_growth": neg}, "Kanal", "en")

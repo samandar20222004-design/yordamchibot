@@ -4,6 +4,7 @@ import logging
 import os
 import random
 import re
+import time as _time
 from datetime import date, datetime, timedelta
 import pytz
 from telegram import (
@@ -2037,6 +2038,10 @@ async def notify_post_problems(bot) -> int:
 SNAPSHOT_MAX_CHANNELS_PER_RUN = 3000
 SNAPSHOT_REQUEST_TIMEOUT = 15.0
 SNAPSHOT_DELAY_SECONDS = 0.05
+#: Bot chiqarilgan / chat topilmagan ("o'lik") kanal shuncha vaqt qayta so'ralmaydi: aks holda ular ``ORDER BY id`` tartibida
+#: navbat boshida turib har ishga tushirishda behuda so'rov sarflaydi va 3000 cheklovdan keyin sog'lom kanallarni to'sadi.
+SNAPSHOT_SKIP_SECONDS = 24 * 3600
+_SNAPSHOT_SKIP_UNTIL: dict = {}   # channel_id -> time.monotonic() gacha o'tkazib yuboriladi (jarayon xotirasi; restartda tiklanadi)
 
 
 async def snapshot_channel_member_counts_job(bot) -> dict:
@@ -2052,7 +2057,9 @@ async def snapshot_channel_member_counts_job(bot) -> dict:
     except Exception:
         logger.exception("Obunachilar snapshot'i: kanallar ro'yxatini o'qishda xato")
         return result
-    for raw_id in (channel_ids or [])[:SNAPSHOT_MAX_CHANNELS_PER_RUN]:
+    now_mono = _time.monotonic()
+    candidates = [cid for cid in (channel_ids or []) if _SNAPSHOT_SKIP_UNTIL.get(str(cid), 0.0) <= now_mono]
+    for raw_id in candidates[:SNAPSHOT_MAX_CHANNELS_PER_RUN]:
         if lifecycle.is_shutting_down():
             break
         chat_id = int(raw_id) if str(raw_id).lstrip("-").isdigit() else raw_id
@@ -2065,6 +2072,7 @@ async def snapshot_channel_member_counts_job(bot) -> dict:
             break
         except (Forbidden, BadRequest) as exc:
             logger.debug("Obunachilar snapshot'i: kanal %s o'tkazib yuborildi (%s)", raw_id, type(exc).__name__)
+            _SNAPSHOT_SKIP_UNTIL[str(raw_id)] = _time.monotonic() + SNAPSHOT_SKIP_SECONDS
             result["skipped"] += 1
             continue
         except (TimedOut, NetworkError, asyncio.TimeoutError) as exc:

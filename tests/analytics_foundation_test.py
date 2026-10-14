@@ -66,7 +66,7 @@ def q(sql, params=()):
 
 def cleanup():
     q("DELETE FROM channel_posts_history WHERE channel_id = ANY(%s)", ([CH, CH2],))
-    q("DELETE FROM channel_member_counts WHERE channel_id = ANY(%s)", ([CH, CH2],))
+    q("DELETE FROM channel_member_counts WHERE channel_id = ANY(%s)", ([CH, CH2, "-1009700999"],))
     q("DELETE FROM channels WHERE channel_id = ANY(%s)", ([CH, CH2],))
     q("DELETE FROM users WHERE user_id = ANY(%s)", ([9_700_001, 9_700_002],))
 
@@ -105,6 +105,30 @@ try:
                                  post_date=datetime.now(timezone.utc))
     check("ko'rishlar kamaymaydi (GREATEST semantikasi saqlangan)", q("SELECT views FROM channel_posts_history WHERE id = %s", (pid,))[0][0] == 120)
 
+    # --- provenance: manba/vaqt faqat qiymat HAQIQATAN yutganda (>=) yangilanadi ---
+    db.save_channel_post_history(channel_id=CH, message_id=1, content="Birinchi", views=10, views_source="bot_api_event",
+                                 post_date=datetime.now(timezone.utc))
+    row = q("SELECT views, views_source FROM channel_posts_history WHERE id = %s", (pid,))[0]
+    check("kichik qiymat views'ni VA manbasini o'zgartirmaydi (provenance saqlanadi)", row == (120, "tme_preview"), str(row))
+    db.save_channel_post_history(channel_id=CH, message_id=1, content="Birinchi", views=300, views_source="bot_api_event",
+                                 post_date=datetime.now(timezone.utc))
+    row = q("SELECT views, views_source FROM channel_posts_history WHERE id = %s", (pid,))[0]
+    check("yuqori qiymat yutganda manba ham yangilanadi", row == (300, "bot_api_event"), str(row))
+    t_before = q("SELECT views_collected_at FROM channel_posts_history WHERE id = %s", (pid,))[0][0]
+    db.save_channel_post_history(channel_id=CH, message_id=1, content="Birinchi", views=300, views_source="tme_preview",
+                                 post_date=datetime.now(timezone.utc))
+    row = q("SELECT views, views_source, views_collected_at >= %s FROM channel_posts_history WHERE id = %s", (t_before, pid))[0]
+    check("teng qiymat qayta kuzatilsa (yangi tasdiq) manba va vaqt yangilanadi", row == (300, "tme_preview", True), str(row))
+
+    # --- views DEFAULT olib tashlangan; qayta init_db xatosiz (qulfsiz qo'riqchi) ---
+    dflt = q("SELECT column_default FROM information_schema.columns WHERE table_name = 'channel_posts_history' AND column_name = 'views'")[0][0]
+    check("views ustunining DEFAULT'i olib tashlangan (NULL = noma'lum)", dflt is None, str(dflt))
+    db.init_db()
+    check("init_db qayta ishga tushirilsa xatosiz (idempotent)", True)
+    sql_text = (Path(__file__).resolve().parent.parent / "telegram_bot" / "schema.sql").read_text(encoding="utf-8")
+    check("DROP DEFAULT faqat DEFAULT bor bo'lsa bajariladi (har startup'da ACCESS EXCLUSIVE qulf olmaydi)",
+          "column_default IS NOT NULL" in sql_text and sql_text.count("ALTER COLUMN views DROP DEFAULT") == 1)
+
     # --- o'qish: eski kalitlar + views_known ---
     hist = db.get_channel_posts_history(CH, 10)
     by_msg = {h["message_id"]: h for h in hist}
@@ -115,7 +139,7 @@ try:
 
     # --- SQL agregatlari NULL'ni 0 deb hisoblamaydi ---
     avg = q("SELECT AVG(views) FROM channel_posts_history WHERE channel_id = %s", (CH,))[0][0]
-    check("AVG faqat bilingan qiymatlar bo'yicha (NULL e'tiborsiz)", float(avg) == 120.0, str(avg))
+    check("AVG faqat bilingan qiymatlar bo'yicha (NULL e'tiborsiz; 2-post NULL, 1-post 300)", float(avg) == 300.0, str(avg))
 
     # --- obunachilar snapshot'i ---
     today = date.today()
@@ -155,6 +179,16 @@ try:
     left = {r[0] for r in q("SELECT member_count FROM channel_member_counts WHERE channel_id = %s", (CH2,))}
     check("cleanup_old_data: 400 kundan eski snapshot o'chadi, yangisi qoladi", left == {60}, str(left))
     check("cleanup natijasida 'channel_member_counts' hisoblagichi bor", "channel_member_counts" in (res or {}), str(res))
+
+    # --- yetim snapshot'lar (kanal qatori o'chirilgan) cleanup bilan tozalanadi ---
+    ORPHAN = "-1009700999"
+    q("DELETE FROM channel_member_counts WHERE channel_id = %s", (ORPHAN,))
+    db.save_channel_member_count(ORPHAN, 5, snapshot_date=today)
+    db.save_channel_member_count(CH2, 61, snapshot_date=today)
+    db.cleanup_old_data()
+    gone = q("SELECT COUNT(*) FROM channel_member_counts WHERE channel_id = %s", (ORPHAN,))[0][0]
+    kept = q("SELECT COUNT(*) FROM channel_member_counts WHERE channel_id = %s AND snapshot_date = %s", (CH2, today))[0][0]
+    check("kanal qatori yo'q (yetim) snapshot'lar o'chadi, mavjud kanalniki qoladi", gone == 0 and kept == 1, f"{gone} {kept}")
 
     # --- maxfiylik bilan o'chirish (account delete) qamrovi ---
     from repositories import users_repository as ur

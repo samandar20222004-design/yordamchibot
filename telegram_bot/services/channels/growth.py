@@ -14,10 +14,17 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
+import pytz
+
 #: Delta uchun snapshot qancha "yaqin" bo'lishi mumkin (kun): ``{davr: ruxsat etilgan qo'shimcha kunlar}``.
 DELTA_TOLERANCE_DAYS = {7: 3, 30: 7}
 #: Oxirgi snapshot shundan eski bo'lsa ma'lumot "eskirgan" hisoblanadi.
 STALE_AFTER_DAYS = 3
+
+
+def tashkent_today() -> date:
+    """Snapshot'lar kalitlanadigan sana (Asia/Tashkent) — server mahalliy vaqtiga bog'liq emas."""
+    return datetime.now(pytz.timezone("Asia/Tashkent")).date()
 
 
 def _parse(entry):
@@ -37,7 +44,7 @@ def compute_member_growth(history, *, today: date | None = None) -> dict:
     Qaytadi: ``current``, ``as_of``, ``delta_7d``, ``delta_30d``, ``points``, ``span_days``, ``confidence``
     (``none|low|medium|high``), ``stale``, ``source``, ``collected_at``.
     """
-    today = today or datetime.now().date()
+    today = today or tashkent_today()
     points = sorted((p for p in map(_parse, history or []) if p), key=lambda p: p[0], reverse=True)
     result = {"current": None, "as_of": None, "delta_7d": None, "delta_30d": None, "points": len(points),
               "span_days": 0, "confidence": "none", "stale": False, "source": None, "collected_at": None}

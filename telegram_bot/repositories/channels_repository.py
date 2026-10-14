@@ -999,18 +999,22 @@ def save_channel_post_history(
                             (text, post_date, row[0])
                         )
                     else:
+                        # Manba/vaqt FAQAT yangi qiymat joriy (eng katta) qiymatdan kam bo'lmasa yangilanadi: kichikroq
+                        # qiymat ``GREATEST`` tufayli e'tiborsiz qoladi, uning "manbasi" esa boshqa raqamga yopishmasligi kerak.
+                        # (SET ichidagi barcha o'ng tomonlar ESKI qator qiymatlarini ko'radi.)
                         cur.execute(
                             """
                             UPDATE channel_posts_history
                             SET content = COALESCE(NULLIF(%s, ''), content),
+                                views_source = CASE WHEN %s >= COALESCE(views, -1) THEN %s ELSE views_source END,
+                                views_collected_at = CASE WHEN %s >= COALESCE(views, -1) THEN NOW()
+                                                          ELSE views_collected_at END,
                                 views = GREATEST(views, %s),
-                                views_source = %s,
-                                views_collected_at = NOW(),
                                 post_date = COALESCE(%s, post_date)
                             WHERE id = %s
                             RETURNING id
                             """,
-                            (text, v_count, source, post_date, row[0])
+                            (text, v_count, source, v_count, v_count, post_date, row[0])
                         )
                     res = cur.fetchone()
                     return int(res[0]) if res else row[0]
@@ -1077,6 +1081,11 @@ MEMBER_COUNT_SOURCE = "bot_api_getChatMemberCount"
 MEMBER_HISTORY_MAX_DAYS = 400
 
 
+def member_snapshot_today():
+    """Snapshot kunining YAGONA ta'rifi (Asia/Tashkent): saqlash, o'qish va "bugun olinmagan" so'rovi bir xil sanani ishlatadi."""
+    return datetime.now(pytz.timezone("Asia/Tashkent")).date()
+
+
 def save_channel_member_count(channel_id: str | int, member_count, *, snapshot_date=None,
                               source: str = MEMBER_COUNT_SOURCE) -> bool:
     """Kanal obunachilari soni snapshot'i (kuniga BITTA: bir kunda qayta chaqirilsa oxirgi qiymat yangilanadi).
@@ -1093,7 +1102,7 @@ def save_channel_member_count(channel_id: str | int, member_count, *, snapshot_d
         return False
     if count < 0:
         return False
-    day = snapshot_date or datetime.now(pytz.timezone("Asia/Tashkent")).date()
+    day = snapshot_date or member_snapshot_today()
     try:
         with db_cursor(commit=True) as cur:
             cur.execute(
@@ -1126,7 +1135,7 @@ def get_channel_member_history(channel_id: str | int, days: int = 90, user_id: i
         span = max(1, min(int(days), MEMBER_HISTORY_MAX_DAYS))
     except (TypeError, ValueError):
         span = 90
-    since = datetime.now(pytz.timezone("Asia/Tashkent")).date() - timedelta(days=span)
+    since = member_snapshot_today() - timedelta(days=span)
     try:
         with db_cursor() as cur:
             if user_id is None:
@@ -1177,7 +1186,7 @@ def get_channels_for_member_snapshot() -> list[str]:
                       WHERE m.channel_id = c.channel_id AND m.snapshot_date = %s)
                 ORDER BY c.id
                 """,
-                (datetime.now(pytz.timezone("Asia/Tashkent")).date(),),
+                (member_snapshot_today(),),
             )
             return [str(r[0]) for r in cur.fetchall()]
     except Exception as e:

@@ -2009,7 +2009,7 @@ EN_OVERLAY = {
     "an_dash_members": "👥 Subscribers: <b>{n}</b> (as of {date})",
     "an_dash_members_delta": "   📈 7 days: {d7} · 30 days: {d30}",
     "an_dash_members_nodata": "not enough data",
-    "an_dash_members_low": "   ℹ️ Low confidence: daily readings are still few or outdated (source: Telegram).",
+    "an_dash_members_low": "   ℹ️ Low confidence: daily readings are still few or outdated (source: {source}).",
     "an_dash_members_pending": "👥 Subscribers: data is being collected (daily reading starts today)",
     "an_dash_no_data": "No data",
     "an_type_text": "Text",
