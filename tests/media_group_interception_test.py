@@ -25,6 +25,7 @@ Ishga tushirish (repo ildizidan):
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import sys
 import time
@@ -633,11 +634,11 @@ def test_new_post_flow_consumes_payload_once():
 
 
 def test_manual_post_flow_consumes_payload_once():
-    print("== TEST 5b: ✍️ oddiy post — bitta preview + bitta sendMediaGroup ==")
+    print("== TEST 5b: ✍️ oddiy post — bitta BIRLASHTIRILGAN preview ==")
     from handlers import manual_post as mp
 
     async def run():
-        sent = {"messages": [], "groups": []}
+        sent = {"messages": [], "groups": [], "cards": []}
 
         class _Bot:
             async def send_message(self, **kwargs):
@@ -647,6 +648,27 @@ def test_manual_post_flow_consumes_payload_once():
             async def send_media_group(self, **kwargs):
                 sent["groups"].append(kwargs)
                 return []
+
+            def _card(self, kind, **kwargs):
+                # ``send_<tur>(<tur>=file_id, caption=..., reply_markup=...)``
+                sent["cards"].append(dict(kwargs, kind=kind,
+                                          file_id=kwargs.get(kind)))
+                return SimpleNamespace(message_id=len(sent["cards"]))
+
+            async def send_photo(self, **kwargs):
+                return self._card("photo", **kwargs)
+
+            async def send_video(self, **kwargs):
+                return self._card("video", **kwargs)
+
+            async def send_document(self, **kwargs):
+                return self._card("document", **kwargs)
+
+            async def send_animation(self, **kwargs):
+                return self._card("animation", **kwargs)
+
+            async def send_audio(self, **kwargs):
+                return self._card("audio", **kwargs)
 
         message = SimpleNamespace(
             message_id=701, media_group_id="MP-G", caption="Oddiy izoh",
@@ -675,13 +697,26 @@ def test_manual_post_flow_consumes_payload_once():
 
     state, sent, context, mp = asyncio.run(run())
     preview_prefix = get_text("np_album_received", "uz").split("{")[0].strip()
+    # 🖼 BIRLASHTIRILGAN PREVIEW: media + caption + boshqaruv tugmalari BITTA
+    # xabarda (avval matn/panel va media ALOHIDA xabarlarda ketardi).
+    cards = sent["cards"]
     previews = [m for m in sent["messages"]
                 if preview_prefix and preview_prefix in str(m.get("text", ""))]
-    check("bitta yakuniy preview xabari (N ta emas)", len(previews) == 1,
-          str(len(previews)))
-    check("kanalga bitta media-group (4 fayl)",
-          len(sent["groups"]) == 1 and len(sent["groups"][0]["media"]) == 4,
-          str(len(sent["groups"])))
+    check("bitta yakuniy preview xabari (N ta emas)",
+          len(previews) + len(cards) == 1,
+          f"messages={len(previews)} cards={len(cards)}")
+    check("preview BIRLASHTIRILGAN: muqova media + caption + tugmalar bir xabarda",
+          len(cards) == 1 and cards[0]["kind"] == "photo"
+          and cards[0]["file_id"] == "mp-0"
+          and preview_prefix in str(cards[0].get("caption") or "")
+          and cards[0].get("reply_markup") is not None,
+          str(cards)[:200])
+    check("media fayllar ALOHIDA (uzilgan) xabarga ajratilmaydi",
+          sent["groups"] == [], str(sent["groups"])[:160])
+    draft = json.loads(context.user_data.get(mp.UD_ALBUM_ITEMS) or "[]")
+    check("butun albom draftda saqlanadi (4 fayl — hech biri yo'qolmaydi)",
+          len(draft) == 4 and [i.get("file_id") for i in draft]
+          == [f"mp-{i}" for i in range(4)], str(draft)[:200])
     check("post bitta DB yozuvi uchun 'album' turida",
           context.user_data.get(mp.UD_POST_TYPE) == "album",
           str(context.user_data.get(mp.UD_POST_TYPE)))

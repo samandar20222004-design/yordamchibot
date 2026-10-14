@@ -28,6 +28,17 @@ ham unit-test qilish mumkin.
 Standart debounce — **2.0 soniya** (``ALBUM_DEBOUNCE_SECONDS``). Bu qiymat
 butun loyiha uchun YAGONA manba: handlerlar o'z konstantalarini emas, shu
 moduldagi qiymatni ishlatadi.
+
+🖼 BIRLASHTIRILGAN (UNIFIED) PREVIEW: albom to'liq yig'ilgach preview
+**BITTA tuzilgan javob** bo'lib chiqishi kerak — muqova media + butun albomga
+tegishli caption + boshqaruv tugmalari bir xabarda. Media fayllarni va
+menyuni ikki alohida xabarga bo'lish preview'ni uzib qo'yadi (panel yuqorida,
+media pastda "uzilgan" ko'rinadi). Telegram ``sendMediaGroup`` ga
+``inline_keyboard`` ulashga ruxsat bermagani uchun yagona to'g'ri yo'l —
+muqova fayl bilan karta; albomning qolgan fayllari draftda saqlanadi va
+kanalga bitta ``sendMediaGroup`` bilan chiqadi. Shu sababli
+:func:`build_album_preview` va :func:`send_album_preview` barcha albom
+preview handlerlari uchun YAGONA shartnoma hisoblanadi.
 """
 
 from __future__ import annotations
@@ -43,10 +54,14 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "MediaGroupCollector",
     "AlbumPayload",
+    "AlbumPreview",
     "ALBUM_DEBOUNCE_SECONDS",
     "DEFAULT_DELAY_SECONDS",
     "DEFAULT_MAX_WAIT_SECONDS",
     "TELEGRAM_ALBUM_MAX_ITEMS",
+    "ALBUM_CAPTION_LIMIT",
+    "ALBUM_TEXT_LIMIT",
+    "ALBUM_PREVIEW_MEDIA_KINDS",
     "ADDED_STARTED",
     "ADDED",
     "DUPLICATE",
@@ -60,6 +75,8 @@ __all__ = [
     "extract_media_item",
     "album_caption",
     "apply_album_caption",
+    "build_album_preview",
+    "send_album_preview",
 ]
 
 #: Oxirgi fayldan keyingi jimlik oynasi (debounce) — QAT'IY 2.0 soniya.
@@ -190,6 +207,253 @@ def apply_album_caption(items: list) -> str:
     return caption
 
 
+# =========================================================================
+# 🖼 BIRLASHTIRILGAN (UNIFIED) ALBOM PREVIEW'I — YAGONA MANBA
+# =========================================================================
+# MUAMMO: albom yig'ilgach ba'zi oqimlar avval matn + boshqaruv tugmalarini,
+# keyin esa media fayllarni ALOHIDA xabar qilib yuborardi. Natijada bitta
+# preview holati IKKITA uzilgan xabarga bo'linib ketardi (panel yuqorida,
+# media pastda) va foydalanuvchi "bu postga tegishlimi?" deb qolardi.
+#
+# TELEGRAM CHEKLOVI: ``sendMediaGroup`` ga ``inline_keyboard`` (reply_markup)
+# ULAB BO'LMAYDI — Bot API'da bunday parametr yo'q. Shu sababli media,
+# caption va tugmalarni bitta xabarga yig'ishning yagona yo'li: albomning
+# MUQOVA (birinchi) fayli + butun albomga tegishli caption + boshqaruv
+# tugmalari bo'lgan BITTA karta. Albomning qolgan fayllari yo'qolmaydi:
+# ular draftda saqlanadi va kanalga bitta ``sendMediaGroup`` bilan chiqadi.
+#
+# Bu bo'lim shu bitta tuzilgan javobni (``AlbumPreview``) yasaydi va
+# yuboradi — barcha albom preview handlerlari YAGONA shartnomadan foydalanadi
+# (ikkita nusxa/naqsh yo'q). Modul telegram'siz qoladi: transport obyektlari
+# duck-typing orqali chaqiriladi.
+
+#: Media caption chegarasi (Telegram: 1024 UTF-16 birligi).
+ALBUM_CAPTION_LIMIT = 1024
+#: Matnli karta chegarasi (Telegram: 4096 UTF-16 birligi).
+ALBUM_TEXT_LIMIT = 4096
+#: Preview kartasi sifatida ko'rsatila oladigan muqova media turlari.
+#: Har biri uchun transportda ``send_<tur>`` / ``reply_<tur>`` metodi va
+#: ``<tur>=file_id`` parametri mavjud (photo/video/animation/document/audio).
+ALBUM_PREVIEW_MEDIA_KINDS = ("photo", "video", "animation", "document", "audio")
+
+
+def _utf16_length(text: str) -> int:
+    """Telegram hisoblaydigan uzunlik (UTF-16 birligi; emoji = 2)."""
+    return sum(2 if ord(char) > 0xFFFF else 1 for char in text)
+
+
+def _truncate_utf16(text: str, limit: int) -> str:
+    """Matnni UTF-16 chegarasigacha qirqadi (butun belgilar saqlanadi)."""
+    if limit <= 0 or _utf16_length(text) <= limit:
+        return text
+    keep = max(0, limit - 1)  # oxiridagi "…" uchun joy
+    out: list = []
+    total = 0
+    for char in text:
+        width = 2 if ord(char) > 0xFFFF else 1
+        if total + width > keep:
+            break
+        out.append(char)
+        total += width
+    return "".join(out).rstrip() + "…"
+
+
+def _limit_preview_text(text: str, limit: int, sanitizer=None) -> str:
+    """Preview matnini chegaraga tushiradi (HTML-xavfsiz, agar sanitizer berilsa).
+
+    ``sanitizer(text, limit)`` — loyihadagi HTML sanitizer (teg'larni
+    balanslaydi va chegaraga qirqadi). U bo'lmasa/xato bersa oddiy UTF-16
+    qirqish ishlatiladi: preview hech qachon Telegram chegarasidan oshmaydi.
+    """
+    raw = "" if text is None else str(text)
+    if sanitizer is not None:
+        try:
+            cleaned = sanitizer(raw, limit)
+        except Exception:  # noqa: BLE001 — sanitizer xatosi preview'ni buzmaydi
+            logger.debug("albom preview sanitizer xatosi — oddiy qirqish", exc_info=True)
+        else:
+            if isinstance(cleaned, str) and cleaned:
+                return _truncate_utf16(cleaned, limit) if limit > 0 else cleaned
+    return _truncate_utf16(raw, limit)
+
+
+def _preview_items(items) -> list:
+    """Preview uchun yaroqli albom elementlari (tartib saqlanadi, ≤ 10)."""
+    normalized = []
+    for item in items or ():
+        if not isinstance(item, dict):
+            continue
+        file_id = item.get("file_id")
+        if not file_id:
+            continue
+        normalized.append(item)
+        if len(normalized) >= TELEGRAM_ALBUM_MAX_ITEMS:
+            break
+    return normalized
+
+
+def _preview_cover(items: list) -> tuple | None:
+    """Muqova elementi: ``(kind, file_id)`` — kartaga qo'yib bo'ladigan birinchi fayl."""
+    for item in items:
+        kind = str(item.get("type") or "photo").lower()
+        if kind in ALBUM_PREVIEW_MEDIA_KINDS:
+            return kind, item.get("file_id")
+    return None
+
+
+@dataclass(frozen=True)
+class AlbumPreview:
+    """BIRLASHTIRILGAN albom preview javobi: media + caption + tugmalar.
+
+    Bu BITTA tuzilgan javob (bitta xabar): muqova media, butun albomga
+    tegishli caption va boshqaruv tugmalari birgalikda. Media va tugmalarni
+    ikki alohida xabarga bo'lish preview'ni uzib qo'yadi, shu sababli
+    albom preview'i har doim shu obyektdan render qilinadi.
+
+    Maydonlar:
+      * ``kind`` / ``file_id`` — muqova media (``None`` bo'lsa karta matnli);
+      * ``caption`` — media kartasi uchun matn (≤ 1024 UTF-16);
+      * ``text`` — matnli karta/zaxira uchun matn (≤ 4096 UTF-16);
+      * ``reply_markup`` — boshqaruv tugmalari (shaffof obyekt);
+      * ``items`` / ``count`` — BUTUN albom (kanalga ``sendMediaGroup`` bilan).
+    """
+
+    kind: str | None = None
+    file_id: str | None = None
+    caption: str = ""
+    text: str = ""
+    reply_markup: Any = None
+    parse_mode: str | None = "HTML"
+    items: tuple = ()
+    count: int = 0
+
+    @property
+    def is_media(self) -> bool:
+        """Muqova media bilan chiqadigan kartami (aks holda matnli karta)."""
+        return bool(self.kind and self.file_id)
+
+    @property
+    def is_album(self) -> bool:
+        """Bir nechta faylli albommi."""
+        return self.count > 1
+
+    def body(self) -> str:
+        """Kartaga yoziladigan matn (media → caption, aks holda to'liq matn)."""
+        return self.caption if self.is_media else self.text
+
+    def sender(self, *, reply: bool = False) -> tuple | None:
+        """``(metod, media kwargs)`` — transportda metod bo'lmasa ham qaytaradi.
+
+        ``reply=True`` bo'lsa ``reply_<tur>`` (xabar adapteri), aks holda
+        ``send_<tur>`` (bot + ``chat_id``) ishlatiladi.
+        """
+        if not self.is_media:
+            return None
+        prefix = "reply_" if reply else "send_"
+        return f"{prefix}{self.kind}", {self.kind: self.file_id}
+
+    def to_dict(self) -> dict:
+        """Kuzatuv/test uchun sof dict ko'rinishi."""
+        return {
+            "kind": self.kind,
+            "file_id": self.file_id,
+            "caption": self.caption,
+            "text": self.text,
+            "reply_markup": self.reply_markup,
+            "parse_mode": self.parse_mode,
+            "count": self.count,
+            "is_media": self.is_media,
+            "is_album": self.is_album,
+        }
+
+
+def build_album_preview(items, *, text: str = "", reply_markup=None,
+                        parse_mode: str | None = "HTML", sanitizer=None,
+                        caption_limit: int = ALBUM_CAPTION_LIMIT,
+                        text_limit: int = ALBUM_TEXT_LIMIT) -> AlbumPreview:
+    """Yig'ilgan albomni BITTA tuzilgan preview javobiga aylantiradi.
+
+    ``items`` — kollektor yig'gan fayllar; ``text`` — preview matni (tasdiq,
+    xulosa, post kontenti); ``reply_markup`` — boshqaruv tugmalari. Natija:
+    muqova media + caption + tugmalar BITTA xabarda (media fayllar va menyu
+    ikki alohida xabarga AJRATILMAYDI).
+
+    Muqova media topilmasa (bo'sh albom/qo'llab-quvvatlanmaydigan tur) karta
+    matnli bo'ladi — tugmalar baribir biriktiriladi (boshqaruv yo'qolmaydi).
+    """
+    normalized = _preview_items(items)
+    cover = _preview_cover(normalized)
+    caption = _limit_preview_text(text, caption_limit, sanitizer) if cover else ""
+    body = _limit_preview_text(text, text_limit, sanitizer)
+    return AlbumPreview(
+        kind=cover[0] if cover else None,
+        file_id=cover[1] if cover else None,
+        caption=caption,
+        text=body,
+        reply_markup=reply_markup,
+        parse_mode=parse_mode,
+        items=tuple(normalized),
+        count=len(normalized),
+    )
+
+
+async def send_album_preview(transport, preview: AlbumPreview | None, *,
+                             chat_id=None, reply: bool = False,
+                             parse_mode: str | None = None):
+    """Unified preview'ni BITTA xabar qilib yuboradi (media + caption + tugmalar).
+
+    * ``reply=True`` — xabar adapteri (``reply_<tur>`` / ``reply_text``);
+    * ``reply=False`` — bot + ``chat_id`` (``send_<tur>`` / ``send_message``).
+
+    Muqova media yuborilmasa (adapter metodi yo'q yoki Telegram xatosi) O'SHA
+    matn va tugmalar bilan matnli kartaga o'tiladi: preview hech qachon
+    boshqaruvsiz qolmaydi va media ALOHIDA xabarga ajralib ketmaydi.
+    Qaytaradi: yuborilgan xabar (yoki ``None``).
+    """
+    if preview is None or transport is None:
+        return None
+    mode = preview.parse_mode if parse_mode is None else parse_mode
+    sender = preview.sender(reply=reply)
+    if sender is not None:
+        method, media_kwargs = sender
+        media_send = getattr(transport, method, None)
+        if callable(media_send):
+            kwargs = dict(media_kwargs)
+            kwargs["caption"] = preview.caption
+            kwargs["reply_markup"] = preview.reply_markup
+            kwargs["parse_mode"] = mode
+            if not reply and chat_id is not None:
+                kwargs["chat_id"] = chat_id
+            try:
+                return await media_send(**kwargs)
+            except Exception:  # noqa: BLE001 — media kartasi xatosi preview'ni to'xtatmaydi
+                logger.warning(
+                    "Unified albom preview: muqova media yuborilmadi — matnli karta",
+                    exc_info=True,
+                )
+    text_method = "reply_text" if reply else "send_message"
+    text_send = getattr(transport, text_method, None)
+    if not callable(text_send):
+        logger.warning("Unified albom preview: transportda %s yo'q", text_method)
+        return None
+    kwargs = {
+        "text": preview.text or preview.caption or " ",
+        "reply_markup": preview.reply_markup,
+        "parse_mode": mode,
+    }
+    if not reply and chat_id is not None:
+        kwargs["chat_id"] = chat_id
+    try:
+        return await text_send(**kwargs)
+    except Exception:  # noqa: BLE001 — HTML xatosida oddiy matn bilan qayta urinish
+        try:
+            kwargs["parse_mode"] = None
+            return await text_send(**kwargs)
+        except Exception:  # noqa: BLE001 — preview yuborilmasa ham oqim buzilmaydi
+            logger.exception("Unified albom preview: matnli karta ham yuborilmadi")
+            return None
+
+
 @dataclass
 class AlbumPayload:
     """Yig'ilgan, TO'LIQ albom — bitta konsolidatsiyalangan post manbasi.
@@ -229,6 +493,22 @@ class AlbumPayload:
     def media_items(self) -> list:
         """``sendMediaGroup`` uchun tayyor media elementlari (nusxa)."""
         return [dict(item) for item in (self.items or [])]
+
+    def preview(self, *, text: str | None = None, reply_markup=None,
+                parse_mode: str | None = "HTML", sanitizer=None) -> AlbumPreview:
+        """Payload'dan BIRLASHTIRILGAN preview javobi (media + caption + tugmalar).
+
+        ``text`` berilmasa albomning o'z izohi (``caption``) ishlatiladi.
+        Handler natijani :func:`send_album_preview` ga beradi — preview BITTA
+        xabar bo'lib chiqadi (media va tugmalar alohida xabarlarga bo'linmaydi).
+        """
+        return build_album_preview(
+            self.items,
+            text=self.caption if text is None else text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+            sanitizer=sanitizer,
+        )
 
     def mark_consumed(self) -> bool:
         """Payload'ni "iste'mol qilindi" deb belgilaydi (idempotent).

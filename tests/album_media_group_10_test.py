@@ -82,7 +82,7 @@ def check(msg, cond, detail=""):
 # Test infratuzilmasi
 # ======================================================================
 class _RecBot:
-    """send_message / send_media_group chaqiruvlarini yozib boradi."""
+    """send_message / send_media_group / media-karta chaqiruvlarini yozib boradi."""
     id = 1
     username = "TestBot"
     defaults = None
@@ -100,11 +100,45 @@ class _RecBot:
         self.sent.append({"kind": "media_group", "count": len(media or [])})
         return [SimpleNamespace(message_id=i) for i in range(len(media or []))]
 
+    def _record_card(self, kind, caption, reply_markup, file_id):
+        # 🖼 BIRLASHTIRILGAN preview kartasi: media + caption + tugmalar BITTA
+        # xabarda. ``text`` maydoni caption bilan to'ldiriladi — shu sababli
+        # matn tekshiruvlari (texts/count) kartalarni ham qamrab oladi.
+        self.sent.append({"kind": kind, "text": caption, "caption": caption,
+                          "file_id": file_id, "reply_markup": reply_markup})
+        return SimpleNamespace(message_id=len(self.sent))
+
+    async def send_photo(self, chat_id=None, photo=None, caption=None,
+                         reply_markup=None, parse_mode=None, **kw):
+        return self._record_card("photo", caption, reply_markup, photo)
+
+    async def send_video(self, chat_id=None, video=None, caption=None,
+                         reply_markup=None, parse_mode=None, **kw):
+        return self._record_card("video", caption, reply_markup, video)
+
+    async def send_animation(self, chat_id=None, animation=None, caption=None,
+                             reply_markup=None, parse_mode=None, **kw):
+        return self._record_card("animation", caption, reply_markup, animation)
+
+    async def send_document(self, chat_id=None, document=None, caption=None,
+                            reply_markup=None, parse_mode=None, **kw):
+        return self._record_card("document", caption, reply_markup, document)
+
+    async def send_audio(self, chat_id=None, audio=None, caption=None,
+                         reply_markup=None, parse_mode=None, **kw):
+        return self._record_card("audio", caption, reply_markup, audio)
+
     def texts(self):
         return [s.get("text") or "" for s in self.sent]
 
     def count(self, needle):
         return sum(1 for t in self.texts() if needle in t)
+
+    def cards(self):
+        """Media preview kartalari (birlashtirilgan media + caption + panel)."""
+        return [s for s in self.sent
+                if s.get("kind") in ("photo", "video", "animation",
+                                     "document", "audio")]
 
 
 class _FakeMsg:
@@ -132,7 +166,8 @@ class _FakeMsg:
         return SimpleNamespace(message_id=len(self.replies))
 
     async def reply_photo(self, photo=None, **kw):
-        self.replies.append({"kind": "photo", "caption": kw.get("caption", ""),
+        self.replies.append({"kind": "photo", "file_id": photo,
+                             "caption": kw.get("caption", ""),
                              "reply_markup": kw.get("reply_markup")})
         return SimpleNamespace(message_id=len(self.replies))
 
@@ -668,6 +703,20 @@ def test_manual_album_ten_photos_single_post():
           and "10" in "".join(bot.texts()), str(bot.texts())[:200])
     check("yakuniy xabarda panel (inline tugmalar) bor",
           bool(bot.sent and bot.sent[0]["reply_markup"] is not None), "panel yo'q")
+    # 🖼 BIRLASHTIRILGAN PREVIEW: media + caption + boshqaruv tugmalari BITTA
+    # xabarda chiqadi (avval matn/panel, keyin media ALOHIDA xabar ketardi).
+    cards = bot.cards()
+    check("preview BIRLASHTIRILGAN: muqova media + caption + panel = BITTA xabar",
+          len(cards) == 1 and cards[0]["kind"] == "photo"
+          and cards[0]["file_id"] == files[0]
+          and cards[0]["reply_markup"] is not None
+          and get_text("np_album_received", "uz").split("{")[0]
+          in (cards[0]["caption"] or ""), str(cards)[:200])
+    check("birlashtirilgan caption'da albom izohi saqlanadi",
+          bool(cards) and caption in (cards[0]["caption"] or ""),
+          str(cards)[:200])
+    check("albom fayllari ALOHIDA (uzilgan) media-group xabarida chiqmaydi",
+          not any(s["kind"] == "media_group" for s in bot.sent), str(bot.sent)[:200])
 
     # 🚀 Saqlash: DB'ga BITTA qator (kvota birligi)
     calls = []
@@ -817,6 +866,11 @@ def test_manual_album_preview_and_i18n():
           cap[:200])
     check("preview panelida tugmalar bor",
           msg.replies[0]["reply_markup"] is not None)
+    check("muqova media — albomning BIRINCHI fayli (birlashtirilgan karta)",
+          msg.replies[0].get("file_id") == "z0", str(msg.replies)[:160])
+    check("media va tugmalar AJRATILMAGAN (alohida matnli panel xabari yo'q)",
+          all(r.get("reply_markup") is not None for r in msg.replies),
+          str(msg.replies)[:160])
 
 
 # ======================================================================
