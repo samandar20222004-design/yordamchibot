@@ -44,7 +44,7 @@ async def is_user_ad_free_async(user_id: int) -> bool:
         return False
 
 
-#: Bepul tarif nishonidagi belgi: kanal postining OXIRIGA «🤖 @bot» qatori qo'shiladi.
+#: Bepul tarif nishonidagi belgi: kanal postining BOSHIGA «🤖 @bot» qatori qo'yiladi.
 WATERMARK_EMOJI = "🤖"
 
 
@@ -60,8 +60,20 @@ def watermark_line(bot_username: str) -> str:
     return f"{WATERMARK_EMOJI} {handle}" if handle else ""
 
 
+def watermark_header(bot_username: str) -> str:
+    """Post BOSHIGA qo'yiladigan nishon: ``🤖 @PostAssistrobot\n\n``."""
+    line = watermark_line(bot_username)
+    return f"{line}\n\n" if line else ""
+
+
 def watermark_footer(bot_username: str) -> str:
-    """Post oxiriga qo'shiladigan nishon: ``\n\n🤖 @PostAssistrobot``."""
+    """Nishonning ``\n\n🤖 @PostAssistrobot`` ko'rinishi (hajm/uzunlik uchun).
+
+    DIQQAT: bepul tarifning majburiy nishoni post BOSHIGA qo'yiladi
+    (``watermark_header``). Bu ko'rinish faqat tozalagich preview'si uchun
+    saqlangan va nishon qatorining uzunligini hisoblashda ishlatiladi —
+    uzunlik boshdagi ko'rinish bilan bir xil (``emoji + bo'shliq + @handle``).
+    """
     line = watermark_line(bot_username)
     return f"\n\n{line}" if line else ""
 
@@ -71,23 +83,39 @@ def watermark_footer_length(bot_username: str) -> int:
     return len(watermark_footer(bot_username).encode("utf-16-le")) // 2
 
 
-def split_watermark_footer(text: str, bot_username: str) -> tuple:
-    """``(asosiy_matn, nishon)`` — matn nishon bilan tugasa, ajratib qaytaradi.
+def has_watermark_header(text: str, bot_username: str) -> bool:
+    """Matn allaqachon BOSHIDAGI nishon qatori bilan boshlanadimi?"""
+    line = watermark_line(bot_username)
+    return bool(line) and ("" if text is None else str(text)).lstrip().startswith(line)
 
-    Yetkazish paytida nishon matn KESILGANDAN KEYIN qaytarib qo'shilishi uchun
-    kerak (``scheduler.compose_post_text``): shunda u Telegram limiti tufayli
-    hech qachon yo'qolib qolmaydi. Nishon yo'q bo'lsa — ``(text, "")``.
+
+def split_watermark_footer(text: str, bot_username: str) -> tuple:
+    """``(yetkazishga_tayyor_matn, "")`` — boshdagi nishon matnda QOLADI.
+
+    Nishon endi post BOSHIGA qo'yiladi (``apply_post_watermark``), Telegram
+    limiti esa matnni faqat OXIRIDAN kesadi — shu sababli nishon kesilib
+    ketmaydi va uni alohida ajratib, keyin qayta qo'shish SHART EMAS.
+
+    Nom ``scheduler`` / ``post_enhancer`` chaqiruvlari bilan moslik uchun
+    saqlangan: ular natijaning ikkinchi elementini ``compose_post_text``
+    ``footer`` argumentiga uzatadi, bu yerda esa u bo'sh satr bo'ladi (nishon
+    matnning O'ZIDA, eng boshida turadi). Nishon umuman bo'lmasa — ``(text, "")``.
+
+    Moslik uchun ESKI ko'rinish (nishon matn OXIRIDA: ``\n\n🤖 @bot``) ham
+    tan olinadi va nishon BOSHIGA ko'chiriladi — eski/yangi yo'ldan qat'i
+    nazar post boshida chiqadi va takrorlanmaydi.
     """
     body = "" if text is None else str(text)
     line = watermark_line(bot_username)
     if not line:
         return body, ""
+    if has_watermark_header(body, bot_username):
+        return body, ""
     stripped = body.rstrip()
-    if stripped == line:
-        return "", line
     suffix = f"\n\n{line}"
     if stripped.endswith(suffix):
-        return stripped[: -len(suffix)], line
+        head = stripped[: -len(suffix)].rstrip()
+        return (f"{line}\n\n{head}" if head else line), ""
     return body, ""
 
 
@@ -103,13 +131,15 @@ async def is_watermark_exempt(user_id: int) -> bool:
 
 
 async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> str:
-    """Bepul foydalanuvchilar postlarining OXIRIGA ``🤖 @bot`` nishonini qo'shadi.
+    """Bepul foydalanuvchilar postlarining BOSHIGA ``🤖 @bot`` nishonini qo'yadi.
 
     Qoidalar:
       - PRO foydalanuvchilar va adminlar uchun matn o'zgarmaydi.
-      - Bepul foydalanuvchilar uchun matn oxiriga ``\n\n🤖 @PostAssistrobot``
-        qo'shiladi (bo'sh matn bo'lsa — faqat nishon qatori).
-      - Matn allaqachon shu nishon bilan tugasa, takrorlanmaydi.
+      - Bepul foydalanuvchilar uchun matn BOSHIGA ``🤖 @PostAssistrobot\n\n``
+        qo'yiladi (bo'sh matn bo'lsa — faqat nishon qatori).
+      - Matn allaqachon shu nishon bilan boshlansa, takrorlanmaydi.
+      - Nishon BOSHDA bo'lgani uchun Telegram limiti (matn faqat OXIRIDAN
+        kesiladi) uni hech qachon kesib tashlamaydi.
     """
     line = watermark_line(bot_username)
     if not line or await is_watermark_exempt(user_id):
@@ -118,9 +148,11 @@ async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> st
     body = "" if text is None else str(text)
     if not body.strip():
         return line
-    if split_watermark_footer(body, bot_username)[1]:
+    if has_watermark_header(body, bot_username):
         return body
-    return f"{body.rstrip()}\n\n{line}"
+    # Nishon BOSHIGA qo'yiladi — chetdagi ortiqcha bo'sh joylar (oldingi
+    # ko'rinishda oxiridagilar tozalanardi) olib tashlanadi.
+    return f"{line}\n\n{body.strip()}"
 
 
 _USER_HISTORY = {}

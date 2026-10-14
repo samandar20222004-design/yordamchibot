@@ -759,7 +759,8 @@ async def scenario_concurrent_delivery():
         check("all concurrent file IDs reach channel in Telegram order",
               [m.media for m in media] == ["F401", "F402", "F403"])
         check("album caption includes cleaner signature and mandatory Free watermark",
-              SIG in media[0].caption and media[0].caption.endswith("🤖 @PostAssistrobot"))
+              SIG in media[0].caption
+              and media[0].caption.startswith("🤖 @PostAssistrobot\n\n"))
         check("formatted caption preserved, other media have no caption",
               (not caption or "<b>Muhim</b> xabar" in media[0].caption)
               and all(m.caption is None for m in media[1:]))
