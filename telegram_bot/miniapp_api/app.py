@@ -118,6 +118,24 @@ async def post_detail_handler(request: web.Request):
     return web.json_response({"post": data})
 
 
+async def draft_handler(request: web.Request):
+    data = await request.app[_K_SERVICE].draft(request["user_id"])
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+async def draft_media_handler(request: web.Request):
+    data, mime = await request.app[_K_WRITER].draft_photo(request["user_id"])
+    return web.Response(body=data, content_type=mime, headers={
+        "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'"})
+
+
+@_write
+async def draft_delete_handler(request: web.Request):
+    data = await request.app[_K_WRITER].delete_draft(request["user_id"])
+    return web.json_response(data)
+
+
 @_write
 async def post_create_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
@@ -265,6 +283,9 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/channels", channels_handler)
     api.router.add_get("/scheduled-posts", scheduled_handler)
     api.router.add_get("/posts/{post_id}", post_detail_handler)
+    api.router.add_get("/draft", draft_handler)
+    api.router.add_get("/draft/media", draft_media_handler)
+    api.router.add_delete("/draft", draft_delete_handler)
     api.router.add_post("/posts", post_create_handler)
     api.router.add_patch("/posts/{post_id}", post_update_handler)
     api.router.add_delete("/posts/{post_id}", post_delete_handler)

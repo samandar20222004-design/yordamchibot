@@ -867,6 +867,7 @@ TRANSLATIONS = {
         "np_confirm_auto_delete": "⏳ Avto-o'chirish: {hours} soat",
         "np_confirm_ok_btn": "✅ Rejalashtirish",
         "np_confirm_queue_btn": "⏳ Navbatga",
+        "np_confirm_miniapp_btn": "📱 Mini App'da",
         "np_confirm_edit_btn": "✏️ Tahrirlash",
         "np_confirm_cancel_btn": "❌ Bekor qilish",
 
@@ -3003,6 +3004,7 @@ TRANSLATIONS = {
         "np_confirm_auto_delete": "⏳ Авто-удаление: {hours} ч.",
         "np_confirm_ok_btn": "✅ Запланировать",
         "np_confirm_queue_btn": "⏳ В очередь",
+        "np_confirm_miniapp_btn": "📱 В Mini App",
         "np_confirm_edit_btn": "✏️ Редактировать",
         "np_confirm_cancel_btn": "❌ Отмена",
 

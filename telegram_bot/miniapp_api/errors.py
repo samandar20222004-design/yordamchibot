@@ -102,6 +102,16 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Канал не найден или не принадлежит вам.",
         "en": "The channel was not found or does not belong to you.",
     }),
+    "draft_not_found": (404, {
+        "uz": "Qoralama topilmadi yoki muddati tugagan. Postni botda qayta yuboring.",
+        "ru": "Черновик не найден или устарел. Отправьте пост боту ещё раз.",
+        "en": "The draft was not found or has expired. Send the post to the bot again.",
+    }),
+    "media_unavailable": (404, {
+        "uz": "Media ko'rsatib bo'lmadi.",
+        "ru": "Не удалось показать медиа.",
+        "en": "The media could not be shown.",
+    }),
     "not_editable": (409, {
         "uz": "Bu postni o'zgartirib bo'lmaydi: u allaqachon yuborilgan yoki bekor qilingan.",
         "ru": "Этот пост нельзя изменить: он уже отправлен или отменён.",

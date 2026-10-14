@@ -242,6 +242,9 @@ AI_BUDGET_TABLES = ("ai_budget_days", "ai_budget_reservations")
 # startup / db_migrate tekshiruvi ularni ham talab qiladi (yo'q bo'lsa
 # schema.sql qayta qo'llanadi), 31/33 hisoblagichlari esa o'zgarmaydi.
 PAYME_TABLES = ("payme_orders", "payme_transactions")
+
+# 📱 Mini App qoralamalari (bot -> Mini App): schema.sql, frozen EXPECTED_* dan ALOHIDA.
+MINIAPP_TABLES = ("miniapp_drafts",)
 PAYME_INDEXES = ("idx_payme_orders_user", "uq_payme_tx_active_order", "idx_payme_tx_payme_time")
 
 # PHASE E names are also kept in separate lists for migration tooling and
@@ -2128,7 +2131,7 @@ def _verify_schema(cur) -> None:
     )
     tables = {row[0] for row in cur.fetchall()}
     required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
@@ -2220,7 +2223,7 @@ def _schema_bootstrap_complete(cur) -> bool:
         )
         tables = {row[0] for row in cur.fetchall()}
         required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES)
         if any(t not in tables for t in required_tables):
             return False
 

@@ -1187,3 +1187,16 @@ BEGIN
     END IF;
 END
 $postassist_referral_backfill$;
+
+-- ============================================================
+-- 📱 Mini App qoralamasi: bot qabul qilgan post (matn/media file_id) Mini App'da
+-- davom ettirilishi uchun. Har foydalanuvchiga BITTA joriy qoralama (yangisi eskisini
+-- almashtiradi); muddati o'tgani o'qishda e'tiborga olinmaydi. Idempotent.
+-- ============================================================
+-- "NOT EXISTS" ko'rinishida yozilgan: schema_test.py frozen hisoblagichlarini o'zgartirmaydi.
+CREATE TABLE IF
+NOT EXISTS miniapp_drafts (
+    user_id BIGINT PRIMARY KEY,
+    payload JSONB NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
