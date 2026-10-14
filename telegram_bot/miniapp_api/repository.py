@@ -54,6 +54,72 @@ def channel_owned(cur, user_id: int, channel_id: str) -> bool:
     return cur.fetchone() is not None
 
 
+def channel_title(cur, user_id: int, channel_id: str):
+    """Egasining faol kanali nomi; kanal yo'q / begona / o'chirilgan bo'lsa ``None`` (egalik tekshiruvi shu yerda)."""
+    cur.execute(
+        "SELECT channel_title FROM channels WHERE user_id = %s AND channel_id = %s "
+        "AND is_active = TRUE AND deleted_at IS NULL LIMIT 1",
+        (user_id, str(channel_id)),
+    )
+    row = cur.fetchone()
+    return None if row is None else (row[0] or "")
+
+
+def member_history(cur, channel_id: str, since) -> list[dict]:
+    """Obunachilar snapshot'lari (yangidan eskiga). Egalik chaqiruvchi tomonidan ``channel_title`` bilan tekshirilgan."""
+    cur.execute(
+        "SELECT snapshot_date, member_count, source, collected_at FROM channel_member_counts "
+        "WHERE channel_id = %s AND snapshot_date >= %s ORDER BY snapshot_date DESC LIMIT 400",
+        (str(channel_id), since),
+    )
+    return [{"date": r[0].isoformat(), "member_count": int(r[1]), "source": r[2],
+             "collected_at": r[3].isoformat() if r[3] else None} for r in cur.fetchall()]
+
+
+def channel_post_counts(cur, user_id: int, channel_id: str) -> dict:
+    """Botning O'Z postlari bo'yicha hisob (kanalning haqiqiy natijasi EMAS): shu kanal va shu egasi."""
+    cur.execute(
+        "SELECT "
+        "COUNT(*) FILTER (WHERE status = 'posted' AND scheduled_time >= NOW() - INTERVAL '7 days'), "
+        "COUNT(*) FILTER (WHERE status = 'posted' AND scheduled_time >= NOW() - INTERVAL '30 days'), "
+        "COUNT(*) FILTER (WHERE status = 'posted'), "
+        "COUNT(*) FILTER (WHERE status = 'pending'), "
+        "COUNT(*) FILTER (WHERE status = 'failed'), "
+        "COUNT(*) FILTER (WHERE status = 'unknown') "
+        "FROM scheduled_posts WHERE user_id = %s AND channel_id = %s",
+        (user_id, str(channel_id)),
+    )
+    r = cur.fetchone() or (0, 0, 0, 0, 0, 0)
+    keys = ("sent_7d", "sent_30d", "sent_all", "pending", "failed", "unknown")
+    return {k: int(v or 0) for k, v in zip(keys, r)}
+
+
+def views_summary(cur, channel_id: str) -> dict:
+    """Ko'rishlar xulosasi — FAQAT manbasi (``views_source``) bor qiymatlar bo'yicha.
+
+    Eski soxta ``0`` (manbasiz) va ``NULL`` hisobga olinmaydi: ular "o'lchanmagan". Oxirgi 90 kun.
+    """
+    cur.execute(
+        "SELECT COUNT(*) FILTER (WHERE views_source IS NOT NULL AND views IS NOT NULL), "
+        "AVG(views) FILTER (WHERE views_source IS NOT NULL), "
+        "MAX(views) FILTER (WHERE views_source IS NOT NULL), "
+        "MAX(views_collected_at), "
+        "ARRAY_AGG(DISTINCT views_source) FILTER (WHERE views_source IS NOT NULL) "
+        "FROM channel_posts_history WHERE channel_id = %s AND post_date >= NOW() - INTERVAL '90 days'",
+        (str(channel_id),),
+    )
+    r = cur.fetchone() or (0, None, None, None, None)
+    count = int(r[0] or 0)
+    return {
+        "available": count > 0,
+        "with_views": count,
+        "avg": round(float(r[1]), 1) if count and r[1] is not None else None,
+        "max": int(r[2]) if count and r[2] is not None else None,
+        "collected_at": r[3].isoformat() if (count and r[3]) else None,
+        "sources": sorted(r[4]) if (count and r[4]) else [],
+    }
+
+
 def load_beta_state_raw(cur):
     cur.execute("SELECT value FROM system_settings WHERE key = %s", (BETA_STATE_KEY,))
     row = cur.fetchone()

@@ -231,7 +231,7 @@ def test_all_routes_require_auth():
     app, api = api_app(lim, load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                                            "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"}))
     routes = sorted({(r.method, r.resource.canonical) for r in api.router.routes() if r.method != "HEAD"})
-    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/channels"),
+    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
                 ("GET", "/api/v1/draft"), ("GET", "/api/v1/draft/media"), ("GET", "/api/v1/health"),
                 ("GET", "/api/v1/me"), ("GET", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/scheduled-posts"),
                 ("PATCH", "/api/v1/me/settings"), ("PATCH", "/api/v1/posts/{post_id}"),
@@ -239,7 +239,7 @@ def test_all_routes_require_auth():
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
     for method, canonical in routes:
-        path = canonical.replace("{post_id}", "1")
+        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890")
         st, body = run(fetch(app, path, method=method) if method != "GET" else fetch(app, path))
         if path.endswith("/health"):
             T.check("/health auth'siz 200", st == 200)

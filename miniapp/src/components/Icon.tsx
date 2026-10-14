@@ -11,6 +11,7 @@ const PATHS = {
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
   plus: 'M12 5v14M5 12h14',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
+  chart: 'M5 20v-8M12 20V5M19 20v-5M3 20h18',
   bot: 'M12 3v3M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM9 13v1.5M15 13v1.5',
 } as const
 

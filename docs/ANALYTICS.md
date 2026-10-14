@@ -51,3 +51,7 @@ foydalanmaydi). Egasi tasdiqlasa, bir martalik tuzatish (ma'lumotni O'ZGARTIRADI
 ## Testlar
 `analytics_foundation_test` (real PG: sxema, NULL views, snapshot, tozalash, IDOR), `analytics_channel_post_test`,
 `analytics_member_growth_test` (hisob + snapshot ishi), `analytics_dashboard_members_test` (ekran, uz/ru/en).
+
+## Mini App
+
+`GET /api/v1/channels/{channel_id}/analytics` (faqat egasi) va «Tahlil» tabi: bot dashboardi bilan bir xil `compute_member_growth` qoidalari; ma'lumot yo'q bo'lsa "to'planmoqda" ko'rsatiladi, soxta raqam yo'q.
