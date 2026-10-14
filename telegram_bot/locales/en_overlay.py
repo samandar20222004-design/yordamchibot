@@ -1180,6 +1180,7 @@ EN_OVERLAY = {
     "np_confirm_auto_delete": "⏳ Auto-delete: {hours} h",
     "np_confirm_ok_btn": "✅ Schedule",
     "np_confirm_queue_btn": "⏳ Add to queue",
+    "np_confirm_miniapp_btn": "📱 In Mini App",
     "np_confirm_edit_btn": "✏️ Edit",
     "np_album_received": (
         "🖼 <b>Album received:</b> {count} media items — "

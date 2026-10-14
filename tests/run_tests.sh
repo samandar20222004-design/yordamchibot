@@ -1638,6 +1638,7 @@ echo "===== 📱 MINI APP (API poydevori: auth, proksi, limiter, ownership, stat
 "$PY" tests/miniapp_writes_real_test.py || fail "tests/miniapp_writes_real_test.py"
 "$PY" tests/miniapp_bot_api_test.py || fail "tests/miniapp_bot_api_test.py"
 "$PY" tests/miniapp_scheduler_e2e_test.py || fail "tests/miniapp_scheduler_e2e_test.py"
+"$PY" tests/miniapp_draft_test.py || fail "tests/miniapp_draft_test.py"
 "$PY" tests/miniapp_static_regression_test.py || fail "tests/miniapp_static_regression_test.py"
 "$PY" tests/miniapp_db_real_test.py || fail "tests/miniapp_db_real_test.py"
 "$PY" tests/miniapp_navigation_test.py || fail "tests/miniapp_navigation_test.py"

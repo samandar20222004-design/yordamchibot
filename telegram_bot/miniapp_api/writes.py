@@ -87,6 +87,58 @@ def parse_text(value, field: str, *, max_chars: int) -> str:
     return text
 
 
+def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
+    """Inline tugma: ikkalasi ham berilishi yoki ikkalasi ham bo'lmasligi kerak."""
+    if button_text in (None, "") and button_url in (None, ""):
+        return None, None
+    if not isinstance(button_text, str) or not isinstance(button_url, str):
+        raise ApiError("invalid_input", field="button_text")
+    text = button_text.strip()
+    url = button_url.strip()
+    if not text or len(text) > 64 or _CTRL_RE.search(text):
+        raise ApiError("invalid_input", field="button_text")
+    from utils.security import validate_button_url
+
+    if not url or len(url) > 2000 or _CTRL_RE.search(url) or not validate_button_url(url):
+        raise ApiError("invalid_input", field="button_url")
+    return text, url
+
+
+MAX_MEDIA_BYTES = 8 * 1024 * 1024
+
+
+def sniff_image(data) -> str | None:
+    head = bytes(data[:12])
+    if head.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if head.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def default_media_fetch(bot_token: str):
+    """``file_id`` -> bayt (PTB Bot ``get_file``); hajm ``MAX_MEDIA_BYTES`` bilan cheklangan."""
+    holder: dict = {}
+
+    async def fetch(file_id: str) -> bytes:
+        from telegram import Bot
+
+        bot = holder.get("bot")
+        if bot is None:
+            bot = holder["bot"] = Bot(bot_token)
+        tg_file = await bot.get_file(file_id)
+        if tg_file.file_size and tg_file.file_size > MAX_MEDIA_BYTES:
+            raise ApiError("media_unavailable")
+        data = await tg_file.download_as_bytearray()
+        if len(data) > MAX_MEDIA_BYTES:
+            raise ApiError("media_unavailable")
+        return bytes(data)
+
+    return fetch
+
+
 def parse_channel_id(value) -> str:
     if not isinstance(value, str) or not _CHANNEL_RE.match(value):
         raise ApiError("invalid_input", field="channel_id")
@@ -115,7 +167,7 @@ class PostWriter:
     """Yozuv amallari. ``clock`` — test uchun ``datetime`` qaytaruvchi funksiya."""
 
     def __init__(self, service: MiniAppService, settings: MiniAppSettings, *, clock=None,
-                 posts_repo=None, users_repo=None, ai=None) -> None:
+                 posts_repo=None, users_repo=None, ai=None, media_fetch=None) -> None:
         self._service = service
         self._settings = settings
         self._clock = clock or (lambda: datetime.now(timezone.utc))
@@ -125,6 +177,7 @@ class PostWriter:
         self._posts = posts_repo
         self._users = users_repo
         self._ai = ai
+        self._media_fetch = media_fetch
 
     # ------------------------------------------------------------ yordamchilar
     def _posts_repo(self):
@@ -165,9 +218,18 @@ class PostWriter:
 
     # ------------------------------------------------------------------ postlar
     async def create_post(self, user_id: int, body: dict) -> dict:
-        _only_keys(body, ("channel_id", "text", "scheduled_at", "send_now"))
+        _only_keys(body, ("channel_id", "text", "scheduled_at", "send_now",
+                          "button_text", "button_url", "use_draft"))
         channel_id = parse_channel_id(body.get("channel_id"))
-        text = parse_text(body.get("text"), "text", max_chars=MAX_POST_CHARS)
+        use_draft = body.get("use_draft", False)
+        if not isinstance(use_draft, bool):
+            raise ApiError("invalid_input", field="use_draft")
+        raw_text = body.get("text")
+        if use_draft and raw_text == "":
+            text = ""  # media qoralama: sarlavhasiz ham bo'ladi
+        else:
+            text = parse_text(raw_text, "text", max_chars=MAX_POST_CHARS)
+        btn_text, btn_url = parse_button(body.get("button_text"), body.get("button_url"))
         send_now = body.get("send_now", False)
         if not isinstance(send_now, bool):
             raise ApiError("invalid_input", field="send_now")
@@ -180,9 +242,19 @@ class PostWriter:
         ctx = await self._service.authorize(user_id)
         if not await self._service.owns_channel(user_id, channel_id):
             raise ApiError("channel_not_found", field="channel_id")
+        draft = None
+        if use_draft:
+            draft = await self._service.draft_raw(user_id)
+            if not draft:
+                raise ApiError("draft_not_found")
+        post_type = (draft or {}).get("post_type") or "text"
+        file_id = (draft or {}).get("file_id")
+        if post_type == "text" and not text:
+            raise ApiError("invalid_input", field="text")
 
         async with self._user_lock(user_id):
-            existing = await self._blocking(self._find_duplicate, user_id, channel_id, text)
+            existing = await self._blocking(
+                self._find_duplicate, user_id, channel_id, text, file_id)
             if existing:
                 post_id, created = existing, False
             else:
@@ -191,24 +263,62 @@ class PostWriter:
                         self._users_repo().check_queue_limit, user_id)
                     if not allowed:
                         raise ApiError("queue_limit_reached")
+                extra = {}
+                if btn_text and btn_url:
+                    extra.update(btn_text=btn_text, btn_url=btn_url)
+                if draft:
+                    extra.update(
+                        enable_reactions=bool(draft.get("enable_reactions")),
+                        reaction_emojis=draft.get("reaction_emojis"),
+                        delete_after_hours=int(draft.get("delete_after_hours") or 0))
                 post_id = await self._blocking(
                     lambda: self._posts_repo().add_post(
-                        user_id, channel_id, "text", text, None, when))
+                        user_id, channel_id, post_type, text, file_id, when, **extra))
                 if not post_id:
                     raise ApiError("save_failed", retry_after=5)
                 created = True
+            if use_draft:
+                await self._blocking(self._drop_draft, user_id)
         post = await self._service.post(user_id, int(post_id))
         return {"post": post, "created": created,
                 "delivery": "immediate" if send_now else "scheduled"}
 
-    def _find_duplicate(self, user_id: int, channel_id: str, text: str):
+    def _drop_draft(self, user_id: int) -> None:
+        from . import drafts
+
+        drafts.delete_draft(user_id)
+
+    async def delete_draft(self, user_id: int) -> dict:
+        await self._service.authorize(user_id)
+        deleted = await self._blocking(self._drop_draft, user_id)
+        return {"deleted": bool(deleted)}
+
+    async def draft_photo(self, user_id: int) -> tuple[bytes, str]:
+        """Qoralamadagi RASMni Telegram'dan olib beradi (bot tokeni serverda qoladi)."""
+        draft = await self._service.draft_raw(user_id)
+        if not draft or draft.get("post_type") != "photo" or not draft.get("file_id"):
+            raise ApiError("media_unavailable")
+        fetch = self._media_fetch or default_media_fetch(self._settings.bot_token)
+        try:
+            data = await fetch(draft["file_id"])
+        except ApiError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("miniapp media: olib bo'lmadi (%s)", type(exc).__name__)
+            raise ApiError("media_unavailable") from None
+        mime = sniff_image(data)
+        if not data or mime is None:
+            raise ApiError("media_unavailable")
+        return bytes(data), mime
+
+    def _find_duplicate(self, user_id: int, channel_id: str, text: str, file_id=None):
         with self._db_cursor() as cur:
             cur.execute(
                 "SELECT id FROM scheduled_posts WHERE user_id = %s AND channel_id = %s "
-                "AND content = %s AND status <> 'cancelled' "
+                "AND content = %s AND COALESCE(file_id, '') = %s AND status <> 'cancelled' "
                 "AND created_at > CURRENT_TIMESTAMP - (%s || ' seconds')::interval "
                 "ORDER BY id DESC LIMIT 1",
-                (user_id, channel_id, text, str(DUPLICATE_WINDOW_SECONDS)),
+                (user_id, channel_id, text, file_id or "", str(DUPLICATE_WINDOW_SECONDS)),
             )
             row = cur.fetchone()
             return int(row[0]) if row else None

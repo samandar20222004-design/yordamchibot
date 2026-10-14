@@ -1,26 +1,52 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppData } from '../AppData'
 import { ApiClientError } from '../api/client'
-import { AI_STYLES, type AiStyle } from '../api/types'
+import { AI_STYLES, type AiStyle, type CreatePostInput } from '../api/types'
 import { ConfirmDialog } from '../components/Dialog'
+import { Icon } from '../components/Icon'
+import { PostPreview } from '../components/PostPreview'
 import { Page, PageHeader } from '../components/Shell'
-import { Button, EmptyState, ErrorState, FormError, LoadingBlock, openBotAvailable } from '../components/ui'
+import { Button, EmptyState, ErrorState, FormError, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
 import { config } from '../config'
+import { useDraftPhoto } from '../hooks/useDraftPhoto'
 import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
 import { toClientError } from '../hooks/useResource'
-import { defaultScheduleValue, isFutureEnough, isUnlimited, localInputToIso } from './format'
+import { defaultScheduleValue, isFutureEnough, isUnlimited, localInputToIso, toLocalInputValue } from './format'
+import { FORMATS, isSafeLink, linkOpen, wrapSelection } from './richtext'
 
 type Mode = 'schedule' | 'now'
-type FieldKey = 'channel' | 'text' | 'when'
+type FieldKey = 'channel' | 'text' | 'when' | 'button'
+
+/** Telegram: rasm/video ostidagi matn (caption) chegarasi. */
+const CAPTION_MAX = 1024
+
+const FORMAT_KEYS: Record<string, MessageKey> = {
+  bold: 'post.fmt.bold', italic: 'post.fmt.italic', underline: 'post.fmt.underline',
+  strike: 'post.fmt.strike', code: 'post.fmt.code', spoiler: 'post.fmt.spoiler',
+}
+
+/** Tez vaqt tanlovlari: har biri "hozir"dan hisoblanadi (kelajakda bo'lmasa o'chiriladi). */
+export function quickTimes(now: Date): { id: '30m' | '1h' | 'today' | 'tomorrow'; value: string }[] {
+  const at = (add: number) => toLocalInputValue(new Date(now.getTime() + add * 60_000))
+  const today = new Date(now); today.setHours(18, 0, 0, 0)
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1); tomorrow.setHours(9, 0, 0, 0)
+  return [
+    { id: '30m', value: at(30) },
+    { id: '1h', value: at(60) },
+    { id: 'today', value: toLocalInputValue(today) },
+    { id: 'tomorrow', value: toLocalInputValue(tomorrow) },
+  ]
+}
 
 /**
- * Post yaratish: matn (qo'lda yoki AI), kanal (faqat o'zingizniki — server ham tekshiradi) va vaqt.
- * Yuborishni Mini App BAJARMAYDI: post navbatga yoziladi, botning rejalashtiruvchisi yuboradi.
- * Takroriy bosishdan himoya: `inFlight` ref + tugma `busy`; server ham 30 s ichida bir xil postni qaytaradi.
+ * Post yaratish (PostBot uslubida): botdan kelgan qoralama (matn + media) shu yerda tahrirlanadi, kanal va vaqt
+ * tanlanadi, "Ko'rinish" kartasida Telegram xabari ko'rinishida ko'rsatiladi. Yuborishni Mini App BAJARMAYDI:
+ * post navbatga yoziladi, botning rejalashtiruvchisi yuboradi. Takroriy bosishdan himoya: `inFlight` ref + `busy`;
+ * server ham 30 s ichida bir xil postni qaytaradi.
  */
 export function PostPage() {
-  const { me, channels, client, feed, go, notify, botUsername } = useAppData()
+  const { me, channels, client, draft, feed, go, notify, botUsername } = useAppData()
   const { t } = useI18n()
   const [channelId, setChannelId] = useState('')
   const [text, setText] = useState('')
@@ -35,8 +61,49 @@ export function PostPage() {
   const [aiBusy, setAiBusy] = useState(false)
   const [aiError, setAiError] = useState<ApiClientError | null>(null)
   const [aiIdeaError, setAiIdeaError] = useState(false)
+  const [btnOpen, setBtnOpen] = useState(false)
+  const [btnText, setBtnText] = useState('')
+  const [btnUrl, setBtnUrl] = useState('')
+  const [linkOpenRow, setLinkOpenRow] = useState(false)
+  const [linkUrl, setLinkUrl] = useState('')
+  const [discard, setDiscard] = useState(false)
+  const [discarding, setDiscarding] = useState(false)
+  const [aiOpen, setAiOpen] = useState<boolean | null>(null)
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
+  const textRef = useRef<HTMLTextAreaElement>(null)
+  const selection = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
+
+  const current = draft.data?.draft ?? null
+  const draftKey = current ? `${current.updated_at ?? ''}|${current.text.length}|${current.channel_id ?? ''}` : null
+  const appliedKey = useRef<string | null>(null)
+  const items = channels.data?.items ?? []
+
+  // Botdan yangi/yangilangan qoralama kelganda matn va tugma BIR MARTA to'ldiriladi (foydalanuvchi tahririni bosmaydi).
+  useEffect(() => {
+    if (!current || draftKey === appliedKey.current) return
+    appliedKey.current = draftKey
+    setText(current.text)
+    setBtnText(current.button_text ?? '')
+    setBtnUrl(current.button_url ?? '')
+    setBtnOpen(Boolean(current.button_text && current.button_url))
+    setFieldError(null)
+    setError(null)
+  }, [current, draftKey])
+
+  // Kanal ro'yxati kech kelishi mumkin: qoralamadagi kanal ro'yxat kelgach, qoralama boshiga BIR MARTA tanlanadi.
+  const channelKey = useRef<string | null>(null)
+  const draftChannel = current?.channel_id ?? null
+  const hasDraftChannel = draftChannel !== null && items.some((c) => c.id === draftChannel)
+  useEffect(() => {
+    if (!draftKey || channelKey.current === draftKey || !hasDraftChannel || !draftChannel) return
+    channelKey.current = draftKey
+    setChannelId(draftChannel)
+  }, [draftKey, draftChannel, hasDraftChannel])
+
+  const media = current?.media ?? null
+  const photo = useDraftPhoto(client, Boolean(media?.previewable), current?.updated_at ?? null)
+  const textMax = media ? CAPTION_MAX : config.maxPostChars
 
   if (me.loading || channels.loading) return <Page><PageHeader title={t('post.title')} /><LoadingBlock rows={4} /></Page>
   if (!me.data) {
@@ -48,7 +115,6 @@ export function PostPage() {
       {channels.error && <ErrorState error={channels.error} onRetry={channels.reload} botUsername={botUsername} />}</Page>
   }
 
-  const items = channels.data.items
   if (items.length === 0) {
     return (
       <Page>
@@ -65,11 +131,47 @@ export function PostPage() {
   const limit = (n: number) => (isUnlimited(n) ? t('common.unlimited') : String(n))
   const selected = channelId || (items.length === 1 ? items[0].id : '')
   const selectedTitle = items.find((c) => c.id === selected)?.title || selected
+  const useDraft = Boolean(current)
+  const hasButton = btnOpen && (btnText.trim() !== '' || btnUrl.trim() !== '')
+  const aiIsOpen = aiOpen ?? !useDraft
+  const nowDate = new Date()
+
+  const apply = (edit: { value: string; selStart: number; selEnd: number }) => {
+    setText(edit.value)
+    setFieldError(null)
+    requestAnimationFrame(() => {
+      const el = textRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(edit.selStart, edit.selEnd)
+      selection.current = { start: edit.selStart, end: edit.selEnd }
+    })
+  }
+  const format = (open: string, close: string) => {
+    const { start, end } = selection.current
+    apply(wrapSelection(text, start, end, open, close))
+  }
+  const applyLink = () => {
+    if (!isSafeLink(linkUrl)) return
+    const { start, end } = selection.current
+    apply(wrapSelection(text, start, end, linkOpen(linkUrl), '</a>'))
+    setLinkOpenRow(false)
+    setLinkUrl('')
+  }
 
   const validate = (): boolean => {
     const trimmed = text.trim()
     if (!selected) { setFieldError({ field: 'channel', key: 'post.errChannel' }); return false }
-    if (!trimmed || trimmed.length > config.maxPostChars) { setFieldError({ field: 'text', key: 'post.errText' }); return false }
+    if ((!trimmed && !media) || text.length > textMax) {
+      setFieldError({ field: 'text', key: media && text.length > textMax ? 'post.errCaption' : 'post.errText' })
+      return false
+    }
+    if (hasButton) {
+      if (!btnText.trim() || btnText.trim().length > 64 || !isSafeLink(btnUrl)) {
+        setFieldError({ field: 'button', key: 'post.errButton' })
+        return false
+      }
+    }
     if (mode === 'schedule' && !isFutureEnough(when)) { setFieldError({ field: 'when', key: 'post.errWhen' }); return false }
     setFieldError(null)
     return true
@@ -81,14 +183,22 @@ export function PostPage() {
     setBusy(true)
     setError(null)
     try {
-      const payload = mode === 'now'
+      const payload: CreatePostInput = mode === 'now'
         ? { channel_id: selected, text: text.trim(), send_now: true }
         : { channel_id: selected, text: text.trim(), scheduled_at: localInputToIso(when) ?? '' }
+      if (hasButton) { payload.button_text = btnText.trim(); payload.button_url = btnUrl.trim() }
+      if (useDraft) payload.use_draft = true
       const result = await client.createPost(payload)
       notify(result.created ? t(mode === 'now' ? 'post.createdNow' : 'post.created') : t('post.duplicate'))
       setText('')
       setIdea('')
+      setBtnText('')
+      setBtnUrl('')
+      setBtnOpen(false)
       setConfirm(false)
+      appliedKey.current = null
+      channelKey.current = null
+      draft.reload()
       feed.reload()
       me.reload()
       go('schedule')
@@ -96,14 +206,18 @@ export function PostPage() {
       const err = toClientError(e)
       setError(err)
       setConfirm(false)
-      if (err.field === 'text' || err.field === 'channel_id' || err.field === 'scheduled_at') {
-        setFieldError({
-          field: err.field === 'text' ? 'text' : err.field === 'channel_id' ? 'channel' : 'when',
-          key: err.field === 'text' ? 'post.errText' : err.field === 'channel_id' ? 'post.errChannel' : 'post.errWhen',
-        })
+      if (err.field === 'text' || err.field === 'channel_id' || err.field === 'scheduled_at'
+        || err.field === 'button_text' || err.field === 'button_url') {
+        const map = {
+          text: ['text', 'post.errText'], channel_id: ['channel', 'post.errChannel'], scheduled_at: ['when', 'post.errWhen'],
+          button_text: ['button', 'post.errButton'], button_url: ['button', 'post.errButton'],
+        } as const
+        const [field, key] = map[err.field]
+        setFieldError({ field, key })
       }
+      if (err.code === 'draft_not_found') draft.reload()
       // Tarmoq/timeout: natija NOMA'LUM — ro'yxatni yangilab, yaratilgan bo'lsa ko'rinadi.
-      if (err.code === 'network' || err.code === 'timeout') { feed.reload(); me.reload() }
+      if (err.code === 'network' || err.code === 'timeout') { feed.reload(); me.reload(); draft.reload() }
     } finally {
       inFlight.current = false
       setBusy(false)
@@ -139,13 +253,160 @@ export function PostPage() {
     }
   }
 
+  const discardDraft = async () => {
+    setDiscarding(true)
+    try {
+      await client.deleteDraft()
+      appliedKey.current = null
+      setText('')
+      setBtnText('')
+      setBtnUrl('')
+      setBtnOpen(false)
+      draft.reload()
+      notify(t('post.draft.discarded'))
+      setDiscard(false)
+    } catch (e) {
+      notify(t(errorMessageKey(toClientError(e).code)), 'error')
+      setDiscard(false)
+    } finally {
+      setDiscarding(false)
+    }
+  }
+
+  const quick = quickTimes(nowDate)
+  const mediaType = media?.type ?? ''
   return (
-    <Page>
+    <Page wide>
       <PageHeader title={t('post.title')} />
       <p className="muted">{t('post.leadNew')}</p>
 
-      <section className="card" aria-labelledby="ai">
-        <h2 id="ai">{t('post.ai.title')}</h2>
+      {current && (
+        <section className="card draft-banner" aria-labelledby="draft-title">
+          <div className="card-row">
+            <h2 id="draft-title"><Icon name="bot" size={20} /> {t('post.draft.title')}</h2>
+            <Button variant="ghost" icon="trash" onClick={() => setDiscard(true)} aria-label={t('post.draft.discard')}
+              title={t('post.draft.discard')} />
+          </div>
+          <p className="muted">{t('post.draft.body')}</p>
+          <div className="chips">
+            {media && <span className="badge">{t(`post.media.${mediaType}` as MessageKey, { n: media.count ?? 0 })}</span>}
+            {current.reactions && <span className="badge">{t('post.draft.reactions')}</span>}
+            {current.delete_after_hours > 0 && <span className="badge">{t('post.draft.autoDelete', { h: current.delete_after_hours })}</span>}
+          </div>
+        </section>
+      )}
+
+      <form className="compose" onSubmit={onSubmit} noValidate aria-label={t('post.edit.title')}>
+        <section className="card compose-edit" aria-labelledby="compose">
+          <h2 id="compose">{t('post.edit.title')}</h2>
+          <label className="field" htmlFor="channel">{t('post.channel')}</label>
+          <select id="channel" className="input" value={selected} aria-invalid={fieldError?.field === 'channel' || undefined}
+            onChange={(e) => { setChannelId(e.target.value); setFieldError(null) }}>
+            {items.length > 1 && <option value="">{t('post.channelPick')}</option>}
+            {items.map((c) => <option key={c.id} value={c.id}>{c.title || c.id}</option>)}
+          </select>
+          {fieldError?.field === 'channel' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
+
+          <label className="field" htmlFor="text">{t('post.text')}</label>
+          <div className="toolbar" role="toolbar" aria-label={t('post.fmt.label')}>
+            {FORMATS.map((f) => (
+              <button key={f.id} type="button" className={`tool tool-${f.id}`} aria-label={t(FORMAT_KEYS[f.id])}
+                title={t(FORMAT_KEYS[f.id])} onMouseDown={(e) => e.preventDefault()} onClick={() => format(f.open, f.close)}>
+                {f.label}
+              </button>
+            ))}
+            <button type="button" className="tool" aria-label={t('post.fmt.link')} title={t('post.fmt.link')}
+              aria-expanded={linkOpenRow} onMouseDown={(e) => e.preventDefault()} onClick={() => setLinkOpenRow((v) => !v)}>
+              🔗
+            </button>
+          </div>
+          {linkOpenRow && (
+            <div className="link-row">
+              <input className="input" type="url" inputMode="url" value={linkUrl} placeholder={t('post.fmt.linkUrl')}
+                aria-label={t('post.fmt.linkUrl')} aria-invalid={(linkUrl !== '' && !isSafeLink(linkUrl)) || undefined}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink() } }} />
+              <Button variant="secondary" disabled={!isSafeLink(linkUrl)} onClick={applyLink}>{t('post.fmt.linkApply')}</Button>
+            </div>
+          )}
+          <textarea id="text" ref={textRef} className="input editor" rows={media ? 5 : 8} value={text} maxLength={textMax}
+            placeholder={t('post.textPlaceholder')} aria-invalid={fieldError?.field === 'text' || undefined}
+            onChange={(e) => { setText(e.target.value); setFieldError(null) }}
+            onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
+            onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
+          <p className="muted" aria-live="off">
+            {t('post.counter', { n: text.length, max: textMax })}
+            {media && <> · {t('post.captionLimit', { max: CAPTION_MAX })}</>}
+          </p>
+          {fieldError?.field === 'text' && <p className="field-error" role="alert">{t(fieldError.key, { max: textMax })}</p>}
+        </section>
+
+        <section className="card compose-button" aria-labelledby="btn-title">
+          <div className="card-row">
+            <h2 id="btn-title">{t('post.button.title')}</h2>
+            {btnOpen
+              ? <Button variant="ghost" icon="trash" onClick={() => { setBtnOpen(false); setBtnText(''); setBtnUrl('') }}
+                aria-label={t('post.button.remove')} title={t('post.button.remove')} />
+              : <Button variant="secondary" icon="plus" onClick={() => setBtnOpen(true)}>{t('post.button.add')}</Button>}
+          </div>
+          {btnOpen && (
+            <>
+              <label className="field" htmlFor="btn-text">{t('post.button.text')}</label>
+              <input id="btn-text" className="input" value={btnText} maxLength={64}
+                aria-invalid={fieldError?.field === 'button' || undefined}
+                onChange={(e) => { setBtnText(e.target.value); setFieldError(null) }} />
+              <label className="field" htmlFor="btn-url">{t('post.button.url')}</label>
+              <input id="btn-url" className="input" type="url" inputMode="url" value={btnUrl} maxLength={2000}
+                aria-invalid={fieldError?.field === 'button' || undefined}
+                onChange={(e) => { setBtnUrl(e.target.value); setFieldError(null) }} />
+              {fieldError?.field === 'button' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
+            </>
+          )}
+        </section>
+
+        <PostPreview channelTitle={selectedTitle || t('post.channelPick')} html={text}
+          media={media ? { type: media.type, count: media.count, url: photo.url, loading: photo.loading } : null}
+          buttonText={hasButton ? btnText.trim() || null : null} />
+
+        <section className="card compose-when" aria-labelledby="when-title">
+          <h2 id="when-title">{t('post.when')}</h2>
+          <fieldset className="segmented" aria-label={t('post.when')}>
+            <legend className="sr-only">{t('post.when')}</legend>
+            <button type="button" aria-pressed={mode === 'schedule'} onClick={() => setMode('schedule')}>{t('post.whenSchedule')}</button>
+            <button type="button" aria-pressed={mode === 'now'} onClick={() => setMode('now')}>{t('post.whenNow')}</button>
+          </fieldset>
+
+          {mode === 'schedule' ? (
+            <>
+              <div className="chips" role="group" aria-label={t('post.quick.label')}>
+                {quick.map((q) => (
+                  <button key={q.id} type="button" className="chip" aria-pressed={when === q.value}
+                    disabled={!isFutureEnough(q.value, nowDate.getTime())}
+                    onClick={() => { setWhen(q.value); setFieldError(null) }}>
+                    <Icon name="clock" size={16} /> {t(`post.quick.${q.id}` as MessageKey)}
+                  </button>
+                ))}
+              </div>
+              <label className="field" htmlFor="when">{t('post.date')}</label>
+              <input id="when" className="input" type="datetime-local" value={when}
+                aria-invalid={fieldError?.field === 'when' || undefined}
+                onChange={(e) => { setWhen(e.target.value); setFieldError(null) }} />
+              {fieldError?.field === 'when' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
+            </>
+          ) : <p className="muted">{t('post.nowHint')}</p>}
+        </section>
+
+        <div className="submit-bar">
+          {error && <FormError error={error} />}
+          <Button type="submit" variant="primary" block busy={busy} icon="send">
+            {busy ? t('post.saving') : mode === 'now' ? t('post.submitNow') : t('post.submitSchedule')}
+          </Button>
+          <p className="muted">{t('post.queue', { used: usage.pending_posts, limit: limit(plan.limits.queued_posts) })}</p>
+        </div>
+      </form>
+
+      <details className="card ai-card" open={aiIsOpen} onToggle={(e) => setAiOpen((e.currentTarget as HTMLDetailsElement).open)}>
+        <summary><h2 id="ai">{t('post.ai.title')}</h2></summary>
         <label className="field" htmlFor="idea">{t('post.ai.idea')}</label>
         <textarea id="idea" className="input" rows={3} value={idea} maxLength={config.maxAiInputChars}
           aria-invalid={aiIdeaError || undefined} onChange={(e) => { setIdea(e.target.value); setAiIdeaError(false) }} />
@@ -159,51 +420,16 @@ export function PostPage() {
         </Button>
         <p className="muted">{t('post.ai.cost')} {t('post.ai', { used: usage.ai_requests_today, limit: limit(plan.limits.daily_ai_requests) })}</p>
         {aiError && <FormError error={aiError} />}
-      </section>
-
-      <form className="card" onSubmit={onSubmit} noValidate aria-labelledby="compose">
-        <h2 id="compose">{t('post.text')}</h2>
-        <label className="field" htmlFor="channel">{t('post.channel')}</label>
-        <select id="channel" className="input" value={selected} aria-invalid={fieldError?.field === 'channel' || undefined}
-          onChange={(e) => { setChannelId(e.target.value); setFieldError(null) }}>
-          {items.length > 1 && <option value="">{t('post.channelPick')}</option>}
-          {items.map((c) => <option key={c.id} value={c.id}>{c.title || c.id}</option>)}
-        </select>
-        {fieldError?.field === 'channel' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
-
-        <label className="field" htmlFor="text">{t('post.text')}</label>
-        <textarea id="text" className="input" rows={7} value={text} maxLength={config.maxPostChars}
-          placeholder={t('post.textPlaceholder')} aria-invalid={fieldError?.field === 'text' || undefined}
-          onChange={(e) => { setText(e.target.value); setFieldError(null) }} />
-        <p className="muted" aria-live="off">{t('post.counter', { n: text.length, max: config.maxPostChars })}</p>
-        {fieldError?.field === 'text' && <p className="field-error" role="alert">{t(fieldError.key, { max: config.maxPostChars })}</p>}
-
-        <fieldset className="segmented" aria-label={t('post.when')}>
-          <legend className="field">{t('post.when')}</legend>
-          <button type="button" aria-pressed={mode === 'schedule'} onClick={() => setMode('schedule')}>{t('post.whenSchedule')}</button>
-          <button type="button" aria-pressed={mode === 'now'} onClick={() => setMode('now')}>{t('post.whenNow')}</button>
-        </fieldset>
-
-        {mode === 'schedule' ? (
-          <>
-            <label className="field" htmlFor="when">{t('post.date')}</label>
-            <input id="when" className="input" type="datetime-local" value={when}
-              aria-invalid={fieldError?.field === 'when' || undefined}
-              onChange={(e) => { setWhen(e.target.value); setFieldError(null) }} />
-            {fieldError?.field === 'when' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
-          </>
-        ) : <p className="muted">{t('post.nowHint')}</p>}
-
-        {error && <FormError error={error} />}
-        <Button type="submit" variant="primary" block busy={busy}>
-          {busy ? t('post.saving') : mode === 'now' ? t('post.submitNow') : t('post.submitSchedule')}
-        </Button>
-        <p className="muted">{t('post.queue', { used: usage.pending_posts, limit: limit(plan.limits.queued_posts) })}</p>
-      </form>
+      </details>
 
       {confirm && (
         <ConfirmDialog title={t('post.confirmNowTitle')} body={t('post.confirmNowBody', { channel: selectedTitle })}
           confirmLabel={t('post.confirmSend')} busy={busy} onConfirm={() => void submit()} onClose={() => setConfirm(false)} />
+      )}
+      {discard && (
+        <ConfirmDialog title={t('post.draft.discardTitle')} body={t('post.draft.discardBody')} danger
+          confirmLabel={t('post.draft.discardConfirm')} busy={discarding}
+          onConfirm={() => void discardDraft()} onClose={() => setDiscard(false)} />
       )}
     </Page>
   )

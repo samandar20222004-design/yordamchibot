@@ -164,7 +164,7 @@ def main() -> int:
                     "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (state,))
         T.check("approved -> 200", run(get2(A))[0] == 200)
         T.check("pending -> 403", run(get2(B))[0] == 403)
-        T.check("ro'yxatda yo'q -> 403", run(get2(C))[0] == 403)
+        T.check("ro'yxatda yo'q (eski foydalanuvchi, bot qoidasi) -> 200", run(get2(C))[0] == 200)
         cur.execute("SELECT value FROM system_settings WHERE key = 'beta_gate_state'")
         T.check("beta holati API tomonidan O'ZGARTIRILMADI", cur.fetchone()[0] == state)
         cur.execute("UPDATE system_settings SET value = '{broken' WHERE key = 'beta_gate_state'")

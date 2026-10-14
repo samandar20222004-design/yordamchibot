@@ -80,6 +80,8 @@ Vite + React + TS frontend `miniapp/`, backend qatlami `telegram_bot/miniapp_api
 yozish: `POST/PATCH/DELETE /posts`, `PATCH /me/settings`, `POST /ai/generate`; `/app/*` statik; yuborishni bot scheduler'i bajaradi). Batafsil, xavfsizlik qarorlari va
 sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd miniapp && npm test`).
 
+- **Bot -> Mini App qoralama (PostBot uslubi):** Mini App yoqilgan bo'lsa botdagi post tasdiqlash kartasida «📱 Mini App'da» (web_app) tugmasi; post `miniapp_drafts` ga yoziladi (bitta joriy qoralama, 48 soat). Mini App qoralama bilan ochilsa to'g'ridan-to'g'ri tahrirlagichga tushadi (format paneli, Telegram ko'rinishi, tugma, tez vaqt). Kod: `miniapp_api/drafts.py`, `handlers/new_post.py:_save_miniapp_draft`; test: `tests/miniapp_draft_test.py`, `miniapp/src/draft.test.tsx`.
+
 ## Bilish kerak
 
 - `BETA_INVITE_ONLY` sukut bo'yicha `true` — yangi foydalanuvchilar taklif kodisiz

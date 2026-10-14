@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import drafts
 from . import repository as repo
 from .access import evaluate_access
 from .db import ReadOnlyRunner
@@ -153,6 +154,22 @@ class MiniAppService:
             if row is None:
                 raise ApiError("not_found")
             return {**row, "scheduled_time": iso_utc(row["scheduled_time"])}
+
+        return await self._authorized(user_id, query)
+
+    async def draft(self, user_id: int) -> dict:
+        """Botdan kelgan joriy qoralama (yo'q bo'lsa ``{"draft": None}``)."""
+        def query(cur, _account):
+            row = drafts.read_draft(cur, user_id)
+            return {"draft": drafts.public_view(row, iso_utc) if row else None}
+
+        return await self._authorized(user_id, query)
+
+    async def draft_raw(self, user_id: int) -> dict | None:
+        """Ichki: ``file_id`` bilan to'liq qoralama (mijozga QAYTARILMAYDI)."""
+        def query(cur, _account):
+            row = drafts.read_draft(cur, user_id)
+            return row["payload"] if row else None
 
         return await self._authorized(user_id, query)
 

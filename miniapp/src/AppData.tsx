@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { ApiClient } from './api/client'
-import type { ChannelList, Lang, Me } from './api/types'
+import type { ChannelList, Draft, Lang, Me } from './api/types'
 import type { Tab } from './components/Shell'
 import type { Resource } from './hooks/useResource'
 import type { ScheduleFeed } from './hooks/useScheduleFeed'
@@ -9,6 +9,8 @@ export interface AppData {
   client: ApiClient
   me: Resource<Me>
   channels: Resource<ChannelList>
+  /** Botdan kelgan qoralama (`draft: null` = yo'q). Yuklash xatosi ilovani to'xtatmaydi. */
+  draft: Resource<{ draft: Draft | null }>
   feed: ScheduleFeed
   go: (tab: Tab) => void
   botUsername: string | null

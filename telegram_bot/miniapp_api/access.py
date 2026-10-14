@@ -12,12 +12,11 @@ qoidalar (``services/beta_gate.py``) holatni o'zgartirmasdan qayta ifodalanadi:
   * ``pending`` ro'yxatida -> RAD;
   * boshqa barcha holat -> RAD.
 
-Botdagi ``REASON_EXISTING`` ("eski foydalanuvchi", ya'ni ``approved`` ham,
-``pending`` ham emas va qator bor) bu yerda ATAYLAB QO'LLANMAYDI: ro'yxatlarda
-yo'qlikning o'zi eski foydalanuvchini isbotlamaydi (beta yoqilgan vaqt saqlanmaydi,
-``users.created_at`` semantikasi ham tasdiqlanmagan). Natija: ``BETA_INVITE_ONLY``
-yoqiq bo'lsa, tasdiqlanmagan eski foydalanuvchilar Mini App'ga kirish uchun
-botda ``/beta`` orqali tasdiqlanishi (yoki darvoza o'chirilishi) kerak.
+Botdagi ``REASON_EXISTING`` qoidasi (``BetaGate.check``: qatori bor, ``approved`` bo'lmasa ham,
+``pending`` ro'yxatida BO'LMAGAN foydalanuvchi — beta yoqilishidan oldingi eski
+foydalanuvchi) bu yerda ham AYNAN shunday: botga kira oladigan odam Mini App'ga ham kiradi.
+Yangi foydalanuvchi botda kod/tasdiq bo'lmasa ``pending``ga tushadi, shuning uchun
+``pending`` doim rad etiladi.
 
 Beta holati o'qilmasa yoki JSON yaroqsiz bo'lsa — ruxsat berilmaydi
 (:class:`AccessStateError`, ya'ni 503).
@@ -82,4 +81,5 @@ def evaluate_access(user_id: int, *, user_exists: bool, deleted: bool,
         return AccessDecision(True, None, "admin_approved")
     if uid in state["pending"]:
         return AccessDecision(False, "beta_access_required", "pending_approval")
-    return AccessDecision(False, "beta_access_required", "not_approved")
+    # Bot bilan bir xil: ``pending`` emas va qator bor — eski foydalanuvchi, uzluksiz ishlaydi.
+    return AccessDecision(True, None, "existing_user")

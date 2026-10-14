@@ -49,3 +49,13 @@ def miniapp_menu_button(env=None):
     from telegram import MenuButtonWebApp, WebAppInfo
 
     return MenuButtonWebApp(text=BUTTON_TEXT, web_app=WebAppInfo(url=url))
+
+
+def miniapp_webapp_url(env=None):
+    """Bot tugmalari uchun Mini App manzili (``MINIAPP_ENABLED=1`` va to'g'ri HTTPS bo'lsa), aks holda ``None``."""
+    env = os.environ if env is None else env
+    settings = load_settings(env)
+    if not settings.enabled or settings.config_errors:
+        return None
+    url = (env.get("MINIAPP_URL") or "").strip()
+    return url if url and valid_miniapp_url(url) else None

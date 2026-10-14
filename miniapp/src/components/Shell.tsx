@@ -63,6 +63,6 @@ export function OfflineBanner() {
   return <div className="banner banner-warn" role="status">{t('common.offline')}</div>
 }
 
-export function Page({ children }: { children: ReactNode }) {
-  return <main className="page">{children}</main>
+export function Page({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return <main className={`page${wide ? ' page-wide' : ''}`}>{children}</main>
 }

@@ -1093,7 +1093,7 @@ def _build_preview_text(context) -> str:
     )
 
 
-def _get_confirm_keyboard(lang="uz", channel_title: str = None):
+def _get_confirm_keyboard(lang="uz", channel_title: str = None, miniapp_url: str = None):
     """Tasdiqlash ekranidagi inline tugmalar (uz/ru) — 1-vazifa: kanal tanlash tugmasi.
 
     Agar ``channel_title`` berilgan bo'lsa, birinchi qatorda
@@ -1125,6 +1125,12 @@ def _get_confirm_keyboard(lang="uz", channel_title: str = None):
     rows.append([InlineKeyboardButton(ch_btn_text, callback_data="confirm_post:channel")])
     rows.append([InlineKeyboardButton(get_text("np_confirm_ok_btn", lang), callback_data="confirm_post:ok")])
     rows.append([InlineKeyboardButton(get_text("np_confirm_queue_btn", lang), callback_data="confirm_post:queue")])
+    if miniapp_url:
+        # Postni Mini App'da davom ettirish (qoralama ``_save_miniapp_draft`` da yoziladi).
+        from telegram import WebAppInfo
+
+        rows.append([InlineKeyboardButton(get_text("np_confirm_miniapp_btn", lang),
+                                          web_app=WebAppInfo(url=miniapp_url))])
     rows.append([
         InlineKeyboardButton(get_text("np_confirm_edit_btn", lang), callback_data="confirm_post:edit"),
         InlineKeyboardButton(get_text("np_confirm_cancel_btn", lang), callback_data="confirm_post:cancel"),
@@ -1214,6 +1220,29 @@ async def _send_confirm_card(target_msg, context, preview, keyboard, post_type, 
     return sent.message_id, "text"
 
 
+async def _save_miniapp_draft(target_msg, context):
+    """Mini App yoqilgan bo'lsa joriy postni qoralama sifatida saqlaydi; tugma uchun URL yoki ``None``.
+
+    Xato bo'lsa jimgina ``None`` (tugma ko'rsatilmaydi) — post yaratish oqimi hech qachon buzilmaydi.
+    """
+    try:
+        from miniapp_api.menu import miniapp_webapp_url
+
+        url = miniapp_webapp_url()
+        if not url or getattr(target_msg, "chat", None) is None or target_msg.chat.type != "private":
+            return None
+        from miniapp_api import drafts
+
+        payload = drafts.build_payload(context.user_data)
+        if payload is None:
+            return None
+        await db.run_db(drafts.save_draft, target_msg.chat_id, payload)
+        return url
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.new_post:_save_miniapp_draft", _silent_exc)
+        return None
+
+
 async def _show_confirmation(target_msg, context):
     """Preview kartasini ko'rsatadi va CONFIRM_POST holatiga qaytadi.
 
@@ -1232,7 +1261,8 @@ async def _show_confirmation(target_msg, context):
     post_type = context.user_data.get("post_type", "text")
     file_id = context.user_data.get("file_id")
     ch_title = context.user_data.get("selected_channel_title") or context.user_data.get("confirm_channel_title")
-    keyboard = _get_confirm_keyboard(get_lang(context), channel_title=ch_title)
+    keyboard = _get_confirm_keyboard(get_lang(context), channel_title=ch_title,
+                                     miniapp_url=await _save_miniapp_draft(target_msg, context))
 
     bot = context.bot if getattr(context, "bot", None) is not None else target_msg
     chat_id = target_msg.chat_id
