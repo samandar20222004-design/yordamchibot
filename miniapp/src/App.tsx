@@ -35,6 +35,7 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
   const client = useMemo(() => createApiClient({ getInitData, language: getLanguageHint }), [])
   const me = useResource((s) => client.me(s), true)
   const channels = useResource((s) => client.channels(s), tab === 'me' || tab === 'post')
+  const draft = useResource(async (s) => ({ draft: await client.draft(s) }), true)
   const feed = useScheduleFeed(client, tab === 'schedule')
   const botUsername = me.data?.bot.username ?? null
 
@@ -43,9 +44,19 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
     if (profileLang) onLang(profileLang)
   }, [profileLang, onLang])
 
+  // Botdan qoralama bilan kelgan foydalanuvchi to'g'ridan-to'g'ri tahrirlagichga tushadi (bir marta).
+  const autoOpened = useRef(false)
+  const hasDraft = Boolean(draft.data?.draft)
+  useEffect(() => {
+    if (hasDraft && !autoOpened.current) {
+      autoOpened.current = true
+      setTab('post')
+    }
+  }, [hasDraft])
+
   const value = useMemo<AppData>(
-    () => ({ client, me, channels, feed, go: setTab, botUsername, notify, setLang: onLang }),
-    [client, me, channels, feed, botUsername, notify, onLang],
+    () => ({ client, me, channels, draft, feed, go: setTab, botUsername, notify, setLang: onLang }),
+    [client, me, channels, draft, feed, botUsername, notify, onLang],
   )
 
   return (

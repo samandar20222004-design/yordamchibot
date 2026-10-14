@@ -600,7 +600,8 @@ def test_postgres_store_and_schema():
     check("ledger usuli mavjud PAYMENT_METHODS ichida",
           cur.calls[4][1][4] in database.PAYMENT_METHODS)
     check("grant: GREATEST(COALESCE(..), NOW()) + interval (Stars bilan bir xil)",
-          "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW())" in sqls[5] and "plan_type = 'pro'" in sqls[5])
+          "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW())" in sqls[5] and "ELSE 'pro' END" in sqls[5]
+          and "plan_type = 'enterprise'" in sqls[5])  # enterprise (muddatsiz) huquqi saqlanadi
     check("save_transaction: state+status+vaqtlar", "SET state = %s, status = %s" in sqls[6]
           and cur.calls[6][1][1] == "paid")
     check("set_order_status: paid_at belgilanadi", "paid_at" in sqls[7])

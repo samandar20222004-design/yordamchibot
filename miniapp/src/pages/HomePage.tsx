@@ -1,4 +1,5 @@
 import { useAppData } from '../AppData'
+import { Icon } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
 import { Badge, Button, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useI18n } from '../i18n'
@@ -6,7 +7,7 @@ import { openBot } from '../telegram'
 import { isUnlimited } from './format'
 
 export function HomePage() {
-  const { me, go, botUsername } = useAppData()
+  const { me, draft, go, botUsername } = useAppData()
   const { t, formatDateTime } = useI18n()
 
   if (me.loading) return <Page><PageHeader title="PostAssist" /><LoadingBlock rows={4} /></Page>
@@ -22,16 +23,24 @@ export function HomePage() {
   const { user, plan, usage, posts, next_post_at: nextAt } = me.data
   const limit = (n: number) => (isUnlimited(n) ? t('common.unlimited') : String(n))
   return (
-    <Page>
+    <Page wide>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title="PostAssist" onRefresh={me.reload} refreshing={me.refreshing} />
-      <section aria-labelledby="hello" className="card">
+      <section aria-labelledby="hello" className="card hero">
         <div className="card-row">
           <h2 id="hello">{user.name ? t('home.hello', { name: user.name }) : t('home.helloAnon')}</h2>
           <Badge pro={plan.is_pro}>{plan.is_pro ? t('plan.pro') : t('plan.free')}</Badge>
         </div>
         <p className="lead">{t('home.subtitle')}</p>
       </section>
+
+      {draft.data?.draft && (
+        <section className="card cta-card" aria-labelledby="draft-cta">
+          <h2 id="draft-cta">{t('home.draftTitle')}</h2>
+          <p className="muted">{t('home.draftBody')}</p>
+          <Button variant="primary" icon="send" block onClick={() => go('post')}>{t('home.draftOpen')}</Button>
+        </section>
+      )}
 
       <div className="stats">
         <div className="stat"><span className="stat-label">{t('home.channels')}</span>
@@ -55,11 +64,19 @@ export function HomePage() {
             : undefined} />
       )}
 
-      <section className="card" aria-labelledby="actions">
-        <h2 id="actions">{t('home.actions')}</h2>
-        <Button variant="primary" block icon="post" onClick={() => go('post')}>{t('home.goPost')}</Button>
-        <Button block icon="calendar" onClick={() => go('schedule')}>{t('home.goSchedule')}</Button>
-        <Button block icon="user" onClick={() => go('me')}>{t('home.goMe')}</Button>
+      <section aria-labelledby="actions">
+        <h2 id="actions" className="group-title">{t('home.actions')}</h2>
+        <div className="tiles">
+          <button type="button" className="tile tile-primary" onClick={() => go('post')}>
+            <Icon name="post" size={26} />{t('home.goPost')}
+          </button>
+          <button type="button" className="tile" onClick={() => go('schedule')}>
+            <Icon name="calendar" size={26} />{t('home.goSchedule')}
+          </button>
+          <button type="button" className="tile" onClick={() => go('me')}>
+            <Icon name="user" size={26} />{t('home.goMe')}
+          </button>
+        </div>
       </section>
     </Page>
   )

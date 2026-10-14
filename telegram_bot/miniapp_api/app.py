@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import time
 import uuid
@@ -115,6 +116,24 @@ async def scheduled_handler(request: web.Request):
 async def post_detail_handler(request: web.Request):
     data = await request.app[_K_SERVICE].post(request["user_id"], _post_id(request))
     return web.json_response({"post": data})
+
+
+async def draft_handler(request: web.Request):
+    data = await request.app[_K_SERVICE].draft(request["user_id"])
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+async def draft_media_handler(request: web.Request):
+    data, mime = await request.app[_K_WRITER].draft_photo(request["user_id"])
+    return web.Response(body=data, content_type=mime, headers={
+        "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'"})
+
+
+@_write
+async def draft_delete_handler(request: web.Request):
+    data = await request.app[_K_WRITER].delete_draft(request["user_id"])
+    return web.json_response(data)
 
 
 @_write
@@ -264,6 +283,9 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/channels", channels_handler)
     api.router.add_get("/scheduled-posts", scheduled_handler)
     api.router.add_get("/posts/{post_id}", post_detail_handler)
+    api.router.add_get("/draft", draft_handler)
+    api.router.add_get("/draft/media", draft_media_handler)
+    api.router.add_delete("/draft", draft_delete_handler)
     api.router.add_post("/posts", post_create_handler)
     api.router.add_patch("/posts/{post_id}", post_update_handler)
     api.router.add_delete("/posts/{post_id}", post_delete_handler)
@@ -291,5 +313,10 @@ def register_miniapp_routes(app: web.Application, *, env=None, **overrides) -> b
     app.add_subapp(API_PREFIX, build_api_app(settings, **overrides))
     app.router.add_route("*", "/api/{tail:.*}", _api_not_found)
     register_static_routes(app, settings.dist_dir)
+    if not os.path.isfile(os.path.join(settings.dist_dir, "index.html")):
+        # /app/ shunda 404 beradi: frontend build image'ga tushmagan (Docker runtime kerak).
+        logger.error("Mini App: %s/index.html TOPILMADI — /app/ 404 beradi "
+                     "(Dockerfile orqali build qiling yoki MINIAPP_DIST_DIR ni belgilang)",
+                     settings.dist_dir)
     logger.info("Mini App marshrutlari ulandi (%s, /app)", API_PREFIX)
     return True

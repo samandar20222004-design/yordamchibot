@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, Channel, ChannelList, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, Channel, ChannelList, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -175,4 +175,34 @@ export function parseErrorBody(v: unknown): ApiErrorBody | null {
   } catch {
     return null
   }
+}
+
+export function parseDraft(v: unknown): Draft | null {
+  const o = rec(v, 'draft')
+  if (o.draft === null) return null
+  const d = rec(o.draft, 'draft.item')
+  let media: Draft['media'] = null
+  if (d.media !== null && d.media !== undefined) {
+    const m = rec(d.media, 'draft.media')
+    media = {
+      type: str(m.type, 'draft.media.type'),
+      previewable: bool(m.previewable, 'draft.media.previewable'),
+      count: m.count === null || m.count === undefined ? null : int(m.count, 'draft.media.count'),
+    }
+  }
+  return {
+    post_type: str(d.post_type, 'draft.post_type'),
+    text: str(d.text, 'draft.text'),
+    button_text: strOrNull(d.button_text, 'draft.button_text'),
+    button_url: strOrNull(d.button_url, 'draft.button_url'),
+    channel_id: strOrNull(d.channel_id, 'draft.channel_id'),
+    reactions: bool(d.reactions, 'draft.reactions'),
+    delete_after_hours: int(d.delete_after_hours, 'draft.delete_after_hours'),
+    media,
+    updated_at: strOrNull(d.updated_at, 'draft.updated_at'),
+  }
+}
+
+export function parseDeleted(v: unknown): { deleted: boolean } {
+  return { deleted: bool(rec(v, 'deleted').deleted, 'deleted') }
 }

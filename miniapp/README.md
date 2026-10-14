@@ -54,6 +54,10 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `DELETE /posts/{id}` | `pending` postni bekor qiladi (`status=cancelled`; qator saqlanadi) -> `200 {id,status}` |
 | `PATCH /me/settings` | `{language: uz\|ru\|en}` -> `users.language_code` (botdagi til ham o'zgaradi) |
 | `POST /ai/generate` | `{text<=3500, style: sales\|premium\|casual\|ads\|informative}` -> `{text, style}`; botdagi Magic Post bilan AYNAN bir xil kvota/kredit bron-qaytarish (`services.ai_quota`), provayder yo'q/xato -> `503 ai_unavailable` (soxta javob yo'q, bron qaytariladi) |
+| `GET /draft` | botdan kelgan joriy qoralama: `{draft: null \| {post_type, text, button_text, button_url, channel_id, reactions, delete_after_hours, media: {type, previewable, count}}}`; `file_id` mijozga CHIQMAYDI; 48 soatdan eskisi ko'rinmaydi |
+| `GET /draft/media` | qoralamadagi RASM baytlari (Bot API `getFile`, token serverda; faqat jpeg/png/webp, <=8 MB) |
+| `DELETE /draft` | qoralamani o'chiradi |
+| `POST /posts` (qo'shimcha) | `use_draft: true` — media (`post_type`, `file_id`), reaksiya va avto-o'chirish qoralamadan olinadi, post yaratilgach qoralama o'chadi; `button_text`+`button_url` — inline tugma (faqat http/https/tg havola) |
 
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti
@@ -90,11 +94,9 @@ Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_re
   > sinov **o'tkazilmagan**; Mini App'ni yoqishdan oldin shu birinchi smoke-test majburiy.
 - **Maxfiylik:** `BOT_TOKEN`, `initData`, `Authorization` log/javob/xato matniga tushmaydi (testlangan).
 - **Ruxsat:** `users` da qator bo'lishi va `deleted_at IS NULL`; API foydalanuvchi YARATMAYDI.
-  `BETA_INVITE_ONLY` yoqiq bo'lsa: admin yoki `approved` kiradi, `pending` kirmaydi, **ro'yxatda yo'q = rad**
-  (botdagi `REASON_EXISTING` ataylab qo'llanmaydi: beta yoqilgan vaqt saqlanmaydi, `users.created_at`
-  semantikasi tasdiqlanmagan). Beta holati o'qilmasa/JSON buzuq bo'lsa `503`. `BetaGate.check()` chaqirilmaydi
-  (u `pending` ga yozadi). Tasdiqlanmagan eski foydalanuvchilar botda `/beta` orqali tasdiqlanishi yoki
-  `BETA_INVITE_ONLY=false` bo'lishi kerak.
+  `BETA_INVITE_ONLY` yoqiq bo'lsa botdagi qoida bilan BIR XIL: admin yoki `approved` kiradi, `pending` kirmaydi,
+  ro'yxatda yo'q (qator bor) = eski foydalanuvchi (`REASON_EXISTING`) — kiradi. Beta holati o'qilmasa/JSON buzuq bo'lsa
+  `503`. `BetaGate.check()` chaqirilmaydi (u `pending` ga yozadi).
 - **Ownership:** har bir SQL `user_id = %s`; xato bo'sh ro'yxatga aylantirilmaydi (mavjud `get_user_channels`/
   `get_queue_posts` xatoni yutadi, shu sababli ishlatilmaydi).
 - **PRO holati:** faqat `users.plan_type`/`subscription_expires_at` dan, DB vaqti bo'yicha. To'lov yo'q.
@@ -202,14 +204,18 @@ ogohlantirishi chiqadi, lekin ishlaydi). Dockerfile `node:22-slim` (suzuvchi 22.
 
 ## initData imzosi — tasdiqlash holati va real smoke-test
 
-- Holat: rasmiy sahifa (core.telegram.org/bots/webapps) sandboxdan to'g'ridan-to'g'ri o'qilmadi. Qidiruv xizmati orqali olingan QISQARTMA (so'zma-so'z emas) bot-token usulini (saralangan `key=value`, LF, kalit `HMAC("WebAppData", token)`, `auth_date` tekshiruvi) tasdiqladi va alohida Ed25519 usulida `hash` VA `signature` chiqarilishini ko'rsatdi — bu birinchi usulda `signature` chiqarilmasligini **bilvosita** tasdiqlaydi. Birinchi usul uchun "signature data-check-string ichida qoladi" jumlasi so'zma-so'z ko'rilmadi, shuning uchun to'liq tasdiq uchun real klient smoke-testi hamon kerak. Uchinchi tomon implementatsiyalari (aiogram, `@telegram-apps/init-data-node`, `init-data-py` real vektorlari) bilan mosligi tekshirilgan — bu rasmiy tasdiq EMAS.
+- Holat: rasmiy sahifa (core.telegram.org/bots/webapps) sandboxdan to'g'ridan-to'g'ri o'qilmadi. Qidiruv xizmati orqali olingan QISQARTMA (so'zma-so'z emas) bot-token usulini (saralangan `key=value`, LF, kalit `HMAC("WebAppData", token)`, `auth_date` tekshiruvi) tasdiqladi va alohida Ed25519 usulida `hash` VA `signature` chiqarilishini ko'rsatdi — bu birinchi usulda `signature` chiqarilmasligini **bilvosita** tasdiqlaydi. Birinchi usul uchun "signature data-check-string ichida qoladi" jumlasi so'zma-so'z ko'rilmadi (qidiruv xulosalari zid chiqdi). **Empirik dalil:** uchinchi tomon fixture'idagi haqiqiy klientdan olingan `signature`'li payload bu kod bilan tasdiqlanadi, `signature` chiqarib hisoblansa hash MOS KELMAYDI — ya'ni Telegram hash'ni signature bilan birga yaratadi. To'liq tasdiq uchun o'z test botingiz bilan real klient smoke-testi hamon kerak. Uchinchi tomon implementatsiyalari (aiogram, `@telegram-apps/init-data-node`, `init-data-py` real vektorlari) bilan mosligi tekshirilgan — bu rasmiy tasdiq EMAS.
 - Real klient smoke-testi (egasi qiladi, TEST bot bilan): 1) alohida test bot yarating va unga Mini App URL ulang; 2) Mini App ichida `Telegram.WebApp.initData` qiymatini nusxalang; 3) `read -rs MINIAPP_SMOKE_BOT_TOKEN && export MINIAPP_SMOKE_BOT_TOKEN`; 4) `umask 077; pbpaste > /tmp/initdata.txt`; 5) `python scripts/miniapp_initdata_smoke.py --file /tmp/initdata.txt` (qo'shimcha: `--api https://<domen>/api/v1` — ayni initData bilan ishlayotgan serverning `GET /me` ini chaqirib, end-to-end natijani (HTTP holat, xato kodi) ko'rsatadi); 6) `shred -u /tmp/initdata.txt`. Vosita faqat maydon nomlari, yosh va mos/mos emas natijasini chiqaradi (qiymatlar yo'q). `SERVER VALIDATORI: OK` va `signature BILAN ... True` chiqsa, qoida haqiqiy klientda tasdiqlangan hisoblanadi. initData va tokenni repo/logga qo'ymang.
 
 ## Testlar
 
 - Frontend: `npm test` (vitest + jsdom; API klient, validatorlar, tarjimalar, sahifalar/holatlar), `npm run build` (`tsc` + vite).
 - Backend: `tests/miniapp_*_test.py` (`tests/run_tests.sh` ichida). Yozuv oqimlari: `miniapp_writes_real_test.py` (REAL PostgreSQL + to'liq HTTP: yaratish, takroriy yuborish, IDOR, tahrirlash, bekor, navbat limiti, til),
-  `miniapp_ai_writes_test.py` (AI bron/qaytarish, parallel, timeout, validatsiya, marshrut limitlari), `miniapp_menu_test.py`. Real Redis testi (`miniapp_redis_real_test.py`, ixtiyoriy `MINIAPP_TEST_REDIS_URL` — faqat lokal host): `redis-server` binary + Python
+  `miniapp_ai_writes_test.py` (AI bron/qaytarish, parallel, timeout, validatsiya, marshrut limitlari), `miniapp_menu_test.py`,
+  `miniapp_bot_api_test.py` («Menu» tugmasi: HAQIQIY PTB `Bot` -> soxta Bot API serveri, `tests/fake_bot_api.py`), `miniapp_scheduler_e2e_test.py`
+  (Mini App'da yaratilgan post -> HAQIQIY scheduler -> soxta Bot API: aynan 1 ta yuborish, parallel tick, bekor/kelajak/xato holatlari).
+  Real PostgreSQL testlari URL bo'lmasa `pgserver` (CI) ishlatadi, u ham yo'q bo'lsa SKIP. Soxta server haqiqiy Telegram o'rnini BOSMAYDI.
+  Haqiqiy Bot API'da «Menu» tugmasini tekshirish (TEST bot bilan, qo'lda): `python scripts/miniapp_menu_smoke.py` (docstring'ga qarang). Real Redis testi (`miniapp_redis_real_test.py`, ixtiyoriy `MINIAPP_TEST_REDIS_URL` — faqat lokal host): `redis-server` binary + Python
   `redis` paketi bo'lsa o'zi vaqtincha lokal server ishga tushiradi (127.0.0.1, persistence yo'q), aks holda SKIP/BLOCKED.
   Real PostgreSQL testi:
   `MINIAPP_TEST_DATABASE_URL=postgresql://... python tests/miniapp_db_real_test.py` (faqat SINOV bazasi).

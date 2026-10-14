@@ -299,7 +299,7 @@ describe('Bosh va Men', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Русский' }))
     expect(await screen.findByText('Язык сохранён.')).toBeTruthy()
     expect(body(calls(f, 'PATCH', '/me/settings')[0])).toEqual({ language: 'ru' })
-    expect(document.documentElement.lang).toBe('ru')
+    await waitFor(() => expect(document.documentElement.lang).toBe('ru')) // lang atributi useEffect orqali yangilanadi
   })
 
   it('til almashtirish xatosi: xabar, til o\'zgarmaydi', async () => {
