@@ -31,6 +31,9 @@ from .settings import MiniAppSettings
 logger = logging.getLogger(__name__)
 
 MAX_POST_CHARS = 4096          # Telegram matn limiti (utf-16 birligida ham tekshiriladi)
+MAX_CAPTION_CHARS = 1024       # Telegram: rasm/video/... ostidagi matn (scheduler ham shu bilan kesadi: TELEGRAM_CAPTION_LIMIT)
+MAX_BUTTON_TEXT = 64           # inline tugma yorlig'i (bot: handlers.post_enhancer.BTN_TEXT_MAX)
+MAX_BUTTON_URL = 2000          # inline tugma havolasi (bot validatori utils.helpers.validate_button_url: <=2048)
 MAX_AI_INPUT_CHARS = 3500      # generate_magic_post kirish chegarasi
 MIN_LEAD_SECONDS = 60
 MAX_LEAD_DAYS = 366
@@ -87,6 +90,14 @@ def parse_text(value, field: str, *, max_chars: int) -> str:
     return text
 
 
+def check_caption(text: str) -> None:
+    """Media sarlavhasi chegarasi: jimgina kesish o'rniga aniq xato (``caption_too_long``)."""
+    from utils.telegram_sanitizer import utf16_length
+
+    if len(text) > MAX_CAPTION_CHARS or utf16_length(text) > MAX_CAPTION_CHARS:
+        raise ApiError("caption_too_long", field="text")
+
+
 def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
     """Inline tugma: ikkalasi ham berilishi yoki ikkalasi ham bo'lmasligi kerak."""
     if button_text in (None, "") and button_url in (None, ""):
@@ -95,11 +106,11 @@ def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
         raise ApiError("invalid_input", field="button_text")
     text = button_text.strip()
     url = button_url.strip()
-    if not text or len(text) > 64 or _CTRL_RE.search(text):
+    if not text or len(text) > MAX_BUTTON_TEXT or _CTRL_RE.search(text):
         raise ApiError("invalid_input", field="button_text")
     from utils.security import validate_button_url
 
-    if not url or len(url) > 2000 or _CTRL_RE.search(url) or not validate_button_url(url):
+    if not url or len(url) > MAX_BUTTON_URL or _CTRL_RE.search(url) or not validate_button_url(url):
         raise ApiError("invalid_input", field="button_url")
     return text, url
 
@@ -118,16 +129,32 @@ def sniff_image(data) -> str | None:
     return None
 
 
-def default_media_fetch(bot_token: str):
-    """``file_id`` -> bayt (PTB Bot ``get_file``); hajm ``MAX_MEDIA_BYTES`` bilan cheklangan."""
-    holder: dict = {}
+class MediaFetcher:
+    """``file_id`` -> bayt (PTB Bot ``get_file``). Bitta ``Bot`` (bitta HTTP client) qayta ishlatiladi va
+    ilova to'xtaganda :meth:`aclose` bilan yopiladi (har so'rovga yangi client ochilib oqib ketmaydi)."""
 
-    async def fetch(file_id: str) -> bytes:
-        from telegram import Bot
+    def __init__(self, bot_token: str, bot_factory=None) -> None:
+        self._token = bot_token
+        self._factory = bot_factory
+        self._bot = None
+        self._lock = asyncio.Lock()
 
-        bot = holder.get("bot")
-        if bot is None:
-            bot = holder["bot"] = Bot(bot_token)
+    async def _get_bot(self):
+        if self._bot is None:
+            async with self._lock:
+                if self._bot is None:
+                    if self._factory is not None:
+                        bot = self._factory()
+                    else:
+                        from telegram import Bot
+
+                        bot = Bot(self._token)
+                    await bot.initialize()  # shutdown() faqat initialize'dan keyin client'ni yopadi
+                    self._bot = bot
+        return self._bot
+
+    async def __call__(self, file_id: str) -> bytes:
+        bot = await self._get_bot()
         tg_file = await bot.get_file(file_id)
         if tg_file.file_size and tg_file.file_size > MAX_MEDIA_BYTES:
             raise ApiError("media_unavailable")
@@ -136,7 +163,17 @@ def default_media_fetch(bot_token: str):
             raise ApiError("media_unavailable")
         return bytes(data)
 
-    return fetch
+    async def aclose(self) -> None:
+        bot, self._bot = self._bot, None
+        if bot is not None:
+            try:
+                await bot.shutdown()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("miniapp media: Bot yopilmadi (%s)", type(exc).__name__)
+
+
+def default_media_fetch(bot_token: str, bot_factory=None) -> MediaFetcher:
+    return MediaFetcher(bot_token, bot_factory)
 
 
 def parse_channel_id(value) -> str:
@@ -251,6 +288,8 @@ class PostWriter:
         file_id = (draft or {}).get("file_id")
         if post_type == "text" and not text:
             raise ApiError("invalid_input", field="text")
+        if post_type != "text":
+            check_caption(text)
 
         async with self._user_lock(user_id):
             existing = await self._blocking(
@@ -288,6 +327,12 @@ class PostWriter:
 
         drafts.delete_draft(user_id)
 
+    async def aclose(self) -> None:
+        """Ilova to'xtaganda resurslarni yopadi (rasm olish uchun ochilgan Bot HTTP client'i)."""
+        closer = getattr(self._media_fetch, "aclose", None)
+        if closer is not None:
+            await closer()
+
     async def delete_draft(self, user_id: int) -> dict:
         await self._service.authorize(user_id)
         deleted = await self._blocking(self._drop_draft, user_id)
@@ -298,7 +343,9 @@ class PostWriter:
         draft = await self._service.draft_raw(user_id)
         if not draft or draft.get("post_type") != "photo" or not draft.get("file_id"):
             raise ApiError("media_unavailable")
-        fetch = self._media_fetch or default_media_fetch(self._settings.bot_token)
+        if self._media_fetch is None:
+            self._media_fetch = default_media_fetch(self._settings.bot_token)
+        fetch = self._media_fetch
         try:
             data = await fetch(draft["file_id"])
         except ApiError:
@@ -343,6 +390,10 @@ class PostWriter:
             raise ApiError("not_found")
         if status != "pending":
             raise ApiError("not_editable")
+        if text is not None:
+            existing = await self._service.post(user_id, post_id)
+            if existing.get("has_media"):
+                check_caption(text)
         async with self._user_lock(user_id):
             if when is not None:
                 ok = await self._blocking(self._reschedule_pending, user_id, post_id, when)

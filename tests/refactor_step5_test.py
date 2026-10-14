@@ -897,11 +897,36 @@ def test_static_n_plus_one_scan():
 # ===========================================================================
 # TEST 10 — 🐘 REAL PostgreSQL (ixtiyoriy: pgserver bo'lmasa SKIP)
 # ===========================================================================
+def _is_test_database(url: str) -> bool:
+    """Faqat nomi 'test' so'zini o'z ichiga olgan yoki 't_' bilan boshlanadigan baza test bazasi hisoblanadi."""
+    from urllib.parse import urlsplit
+
+    name = (urlsplit(url).path or "").lstrip("/").split("?")[0].lower()
+    return "test" in name or name.startswith("t_")
+
+
+def _cleanup_step5_rows(cur):
+    """Shu testning O'Z qatorlarini (kanal CH_ID, foydalanuvchi 555001) o'chiradi: test takrorlanuvchan bo'lishi va
+    qoldiq qoldirmasligi uchun. Boshqa ma'lumotlarga tegmaydi."""
+    cur.execute("DELETE FROM post_reactions WHERE post_id IN (SELECT id FROM scheduled_posts WHERE channel_id = %s)", (CH_ID,))
+    cur.execute("DELETE FROM sent_post_messages WHERE channel_id = %s", (CH_ID,))
+    cur.execute("DELETE FROM scheduled_posts WHERE channel_id = %s", (CH_ID,))
+    cur.execute("DELETE FROM channel_post_events WHERE channel_id = %s", (CH_ID,))
+    cur.execute("DELETE FROM channel_posts_history WHERE channel_id = %s", (CH_ID,))
+    cur.execute("DELETE FROM channels WHERE channel_id = %s", (CH_ID,))
+    cur.execute("DELETE FROM users WHERE user_id = 555001")
+
+
 def _start_test_postgres():
     """Test bazasi URI: STEP5_TEST_DATABASE_URL | P0_TEST_DATABASE_URL | pgserver."""
     for var in ("STEP5_TEST_DATABASE_URL", "P0_TEST_DATABASE_URL", "INTEGRITY_TEST_DATABASE_URL"):
         url = os.getenv(var)
         if url and "user:pass" not in url:
+            if not _is_test_database(url):
+                # Production/foydalanuvchi bazasiga TEGILMAYDI: nomi 'test' yoki 't_' bilan boshlanmaydigan baza rad etiladi.
+                print(f"  [SKIP] {var}: baza nomi test bazasiga o'xshamaydi (nomida 'test' yoki 't_' prefiksi kerak) — "
+                      "live sinov o'tkazilmadi")
+                return None, None
             return url, None
     if os.getenv("STEP5_SKIP_LIVE") == "1":
         return None, None
@@ -967,11 +992,13 @@ def test_live_postgres():
         check("7 ta analitika indeksi REAL bazada yaratildi", not missing, str(missing))
 
         with db.db_cursor(commit=True) as cur:
+            _cleanup_step5_rows(cur)  # oldingi (to'xtab qolgan) yugurish qoldig'i bo'lsa ham test bir xil boshlanadi
             cur.execute("INSERT INTO users (user_id, plan_type) VALUES (555001, 'free') "
                         "ON CONFLICT DO NOTHING")
             cur.execute("INSERT INTO channels (channel_id, user_id, channel_title, is_active) "
                         "VALUES (%s, 555001, %s, TRUE) ON CONFLICT DO NOTHING",
                         (CH_ID, CH_TITLE))
+            post_ids = []  # scheduled_posts.id'lar sequence'ga bog'liq (1..50 deb TAXMIN QILINMAYDI)
             for i in range(50):
                 cur.execute(
                     "INSERT INTO channel_posts_history (channel_id, message_id, content, views, post_date) "
@@ -980,16 +1007,17 @@ def test_live_postgres():
                 cur.execute(
                     "INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, "
                     "scheduled_time, status) VALUES (555001, %s, %s, %s, "
-                    "NOW() - make_interval(days => %s), 'posted')",
+                    "NOW() - make_interval(days => %s), 'posted') RETURNING id",
                     (CH_ID, "photo" if i % 2 == 0 else "text", f"Post #{i}", i))
+                post_ids.append(cur.fetchone()[0])
                 cur.execute(
                     "INSERT INTO sent_post_messages (post_id, channel_id, message_id) VALUES (%s, %s, %s)",
-                    (i + 1, CH_ID, 9000 + i))
+                    (post_ids[i], CH_ID, 9000 + i))
                 for u in range(3):
                     cur.execute(
                         "INSERT INTO post_reactions (post_id, user_id, reaction_type) "
                         "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                        (i + 1, 6000 + u, "👍" if u < 2 else "🔥"))
+                        (post_ids[i], 6000 + u, "👍" if u < 2 else "🔥"))
                 cur.execute(
                     "INSERT INTO channel_post_events (channel_id, message_id, post_hour, post_weekday, "
                     "has_media, media_type, length, cta_detected, emoji_density) "
@@ -1032,12 +1060,12 @@ def test_live_postgres():
                   str(summary["format_distribution"]))
 
             counter.clear()
-            metrics = db.get_posts_metrics_batch(list(range(1, 51)))
+            metrics = db.get_posts_metrics_batch(list(post_ids))
             check("REAL DB: 50 ta post metrikasi `= ANY(%s)` bilan AYNAN 2 ta SQL",
                   len(counter) == 2 and len(metrics) == 50, f"{len(counter)} SQL")
             check("REAL DB: yuborilgan xabarlar bo'yicha message_id/channel_id",
-                  metrics[1]["message_id"] == 9000 and metrics[1]["delivered"] is True
-                  and metrics[1]["channel_id"] == CH_ID, str(metrics[1]))
+                  metrics[post_ids[0]]["message_id"] == 9000 and metrics[post_ids[0]]["delivered"] is True
+                  and metrics[post_ids[0]]["channel_id"] == CH_ID, str(metrics[post_ids[0]]))
 
             counter.clear()
             stats = posts_repo.get_channel_post_stats(555001, CH_ID)
@@ -1081,7 +1109,9 @@ def test_live_postgres():
                   idor_res.get("error_code") == "FORBIDDEN"
                   and all("analytics" not in s.lower() for s in counter), str(idor_res))
 
-        with db.db_cursor() as cur:
+        # commit=True: aniq tranzaksiya — autocommit o'qish rejimida SET LOCAL ta'sirsiz bo'lib, planner kichik jadvalda
+        # Seq Scan tanlab qo'yardi (test ma'lumotga bog'liq/beqaror bo'lardi).
+        with db.db_cursor(commit=True) as cur:
             cur.execute("SET LOCAL enable_seqscan = off")
             cur.execute("EXPLAIN SELECT id, views FROM channel_posts_history "
                         "WHERE channel_id = %s ORDER BY views DESC LIMIT 10", (CH_ID,))
@@ -1089,10 +1119,15 @@ def test_live_postgres():
         check("REAL DB: (channel_id, views DESC) indeksi ishlatiladi",
               "idx_channel_posts_history_channel_views" in plan_views, plan_views[:160])
 
-        with db.db_cursor() as cur:
+        # commit=True: aniq tranzaksiya — autocommit o'qish rejimida SET LOCAL ta'sirsiz bo'lib, planner kichik jadvalda
+        # Seq Scan tanlab qo'yardi (test ma'lumotga bog'liq/beqaror bo'lardi).
+        with db.db_cursor(commit=True) as cur:
             cur.execute("SET LOCAL enable_seqscan = off")
+            # user_id sharti OLIB TASHLANDI: u bilan planner (statistikaga qarab) idx_scheduled_posts_user_id'ni ham
+            # tanlashi mumkin — natija baza holatiga bog'liq bo'lib qolardi. (channel_id, status) indeksining o'zi
+            # tekshiriladi: ustunlar tarkibi yuqorida statik tekshirilgan, bu yerda esa REAL ishlatilishi.
             cur.execute("EXPLAIN SELECT COUNT(*) FILTER (WHERE status = 'posted') "
-                        "FROM scheduled_posts WHERE user_id = 555001 AND channel_id = %s", (CH_ID,))
+                        "FROM scheduled_posts WHERE channel_id = %s AND status = 'posted'", (CH_ID,))
             plan_status = "\n".join(r[0] for r in cur.fetchall())
         check("REAL DB: (channel_id, status) indeksi ishlatiladi",
               "idx_scheduled_posts_channel_status" in plan_status, plan_status[:160])
@@ -1108,6 +1143,11 @@ def test_live_postgres():
     except Exception as exc:  # pragma: no cover — muhitga bog'liq
         check("live PostgreSQL sinovi xatosiz o'tdi", False, f"{type(exc).__name__}: {exc}")
     finally:
+        try:
+            with db.db_cursor(commit=True) as cur:
+                _cleanup_step5_rows(cur)  # qoldiq qoldirmaymiz (keyingi yugurish va boshqa testlar uchun)
+        except Exception:
+            pass
         try:
             db.close_pool()
         except Exception:

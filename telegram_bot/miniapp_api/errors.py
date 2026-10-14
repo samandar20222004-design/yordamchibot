@@ -102,6 +102,11 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Канал не найден или не принадлежит вам.",
         "en": "The channel was not found or does not belong to you.",
     }),
+    "caption_too_long": (422, {
+        "uz": "Rasm/video ostidagi matn 1024 belgidan oshmasligi kerak.",
+        "ru": "Подпись к фото/видео не должна превышать 1024 символа.",
+        "en": "A caption under a photo/video must be at most 1024 characters.",
+    }),
     "draft_not_found": (404, {
         "uz": "Qoralama topilmadi yoki muddati tugagan. Postni botda qayta yuboring.",
         "ru": "Черновик не найден или устарел. Отправьте пост боту ещё раз.",

@@ -211,11 +211,16 @@ def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, ext
     if recurrence_type in ("daily", "weekly"):
         try:
             now = now_tashkent()
-            if end_date and _as_tashkent(end_date) and now >= _as_tashkent(end_date):
+            end_at = _as_tashkent(end_date) if end_date else None
+            if end_at and now >= end_at:
                 marker["completed"] = True
             else:
                 next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
-                if next_time:
+                if next_time and end_at and _as_tashkent(next_time) > end_at:
+                    # AUDIT-009: keyingi davr end_date'dan KEYIN bo'lsa rejalashtirilmaydi — post shu yerda
+                    # yakunlanadi (avval end_date'dan keyingi bitta ortiqcha post chiqardi).
+                    marker["completed"] = True
+                elif next_time:
                     marker["next_time"] = next_time.isoformat()
         except Exception:
             logger.exception("Takrorlanuvchi post uchun keyingi vaqtni hisoblashda xato (Post ID: %s)", post_id)

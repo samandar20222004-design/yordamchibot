@@ -537,9 +537,16 @@ def defer_post_deletion(message_row_id: int, delay_seconds: int = 300) -> bool:
 
 
 def reschedule_recurring_post(post_id: int, next_time):
+    """Takrorlanuvchi postning keyingi davrini rejalashtiradi.
+
+    Vaqt va 'pending' holati BITTA UPDATE'da yoziladi (AUDIT-009): ilgari vaqt alohida, 'pending' alohida
+    tranzaksiyada edi — oralig'ida crash bo'lsa post 'posted'da qolib seriya to'xtardi.
+    """
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("UPDATE scheduled_posts SET scheduled_time = %s WHERE id = %s", (next_time, post_id))
+            cur.execute(
+                "UPDATE scheduled_posts SET scheduled_time = %s, status = 'pending', processing_started_at = NULL "
+                "WHERE id = %s", (next_time, post_id))
         _cache_clear("system_stats")
     except Exception as e:
         logger.error(f"Qayta rejalashtirish xatosi: {e}")

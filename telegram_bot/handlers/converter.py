@@ -231,5 +231,5 @@ async def converter_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         logger.error(f"Konverter xatosi: {e}")
         await bot.send_message(
             chat_id=chat_id,
-            text=get_text("conv_error", lang, error=e),
+            text=get_text("conv_error", lang, error=type(e).__name__),
         )

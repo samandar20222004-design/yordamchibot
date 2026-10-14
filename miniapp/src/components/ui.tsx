@@ -76,6 +76,10 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   save_failed: 'err.save_failed',
   draft_not_found: 'err.draft_not_found',
   media_unavailable: 'err.media_unavailable',
+  caption_too_long: 'err.caption_too_long',
+  bad_request: 'err.bad_request',
+  not_found: 'err.not_found',
+  method_not_allowed: 'err.method_not_allowed',
 }
 /** Qayta urinish foyda bermaydigan kodlar: ilovani qayta ochish yoki botda amal kerak. */
 const FATAL = new Set(['unauthorized', 'auth_expired', 'https_required', 'not_registered', 'beta_access_required'])

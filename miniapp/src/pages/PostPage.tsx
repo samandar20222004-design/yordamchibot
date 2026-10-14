@@ -18,8 +18,8 @@ import { FORMATS, isSafeLink, linkOpen, wrapSelection } from './richtext'
 type Mode = 'schedule' | 'now'
 type FieldKey = 'channel' | 'text' | 'when' | 'button'
 
-/** Telegram: rasm/video ostidagi matn (caption) chegarasi. */
-const CAPTION_MAX = 1024
+/** Telegram: rasm/video ostidagi matn (caption) chegarasi (config bilan backend'ga mos). */
+const CAPTION_MAX = config.maxCaptionChars
 
 const FORMAT_KEYS: Record<string, MessageKey> = {
   bold: 'post.fmt.bold', italic: 'post.fmt.italic', underline: 'post.fmt.underline',
@@ -167,7 +167,7 @@ export function PostPage() {
       return false
     }
     if (hasButton) {
-      if (!btnText.trim() || btnText.trim().length > 64 || !isSafeLink(btnUrl)) {
+      if (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl)) {
         setFieldError({ field: 'button', key: 'post.errButton' })
         return false
       }
@@ -215,6 +215,7 @@ export function PostPage() {
         const [field, key] = map[err.field]
         setFieldError({ field, key })
       }
+      if (err.code === 'caption_too_long') setFieldError({ field: 'text', key: 'post.errCaption' })
       if (err.code === 'draft_not_found') draft.reload()
       // Tarmoq/timeout: natija NOMA'LUM — ro'yxatni yangilab, yaratilgan bo'lsa ko'rinadi.
       if (err.code === 'network' || err.code === 'timeout') { feed.reload(); me.reload(); draft.reload() }
@@ -352,11 +353,11 @@ export function PostPage() {
           {btnOpen && (
             <>
               <label className="field" htmlFor="btn-text">{t('post.button.text')}</label>
-              <input id="btn-text" className="input" value={btnText} maxLength={64}
+              <input id="btn-text" className="input" value={btnText} maxLength={config.maxButtonTextChars}
                 aria-invalid={fieldError?.field === 'button' || undefined}
                 onChange={(e) => { setBtnText(e.target.value); setFieldError(null) }} />
               <label className="field" htmlFor="btn-url">{t('post.button.url')}</label>
-              <input id="btn-url" className="input" type="url" inputMode="url" value={btnUrl} maxLength={2000}
+              <input id="btn-url" className="input" type="url" inputMode="url" value={btnUrl} maxLength={config.maxButtonUrlChars}
                 aria-invalid={fieldError?.field === 'button' || undefined}
                 onChange={(e) => { setBtnUrl(e.target.value); setFieldError(null) }} />
               {fieldError?.field === 'button' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}

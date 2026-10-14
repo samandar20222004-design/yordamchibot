@@ -1169,9 +1169,20 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         plan, error = None, get_text("sub_pay_err_incomplete", get_lang(context))
     charge_id = (getattr(payment, "telegram_payment_charge_id", "") or "").strip()
     if plan is None or not charge_id:
+        # To'lov Telegram tomonidan ALLAQACHON olingan (pre_checkout dan o'tgan). Bu yerda tekshiruv rad etsa
+        # PRO BERILMAYDI (noto'g'ri summa/payload — qaror adminda) va refund ham boshlanmaydi, lekin
+        # jim qolinmaydi: log + adminlarga ogohlantirish + foydalanuvchiga "admin bilan bog'laning" xabari (AUDIT-005).
         logger.warning(
             "Stars payment rad etildi: user=%s payload=%r charge=%r sabab=%s",
             user_id, payload, charge_id, error or "charge_id yo'q",
+        )
+        await _report_stars_activation_failure(
+            context, user_id, charge_id or "-", "?",
+            "validation_rejected" if plan is None else "missing_charge_id")
+        rejected_lang = await ensure_user_lang(context, user_id)
+        await update.message.reply_text(
+            get_text("sub_pay_activate_error", rejected_lang),
+            parse_mode="HTML",
         )
         return
 

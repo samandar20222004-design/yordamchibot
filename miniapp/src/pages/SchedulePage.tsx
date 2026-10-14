@@ -66,6 +66,8 @@ function EditDialog({ post, onClose, onSaved }: {
   const [busy, setBusy] = useState(false)
   const inFlight = useRef(false)
   const recurring = !!post.recurrence && post.recurrence !== 'none'
+  // Media postda matn = sarlavha (caption): Telegram 1024 dan kesadi, shuning uchun tahrirda ham shu chegara.
+  const textMax = post.has_media ? config.maxCaptionChars : config.maxPostChars
   const originalWhen = useRef(isoToLocalInput(post.scheduled_time))
 
   useEffect(() => {
@@ -80,10 +82,11 @@ function EditDialog({ post, onClose, onSaved }: {
   const save = async () => {
     if (inFlight.current || text === null) return
     const trimmed = text.trim()
-    if (!trimmed || trimmed.length > config.maxPostChars) { setInvalid('text'); return }
+    const textChanged = trimmed !== original.trim()
+    // Uzunlik FAQAT matn o'zgargan bo'lsa tekshiriladi: eski uzun matnli postning vaqtini o'zgartirish bloklanmasin.
+    if (!trimmed || (textChanged && trimmed.length > textMax)) { setInvalid('text'); return }
     const timeChanged = !recurring && when !== originalWhen.current
     if (timeChanged && !isFutureEnough(when)) { setInvalid('when'); return }
-    const textChanged = trimmed !== original.trim()
     if (!textChanged && !timeChanged) { onClose(); return }
     inFlight.current = true
     setBusy(true)
@@ -111,10 +114,10 @@ function EditDialog({ post, onClose, onSaved }: {
       {loadError ? <FormError error={loadError} /> : text === null ? <p className="muted">{t('schedule.loadingText')}</p> : (
         <>
           <label className="field" htmlFor="edit-text">{t('post.text')}</label>
-          <textarea id="edit-text" className="input" rows={8} value={text} maxLength={config.maxPostChars}
+          <textarea id="edit-text" className="input" rows={8} value={text} maxLength={textMax}
             aria-invalid={invalid === 'text' || undefined} onChange={(e) => { setText(e.target.value); setInvalid(null) }} />
-          <p className="muted">{t('post.counter', { n: text.length, max: config.maxPostChars })}</p>
-          {invalid === 'text' && <p className="field-error" role="alert">{t('post.errText', { max: config.maxPostChars })}</p>}
+          <p className="muted">{t('post.counter', { n: text.length, max: textMax })}</p>
+          {invalid === 'text' && <p className="field-error" role="alert">{t(post.has_media ? 'post.errCaption' : 'post.errText', { max: textMax })}</p>}
           {recurring ? <p className="muted">{t('schedule.recurringNote')}</p> : (
             <>
               <label className="field" htmlFor="edit-when">{t('post.date')}</label>

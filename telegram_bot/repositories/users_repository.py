@@ -372,7 +372,8 @@ def transfer_user_credits(from_user_id: int, to_user_id: int, amount: int) -> tu
             return True, "Ballar muvaffaqiyatli o'tkazildi!"
     except Exception as e:
         logger.error(f"Ball o'tkazish xatosi: {e}")
-        return False, f"Tizim xatoligi: {e}"
+        # Ichki xato matni (SQL/DSN bo'laklari bo'lishi mumkin) foydalanuvchiga CHIQMAYDI — faqat logda.
+        return False, "Tizim xatoligi yuz berdi."
 
 
 def get_referral_stats(user_id: int) -> dict:
@@ -1256,8 +1257,12 @@ def _effective_plan(cur, plan: str, user_id: int) -> str:
     if plan in ("pro", "enterprise") and _subscription_expired(cur, user_id):
         # Lazy downgrade: keyingi so'rovlarda qayta tekshirilmasin.
         try:
+            # Shartli UPDATE (AUDIT-004): parallel to'lov muddatni uzaytirgan bo'lsa, faol obuna tushirilmaydi.
             cur.execute(
-                "UPDATE users SET plan_type = 'free' WHERE user_id = %s",
+                "UPDATE users SET plan_type = 'free' WHERE user_id = %s "
+                "AND plan_type IN ('pro', 'enterprise') "
+                "AND subscription_expires_at IS NOT NULL "
+                "AND subscription_expires_at <= NOW()",
                 (user_id,),
             )
         except Exception as _silent_exc:

@@ -31,7 +31,7 @@ bash ../scripts/security_check.sh                        # ruff, flake8, pip-aud
 
 Haqiqiy PostgreSQL bilan testlar uchun `*_TEST_DATABASE_URL` (P0_, STEP5_, FINAL_,
 RBAC_, INTEGRITY_, LOAD_, STRESS_) o'zgaruvchilarini lokal bazaga qarating.
-Oxirgi natija: ~16 970 `[OK]`, 0 `[FAIL]`, 6 `[SKIP]` (pgserver/redis yo'q).
+Oxirgi natija (audit tuzatishlaridan keyin, lokal PG bilan): 18 480 `[OK]`, 0 `[XATO]`, 15 `[SKIP]` (pgserver/redis/AI_BUDGET URL yo'q). `refactor_step5_test` TOZA bazani kutadi: ishlatilgan bazada yiqiladi (baseline'da ham), yangi bazada 156/156.
 
 ## Qilingan ishlar (PR samandar20222004-design/yordamchibot#216, branch `claude/bot-kod-tuzatish-vs3iix`)
 
@@ -82,6 +82,8 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 
 - **Bot -> Mini App qoralama (PostBot uslubi):** Mini App yoqilgan bo'lsa botdagi post tasdiqlash kartasida «📱 Mini App'da» (web_app) tugmasi; post `miniapp_drafts` ga yoziladi (bitta joriy qoralama, 48 soat). Mini App qoralama bilan ochilsa to'g'ridan-to'g'ri tahrirlagichga tushadi (format paneli, Telegram ko'rinishi, tugma, tez vaqt). Kod: `miniapp_api/drafts.py`, `handlers/new_post.py:_save_miniapp_draft`; test: `tests/miniapp_draft_test.py`, `miniapp/src/draft.test.tsx`.
 
+- **Audit tuzatishlari:** AUDIT-001/002/003/004/005/009/010/011/013/014 + P3 (qarang `docs/AUDIT_OPEN_RISKS.md` — tuzatilganlar va ATAYLAB qoldirilgan qarorlar: 002 attempt_count, 006 Stars refund, 007 chek takrori, 008 sent-journal, 015 global AI budget). Regression testlar `run_tests.sh` oxirida (`scheduler_*`, `subscription_downgrade_race`, `stars_rejected_payment`, `team_i18n`, ...).
+
 ## Bilish kerak
 
 - `BETA_INVITE_ONLY` sukut bo'yicha `true` — yangi foydalanuvchilar taklif kodisiz
@@ -97,7 +99,7 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 
 ## Keyingi ishlar (ustuvorlik bo'yicha)
 
-1. PR #216 ni egasi merge qiladi; deploy'dan keyin «Sekin javob» loglarini ko'rish.
+1. PR #231 (Mini App + audit) ni egasi merge qiladi; deploy'dan keyin «Sekin javob» loglarini va Mini App'ni haqiqiy Telegram'da tekshirish.
 2. ~~Umumiy kunlik AI xarajat chegarasi (`AI_GLOBAL_DAILY_USD`)~~ — qilindi;
    production'da qiymatni egasi belgilaydi (sukut 0 = o'chiq).
 3. ~~Tozalagich: albom (bir nechta rasm) qo'llab-quvvatlash~~ — qilindi

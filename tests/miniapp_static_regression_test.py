@@ -90,6 +90,13 @@ def test_static():
         T.check("CSP: frame-ancestors Telegram web", "frame-ancestors https://web.telegram.org" in csp)
         T.check("CSP: script-src 'self' + telegram.org (WebApp SDK)", "script-src 'self' https://telegram.org" in csp)
         T.check("CSP: default-src 'self', object-src 'none'", "default-src 'self'" in csp and "object-src 'none'" in csp)
+        directives = {d.strip().split(" ", 1)[0]: d.strip() for d in csp.split(";") if d.strip()}
+        T.check("CSP: img-src 'blob:' ruxsat (qoralama rasmi blob: URL)", "blob:" in directives.get("img-src", "").split(), directives.get("img-src", ""))
+        T.check("CSP: blob: FAQAT img-src'da (script/connect/default/style/font kengaytirilmagan)",
+                [k for k, v in directives.items() if "blob:" in v.split()] == ["img-src"], str(directives))
+        T.check("CSP: img-src boshqa manbalari saqlangan ('self' data: https:)",
+                all(x in directives.get("img-src", "").split() for x in ("'self'", "data:", "https:")))
+        T.check("CSP: connect-src hamon faqat 'self'", directives.get("connect-src") == "connect-src 'self'", directives.get("connect-src", ""))
         T.check("X-Frame-Options QO'YILMAGAN (Telegram WebView bloklanmaydi)", "X-Frame-Options" not in h)
         st, body, h = run(fetch(app, "HEAD", "/app/"))
         T.check("HEAD /app/ 200", st == 200)

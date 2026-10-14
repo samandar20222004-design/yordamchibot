@@ -112,6 +112,12 @@ def main() -> int:
         T.check("build_payload: media qoralama to'g'ri tuzildi",
                 payload and payload["post_type"] == "photo" and payload["file_id"] == "PHOTO_FILE_ID"
                 and payload["channel_id"] == CHAN and payload["reaction_emojis"] == "👍 🔥", str(payload))
+        glyph = drafts.build_payload({"post_type": "text", "content": "👍 🔥\n\nSalom kanal", "reaction_emojis": ["👍", "🔥"],
+                                      "selected_channel_id": CHAN})
+        T.check("build_payload: sizib chiqqan reaksiya emoji prefiksi olib tashlanadi (botdagi saqlash qoidasi)",
+                glyph and glyph["content"] == "Salom kanal", str(glyph))
+        plain = drafts.build_payload({"post_type": "text", "content": "👍 Zo'r post", "selected_channel_id": CHAN})
+        T.check("reaksiya tanlanmagan bo'lsa matn O'ZGARMAYDI", plain and plain["content"] == "👍 Zo'r post", str(plain))
         T.check("build_payload: bo'sh matnli text -> None", drafts.build_payload({"post_type": "text", "content": " "}) is None)
         T.check("build_payload: file_id'siz rasm -> None", drafts.build_payload({"post_type": "photo", "content": "x"}) is None)
         T.check("build_payload: noma'lum tur -> None", drafts.build_payload({"post_type": "zzz", "content": "x"}) is None)
@@ -248,6 +254,26 @@ def main() -> int:
         T.check("sarlavhasiz rasm posti yaratildi", st == 201, str(c2))
         st, e = await http("POST", "/api/v1/posts", json={"channel_id": CHAN, "text": "", "send_now": True})
         T.check("use_draft'siz bo'sh matn RAD", st == 422)
+
+        # AUDIT-013: media sarlavhasi (caption) 1024 dan oshsa jimgina kesilmaydi, aniq xato
+        drafts.save_draft(USER, drafts.build_payload({"post_type": "photo", "content": "", "file_id": "PHOTO_FILE_ID", "selected_channel_id": CHAN}))
+        before = q("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s", (USER,))[0][0]
+        st, e = await http("POST", "/api/v1/posts", json={"channel_id": CHAN, "text": "a" * 1025, "send_now": True, "use_draft": True})
+        T.check("media + 1025 belgi: 422 caption_too_long (field=text)", st == 422 and e["error"]["code"] == "caption_too_long" and e["error"]["field"] == "text", str(e))
+        T.check("rad etilganda post yaratilmadi va qoralama saqlanib qoldi",
+                q("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s", (USER,))[0][0] == before
+                and q("SELECT COUNT(*) FROM miniapp_drafts WHERE user_id = %s", (USER,))[0][0] == 1)
+        st, c3 = await http("POST", "/api/v1/posts", json={"channel_id": CHAN, "text": "b" * 1024, "send_now": True, "use_draft": True})
+        T.check("media + 1024 belgi: qabul qilinadi (201)", st == 201, str(c3))
+        media_id = c3["post"]["id"]
+        st, e = await http("PATCH", f"/api/v1/posts/{media_id}", json={"text": "c" * 1025})
+        T.check("media postni tahrirlash: 1025 belgi RAD (caption_too_long)", st == 422 and e["error"]["code"] == "caption_too_long", str(e))
+        st, e = await http("PATCH", f"/api/v1/posts/{media_id}", json={"text": "c" * 1024})
+        T.check("media postni tahrirlash: 1024 belgi qabul", st == 200, str(e))
+        st, t1 = await http("POST", "/api/v1/posts", json={"channel_id": CHAN, "text": "t" * 4096, "send_now": True})
+        T.check("MATNLI post: 4096 belgi hamon qabul (chegara faqat media uchun)", st == 201, str(t1))
+        st, e = await http("PATCH", f"/api/v1/posts/{t1['post']['id']}", json={"text": "u" * 4096})
+        T.check("matnli postni tahrirlash: 4096 belgi qabul", st == 200, str(e))
 
     cleanup()
     try:

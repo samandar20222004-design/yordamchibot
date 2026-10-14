@@ -97,6 +97,14 @@ DEFAULT_AI_ACTIONS = (
     "ai_post_retry",      # 🔁 tayyor postni qayta generatsiya
     "photo_rewrite",      # ✍️ rasm matnini AI bilan qayta yozish
     "adp:",               # 📢 reklama varianti generatsiyasi
+    # AUDIT-011: quyidagilar ham AI chaqiradi, lekin chegarasiz edi. Faqat ANIQ action nomlari —
+    # navigatsiya qo'shnilari (ap_back, ap_freq:, ap_mode:, ext_back ...) bloklanmasligi uchun keng prefiks YO'Q.
+    "plan_regenerate",    # 📅 kontent-plan: qayta generatsiya
+    "ext_rewrite",        # ✍️ kanaldan olingan postni AI bilan qayta yozish
+    "ext_adapt",          # 🎯 postni boshqa kanalga moslashtirish
+    "ap_regen",           # 🤖 Autopilot: butun rejani qayta yaratish
+    "ap_refresh",         # ✨ Autopilot: dublikat postlarni AI bilan yangilash
+    "ap_pregen:",         # 🔄 Autopilot: bitta postni qayta yaratish
 )
 
 #: URL / RSS «fetch» ishga tushiradigan callback action'lar.

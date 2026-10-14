@@ -1990,6 +1990,13 @@ TRANSLATIONS = {
             "Iltimos, admin bilan bog'laning."
         ),
         "sub_pay_duplicate": "✅ Bu to'lov avval qayta ishlangan. PRO tarifingiz allaqachon faol.",
+        "team_err_post_id": "❌ Post identifikatori noto'g'ri.",
+        "team_approved": "✅ Post tasdiqlandi. Endi schedulerga rejalashtirish mumkin.",
+        "team_approve_denied": "⛔ Sizda bu postni tasdiqlash huquqi yo'q yoki post holati o'zgargan.",
+        "team_rejected": "❌ Post rad etildi va qoralamaga qaytarildi.",
+        "team_reject_failed": "⛔ Rad etish amalga oshmadi.",
+        "team_edit_prompt": "✏️ Yangi matnni yuboring. Post qayta tasdiqlashga qaytadi.",
+        "team_approval_pending": "📝 <b>Tasdiqlash kutilmoqda</b>",
         "sub_pay_success": (
             "🎉 <b>To'lov muvaffaqiyatli!</b>\n\n"
             "⭐️ {stars} Stars qabul qilindi.\n"
@@ -4122,6 +4129,13 @@ TRANSLATIONS = {
             "Пожалуйста, свяжитесь с администратором."
         ),
         "sub_pay_duplicate": "✅ Этот платёж уже был обработан. Ваш PRO-тариф уже активен.",
+        "team_err_post_id": "❌ Некорректный идентификатор поста.",
+        "team_approved": "✅ Пост одобрен. Теперь его можно запланировать в планировщике.",
+        "team_approve_denied": "⛔ У вас нет прав одобрить этот пост, либо статус поста изменился.",
+        "team_rejected": "❌ Пост отклонён и возвращён в черновики.",
+        "team_reject_failed": "⛔ Не удалось отклонить пост.",
+        "team_edit_prompt": "✏️ Отправьте новый текст. Пост вернётся на повторное одобрение.",
+        "team_approval_pending": "📝 <b>Ожидает одобрения</b>",
         "sub_pay_success": (
             "🎉 <b>Оплата прошла успешно!</b>\n\n"
             "⭐️ Получено {stars} Stars.\n"

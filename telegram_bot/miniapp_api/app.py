@@ -278,6 +278,13 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
                                        max_concurrency=settings.rate_redis_concurrency)
     api[_K_CLOCK] = clock
     api[_K_WRITER] = writer or PostWriter(api[_K_SERVICE], settings)
+
+    async def _close_writer(app: web.Application) -> None:
+        closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
+        if closer is not None:
+            await closer()
+
+    api.on_cleanup.append(_close_writer)
     api.router.add_get("/health", health_handler)
     api.router.add_get("/me", me_handler)
     api.router.add_get("/channels", channels_handler)
