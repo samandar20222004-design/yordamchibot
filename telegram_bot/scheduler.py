@@ -967,6 +967,14 @@ async def check_and_send_posts(bot):
         # 0) Avvalgi tick'larda DB'ga yozilmay qolgan "yuborildi" markerlari —
         #    yangi postlarni olishdan OLDIN yoziladi (idempotentlik kafolati).
         await flush_unpersisted_sent_markers()
+        # 0b) Boshqa worker o'lib 'processing'da qoldirgan postlar (10 daqiqadan eski) — HAR tick'da tiklanadi.
+        #     Avval faqat startup'da va 6 soatlik cleanup'da edi (post 6 soatgacha yotardi). Yuborilgani dalili
+        #     bor post 'posted' qilinadi, qolgani 'pending'; keyingi qayta yuborishdan oldin delivery claim
+        #     (advisory lock + verify) dublikatdan himoya qiladi.
+        try:
+            await db.run_db(db.recover_stale_processing_posts)
+        except Exception:
+            logger.exception("Stale 'processing' postlarni har-tick tiklashda xato")
         now = now_tashkent()
         due_posts = await db.run_db(db.get_due_posts, now)
         if due_posts:

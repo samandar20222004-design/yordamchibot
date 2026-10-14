@@ -189,8 +189,8 @@ class PostgresPaymeUnitOfWork:
     def revoke_subscription(self, user_id: int, days: int) -> None:
         self.cur.execute(
             "UPDATE users SET "
-            "plan_type = CASE WHEN plan_type = 'enterprise' AND subscription_expires_at IS NULL "
-            "  THEN plan_type "  # muddatsiz enterprise: grant unga muddat qo'shmagan, qaytarish ham tegmaydi
+            "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro') AND subscription_expires_at IS NULL "
+            "  THEN plan_type "  # muddatsiz enterprise/pro (admin bergan): grant unga muddat qo'shmagan, qaytarish ham tegmaydi
             "  WHEN subscription_expires_at IS NULL "
             "  OR subscription_expires_at - (%s || ' days')::INTERVAL <= NOW() "
             "  THEN 'free' ELSE plan_type END, "
