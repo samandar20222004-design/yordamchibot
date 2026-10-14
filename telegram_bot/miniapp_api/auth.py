@@ -13,12 +13,18 @@ via the Mini App"):
 ``signature`` (Ed25519, uchinchi tomon tekshiruvi uchun) bu yerda tekshirilmaydi:
 bot-token usulida u oddiy maydon sifatida data-check-string ichida qoladi.
 
-F5 HOLATI (tasdiqlash darajasi): rasmiy hujjat sandbox tarmog'idan o'qib bo'lmadi (siyosat 403) — rasmiy qoida
-bu sessiyada TASDIQLANMAGAN. Uchinchi tomon (rasmiy emas) implementatsiyalari bilan o'qib solishtirildi va MOS:
-aiogram 3.31.0 (`check_webapp_signature`: faqat `hash` chiqariladi, `signature` qoladi; Ed25519 usulida ikkalasi
-chiqariladi va `<bot_id>:WebAppData\\n` prefiksi) va @telegram-apps/init-data-node 2.0.10 (xuddi shunday). Ularning
-literal HMAC vektorlari bu kod bilan bir xil natija beradi (tests/miniapp_auth_test.py, 10-bo'lim). Haqiqiy Telegram
-klientidan olingan `initData` bilan sinov hali o'tkazilmagan.
+F5 HOLATI (tasdiqlash darajasi): rasmiy sahifa (core.telegram.org/bots/webapps) sandboxdan TO'G'RIDAN-TO'G'RI o'qib
+bo'lmadi (DNS/proksi). Qidiruv xizmati orqali olingan QISQARTMA (to'liq matn EMAS, so'zma-so'z emas) rasmiy sahifa
+bo'yicha shuni ko'rsatdi: (1) bot-token usuli — data-check-string = qabul qilingan maydonlar, alifbo tartibida,
+`key=value`, LF bilan; `hash` unga HMAC-SHA-256 (kalit = HMAC("WebAppData", bot_token)) bilan solishtiriladi;
+`auth_date` eskirganini tekshirish tavsiya etiladi; (2) alohida uchinchi tomon usuli (Ed25519 `signature`, bot_id
+bilan) satrni `<bot_id>:WebAppData\n` prefiksi bilan quradi va `hash` HAMDA `signature` ni chiqaradi. Ikkinchi usulda
+`signature` ning alohida chiqarilishi birinchi usulda u chiqarilmasligini bilvosita tasdiqlaydi, lekin birinchi usul
+uchun "signature qoladi" degan jumla so'zma-so'z ko'rilmadi. Shu sababli holat: BILVOSITA tasdiqlangan, to'liq
+tasdiqlanmagan. Uchinchi tomon (rasmiy emas) implementatsiyalari bilan ham MOS: aiogram 3.31.0 va
+@telegram-apps/init-data-node 2.0.10; ularning literal HMAC vektorlari bu kod bilan bir xil natija beradi
+(tests/miniapp_auth_test.py, 10-bo'lim). Haqiqiy Telegram klientidan olingan `initData` bilan sinov hali
+o'tkazilmagan (scripts/miniapp_initdata_smoke.py).
 
 Bu modul sof funksiyalardan iborat: tarmoq/DB yo'q, BOT_TOKEN va initData
 hech qachon log yoki xato matniga yozilmaydi.

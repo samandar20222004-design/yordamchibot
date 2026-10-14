@@ -13,16 +13,19 @@ hash mosligi (ha/yo'q) va server validatorining xulosasi. Token, initData,
 hash va maydon QIYMATLARI hech qachon chop etilmaydi / faylga yozilmaydi.
 ``signature`` bilan va usiz hisob FAQAT diagnostika sifatida solishtiriladi —
 server validatori alternativani QABUL QILMAYDI.
+Qo'shimcha: ``--api https://<domen>/api/v1`` — initData bilan ishlayotgan serverning ``GET /me`` ini chaqiradi
+(haqiqiy end-to-end tekshiruv; token KERAK EMAS) va faqat HTTP holat + xato KODI / javob kalitlari nomlarini chop etadi.
 Natija kodi: 0 — server qoidasi bo'yicha OK; 1 — rad; 2 — foydalanish xatosi.
 """
 from __future__ import annotations
 
+import json
 import os
 import stat
 import sys
 import time
 from pathlib import Path
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlsplit
 
 _ROOT = Path(__file__).resolve().parent.parent / "telegram_bot"
 sys.path.insert(0, str(_ROOT))
@@ -78,13 +81,52 @@ def run(init_data: str, token: str, *, now: float | None = None, out=print) -> i
     return 0
 
 
+def probe_api(init_data: str, base: str, *, opener=None, out=print) -> int:
+    """``GET <base>/me`` — faqat holat va xato KODI/javob kalitlari chop etiladi (qiymatlar hech qachon)."""
+    import urllib.error
+    import urllib.request
+
+    parts = urlsplit(base)
+    local = parts.hostname in ("localhost", "127.0.0.1", "::1")
+    if parts.scheme != "https" and not (parts.scheme == "http" and local):
+        out("API: faqat https:// (yoki lokal http://localhost) manzil ruxsat etiladi.")
+        return 2
+    request = urllib.request.Request(base.rstrip("/") + "/me", headers={
+        "Authorization": "tma " + init_data, "Accept": "application/json"}, method="GET")
+    open_url = opener or urllib.request.urlopen
+    try:
+        with open_url(request, timeout=15) as resp:  # nosec B310 — sxema yuqorida tekshirilgan
+            status, raw = resp.status, resp.read(65536)
+    except urllib.error.HTTPError as exc:
+        status, raw = exc.code, exc.read(65536)
+    except Exception as exc:  # noqa: BLE001 — matnda URL/sarlavha bo'lishi mumkin
+        out(f"API: ulanib bo'lmadi ({type(exc).__name__})")
+        return 1
+    try:
+        body = json.loads(raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        body = None
+    if status == 200 and isinstance(body, dict):
+        out(f"API /me: HTTP 200, javob kalitlari: {', '.join(sorted(body))}")
+        return 0
+    code = body.get("error", {}).get("code") if isinstance(body, dict) and isinstance(body.get("error"), dict) else None
+    out(f"API /me: HTTP {status}, xato kodi: {code if isinstance(code, str) and len(code) < 40 else '?'}")
+    return 1
+
+
 def main(argv: list[str]) -> int:
     path = None
-    if argv[:1] == ["--file"] and len(argv) == 2:
-        path = argv[1]
-    elif argv:
-        print(__doc__)
-        return 2
+    api = None
+    args = list(argv)
+    while args:
+        flag = args.pop(0)
+        if flag == "--file" and args:
+            path = args.pop(0)
+        elif flag == "--api" and args:
+            api = args.pop(0)
+        else:
+            print(__doc__)
+            return 2
     token = os.environ.get("MINIAPP_SMOKE_BOT_TOKEN", "")
     try:
         data = _read_init_data(path)
@@ -94,6 +136,8 @@ def main(argv: list[str]) -> int:
     if not data:
         print("initData bo'sh.")
         return 2
+    if api:
+        return probe_api(data, api) if not token else max(run(data, token), probe_api(data, api))
     return run(data, token)
 
 

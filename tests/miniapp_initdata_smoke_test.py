@@ -47,6 +47,52 @@ def main() -> int:
         T.check(f"chiqishda {label} yo'q", secret not in all_out)
     src = (REPO / "scripts" / "miniapp_initdata_smoke.py").read_text()
     T.check("vosita faylga yozmaydi", "write_text" not in src and "open(" not in src)
+    # --api rejimi: lokal aiohttp serveriga qarshi (haqiqiy tarmoq YO'Q)
+    import asyncio
+    import threading
+
+    from aiohttp import web
+
+    seen = {}
+
+    async def me(request):
+        seen["auth"] = request.headers.get("Authorization", "")
+        if seen["auth"].startswith("tma ") and "good" in seen["auth"]:
+            return web.json_response({"user": {"id": 1, "name": "SECRET-NAME"}, "plan": {}})
+        return web.json_response({"error": {"code": "unauthorized", "message": "x"}}, status=401)
+
+    loop = asyncio.new_event_loop()
+    app = web.Application()
+    app.router.add_get("/api/v1/me", me)
+    runner = web.AppRunner(app)
+    loop.run_until_complete(runner.setup())
+    site = web.TCPSite(runner, "127.0.0.1", 0)
+    loop.run_until_complete(site.start())
+    port = site._server.sockets[0].getsockname()[1]
+    thread = threading.Thread(target=loop.run_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{port}/api/v1"
+        lines = []
+        rc = smoke.probe_api("auth_date=1&hash=good", base, out=lines.append)
+        T.check("--api: HTTP 200 -> kod 0, faqat javob KALITLARI chop etiladi", rc == 0 and "plan, user" in lines[0])
+        T.check("--api: javob QIYMATLARI (ism) chop etilmaydi", "SECRET-NAME" not in "".join(lines))
+        T.check("--api: Authorization 'tma <initData>' yuborildi", seen["auth"] == "tma auth_date=1&hash=good")
+        lines = []
+        rc = smoke.probe_api("auth_date=1&hash=bad", base, out=lines.append)
+        T.check("--api: 401 -> kod 1, xato KODI chop etiladi, initData chop etilmaydi",
+                rc == 1 and "unauthorized" in lines[0] and "hash=bad" not in "".join(lines))
+        lines = []
+        T.check("--api: http:// (lokal bo'lmagan) manzil rad (kod 2)",
+                smoke.probe_api("x", "http://example.com/api/v1", out=lines.append) == 2)
+        T.check("--api: ulanib bo'lmasa kod 1, URL/sarlavha chop etilmaydi",
+                smoke.probe_api("tma-secret-initdata", "http://127.0.0.1:1/api/v1", out=lines.append) == 1
+                and "tma-secret-initdata" not in "".join(lines))
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(timeout=5)
+        loop.run_until_complete(runner.cleanup())
+        loop.close()
     return T.finish()
 
 
