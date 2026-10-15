@@ -65,65 +65,90 @@ describe('Meter', () => {
   })
 })
 
+const openRow = (name: RegExp) => fireEvent.click(screen.getAllByRole('button', { name }).find((b) => b.classList.contains('set-row'))!)
+
 describe('Profil sahifasi', () => {
-  it('bepul: ism va @username, tarif belgisi, 3 ta foydalanish ko\'rsatkichi, PRO afzalliklari va botni ochish', async () => {
+  it('bepul: ism, @username, tarif belgisi, 3 ta foydalanish ko\'rsatkichi va sozlamalar qatorlari', async () => {
     mockApi()
     await openMe()
     expect(await screen.findByText(/@alice/)).toBeTruthy()
     expect(screen.getAllByText('Bepul').length).toBeGreaterThan(0)
-    const bars = screen.getAllByRole('progressbar')
-    expect(bars).toHaveLength(3)
+    expect(screen.getAllByRole('progressbar')).toHaveLength(3)
     expect(screen.getByText('2 / 3')).toBeTruthy()     // kanallar
     expect(screen.getByText('1 / 5')).toBeTruthy()     // AI (bugun)
     expect(screen.getByText('3 / 5')).toBeTruthy()     // navbat
-    // Free uchun ikkala tarif kartasi: PRO va ULTRA — HAQIQIY limitlar (server) va narx
-    expect(screen.getByText('PRO', { selector: 'h4' })).toBeTruthy()
-    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
+    const rows = Array.from(document.querySelectorAll('.set-row .set-label')).map((e) => e.textContent)
+    expect(rows).toEqual(['Tarif', 'Til', 'Kanallarim', 'Botga o\'tish', 'Ilovani yopish'])
+    expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
+  })
+
+  it('Tarif alohida ekranda: davr tanlanadi, PRO va ULTRA kartalarida HAQIQIY limitlar, narx va tejam; botda sotib olish', async () => {
+    mockApi()
+    await openMe()
+    openRow(/^Tarif/)
+    expect(await screen.findByRole('heading', { name: 'Tariflar' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'PRO' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'ULTRA' })).toBeTruthy()
     expect(screen.getByText('Kanallar: 10 tagacha')).toBeTruthy()
     expect(screen.getByText('Kanallar: 30 tagacha')).toBeTruthy()
     expect(screen.getByText('AI: kuniga 40 ta')).toBeTruthy()
     expect(screen.getByText('Navbat: 900 tagacha post')).toBeTruthy()
-    expect(screen.getByText(/29 000 so'm\/oydan/)).toBeTruthy()
-    expect(screen.getByText(/69 000 so'm\/oydan/)).toBeTruthy()
-    expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
-    expect(screen.getByRole('button', { name: 'Botni ochish' })).toBeTruthy()
+    expect(screen.getByText('29 000 so\'m')).toBeTruthy()   // 1 oy (sukut)
+    expect(screen.getByText('69 000 so\'m')).toBeTruthy()
+    expect(screen.getByText('Hozirgi tarif')).toBeTruthy()  // bepul tarifdagi foydalanuvchida «Bepul» kartasi
+    const tabs = within(screen.getByRole('group', { name: 'Tarif davri' }))
+    expect(tabs.getAllByRole('button').map((b) => b.textContent)).toEqual(['1 oy', '3 oy−13%', '6 oy−22%', '1 yil−30%'])
+    fireEvent.click(tabs.getByRole('button', { name: /1 yil/ }))
+    expect(screen.getByText('245 000 so\'m')).toBeTruthy()
+    expect(screen.getByText('620 000 so\'m')).toBeTruthy()
+    expect(screen.getByText('970 Stars')).toBeTruthy()
+    expect(screen.getAllByText('−30%').length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('button', { name: 'Botda sotib olish' })).toHaveLength(2) // PRO va ULTRA; to'lov tugmasi Mini App'da yo'q
+    fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
+    expect(await screen.findByText(/@alice/)).toBeTruthy()
   })
 
-  it('PRO: faqat ULTRA kartasi, "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
+  it('PRO: Tarif ekranida PRO «Hozirgi tarif», muddat ko\'rsatiladi; ULTRA sotib olinadi, PRO emas', async () => {
     mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 300 } } })
     await openMe()
     expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
-    expect(screen.getAllByText('PRO').length).toBeGreaterThan(0)   // belgi
-    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
-    expect(screen.queryByText('PRO', { selector: 'h4' })).toBeNull() // PRO foydalanuvchiga PRO kartasi ko'rsatilmaydi
     expect(screen.queryByText('Bepul')).toBeNull()
-    expect(screen.getByText(/Amal qilish muddati/)).toBeTruthy()
+    openRow(/^Tarif/)
+    const proCard = (await screen.findByRole('article', { name: 'PRO' }))
+    expect(within(proCard).getByText('Hozirgi tarif')).toBeTruthy()
+    expect(within(proCard).getByText(/Amal qilish muddati/)).toBeTruthy()
+    expect(within(proCard).queryByRole('button', { name: 'Botda sotib olish' })).toBeNull()
+    expect(within(screen.getByRole('article', { name: 'ULTRA' })).getByRole('button', { name: 'Botda sotib olish' })).toBeTruthy()
   })
 
-  it('ULTRA: belgi "ULTRA", tarif kartalari yo\'q', async () => {
+  it('ULTRA: belgi «ULTRA»; Tarif ekranida ULTRA joriy', async () => {
     mockApi({ ...ME, plan: { type: 'ultra', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 900 } } })
     await openMe()
     expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
-    expect(screen.getAllByText('ULTRA').length).toBe(1)
-    expect(screen.queryByText('Tariflar')).toBeNull()
+    openRow(/^Tarif/)
+    expect(within(await screen.findByRole('article', { name: 'ULTRA' })).getByText('Hozirgi tarif')).toBeTruthy()
+    expect(screen.getAllByText('Hozirgi tarif')).toHaveLength(1)
   })
 
-  it('kanal qatori: uzun nom saqlanadi (title atributi/matn), "Tahlil" tugmasi ishlaydi', async () => {
+  it('Kanallarim alohida ekranda: uzun nom saqlanadi, «Tahlil» tugmasi bor', async () => {
     mockApi()
     await openMe()
+    openRow(/^Kanallarim/)
     const title = await screen.findByText(/Juda uzun nomli kanal/)
     expect(title.className).toContain('chan-title')
     expect(screen.getByText(/Rejada: 3/)).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Tahlil' }).className).toContain('chan-act') // Button className'ni o'tkazadi
   })
 
-  it('til tugmalari saqlangan (3 ta, joriy tanlangan)', async () => {
+  it('Til alohida ekranda: 3 ta til (bayroq + nom), joriy tanlangan, tanlansa saqlanadi', async () => {
     mockApi()
     await openMe()
+    openRow(/^Til/)
     const group = await screen.findByRole('group', { name: 'Interfeys tili' })
     const btns = within(group).getAllByRole('button')
     expect(btns).toHaveLength(3)
     expect(btns.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+    expect(btns.map((b) => b.textContent)).toEqual(['🇺🇿O\'zbekcha', '🇷🇺Русский', '🇬🇧English'])
   })
 })
 
@@ -136,7 +161,7 @@ describe('Sozlamalar: profil muqovasi va bo\'limlar', () => {
     expect(img?.getAttribute('src')).toBe('https://t.me/i/userpic/320/me.jpg')
     expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
     const labels = Array.from(document.querySelectorAll('.sec-label')).map((e) => e.textContent)
-    expect(labels).toEqual(['Tarif va limitlar', 'Til', 'Kanallar', 'Ilova'])
+    expect(labels).toEqual(['Sozlamalar', 'Limitlar', 'Ilova'])
     expect(screen.getByRole('button', { name: 'Ilovani yopish' })).toBeTruthy()
   })
 

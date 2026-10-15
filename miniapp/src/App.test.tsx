@@ -47,7 +47,7 @@ describe('App', () => {
     window.history.replaceState({}, '', '/app/')
   })
 
-  it('/me kelguncha logo animatsiyali yuklash ekrani, keyin ilova', async () => {
+  it('yuklash ekrani (#boot) /me kelguncha turadi va ilova tayyor bo\'lgach BIR marta yashiriladi (ikkinchi animatsiya yo\'q)', async () => {
     setTelegram('query_id=1')
     let release: (r: Response) => void = () => {}
     mockApi((url) => {
@@ -56,15 +56,17 @@ describe('App', () => {
       if (url.includes('/scheduled-posts')) return jsonResponse(PAGE)
       return jsonResponse(errorBody('not_found'), 404)
     })
+    const boot = document.createElement('div')
+    boot.id = 'boot'
+    document.body.appendChild(boot)
     const { container } = render(<App />)
-    const splash = container.querySelector('.splash')
-    expect(splash).not.toBeNull()
-    expect(splash?.querySelector('svg.bm .bm-robot')).not.toBeNull()
-    expect(splash?.querySelector('svg.bm .bm-badge')).not.toBeNull()
+    expect(container.querySelector('.splash')).toBeNull() // React ikkinchi yuklash ekranini chizmaydi
     expect(container.querySelector('.shell')).toBeNull()
+    expect(boot.classList.contains('boot-hide')).toBe(false)
     release(jsonResponse(ME))
     await waitFor(() => expect(container.querySelector('.shell')).not.toBeNull())
-    expect(container.querySelector('.splash')).toBeNull()
+    expect(boot.classList.contains('boot-hide')).toBe(true)
+    boot.remove()
   })
 
   it('Telegram tashqarisida: tushunarli ekran, so\'rov yuborilmaydi', () => {
@@ -172,10 +174,18 @@ describe('App', () => {
     await screen.findByText('Salom, Alice!')
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
     expect(await screen.findByText(/@alice/)).toBeTruthy()
+    const row = (name: RegExp) => screen.getAllByRole('button', { name }).find((b) => b.classList.contains('set-row'))!
+    fireEvent.click(row(/^Kanallarim/))
     expect(await screen.findByText('Kanal A')).toBeTruthy()
-    expect(screen.getByText(/PRO va Tariflar/)).toBeTruthy()
-    expect(screen.queryByText(/To'lash|Sotib/i)).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Botni ochish' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
+    fireEvent.click(row(/^Tarif/))
+    expect(await screen.findByText(/PRO va Tariflar/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^(To'lash|Sotib olish|Pay)$/ })).toBeNull() // Mini App'da to'lov yo'q: faqat botga yo'naltirish
+    fireEvent.click(screen.getAllByRole('button', { name: 'Botda sotib olish' })[0]!)
+    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot')
+    openTelegramLink.mockClear()
+    fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
+    fireEvent.click(row(/^Botga o'tish/))
     expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot')
   })
 
@@ -199,5 +209,35 @@ describe('App', () => {
     render(<App />)
     expect(await screen.findByText('Здравствуйте, Alice!')).toBeTruthy()
     await waitFor(() => expect(document.documentElement.lang).toBe('ru')) // lang atributi useEffect orqali yangilanadi
+  })
+})
+
+describe('Bosh sahifa', () => {
+  it('salomlashuv, keyingi postgacha sanoq, maslahat va tezkor harakatlar ko\'rinadi', async () => {
+    setTelegram('query_id=1')
+    mockApi((url) => {
+      if (url.includes('/me')) return jsonResponse({ ...ME, next_post_at: new Date(Date.now() + 135 * 60000).toISOString() })
+      return okRoutes(url)
+    })
+    const { container } = render(<App />)
+    await screen.findByText('Salom, Alice!')
+    expect(container.querySelector('.hero-kicker')?.textContent).toMatch(/Xayrli/)
+    expect(container.querySelector('.hero-mark svg.bm')).not.toBeNull()
+    expect(container.querySelector('.next-when')?.textContent).toMatch(/soat .* daqiqadan keyin/)
+    expect(container.querySelector('.tip-card p')?.textContent?.length).toBeGreaterThan(20)
+    expect(screen.getByRole('button', { name: 'Yangi post yozish' })).toBeTruthy()
+    expect(container.querySelectorAll('.stat-bar').length).toBe(2)
+    expect(container.querySelector('.achievement')?.textContent).toMatch(/7 ta post/)
+    fireEvent.click(screen.getByRole('button', { name: 'Yangi post yozish' }))
+    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+  })
+
+  it('post rejalanmagan bo\'lsa: bo\'sh holat va «Post rejalash» tugmasi', async () => {
+    setTelegram('query_id=1')
+    mockApi((url) => (url.includes('/me') ? jsonResponse({ ...ME, next_post_at: null }) : okRoutes(url)))
+    const { container } = render(<App />)
+    await screen.findByText('Salom, Alice!')
+    expect(container.querySelector('.next-when')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Post rejalash' })).toBeTruthy()
   })
 })

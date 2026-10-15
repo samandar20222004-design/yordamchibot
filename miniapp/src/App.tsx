@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppDataContext, type AppData } from './AppData'
+import { hideBoot } from './boot'
 import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
 import { Toast } from './components/Dialog'
-import { EmptyState, Splash } from './components/ui'
+import { EmptyState } from './components/ui'
 import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
 import { useScheduleFeed } from './hooks/useScheduleFeed'
@@ -59,8 +60,10 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
     [client, me, channels, draft, feed, botUsername, notify, onLang],
   )
 
-  // Birinchi /me kelguncha (xato bo'lmasa) logo animatsiyasi; xato bo'lsa sahifalar o'z xato holatini ko'rsatadi.
-  if (me.data === null && !me.error) return <Splash />
+  // Yuklash ekrani (#boot, index.html) /me kelguncha turadi; keyin (yoki xatoda) bir marta yashiriladi.
+  const ready = me.data !== null || me.error !== null
+  useEffect(() => { if (ready) hideBoot() }, [ready])
+  if (!ready) return null
 
   return (
     <AppDataContext.Provider value={value}>
@@ -86,6 +89,8 @@ export default function App() {
     document.documentElement.dataset.theme = scheme
   }), [])
   useEffect(() => { document.documentElement.lang = lang }, [lang])
+
+  useEffect(() => { if (!inTelegram) hideBoot() }, [inTelegram])
 
   return (
     <I18nProvider lang={lang}>

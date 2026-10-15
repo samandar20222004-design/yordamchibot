@@ -82,6 +82,17 @@ def test_static():
         T.check("/app/?tab=schedule (botdagi tugma) -> index.html", st == 200 and b"MINIAPP-INDEX" in body)
         st, body, h = run(fetch(app, "GET", "/app/index.html"))
         T.check("/app/index.html", st == 200 and b"MINIAPP-INDEX" in body)
+        # oldindan siqilgan fayllar (build: scripts/compress-dist.mjs): Accept-Encoding bo'yicha .br/.gz beriladi
+        import gzip
+        big = "console.log('ok');" * 200
+        (dist / "assets" / "app.js").write_text(big)
+        (dist / "assets" / "app.js.gz").write_bytes(gzip.compress(big.encode()))
+        st, body, h = run(fetch(app, "GET", "/app/assets/app.js", headers={"Accept-Encoding": "gzip"}))
+        T.check("siqilgan asset: Content-Encoding gzip, JS turi, Vary", st == 200 and h.get("Content-Encoding") == "gzip"
+                and "javascript" in h.get("Content-Type", "") and "Accept-Encoding" in h.get("Vary", ""), f"{st} {dict(h)}")
+        T.check("siqilgan asset to'g'ri ochiladi (mijoz ochgach asl matn)", body.decode() == big)
+        st, body, h = run(fetch(app, "GET", "/app/assets/app.js", headers={"Accept-Encoding": "identity"}))
+        T.check("siqishni qo'llamaydigan mijozga asl fayl", st == 200 and h.get("Content-Encoding") is None and body.decode() == big)
         st, body, h = run(fetch(app, "GET", "/app/assets/app.js"))
         T.check("asset 200 + JS content-type", st == 200 and "javascript" in h.get("Content-Type", ""))
         T.check("hash'li asset immutable kesh", "immutable" in h.get("Cache-Control", ""))

@@ -830,6 +830,11 @@ def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_tim
     elif recurrence_type == 'weekdays' and recurrence_day:
         return get_text("pend_schedule_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                         time=format_time(recurrence_time, lang))
+    elif recurrence_type == 'twice' and recurrence_day is not None:
+        from services.recurrence import minutes_to_time
+
+        return get_text("pend_schedule_twice", lang, time=format_time(recurrence_time, lang),
+                        time2=format_time(minutes_to_time(recurrence_day), lang))
 
     if s_time:
         return get_text("pend_schedule_once", lang,

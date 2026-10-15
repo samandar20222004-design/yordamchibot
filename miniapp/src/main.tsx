@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
+import { hideBoot } from './boot'
 import './styles/tokens.css'
 import './styles/base.css'
 
@@ -12,3 +13,6 @@ if (root) {
     </StrictMode>,
   )
 }
+
+// Himoya: biror sabab bilan ilova tayyor bo'lmasa ham yuklash ekrani abadiy qolmasin.
+setTimeout(hideBoot, 15000)

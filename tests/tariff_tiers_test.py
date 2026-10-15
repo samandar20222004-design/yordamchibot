@@ -89,6 +89,11 @@ check("Mini App: legacy muddati o'tgach (yangi to'lov) -> 10/40", p["limits"]["m
 p = resolve_plan({"plan_type": "ultra", "subscription_expires_at": now - timedelta(days=1), "db_now": now})
 check("Mini App: muddati o'tgan ULTRA -> free", p["type"] == "free" and not p["is_pro"] and p["limits"]["max_channels"] == 3, str(p))
 tc = tier_catalog()
+check("Mini App /me tiers: davrlar (1/3/6/12 oy) narx, Stars va haqiqiy tejam bilan", [p["months"] for p in tc["pro"]["periods"]] == [1, 3, 6, 12]
+      and [p["uzs"] for p in tc["pro"]["periods"]] == [29000, 75000, 135000, 245000]
+      and [p["stars"] for p in tc["ultra"]["periods"]] == [275, 695, 1330, 2460]
+      and tc["pro"]["periods"][0]["save_pct"] == 0 and all(p["save_pct"] > 0 for p in tc["pro"]["periods"][1:])
+      and tc["free"]["periods"] == [] and tc["free"]["price_from_uzs"] == 0, str(tc["pro"]["periods"]))
 check("Mini App /me tiers: limitlar va 1 oylik narx config'dan", tc["pro"]["price_from_uzs"] == 29000 and tc["ultra"]["price_from_uzs"] == 69000
       and tc["ultra"]["limits"]["queued_posts"] == 900)
 

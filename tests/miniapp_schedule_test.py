@@ -221,6 +221,20 @@ def main() -> int:
         T.check("DB: ustunlar to'g'ri, 'pending'", row[0] == "weekdays" and row[1] == 96 and str(row[2]) == "12:00:00" and row[3] == "pending", str(row))
         st, b = call("GET", f"/api/v1/posts/{pid}", FREE)
         T.check("GET /posts/{id} ham recurrence_day/time beradi", b["post"]["recurrence_day"] == 96 and b["post"]["recurrence_time"] == "12:00", str(b))
+        # kuniga ikki vaqt: ertalab va kechqurun BITTA post
+        st, b = create(FREE, {"type": "twice", "time": "09:00", "time2": "18:00"}, "2026-10-16T13:00:00Z")  # 18:00 Toshkent
+        T.check("twice posti yaratildi (201), scheduled_at slotlardan biri", st == 201 and b["post"]["recurrence"] == "twice", f"{st} {b}")
+        T.check("javobda ikkinchi vaqt (recurrence_time2) va birinchi vaqt", b["post"].get("recurrence_time") == "09:00" and b["post"].get("recurrence_time2") == "18:00", str(b["post"]))
+        row = q("SELECT recurrence_type, recurrence_day, recurrence_time FROM scheduled_posts WHERE id = %s", (b["post"]["id"],))[0]
+        T.check("DB: twice -> day=1080 (18:00), time=09:00", row[0] == "twice" and row[1] == 1080 and str(row[2]) == "09:00:00", str(row))
+        st, b2 = create(FREE, {"type": "twice", "time": "09:00", "time2": "18:00"}, "2026-10-16T07:00:00Z")  # 12:00: slot emas
+        T.check("twice: scheduled_at slotlardan biri bo'lmasa -> 422", st == 422 and b2["error"]["code"] == "invalid_input", f"{st} {b2}")
+        for label, rec in (("time2 yo'q", {"type": "twice", "time": "09:00"}), ("ikkala vaqt bir xil", {"type": "twice", "time": "18:00", "time2": "18:00"}),
+                           ("time2 yaroqsiz", {"type": "twice", "time": "18:00", "time2": "25:00"})):
+            st, b2 = create(FREE, rec, "2026-10-16T13:00:00Z")
+            T.check(f"twice yaroqsiz ({label}) -> 422", st == 422 and b2["error"]["code"] == "invalid_input", f"{st} {b2}")
+        st, b3 = parse(FREE, "har kuni ertalab 9 va kechqurun 18:30 da")
+        T.check("parse: twice taklifi (time/time2, day yo'q)", st == 200 and b3["ok"] and b3["proposal"]["recurrence"] == {"type": "twice", "day": None, "time": "09:00", "time2": "18:30"}, str(b3))
         st, b = create(FREE, {"type": "interval", "day": 2, "time": "18:30"}, "2026-10-15T13:30:00Z")
         T.check("kunora posti (interval 2) yaratildi", st == 201 and b["post"]["recurrence"] == "interval", f"{st} {b}")
         bads = {

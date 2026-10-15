@@ -17,7 +17,8 @@ import { openBot } from '../telegram'
 import { toClientError } from '../hooks/useResource'
 import { defaultScheduleValue, isFutureEnough, isoToLocalInput, isUnlimited, localInputToIso, toLocalInputValue } from './format'
 import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, tashkentParts, type RepeatChoice } from './recurrence'
-import { FORMATS, isSafeLink, linkOpen, wrapSelection } from './richtext'
+import { compressImage } from './imageCompress'
+import { FORMATS, isSafeLink, linkOpen, toggleFormat, wrapSelection } from './richtext'
 
 type Mode = 'schedule' | 'now'
 type FieldKey = 'channel' | 'text' | 'when' | 'button'
@@ -110,7 +111,15 @@ export function PostPage() {
   }, [draftKey, draftChannel, hasDraftChannel])
 
   const media = current?.media ?? null
+  const [local, setLocal] = useState<{ url: string; video: boolean } | null>(null)
+  const showLocalPreview = (f: File) => {
+    if (typeof URL.createObjectURL !== 'function') return
+    setLocal((prev) => { if (prev) URL.revokeObjectURL(prev.url); return { url: URL.createObjectURL(f), video: f.type.startsWith('video/') } })
+  }
+  useEffect(() => () => { if (local) URL.revokeObjectURL(local.url) }, [local])
   const photo = useDraftPhoto(client, Boolean(media?.previewable), current?.updated_at ?? null)
+  const previewUrl = local?.url ?? photo.url
+  const previewIsVideo = local ? local.video : photo.video
   const textMax = media ? CAPTION_MAX : config.maxPostChars
 
   if (me.loading || channels.loading) return <Page><PageHeader title={t('post.title')} /><LoadingBlock rows={4} /></Page>
@@ -157,7 +166,7 @@ export function PostPage() {
   }
   const format = (open: string, close: string) => {
     const { start, end } = selection.current
-    apply(wrapSelection(text, start, end, open, close))
+    apply(toggleFormat(text, start, end, open, close, t('post.fmt.placeholder')))
   }
   const applyLink = () => {
     if (!isSafeLink(linkUrl)) return
@@ -268,9 +277,10 @@ export function PostPage() {
   }
 
   /** Qurilmadan rasm/video: mijozda tur va hajm tekshiriladi (server baribir baytlardan tekshiradi), matn/tugma birga saqlanadi. */
-  const pickMedia = async (file: File | undefined) => {
+  const pickMedia = async (picked: File | undefined) => {
     if (fileRef.current) fileRef.current.value = ''
-    if (!file || uploading) return
+    if (!picked || uploading) return
+    let file = picked
     const isVideo = file.type === 'video/mp4' || file.type === 'video/quicktime'
     const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
     if (!isVideo && !isImage) { notify(t('media.errType'), 'error'); return }
@@ -282,6 +292,8 @@ export function PostPage() {
     }
     setUploading(true)
     try {
+      if (isImage) file = await compressImage(file) // telefonda yengillashtirish: yuklash tez, server yuklanmaydi
+      showLocalPreview(file)
       await client.uploadMedia(file, {
         text: text.trim(),
         button_text: hasButton ? btnText.trim() : '',
@@ -391,6 +403,24 @@ export function PostPage() {
           </select>
           {fieldError?.field === 'channel' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
 
+          <div className="media-box">
+            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+              onChange={(e) => void pickMedia(e.target.files?.[0])} />
+            <button type="button" className={`media-tile${previewUrl ? ' has-preview' : ''}`} disabled={uploading}
+              onClick={() => fileRef.current?.click()} aria-label={media ? t('media.replace') : t('media.add')}>
+              {previewUrl && (previewIsVideo
+                ? <video className="media-tile-img" src={previewUrl} muted playsInline preload="metadata" />
+                : <img className="media-tile-img" src={previewUrl} alt="" />)}
+              <span className="media-tile-label">
+                <Icon name="image" size={previewUrl ? 18 : 28} />
+                <strong>{uploading ? t('media.uploading') : previewUrl || media ? t('media.replace') : t('media.pick')}</strong>
+                {!previewUrl && !media && <span className="muted small">{t('media.lite')}</span>}
+              </span>
+            </button>
+            <p className="muted small">{t('media.hint')}</p>
+          </div>
+
           <label className="field" htmlFor="text">{t('post.text')}</label>
           <div className="toolbar" role="toolbar" aria-label={t('post.fmt.label')}>
             {FORMATS.map((f) => (
@@ -418,15 +448,6 @@ export function PostPage() {
             onChange={(e) => { setText(e.target.value); setFieldError(null) }}
             onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
             onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
-          <div className="media-row">
-            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
-              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
-              onChange={(e) => void pickMedia(e.target.files?.[0])} />
-            <Button variant="secondary" icon="image" busy={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? t('media.uploading') : media ? t('media.replace') : t('media.add')}
-            </Button>
-            <p className="muted small">{t('media.hint')}</p>
-          </div>
           <p className="muted" aria-live="off">
             {t('post.counter', { n: text.length, max: textMax })}
             {media && <> · {t('post.captionLimit', { max: CAPTION_MAX })}</>}
@@ -486,7 +507,8 @@ export function PostPage() {
                 aria-invalid={fieldError?.field === 'when' || undefined}
                 onChange={(e) => changeWhen(e.target.value)} />
               {fieldError?.field === 'when' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
-              <RepeatPicker value={repeat} onChange={changeRepeat} showTz={showTz} />
+              <RepeatPicker value={repeat} onChange={changeRepeat} showTz={showTz}
+                firstTime={(() => { const i = localInputToIso(when); return i ? tashkentParts(new Date(i)).time : '09:00' })()} />
               {aligned && <p className="muted small" role="status">{t('rep.aligned')}</p>}
             </>
           ) : <p className="muted">{t('post.nowHint')}</p>}

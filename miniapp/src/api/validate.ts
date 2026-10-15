@@ -56,7 +56,14 @@ function parseLimits(l: Rec): PlanLimits {
 
 function parseTier(v: unknown, what: string): TierInfo {
   const t = rec(v, what)
-  return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`) }
+  const periods = t.periods === undefined ? [] : arr(t.periods, `${what}.periods`).map((x, i) => {
+    const p = rec(x, `${what}.periods.${i}`)
+    return {
+      months: int(p.months, `${what}.months`), days: int(p.days, `${what}.days`), uzs: int(p.uzs, `${what}.uzs`),
+      stars: int(p.stars, `${what}.stars`), save_pct: int(p.save_pct, `${what}.save_pct`),
+    }
+  })
+  return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`), periods }
 }
 
 function parseCounts(v: unknown): PostCounts {
@@ -82,7 +89,9 @@ export function parseMe(v: unknown): Me {
       language: lang(u.language),
     },
     plan: parsePlan(o.plan),
-    ...(o.tiers === undefined ? {} : { tiers: { pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
+    ...(o.tiers === undefined ? {} : { tiers: {
+      ...(rec(o.tiers, 'tiers').free === undefined ? {} : { free: parseTier(rec(o.tiers, 'tiers').free, 'tiers.free') }),
+      pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
     usage: {
       channels: int(usage.channels, 'usage.channels'),
       pending_posts: int(usage.pending_posts, 'usage.pending_posts'),
@@ -168,6 +177,8 @@ export function parsePost(v: unknown): ScheduledPost {
   const p = rec(v, 'post')
   return {
     ...(p.text === undefined ? {} : { text: str(p.text, 'post.text') }),
+    ...(p.button_text == null ? {} : { button_text: str(p.button_text, 'post.button_text') }),
+    ...(p.button_url == null ? {} : { button_url: str(p.button_url, 'post.button_url') }),
     id: int(p.id, 'post.id'),
     channel_id: str(p.channel_id, 'post.channel_id'),
     channel_title: strOrNull(p.channel_title, 'post.channel_title'),
@@ -180,6 +191,7 @@ export function parsePost(v: unknown): ScheduledPost {
     status: str(p.status, 'post.status'),
     ...(p.recurrence_day === undefined ? {} : { recurrence_day: intOrNull(p.recurrence_day, 'post.recurrence_day') }),
     ...(p.recurrence_time === undefined ? {} : { recurrence_time: strOrNull(p.recurrence_time, 'post.recurrence_time') }),
+    ...(p.recurrence_time2 == null ? {} : { recurrence_time2: strOrNull(p.recurrence_time2, 'post.recurrence_time2') }),
   }
 }
 
@@ -194,7 +206,7 @@ export function parseScheduled(v: unknown): ScheduledPage {
   }
 }
 
-const REC_TYPES = ['daily', 'weekly', 'interval', 'weekdays'] as const
+const REC_TYPES = ['daily', 'weekly', 'interval', 'weekdays', 'twice'] as const
 
 function parseRecurrence(v: unknown): RecurrenceInput | null {
   if (v === null || v === undefined) return null
@@ -203,7 +215,13 @@ function parseRecurrence(v: unknown): RecurrenceInput | null {
   if (typeof type !== 'string' || !(REC_TYPES as readonly string[]).includes(type)) throw new ShapeError('recurrence.type')
   const time = str(r.time, 'recurrence.time')
   if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new ShapeError('recurrence.time')
-  return { type: type as RecurrenceInput['type'], day: intOrNull(r.day, 'recurrence.day'), time }
+  const base = { type: type as RecurrenceInput['type'], day: intOrNull(r.day, 'recurrence.day'), time }
+  if (type === 'twice') {
+    const time2 = str(r.time2, 'recurrence.time2')
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time2) || time2 === time) throw new ShapeError('recurrence.time2')
+    return { ...base, time2 }
+  }
+  return base
 }
 
 export function parseScheduleParse(v: unknown): ScheduleParseResult {

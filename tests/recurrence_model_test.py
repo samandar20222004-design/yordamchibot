@@ -43,7 +43,7 @@ import pytz  # noqa: E402
 import scheduler as sched  # noqa: E402
 from services.recurrence import (  # noqa: E402
     ALL_DAYS_MASK, WEEKEND_MASK, WORKDAYS_MASK, first_occurrence, mask_to_weekdays,
-    next_extended_occurrence, normalize_recurrence, weekdays_to_mask,
+    next_extended_occurrence, next_twice_occurrence, normalize_recurrence, weekdays_to_mask,
 )
 
 TZ = pytz.timezone("Asia/Tashkent")
@@ -145,6 +145,39 @@ check("interval/weekdays uchun uz/ru/en qatorlari farq qiladi", len({format_sche
 check("daily qatori regressiya", "12:00" in format_schedule_line(None, "daily", None, T12, "uz"))
 
 # --- real PG: yuborilgach qayta rejalash (interval + weekdays) ---
+print("== Kuniga ikki vaqt (twice): ertalab va kechqurun ==")
+T9, T18 = time(9, 0), time(18, 0)
+check("normalize: twice (erta, kech) kanonik tartib", normalize_recurrence("twice", 9 * 60, T18) == ("twice", 18 * 60, T9), str(normalize_recurrence("twice", 9 * 60, T18)))
+check("normalize: twice teskari kiritish bir xil natija", normalize_recurrence("twice", 18 * 60, T9) == ("twice", 18 * 60, T9))
+for bad_day in (None, -1, 1440, True, "540", 9 * 60):
+    try:
+        normalize_recurrence("twice", bad_day, T9)
+        check(f"normalize: twice yaroqsiz day={bad_day!r} rad", False)
+    except ValueError:
+        check(f"normalize: twice yaroqsiz day={bad_day!r} rad", True)
+NOW_T = at(2026, 10, 15, 8, 0)
+check("keyingi: ertalabdan oldin -> bugun 09:00", next_twice_occurrence(T9, 18 * 60, NOW_T) == at(2026, 10, 15, 9, 0))
+check("keyingi: 09:00 yuborilgach -> bugun 18:00", next_twice_occurrence(T9, 18 * 60, at(2026, 10, 15, 9, 0, 3)) == at(2026, 10, 15, 18, 0))
+check("keyingi: 18:00 yuborilgach -> ertaga 09:00", next_twice_occurrence(T9, 18 * 60, at(2026, 10, 15, 18, 0, 3)) == at(2026, 10, 16, 9, 0))
+check("keyingi: oradagi vaqt -> bugun 18:00", next_twice_occurrence(T9, 18 * 60, at(2026, 10, 15, 12, 0)) == at(2026, 10, 15, 18, 0))
+check("keyingi: kechdan keyin -> ertaga 09:00", next_twice_occurrence(T9, 18 * 60, at(2026, 10, 15, 23, 0)) == at(2026, 10, 16, 9, 0))
+check("first_occurrence: twice start dan keyingi slot", first_occurrence("twice", 18 * 60, T9, at(2026, 10, 15, 10, 0)) == at(2026, 10, 15, 18, 0))
+check("scheduler.calculate_next_time: twice", sched.calculate_next_time("twice", 18 * 60, T9, at(2026, 10, 15, 9, 0, 1)) == at(2026, 10, 15, 18, 0))
+check("scheduler.calculate_next_time: twice, day yo'q -> None", sched.calculate_next_time("twice", None, T9, NOW_T) is None)
+from utils.helpers import format_schedule_line  # noqa: E402
+
+for lg in ("uz", "ru", "en"):
+    line = format_schedule_line(None, "twice", 18 * 60, T9, lg)
+    check(f"bot ro'yxati [{lg}]: twice ikkala vaqtni ko'rsatadi", "09:00" in line and "18:00" in line, line)
+from locales.translations import get_text  # noqa: E402
+
+for lg in ("uz", "ru", "en"):
+    for key in ("np_confirm_time_twice", "np_scheduled_when_twice", "pend_schedule_twice"):
+        txt = get_text(key, lg, time="09:00", time2="18:30")
+        check(f"bot matni [{lg}] {key}: ikkala vaqt, to'ldirilgan", "09:00" in txt and "18:30" in txt and "{" not in txt, txt)
+mk = sched._build_sent_marker(1, 5, "-1001", 0, [], "twice", 18 * 60, T9, None, None)
+check("sent marker: twice seriya tirik (next_time bor, completed emas)", mk["next_time"] and not mk["completed"], str(mk))
+
 if not URL:
     print("  [SKIP] real PostgreSQL URL yo'q — DB qismi o'tkazildi")
     print(f"\n JAMI: o'tdi={passed}, xato={failed}, skip=1")
@@ -179,7 +212,7 @@ try:
     q("INSERT INTO users (user_id, username, plan_type) VALUES (%s, 'rec', 'pro')", (USER,))
     q("INSERT INTO channels (user_id, channel_id, channel_title, is_active) VALUES (%s, %s, 'R', TRUE)", (USER, CHAN))
     base = datetime.now(timezone.utc) + timedelta(days=1)
-    for rtype, rday in (("interval", 2), ("weekdays", WEEKEND_MASK)):
+    for rtype, rday in (("interval", 2), ("weekdays", WEEKEND_MASK), ("twice", 18 * 60)):
         pid = int(db.add_post(USER, CHAN, "text", rtype, None, base, recurrence_type=rtype, recurrence_day=rday, recurrence_time=T12))
         row = q("SELECT recurrence_type, recurrence_day, recurrence_time FROM scheduled_posts WHERE id = %s", (pid,))[0]
         check(f"DB: {rtype} ustunlarda saqlandi (sxema o'zgarmagan)", row[0] == rtype and row[1] == rday and row[2] == T12, str(row))
@@ -191,7 +224,7 @@ try:
             sched.now_tashkent = orig_now
         ok = asyncio.run(sched._apply_sent_marker(marker))
         st, when = q("SELECT status, scheduled_time FROM scheduled_posts WHERE id = %s", (pid,))[0]
-        check(f"DB: {rtype} yuborilgach 'pending' va keyingi vaqt yozildi (seriya tirik)", ok and st == "pending" and when.astimezone(TZ) == at(2026, 10, 17, 12, 0), f"{ok} {st} {when}")
+        check(f"DB: {rtype} yuborilgach 'pending' va keyingi vaqt yozildi (seriya tirik)", ok and st == "pending" and when.astimezone(TZ) == (at(2026, 10, 15, 18, 0) if rtype == "twice" else at(2026, 10, 17, 12, 0)), f"{ok} {st} {when}")
 finally:
     sched.now_tashkent = orig_now
     cleanup()

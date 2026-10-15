@@ -1,14 +1,36 @@
+import { useEffect, useState } from 'react'
 import { useAppData } from '../AppData'
-import { Icon } from '../components/Icon'
+import { BrandMark } from '../components/BrandMark'
+import { Icon, type IconName } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
 import { Badge, Button, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
-import { useI18n } from '../i18n'
+import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
 import { isUnlimited } from './format'
+import { countdownTo, greetingKey, tipIndex, type Countdown } from './homeUtils'
+
+/** Har daqiqada yangilanadigan hozirgi vaqt (keyingi postgacha sanoq uchun). */
+function useNow(intervalMs = 30000): Date {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs)
+    return () => clearInterval(id)
+  }, [intervalMs])
+  return now
+}
+
+function Bar({ used, max }: { used: number; max: number }) {
+  if (isUnlimited(max) || max <= 0) return null
+  const pct = Math.min(100, Math.round((used / max) * 100))
+  return (
+    <div className="stat-bar" aria-hidden="true"><span style={{ width: `${pct}%` }} data-level={pct >= 100 ? 'full' : pct >= 80 ? 'high' : 'ok'} /></div>
+  )
+}
 
 export function HomePage() {
   const { me, draft, go, botUsername } = useAppData()
   const { t, formatDateTime } = useI18n()
+  const now = useNow()
 
   if (me.loading) return <Page><PageHeader title="PostAssist" /><LoadingBlock rows={4} /></Page>
   if (!me.data) {
@@ -22,16 +44,42 @@ export function HomePage() {
 
   const { user, plan, usage, posts, next_post_at: nextAt } = me.data
   const limit = (n: number) => (isUnlimited(n) ? t('common.unlimited') : String(n))
+  const planName = plan.type === 'ultra' ? t('plan.ultra') : plan.type === 'enterprise' ? t('plan.enterprise') : plan.is_pro ? t('plan.pro') : t('plan.free')
+  const cdText = (c: Countdown): string => (c.key === 'cd.hourMin'
+    ? t(c.key, { h: c.h, m: c.m }) : 'n' in c ? t(c.key, { n: c.n }) : t(c.key))
+  const next = nextAt ? new Date(nextAt) : null
+  const countdown = next ? cdText(countdownTo(next, now)) : null
+  const tip = tipIndex(now) + 1
+  const steps: Array<{ done: boolean; label: string; icon: IconName }> = [
+    { done: usage.channels > 0, label: t('home.step1'), icon: 'bot' },
+    { done: posts.sent + usage.pending_posts > 0, label: t('home.step2'), icon: 'post' },
+    { done: usage.pending_posts > 0 || posts.sent > 0, label: t('home.step3'), icon: 'clock' },
+  ]
+  const tiles: Array<{ icon: IconName; label: MessageKey; to: 'post' | 'schedule' | 'me'; primary?: boolean }> = [
+    { icon: 'post', label: 'home.goPost', to: 'post', primary: true },
+    { icon: 'calendar', label: 'home.goSchedule', to: 'schedule' },
+    { icon: 'user', label: 'home.goMe', to: 'me' },
+  ]
   return (
     <Page wide>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title="PostAssist" onRefresh={me.reload} refreshing={me.refreshing} />
-      <section aria-labelledby="hello" className="card hero">
-        <div className="card-row">
-          <h2 id="hello">{user.name ? t('home.hello', { name: user.name }) : t('home.helloAnon')}</h2>
-          <Badge pro={plan.is_pro}>{plan.is_pro ? t('plan.pro') : t('plan.free')}</Badge>
+
+      <section aria-labelledby="hello" className="card hero hero-wow">
+        <div className="hero-glow" aria-hidden="true" />
+        <div className="hero-top">
+          <div className="hero-text">
+            <p className="hero-kicker">{t(greetingKey(now.getHours()))}</p>
+            <h2 id="hello">{user.name ? t('home.hello', { name: user.name }) : t('home.helloAnon')}</h2>
+            <p className="lead">{t('home.subtitle')}</p>
+          </div>
+          <div className="hero-mark" aria-hidden="true"><BrandMark /></div>
         </div>
-        <p className="lead">{t('home.subtitle')}</p>
+        <div className="hero-chips">
+          <Badge pro={plan.is_pro}>{planName}</Badge>
+          <span className="chip chip-glass">{t('home.heroChannels', { n: usage.channels })}</span>
+        </div>
+        <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => go('post')}>{t('home.ctaNew')}</Button>
       </section>
 
       {draft.data?.draft && (
@@ -42,21 +90,56 @@ export function HomePage() {
         </section>
       )}
 
-      <div className="stats">
+      <section className="card next-card" aria-labelledby="next-title">
+        <span className="next-icon" aria-hidden="true"><Icon name="clock" size={26} /></span>
+        <div className="next-body">
+          <h2 id="next-title" className="next-title">{t('home.nextTitle')}</h2>
+          {next && countdown ? (
+            <>
+              <p className="next-when">{countdown}</p>
+              <p className="muted small">{formatDateTime(nextAt!)}</p>
+            </>
+          ) : (
+            <>
+              <p className="muted">{t('home.nextEmpty')}</p>
+              <Button variant="secondary" icon="plus" onClick={() => go('post')}>{t('home.nextCta')}</Button>
+            </>
+          )}
+        </div>
+      </section>
+
+      <div className="stats stats-wow">
         <div className="stat"><span className="stat-label">{t('home.channels')}</span>
           <span className="stat-value">{usage.channels}</span></div>
         <div className="stat"><span className="stat-label">{t('home.scheduled')}</span>
-          <span className="stat-value">{usage.pending_posts} / {limit(plan.limits.queued_posts)}</span></div>
+          <span className="stat-value">{usage.pending_posts} / {limit(plan.limits.queued_posts)}</span>
+          <Bar used={usage.pending_posts} max={plan.limits.queued_posts} /></div>
         <div className="stat"><span className="stat-label">{t('home.sent')}</span>
           <span className="stat-value">{posts.sent}</span></div>
         <div className="stat"><span className="stat-label">{t('home.failed')}</span>
           <span className="stat-value">{posts.failed}</span></div>
         <div className="stat stat-wide"><span className="stat-label">{t('home.ai')}</span>
-          <span className="stat-value">{usage.ai_requests_today} / {limit(plan.limits.daily_ai_requests)}</span></div>
+          <span className="stat-value">{usage.ai_requests_today} / {limit(plan.limits.daily_ai_requests)}</span>
+          <Bar used={usage.ai_requests_today} max={plan.limits.daily_ai_requests} /></div>
         <div className="stat stat-wide"><span className="stat-label">{t('home.next')}</span>
           <span className="stat-value">{nextAt ? formatDateTime(nextAt) : t('home.nextNone')}</span></div>
       </div>
 
+      {posts.sent > 0 && <p className="achievement" role="status">{t('home.sentCount', { n: posts.sent })}</p>}
+
+      {usage.channels === 0 && (
+        <section className="card steps-card" aria-labelledby="steps-title">
+          <h2 id="steps-title">{t('home.stepsTitle')}</h2>
+          <ol className="steps">
+            {steps.map((s, i) => (
+              <li key={s.label} className={s.done ? 'done' : undefined}>
+                <span className="step-dot" aria-hidden="true">{s.done ? <Icon name="check" size={16} /> : i + 1}</span>
+                <span>{s.label}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
       {usage.channels === 0 && (
         <EmptyState title={t('home.noChannelsTitle')} body={t('home.noChannelsBody')}
           action={openBotAvailable(botUsername)
@@ -67,16 +150,17 @@ export function HomePage() {
       <section aria-labelledby="actions">
         <h2 id="actions" className="group-title">{t('home.actions')}</h2>
         <div className="tiles">
-          <button type="button" className="tile tile-primary" onClick={() => go('post')}>
-            <Icon name="post" size={26} />{t('home.goPost')}
-          </button>
-          <button type="button" className="tile" onClick={() => go('schedule')}>
-            <Icon name="calendar" size={26} />{t('home.goSchedule')}
-          </button>
-          <button type="button" className="tile" onClick={() => go('me')}>
-            <Icon name="user" size={26} />{t('home.goMe')}
-          </button>
+          {tiles.map((x) => (
+            <button key={x.to} type="button" className={`tile${x.primary ? ' tile-primary' : ''}`} onClick={() => go(x.to)}>
+              <Icon name={x.icon} size={26} />{t(x.label)}
+            </button>
+          ))}
         </div>
+      </section>
+
+      <section className="card tip-card" aria-labelledby="tip-title">
+        <h2 id="tip-title"><Icon name="sparkle" size={18} /> {t('home.tipTitle')}</h2>
+        <p>{t(`home.tip${tip}` as MessageKey)}</p>
       </section>
     </Page>
   )

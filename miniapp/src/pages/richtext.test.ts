@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isSafeLink, linkOpen, parseTelegramHtml, wrapSelection } from './richtext'
+import { isSafeLink, linkOpen, parseTelegramHtml, toggleFormat, wrapSelection } from './richtext'
 
 describe('wrapSelection', () => {
   it('tanlangan matnni o\'raydi va tanlovni saqlaydi', () => {
@@ -70,5 +70,37 @@ describe('parseTelegramHtml', () => {
   it('tg-spoiler va s/u/code', () => {
     const t = parseTelegramHtml('<tg-spoiler>x</tg-spoiler><s>y</s><u>z</u><code>c</code>')
     expect(t.map((n) => (n.kind === 'tag' ? n.tag : 'text'))).toEqual(['spoiler', 's', 'u', 'code'])
+  })
+})
+
+describe('toggleFormat (format tugmalari)', () => {
+  const B = ['<b>', '</b>'] as const
+  it('tanlov bo\'lmasa bo\'sh teg QOLDIRMAYDI: andoza matn teg ichida tanlanadi', () => {
+    const r = toggleFormat('ab', 1, 1, ...B, 'matn')
+    expect(r.value).toBe('a<b>matn</b>b')
+    expect(r.value.slice(r.selStart, r.selEnd)).toBe('matn')
+    expect(r.value).not.toContain('<b></b>')
+  })
+  it('tanlangan matnni o\'raydi; qayta bosilsa olib tashlaydi (tanlangan holda ham, tashqaridan ham)', () => {
+    const w = toggleFormat('Salom dunyo', 6, 11, ...B, 'x')
+    expect(w.value).toBe('Salom <b>dunyo</b>')
+    const off = toggleFormat(w.value, w.selStart, w.selEnd, ...B, 'x')
+    expect(off.value).toBe('Salom dunyo')
+    expect(off.value.slice(off.selStart, off.selEnd)).toBe('dunyo')
+    const all = toggleFormat('<b>dunyo</b>', 0, 12, ...B, 'x')
+    expect(all.value).toBe('dunyo')
+  })
+  it('kursor bo\'sh juftlik ichida: juftlik olib tashlanadi (yetim teg yo\'q)', () => {
+    expect(toggleFormat('a<b></b>c', 4, 4, ...B, 'matn').value).toBe('ac')
+  })
+  it('har xil teglar ketma-ket: ichma-ich to\'g\'ri (S, U, spoyler bo\'sh qolmaydi)', () => {
+    let v = 'x'
+    let sel = { s: 1, e: 1 }
+    for (const [o, c] of [['<s>', '</s>'], ['<u>', '</u>'], ['<tg-spoiler>', '</tg-spoiler>']] as const) {
+      const r = toggleFormat(v, sel.s, sel.e, o, c, 'matn')
+      v = r.value
+      sel = { s: r.selStart, e: r.selEnd }
+    }
+    expect(v).toBe('x<s><u><tg-spoiler>matn</tg-spoiler></u></s>')
   })
 })

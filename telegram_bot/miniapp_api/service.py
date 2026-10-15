@@ -50,13 +50,31 @@ def plan_limits() -> dict:
 
 
 def tier_catalog() -> dict:
-    """Mijozga ko'rsatiladigan tariflar (``config`` — bot bilan BIR manba): limitlar va 1 oylik narx (so'm)."""
+    """Mijozga ko'rsatiladigan tariflar (``config`` — bot bilan BIR manba): limitlar, 1 oylik narx (so'm) va barcha davrlar.
+
+    ``periods``: har davr uchun ``months``, ``days``, ``uzs``, ``stars`` va 1 oylikka nisbatan HAQIQIY tejam foizi (``save_pct``).
+    """
     import config
 
     limits = plan_limits()
+
+    def periods(tier: str) -> list[dict]:
+        keys = config.tariff_keys_for(tier)
+        base = config.TARIFF_CATALOG[keys[0]]
+        out = []
+        for key in keys:
+            info = config.TARIFF_CATALOG[key]
+            out.append({
+                "months": int(info["months"]), "days": int(info["days"]),
+                "uzs": int(info["uzs"]), "stars": int(info["stars"]),
+                "save_pct": int(config.plan_discount_percent(info["stars"], base["stars"], info["months"])),
+            })
+        return out
+
     return {
-        "pro": {"limits": limits["pro"], "price_from_uzs": int(config.TARIFF_CATALOG["1m"]["uzs"])},
-        "ultra": {"limits": limits["ultra"], "price_from_uzs": int(config.TARIFF_CATALOG["u1m"]["uzs"])},
+        "free": {"limits": limits["free"], "price_from_uzs": 0, "periods": []},
+        "pro": {"limits": limits["pro"], "price_from_uzs": int(config.TARIFF_CATALOG["1m"]["uzs"]), "periods": periods("pro")},
+        "ultra": {"limits": limits["ultra"], "price_from_uzs": int(config.TARIFF_CATALOG["u1m"]["uzs"]), "periods": periods("ultra")},
     }
 
 
@@ -193,6 +211,16 @@ class MiniAppService:
             if row is None:
                 raise ApiError("not_found")
             return {**row, "scheduled_time": iso_utc(row["scheduled_time"])}
+
+        return await self._authorized(user_id, query)
+
+    async def post_media_ref(self, user_id: int, post_id: int) -> dict:
+        """Ichki: postning ``post_type``/``file_id`` si (egasi bo'yicha; mijozga QAYTARILMAYDI)."""
+        def query(cur, _account):
+            ref = repo.get_post_media_ref(cur, user_id, post_id)
+            if ref is None:
+                raise ApiError("not_found")
+            return ref
 
         return await self._authorized(user_id, query)
 

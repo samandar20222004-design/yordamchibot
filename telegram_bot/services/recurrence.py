@@ -9,6 +9,7 @@
 ``daily``          —                                               har kuni ``recurrence_time`` da
 ``weekly``         0..6 (dushanba=0)                               haftada bir marta, shu kuni
 ``interval``       2..30                                           har N kunda (``recurrence_time`` da)
+``twice``          0..1439 (ikkinchi vaqt, kun boshidan daqiqa)    har kuni IKKI vaqtda: ``recurrence_time`` (erta) va ``recurrence_day`` (kech)
 ``weekdays``       1..127 bitmask (bit i = hafta kuni i)           tanlangan hafta kunlari (dam olish, ish kunlari...)
 =================  ==============================================  =====================================
 
@@ -24,7 +25,7 @@ import pytz
 
 TASHKENT = pytz.timezone("Asia/Tashkent")
 
-RECURRING_TYPES = ("daily", "weekly", "interval", "weekdays")
+RECURRING_TYPES = ("daily", "weekly", "interval", "weekdays", "twice")
 INTERVAL_MIN_DAYS = 2
 INTERVAL_MAX_DAYS = 30
 WEEKEND_MASK = (1 << 5) | (1 << 6)            # shanba + yakshanba
@@ -87,6 +88,9 @@ def normalize_recurrence(rtype, rday, rtime):
         if rday == 1:
             return "daily", None, t
         return "interval", rday, t
+    if rtype == "twice":
+        first, second = twice_times(t, rday)
+        return "twice", time_to_minutes(second), first
     # weekdays
     if isinstance(rday, bool) or not isinstance(rday, int) or not 1 <= rday <= ALL_DAYS_MASK:
         raise ValueError("day")
@@ -96,6 +100,25 @@ def normalize_recurrence(rtype, rday, rtime):
     if len(days) == 1:
         return "weekly", days[0], t
     return "weekdays", rday, t
+
+
+def minutes_to_time(minutes: int) -> time:
+    return time(int(minutes) // 60, int(minutes) % 60)
+
+
+def time_to_minutes(t: time) -> int:
+    return t.hour * 60 + t.minute
+
+
+def twice_times(rtime, rday) -> tuple[time, time]:
+    """``twice`` turi: (erta vaqt, kech vaqt). Yaroqsiz -> ValueError."""
+    t1 = _as_time(rtime)
+    if isinstance(rday, bool) or not isinstance(rday, int) or not 0 <= rday <= 1439:
+        raise ValueError("day")
+    t2 = minutes_to_time(rday)
+    if t1 == t2:
+        raise ValueError("day")
+    return (t1, t2) if t1 < t2 else (t2, t1)
 
 
 def _at(date_moment: datetime, t: time) -> datetime:
@@ -131,6 +154,20 @@ def next_extended_occurrence(rtype, rday, rtime, now: datetime):
     return None
 
 
+def next_twice_occurrence(rtime, rday, now: datetime):
+    """``twice`` uchun ``now`` DAN KEYINGI chiqish: bugungi qolgan vaqt, bo'lmasa ertangi birinchi."""
+    first, second = twice_times(rtime, rday)
+    if now.tzinfo is None:
+        now = TASHKENT.localize(now)
+    now = now.astimezone(TASHKENT)
+    for k in (0, 1):
+        for slot in (first, second):
+            cand = _day_shift(_at(now, slot), k)
+            if cand > now:
+                return cand
+    return None
+
+
 def first_occurrence(rtype, rday, rtime, start: datetime):
     """Yaratish paytida BIRINCHI chiqish: ``start`` dan (kiritilgan) boshlab eng yaqin mos vaqt.
 
@@ -143,6 +180,14 @@ def first_occurrence(rtype, rday, rtime, start: datetime):
     start = start.astimezone(TASHKENT)
     if rtype in ("daily", "interval"):
         return start
+    if rtype == "twice":
+        first, second = twice_times(t, rday)
+        for k in (0, 1):
+            for slot in (first, second):
+                cand = _day_shift(_at(start, slot), k)
+                if cand >= start:
+                    return cand
+        return None
     mask = (1 << int(rday)) if rtype == "weekly" else int(rday)
     for k in range(0, 8):
         cand = _day_shift(_at(start, t), k)

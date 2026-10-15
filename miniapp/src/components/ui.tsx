@@ -3,7 +3,6 @@ import { ApiClientError } from '../api/client'
 import { closeApp, isValidBotUsername, openBot } from '../telegram'
 import { useI18n, type MessageKey } from '../i18n'
 import { Icon, type IconName } from './Icon'
-import { BrandMark } from './BrandMark'
 
 export function Button({
   variant = 'secondary', busy = false, block = false, icon, children, className, ...rest
@@ -38,20 +37,6 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
       {Array.from({ length: rows }, (_, i) => (
         <Skeleton key={i} height={i === 0 ? 22 : 16} width={i === 0 ? '55%' : `${90 - i * 12}%`} />
       ))}
-    </div>
-  )
-}
-
-export function Splash() {
-  const { t } = useI18n()
-  return (
-    <div className="splash" role="status" aria-busy="true" aria-live="polite">
-      <span className="sr-only">{t('common.loading')}</span>
-      <div className="splash-logo">
-        <BrandMark />
-      </div>
-      <div className="splash-name" aria-hidden="true">PostAssist</div>
-      <div className="splash-dots" aria-hidden="true"><i /><i /><i /></div>
     </div>
   )
 }

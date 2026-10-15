@@ -9,9 +9,20 @@ export interface PlanLimits {
 }
 
 /** Mijozga ko'rsatiladigan tarif: limitlar va 1 oylik narx (so'm) — server (config) bilan bir manba. */
+export interface TierPeriod {
+  months: number
+  days: number
+  uzs: number
+  stars: number
+  /** 1 oylikka nisbatan HAQIQIY tejam (butun foiz). */
+  save_pct: number
+}
+
 export interface TierInfo {
   limits: PlanLimits
   price_from_uzs: number
+  /** Davrlar (1/3/6/12 oy); FREE uchun bo'sh. */
+  periods: TierPeriod[]
 }
 
 export interface Plan {
@@ -34,7 +45,7 @@ export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads
 export interface Me {
   user: { id: number; name: string | null; username: string | null; language: Lang }
   plan: Plan
-  tiers?: { pro: TierInfo; ultra: TierInfo }
+  tiers?: { free?: TierInfo; pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
   next_post_at: string | null
@@ -98,8 +109,13 @@ export interface ScheduledPost {
   /** Takrorlanish tafsiloti (Toshkent vaqti): interval -> kunlar soni, weekdays -> hafta kunlari bitmaski, weekly -> 0..6. */
   recurrence_day?: number | null
   recurrence_time?: string | null
+  /** `twice` uchun ikkinchi vaqt (HH:MM). */
+  recurrence_time2?: string | null
   /** Faqat bitta postni olishda (tahrirlash uchun to'liq matn); ro'yxatda yo'q. */
   text?: string
+  /** Faqat bitta postni olishda: inline tugma. */
+  button_text?: string | null
+  button_url?: string | null
 }
 
 export interface ScheduledPage {
@@ -169,13 +185,26 @@ export interface CreatePostInput {
   recurrence?: RecurrenceInput
 }
 
-export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays'
+export interface UpdatePostInput {
+  text?: string
+  scheduled_at?: string
+  /** Ikkalasi ham bo'sh satr = tugmani olib tashlash. */
+  button_text?: string
+  button_url?: string
+  /** Takrorlanuvchi postning kun vaqti (HH:MM) va kuniga ikkinchi vaqt (HH:MM; bo'lmasa bitta vaqt). */
+  recurrence_time?: string
+  recurrence_time2?: string
+}
+
+export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays' | 'twice'
 
 /** `time` — Toshkent vaqti (HH:MM); `day`: daily -> null, weekly -> 0..6, interval -> 2..30, weekdays -> bitmask 1..127 (Du=1). */
 export interface RecurrenceInput {
   type: RecurrenceType
   day: number | null
   time: string
+  /** Faqat `twice` (kuniga ikki vaqt: ertalab va kechqurun): ikkinchi vaqt (HH:MM). */
+  time2?: string
 }
 
 export interface ScheduleProposal {

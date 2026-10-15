@@ -1018,6 +1018,11 @@ def _build_preview_text(context) -> str:
     if recurrence_type == "daily" and recurrence_time_str:
         when_text = get_text("np_confirm_time_daily", lang,
                              time=format_time(recurrence_time_str, lang))
+    elif recurrence_type == "twice" and recurrence_time_str and recurrence_day is not None:
+        from services.recurrence import minutes_to_time
+
+        when_text = get_text("np_confirm_time_twice", lang, time=format_time(recurrence_time_str, lang),
+                             time2=format_time(minutes_to_time(recurrence_day), lang))
     elif recurrence_type == "weekly" and recurrence_time_str:
         when_text = get_text("np_confirm_time_weekly", lang,
                              day=weekday_label(recurrence_day, lang),

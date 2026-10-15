@@ -27,7 +27,7 @@ import database as db
 from services.delivery import delivery_service
 from services import lifecycle_service as lifecycle
 from services import event_tracker
-from services.recurrence import RECURRING_TYPES, next_extended_occurrence
+from services.recurrence import RECURRING_TYPES, next_extended_occurrence, next_twice_occurrence
 from services.cleanup_service import cleanup_old_records
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
@@ -650,6 +650,14 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
             days_ahead = 7
         next_dt = _replace_tashkent(now, recurrence_time.hour, recurrence_time.minute)
         return _shift_tashkent(next_dt, days=days_ahead)
+    elif recurrence_type == "twice":
+        # Kuniga ikki vaqt (ertalab va kechqurun): recurrence_time = erta vaqt, recurrence_day = kech vaqt (daqiqa).
+        if recurrence_day is None:
+            return None
+        try:
+            return next_twice_occurrence(recurrence_time, recurrence_day, now)
+        except (TypeError, ValueError):
+            return None
     elif recurrence_type in ("interval", "weekdays"):
         # Mini App / AI rejalash: har N kunda, tanlangan hafta kunlari (services/recurrence.py).
         if recurrence_day is None:

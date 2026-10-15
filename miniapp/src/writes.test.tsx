@@ -258,7 +258,8 @@ describe('Reja: tahrirlash, bekor qilish, tarix', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Tahrirlash' })[1])
     await screen.findByLabelText('Post matni')
     expect(screen.queryByLabelText('Sana va vaqt')).toBeNull()
-    expect(screen.getByText(/Takrorlanuvchi postning vaqtini botda/)).toBeTruthy()
+    expect(screen.getByLabelText(/Chiqish vaqti/)).toBeTruthy()
+    expect(screen.getByText(/Takrorlanish turini/)).toBeTruthy()
   })
 
   it('tarix: status=history so\'raladi, holat nishoni ko\'rinadi, amallar tugmasi yo\'q', async () => {
@@ -296,7 +297,8 @@ describe('Bosh va Men', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(nav(/^Men/))
-    fireEvent.click(await screen.findByRole('button', { name: 'Русский' }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Til/ })).find((b) => b.classList.contains('set-row'))!)
+    fireEvent.click(await screen.findByRole('button', { name: /Русский/ }))
     expect(await screen.findByText('Язык сохранён.')).toBeTruthy()
     expect(body(calls(f, 'PATCH', '/me/settings')[0])).toEqual({ language: 'ru' })
     await waitFor(() => expect(document.documentElement.lang).toBe('ru')) // lang atributi useEffect orqali yangilanadi
@@ -307,7 +309,8 @@ describe('Bosh va Men', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(nav(/^Men/))
-    fireEvent.click(await screen.findByRole('button', { name: 'English' }))
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Til/ })).find((b) => b.classList.contains('set-row'))!)
+    fireEvent.click(await screen.findByRole('button', { name: /English/ }))
     expect(await screen.findByText(/Saqlab bo'lmadi/)).toBeTruthy()
     expect(document.documentElement.lang).toBe('uz')
   })
