@@ -27,7 +27,7 @@ export function PostPreview({ channelTitle, html, media, buttonText }: {
     <section className="card preview" aria-labelledby="preview-title">
       <div className="card-row">
         <h2 id="preview-title">{t('post.preview.title')}</h2>
-        <span className="badge">{channelTitle}</span>
+        <span className="badge badge-truncate" title={channelTitle}>{channelTitle}</span>
       </div>
       <div className="bubble">
         {media && (
