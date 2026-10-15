@@ -156,6 +156,15 @@ button, .btn, .chip, .badge, legend, label, h1, h2, h3, dt { overflow-wrap: norm
 .ai-card[open] > summary { margin-bottom: var(--s3); }
 .ai-card > summary h2::after { content: '▾'; float: right; color: var(--hint); }
 .ai-card:not([open]) > summary h2::after { content: '▸'; }
+.tpl-count { margin-left: var(--s2); font-size: 0.8125rem; font-weight: 600; color: var(--hint); }
+.tpl-list { list-style: none; margin: 0 0 var(--s3); padding: 0; display: grid; gap: var(--s2); }
+.tpl-item { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); min-width: 0; }
+.tpl-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.tpl-name, .tpl-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tpl-snippet { font-size: 0.8125rem; }
+.tpl-actions { display: flex; align-items: center; gap: var(--s1); flex: 0 0 auto; }
+.tpl-save-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s2); align-items: center; }
+.editor-tools { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; margin: var(--s2) 0; }
 
 /* --- Bosh sahifa: kirish bloki, qoralama chaqirig'i, tezkor plitkalar --- */
 .hero { background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #6a5cff)); color: var(--on-accent); border: 0; }

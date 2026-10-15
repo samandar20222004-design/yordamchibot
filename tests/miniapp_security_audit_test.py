@@ -231,26 +231,28 @@ def test_all_routes_require_auth():
     app, api = api_app(lim, load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                                            "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"}))
     routes = sorted({(r.method, r.resource.canonical) for r in api.router.routes() if r.method != "HEAD"})
-    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
+    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("DELETE", "/api/v1/templates/{template_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
                 ("GET", "/api/v1/draft"), ("GET", "/api/v1/draft/media"), ("GET", "/api/v1/health"),
                 ("GET", "/api/v1/me"), ("GET", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/scheduled-posts"),
-                ("GET", "/api/v1/scheduled-posts/calendar"),
+                ("GET", "/api/v1/scheduled-posts/calendar"), ("GET", "/api/v1/templates"),
                 ("PATCH", "/api/v1/me/settings"), ("PATCH", "/api/v1/posts/{post_id}"),
-                ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/posts"), ("POST", "/api/v1/schedule/parse")]
+                ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/posts"), ("POST", "/api/v1/schedule/parse"),
+                ("POST", "/api/v1/templates"), ("POST", "/api/v1/tools/clean")]
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
     for method, canonical in routes:
-        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890")
+        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890").replace("{template_id}", "1")
         st, body = run(fetch(app, path, method=method) if method != "GET" else fetch(app, path))
         if path.endswith("/health"):
             T.check("/health auth'siz 200", st == 200)
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 7, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 10, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
-            ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True}, str(ai_flags))
+            ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,
+                         "/api/v1/templates": False, "/api/v1/tools/clean": False}, str(ai_flags))
     methods = {r.method for r in api.router.routes()}
     T.check("faqat ruxsat etilgan usullar ulangan (PUT yo'q)", methods <= {"GET", "HEAD", "POST", "PATCH", "DELETE"}, str(methods))
     T.check("DB'ga auth'siz tegilmadi", CountingRunner.calls == 0)

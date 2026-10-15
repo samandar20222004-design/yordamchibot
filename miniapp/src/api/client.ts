@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, CleanResult, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseCalendar, parseDeleted, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
+  parseCalendar, parseClean, parseDeleted, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -11,7 +11,7 @@ const KNOWN_CODES: readonly string[] = [
   'service_unavailable', 'auth_unavailable',
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
-  'ai_unavailable', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
+  'ai_unavailable', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
 ]
 
 export class ApiClientError extends Error {
@@ -179,6 +179,13 @@ export function createApiClient(opts: ClientOptions) {
       send('DELETE', `/posts/${encodeURIComponent(String(id))}`, undefined, parseCancelled),
     setLanguage: (language: Lang): Promise<{ language: Lang }> =>
       send('PATCH', '/me/settings', { language }, parseLanguage),
+    templates: (signal?: AbortSignal): Promise<TemplateList> => get('/templates', parseTemplates, signal),
+    saveTemplate: (name: string, text: string): Promise<{ id: number; created: boolean }> =>
+      send('POST', '/templates', { name, text }, parseTemplateSaved),
+    deleteTemplate: (id: number): Promise<{ id: number }> =>
+      send('DELETE', `/templates/${encodeURIComponent(String(id))}`, undefined, parseTemplateDeleted),
+    /** Matn oxiridagi begona havola/reklama qatorlarini olib, saqlangan imzoni qo'shadi (hech narsa yozilmaydi). */
+    cleanText: (text: string): Promise<CleanResult> => send('POST', '/tools/clean', { text }, parseClean),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>
       send('POST', '/ai/generate', { text, style }, parseAi, config.aiTimeoutMs),
   }

@@ -137,6 +137,11 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "AI сейчас не смог ответить. Лимит возвращён, попробуйте чуть позже.",
         "en": "The AI could not respond right now. Your limit was refunded; please try again shortly.",
     }),
+    "templates_limit_reached": (403, {
+        "uz": "Shablonlar limiti to'ldi. Keraksizini o'chirib, qayta urinib ko'ring.",
+        "ru": "Лимит шаблонов исчерпан. Удалите ненужный и попробуйте снова.",
+        "en": "The templates limit is reached. Delete one you no longer need and try again.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

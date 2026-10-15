@@ -202,6 +202,34 @@ async def settings_update_handler(request: web.Request):
     return web.json_response(data)
 
 
+async def templates_handler(request: web.Request):
+    data = await request.app[_K_WRITER].list_templates(request["user_id"])
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def template_create_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    data = await request.app[_K_WRITER].create_template(request["user_id"], body)
+    return web.json_response(data, status=201 if data["created"] else 200)
+
+
+@_write
+async def template_delete_handler(request: web.Request):
+    raw = request.match_info.get("template_id", "")
+    if not _INT_RE.match(raw) or int(raw) <= 0:
+        raise ApiError("not_found")
+    data = await request.app[_K_WRITER].delete_template(request["user_id"], int(raw))
+    return web.json_response(data)
+
+
+@_write
+async def clean_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    data = await request.app[_K_WRITER].clean_text(request["user_id"], body)
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
 @_ai
 async def ai_generate_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
@@ -347,6 +375,10 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_patch("/me/settings", settings_update_handler)
     api.router.add_post("/ai/generate", ai_generate_handler)
     api.router.add_post("/schedule/parse", schedule_parse_handler)
+    api.router.add_get("/templates", templates_handler)
+    api.router.add_post("/templates", template_create_handler)
+    api.router.add_delete("/templates/{template_id}", template_delete_handler)
+    api.router.add_post("/tools/clean", clean_handler)
     return api
 
 

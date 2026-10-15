@@ -8,6 +8,7 @@ import { PostPreview } from '../components/PostPreview'
 import { RepeatPicker } from '../components/RepeatPicker'
 import { Page, PageHeader } from '../components/Shell'
 import { SmartSchedule } from '../components/SmartSchedule'
+import { TemplatesCard } from '../components/TemplatesCard'
 import { Button, EmptyState, ErrorState, FormError, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
 import { config } from '../config'
 import { useDraftPhoto } from '../hooks/useDraftPhoto'
@@ -74,6 +75,8 @@ export function PostPage() {
   const [discard, setDiscard] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [aiOpen, setAiOpen] = useState<boolean | null>(null)
+  const [cleaning, setCleaning] = useState(false)
+  const [cleanBackup, setCleanBackup] = useState<string | null>(null)
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -264,6 +267,29 @@ export function PostPage() {
     }
   }
 
+  /** Matn oxiridagi begona havola/reklamani olib, saqlangan imzoni qo'shadi; natija «Qaytarish» bilan bekor qilinadi. */
+  const cleanUp = async () => {
+    const source = text
+    if (!source.trim() || cleaning) return
+    setCleaning(true)
+    try {
+      const out = await client.cleanText(source)
+      if (!out.changed) {
+        notify(out.has_signature ? t('clean.nothing') : `${t('clean.nothing')} ${t('clean.noSig')}`)
+        return
+      }
+      setText(out.text)
+      setCleanBackup(source)
+      setFieldError(null)
+      const parts = [out.removed_lines > 0 ? t('clean.done', { n: out.removed_lines }) : '', out.signature_added ? t('clean.sig') : '']
+      notify(parts.filter(Boolean).join(' '))
+    } catch (e) {
+      notify(t(errorMessageKey(toClientError(e).code)), 'error')
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   const discardDraft = async () => {
     setDiscarding(true)
     try {
@@ -380,9 +406,16 @@ export function PostPage() {
           )}
           <textarea id="text" ref={textRef} className="input editor" rows={media ? 5 : 8} value={text} maxLength={textMax}
             placeholder={t('post.textPlaceholder')} aria-invalid={fieldError?.field === 'text' || undefined}
-            onChange={(e) => { setText(e.target.value); setFieldError(null) }}
+            onChange={(e) => { setText(e.target.value); setFieldError(null); setCleanBackup(null) }}
             onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
             onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
+          <div className="editor-tools">
+            <Button variant="secondary" icon="sparkle" busy={cleaning} disabled={!text.trim()} onClick={() => void cleanUp()}
+              title={t('clean.hint')}>{t('clean.btn')}</Button>
+            {cleanBackup !== null && (
+              <Button variant="ghost" onClick={() => { setText(cleanBackup); setCleanBackup(null) }}>{t('clean.undo')}</Button>
+            )}
+          </div>
           <p className="muted" aria-live="off">
             {t('post.counter', { n: text.length, max: textMax })}
             {media && <> · {t('post.captionLimit', { max: CAPTION_MAX })}</>}
@@ -456,6 +489,8 @@ export function PostPage() {
           <p className="muted">{t('post.queue', { used: usage.pending_posts, limit: limit(plan.limits.queued_posts) })}</p>
         </div>
       </form>
+
+      <TemplatesCard text={text} onApply={(tpl) => { setText(tpl); setFieldError(null); setCleanBackup(null) }} />
 
       <details className="card ai-card" open={aiIsOpen} onToggle={(e) => setAiOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary><h2 id="ai">{t('post.ai.title')}</h2></summary>

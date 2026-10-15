@@ -34,6 +34,8 @@ MAX_POST_CHARS = 4096          # Telegram matn limiti (utf-16 birligida ham teks
 MAX_CAPTION_CHARS = 1024       # Telegram: rasm/video/... ostidagi matn (scheduler ham shu bilan kesadi: TELEGRAM_CAPTION_LIMIT)
 MAX_BUTTON_TEXT = 64           # inline tugma yorlig'i (bot: handlers.post_enhancer.BTN_TEXT_MAX)
 MAX_BUTTON_URL = 2000          # inline tugma havolasi (bot validatori utils.helpers.validate_button_url: <=2048)
+MAX_TEMPLATES = 20             # repositories.posts_repository.POST_TEMPLATES_LIMIT
+MAX_TEMPLATE_NAME = 64
 MAX_AI_INPUT_CHARS = 3500      # generate_magic_post kirish chegarasi
 MIN_LEAD_SECONDS = 60
 MAX_LEAD_DAYS = 366
@@ -470,6 +472,51 @@ class PostWriter:
         if not ok:
             raise ApiError("not_editable")  # poyga: shu orada yuborilib/bekor qilingan
         return {"id": post_id, "status": "cancelled"}
+
+    # ---------------------------------------------------------------- shablonlar
+    async def list_templates(self, user_id: int) -> dict:
+        await self._service.authorize(user_id)
+        rows = await self._blocking(self._posts_repo().get_post_templates, user_id, MAX_TEMPLATES)
+        return {"items": [{"id": r["id"], "name": r["name"], "text": r["content"], "created_at": r["created_at"]}
+                          for r in rows], "limit": MAX_TEMPLATES}
+
+    async def create_template(self, user_id: int, body: dict) -> dict:
+        _only_keys(body, ("name", "text"))
+        name = parse_text(body.get("name"), "name", max_chars=MAX_TEMPLATE_NAME)
+        text = parse_text(body.get("text"), "text", max_chars=MAX_POST_CHARS)
+        await self._service.authorize(user_id)
+        posts = self._posts_repo()
+        async with self._user_lock(user_id):
+            existing = await self._blocking(posts.get_post_templates, user_id, MAX_TEMPLATES)
+            if len(existing) >= MAX_TEMPLATES:
+                raise ApiError("templates_limit_reached")
+            if any(r["name"] == name and r["content"] == text for r in existing):
+                return {"id": next(r["id"] for r in existing if r["name"] == name and r["content"] == text), "created": False}
+            new_id = await self._blocking(posts.create_post_template, user_id, name, text)
+        if not new_id:
+            raise ApiError("save_failed", retry_after=5)
+        return {"id": int(new_id), "created": True}
+
+    async def delete_template(self, user_id: int, template_id: int) -> dict:
+        await self._service.authorize(user_id)
+        ok = await self._blocking(self._posts_repo().delete_post_template, template_id, user_id)
+        if not ok:
+            raise ApiError("not_found")
+        return {"id": template_id, "deleted": True}
+
+    # ---------------------------------------------------------------- tozalagich
+    async def clean_text(self, user_id: int, body: dict) -> dict:
+        """Matn oxiridagi begona havola/reklama qatorlarini olib, saqlangan imzoni qo'shadi (hech narsa yozilmaydi)."""
+        _only_keys(body, ("text",))
+        text = parse_text(body.get("text"), "text", max_chars=MAX_POST_CHARS)
+        await self._service.authorize(user_id)
+        signature = await self._blocking(self._users_repo().get_user_post_signature_html, user_id)
+        from services.post_cleaner import clean_editor_html
+
+        result = clean_editor_html(text, signature or "")
+        return {"text": result.html, "removed_lines": result.removed_lines,
+                "signature_added": result.signature_added, "has_signature": bool(signature),
+                "changed": result.html.strip() != text.strip()}
 
     # ------------------------------------------------------------------- sozlamalar
     async def set_language(self, user_id: int, body: dict) -> dict:

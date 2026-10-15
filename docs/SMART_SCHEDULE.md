@@ -45,3 +45,12 @@ Takrorlanish vaqti Toshkent bo'yicha; qurilma boshqa zonada bo'lsa interfeys bun
   admin — cheksiz. Bron ovozni matnga o'girishdan OLDIN (atomik); yuklash/STT xatosi yoki vaqt aniqlanmasa bron **qaytariladi**; DB xatosida rad (fail-closed).
   Natija doim tasdiq kartasida ko'rsatiladi — foydalanuvchi tasdiqlamaguncha hech narsa rejalanmaydi.
 - Post botga yuborilgach (o'ziniki yoki boshqa kanaldan forward) davom etish: botda yoki «📱 Mini App'da» tugmasi (qoralama) — Mini App yoqilgan bo'lsa.
+
+## Mini App: botdagi qo'shimcha funksiyalar (muharrirda)
+- **📋 Shablonlar** — botdagi shablonlar bilan BIR XIL ro'yxat (`post_templates`, 20 tagacha). `GET/POST /api/v1/templates`, `DELETE /templates/{id}`;
+  faqat egasi (begona id -> 404), aynan bir xil takror yaratilmaydi, limit -> `templates_limit_reached`. Kartada: saqlash, «Qo'llash»
+  (muharrirda matn bo'lsa almashtirish tasdiqlanadi), o'chirish (tasdiq bilan). Ro'yxat faqat karta ochilganda yuklanadi.
+- **🧹 Tozalash** — `POST /api/v1/tools/clean`: matn oxiridagi begona havola/reklama qatorlarini olib, botda (`/cleaner`) saqlangan imzoni qo'shadi
+  (formatlash saqlanadi, takror tozalash natijani o'zgartirmaydi). Mijoz imzo yubora olmaydi; hech narsa yozilmaydi; «Qaytarish» tugmasi asl matnni tiklaydi.
+- Imzoni sozlash hozircha faqat botda. To'lov, kanal ulash/o'chirish, RSS, Autopilot, rasm/ovozdan post — botda qoladi (to'lov va kanal huquqini
+  tekshirish Telegram ichida xavfsizroq).
