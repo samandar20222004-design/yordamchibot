@@ -43,7 +43,7 @@ export function MePage() {
   const refresh = () => { me.reload(); channels.reload() }
   if (statsFor) return <ChannelStatsView channelId={statsFor.id} title={statsFor.title} onBack={() => setStatsFor(null)} />
   const displayName = user.name || user.username || t('common.none')
-  const perks = (['me.perk1', 'me.perk2', 'me.perk3', 'me.perk4'] as const)
+  const perks = (['me.perk1', 'me.perk2', 'me.perk3', 'me.perk4', 'me.perk5'] as const)
   return (
     <Page>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
