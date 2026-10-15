@@ -173,6 +173,17 @@ class MiniAppService:
 
         return await self._authorized(user_id, query)
 
+    async def calendar(self, user_id: int, start, end) -> dict:
+        """Kalendar: [start, end) oralig'idagi kutilayotgan postlar (kunlarga bo'lishni mijoz o'z zonasida qiladi)."""
+        def query(cur, _account):
+            rows = repo.list_posts_between(cur, user_id, start, end)
+            truncated = len(rows) > repo.CALENDAR_LIMIT
+            items = [{**row, "scheduled_time": iso_utc(row["scheduled_time"])}
+                     for row in rows[:repo.CALENDAR_LIMIT]]
+            return {"items": items, "truncated": truncated, "from": iso_utc(start), "to": iso_utc(end)}
+
+        return await self._authorized(user_id, query)
+
     async def post(self, user_id: int, post_id: int) -> dict:
         def query(cur, _account):
             row = repo.get_post(cur, user_id, post_id)

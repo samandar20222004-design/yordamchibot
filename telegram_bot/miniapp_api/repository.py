@@ -206,6 +206,24 @@ def list_posts(cur, user_id: int, history: bool, limit: int, offset: int) -> lis
     return [_post_dict(r) for r in cur.fetchall()]
 
 
+CALENDAR_LIMIT = 500
+
+
+def list_posts_between(cur, user_id: int, start, end, limit: int | None = None) -> list[dict]:
+    """Kutilayotgan postlar [start, end) oralig'ida (faqat egasiniki), vaqt bo'yicha o'sish tartibida.
+
+    `limit + 1` qator so'raladi: chaqiruvchi kesilganini (`truncated`) halol bildiradi.
+    """
+    limit = CALENDAR_LIMIT if limit is None else limit
+    cur.execute(
+        _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = 'pending'"
+        " AND sp.scheduled_time >= %s AND sp.scheduled_time < %s"
+        " ORDER BY sp.scheduled_time ASC, sp.id ASC LIMIT %s",
+        (PREVIEW_CHARS, user_id, start, end, limit + 1),
+    )
+    return [_post_dict(r) for r in cur.fetchall()]
+
+
 def list_pending_posts(cur, user_id: int, limit: int, offset: int) -> list[dict]:
     return list_posts(cur, user_id, False, limit, offset)
 

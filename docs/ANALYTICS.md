@@ -54,4 +54,4 @@ foydalanmaydi). Egasi tasdiqlasa, bir martalik tuzatish (ma'lumotni O'ZGARTIRADI
 
 ## Mini App
 
-`GET /api/v1/channels/{channel_id}/analytics` (faqat egasi) va «Tahlil» tabi: bot dashboardi bilan bir xil `compute_member_growth` qoidalari; ma'lumot yo'q bo'lsa "to'planmoqda" ko'rsatiladi, soxta raqam yo'q.
+`GET /api/v1/channels/{channel_id}/analytics` (faqat egasi) va «Men → Kanallarim → Tahlil» ko'rinishi: bot dashboardi bilan bir xil `compute_member_growth` qoidalari; ma'lumot yo'q bo'lsa "to'planmoqda" ko'rsatiladi, soxta raqam yo'q.

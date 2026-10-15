@@ -10,6 +10,7 @@ import { useScheduleFeed } from '../hooks/useScheduleFeed'
 import { toClientError } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
+import { CalendarView } from './CalendarView'
 import { groupByDay, isFutureEnough, isoToLocalInput, localInputToIso } from './format'
 
 const SENT = new Set(['posted', 'published', 'completed'])
@@ -140,15 +141,16 @@ function EditDialog({ post, onClose, onSaved }: {
 export function SchedulePage() {
   const { client, feed: upcoming, me, notify, botUsername } = useAppData()
   const { t, formatDate } = useI18n()
-  const [view, setView] = useState<PostFilter>('pending')
+  const [view, setView] = useState<PostFilter | 'calendar'>('pending')
+  const [calendarKey, setCalendarKey] = useState(0)
   const history = useScheduleFeed(client, view === 'history', 'history')
-  const feed = view === 'pending' ? upcoming : history
+  const feed = view === 'history' ? history : upcoming
   const [editing, setEditing] = useState<ScheduledPost | null>(null)
   const [cancelling, setCancelling] = useState<ScheduledPost | null>(null)
   const [cancelBusy, setCancelBusy] = useState(false)
   const cancelInFlight = useRef(false)
 
-  const refreshAll = () => { upcoming.reload(); if (view === 'history') history.reload(); me.reload() }
+  const refreshAll = () => { upcoming.reload(); if (view === 'history') history.reload(); setCalendarKey((k) => k + 1); me.reload() }
 
   const confirmCancel = async () => {
     if (!cancelling || cancelInFlight.current) return
@@ -171,12 +173,18 @@ export function SchedulePage() {
   const tabs = (
     <div className="segmented" role="group" aria-label={t('schedule.view')}>
       <button type="button" aria-pressed={view === 'pending'} onClick={() => setView('pending')}>{t('schedule.tabUpcoming')}</button>
+      <button type="button" aria-pressed={view === 'calendar'} onClick={() => setView('calendar')}>{t('cal.tab')}</button>
       <button type="button" aria-pressed={view === 'history'} onClick={() => setView('history')}>{t('schedule.tabHistory')}</button>
     </div>
   )
 
+  const itemFor = (p: ScheduledPost) => (
+    <PostItem key={p.id} post={p} actions={p.status === 'pending'} onEdit={setEditing} onCancel={setCancelling} />
+  )
+
   let body
-  if (feed.loading) body = <LoadingBlock rows={4} />
+  if (view === 'calendar') body = <CalendarView renderPost={itemFor} reloadKey={calendarKey} />
+  else if (feed.loading) body = <LoadingBlock rows={4} />
   else if (feed.error && feed.items.length === 0) body = <ErrorState error={feed.error} onRetry={feed.reload} botUsername={botUsername} />
   else {
     const groups = groupByDay(feed.items, (p) => p.scheduled_time)

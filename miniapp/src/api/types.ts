@@ -93,6 +93,12 @@ export interface ScheduledPage {
   has_more: boolean
 }
 
+/** Kalendar oralig'idagi kutilayotgan postlar; `truncated` = server chegarasi (500) sabab ro'yxat to'liq emas. */
+export interface CalendarData {
+  items: ScheduledPost[]
+  truncated: boolean
+}
+
 /** Server xato kodlari (telegram_bot/miniapp_api/errors.py) + mijoz tomoni kodlari. */
 export type ErrorCode =
   | 'bad_request' | 'https_required' | 'unauthorized' | 'auth_expired' | 'not_registered'

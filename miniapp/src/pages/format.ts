@@ -76,3 +76,26 @@ export function defaultScheduleValue(now: Date = new Date()): string {
   d.setMinutes(Math.ceil(d.getMinutes() / 5) * 5, 0, 0)
   return toLocalInputValue(d)
 }
+
+export interface MonthGrid {
+  /** Birinchi katak (dushanba) — mahalliy yarim tun. */
+  start: Date
+  /** Oxirgi katakdan KEYINGI mahalliy yarim tun (kalendar so'rovining `to` qiymati, kiritilmaydi). */
+  end: Date
+  /** 6 hafta x 7 kun = 42 katak (mahalliy yarim tun). */
+  days: Date[]
+}
+
+/** Oy tarmog'i: dushanbadan boshlanadi, doim 42 katak (oy almashganda balandlik sakramaydi). `month` 0-11. */
+export function monthGrid(year: number, month: number): MonthGrid {
+  const first = new Date(year, month, 1)
+  const offset = (first.getDay() + 6) % 7 // dushanba = 0
+  // Konstruktor bilan quriladi (24 soat qo'shilmaydi): yozgi/qishki vaqt o'tishida ham har katak mahalliy yarim tun.
+  const days = Array.from({ length: 42 }, (_, i) => new Date(year, month, 1 - offset + i))
+  return { start: days[0]!, end: new Date(year, month, 1 - offset + 42), days }
+}
+
+export function shiftMonth(year: number, month: number, delta: number): { year: number; month: number } {
+  const d = new Date(year, month + delta, 1)
+  return { year: d.getFullYear(), month: d.getMonth() }
+}

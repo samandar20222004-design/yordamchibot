@@ -4,13 +4,12 @@ import { useI18n, type MessageKey } from '../i18n'
 import { Icon, type IconName } from './Icon'
 import { Button } from './ui'
 
-export type Tab = 'home' | 'post' | 'schedule' | 'stats' | 'me'
+export type Tab = 'home' | 'post' | 'schedule' | 'me'
 
 export const TABS: ReadonlyArray<{ id: Tab; icon: IconName; label: MessageKey }> = [
   { id: 'home', icon: 'home', label: 'tab.home' },
   { id: 'post', icon: 'post', label: 'tab.post' },
   { id: 'schedule', icon: 'calendar', label: 'tab.schedule' },
-  { id: 'stats', icon: 'chart', label: 'tab.stats' },
   { id: 'me', icon: 'user', label: 'tab.me' },
 ]
 

@@ -2,11 +2,10 @@ import { useState } from 'react'
 import { useAppData } from '../AppData'
 import type { ChannelAnalytics, Confidence } from '../api/types'
 import { Page, PageHeader } from '../components/Shell'
-import { Badge, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
+import { Badge, ErrorState, InlineWarning, LoadingBlock } from '../components/ui'
 import { Button } from '../components/ui'
 import { useResource } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
-import { openBot } from '../telegram'
 
 const CONF_KEYS: Record<Confidence, MessageKey> = {
   none: 'stats.conf.none', low: 'stats.conf.low', medium: 'stats.conf.medium', high: 'stats.conf.high',
@@ -128,41 +127,15 @@ function ChannelStats({ channelId }: { channelId: string }) {
   )
 }
 
-export function StatsPage() {
-  const { channels, botUsername } = useAppData()
+/** Bitta kanal tahlili (Men -> Kanallarim -> «Tahlil»): sarlavhada «Orqaga», yangilash tugmasi. */
+export function ChannelStatsView({ channelId, title, onBack }: { channelId: string; title: string; onBack: () => void }) {
   const { t } = useI18n()
-  const [picked, setPicked] = useState<string | null>(null)
   const [nonce, setNonce] = useState(0)
-
-  if (channels.loading) return <Page><PageHeader title={t('stats.title')} /><LoadingBlock rows={4} /></Page>
-  if (!channels.data) {
-    return <Page><PageHeader title={t('stats.title')} />
-      {channels.error && <ErrorState error={channels.error} onRetry={channels.reload} botUsername={botUsername} />}</Page>
-  }
-  const items = channels.data.items
-  if (items.length === 0) {
-    return (
-      <Page><PageHeader title={t('stats.title')} />
-        <EmptyState title={t('stats.noChannels.title')} body={t('stats.noChannels.body')}
-          action={openBotAvailable(botUsername)
-            ? <Button variant="primary" icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>
-            : undefined} />
-      </Page>
-    )
-  }
-  const current = picked !== null && items.some((c) => c.id === picked) ? picked : items[0].id
   return (
     <Page wide>
-      <PageHeader title={t('stats.title')} onRefresh={() => setNonce((n) => n + 1)} />
-      {items.length > 1 && (
-        <label className="field">
-          <span className="field-label">{t('stats.channel')}</span>
-          <select value={current} onChange={(e) => setPicked(e.target.value)}>
-            {items.map((c) => <option key={c.id} value={c.id}>{c.title || c.id}</option>)}
-          </select>
-        </label>
-      )}
-      <ChannelStats key={`${current}:${nonce}`} channelId={current} />
+      <Button variant="ghost" onClick={onBack}>‹ {t('common.back')}</Button>
+      <PageHeader title={title} onRefresh={() => setNonce((n) => n + 1)} />
+      <ChannelStats key={`${channelId}:${nonce}`} channelId={channelId} />
     </Page>
   )
 }

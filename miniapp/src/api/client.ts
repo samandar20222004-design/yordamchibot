@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseDeleted, parseDraft, parsePostResult, parseScheduled,
+  parseCalendar, parseDeleted, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -147,6 +147,9 @@ export function createApiClient(opts: ClientOptions) {
       get(`/channels/${encodeURIComponent(channelId)}/analytics`, parseChannelAnalytics, signal),
     scheduledPosts: (limit: number, offset: number, signal?: AbortSignal, status: PostFilter = 'pending'): Promise<ScheduledPage> =>
       get(`/scheduled-posts?limit=${limit}&offset=${offset}${status === 'history' ? '&status=history' : ''}`, parseScheduled, signal),
+    /** Kutilayotgan postlar [from, to) oralig'ida (ISO, zonali). */
+    calendar: (from: string, to: string, signal?: AbortSignal): Promise<CalendarData> =>
+      get(`/scheduled-posts/calendar?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, parseCalendar, signal),
     post: (id: number, signal?: AbortSignal): Promise<ScheduledPost> =>
       get(`/posts/${encodeURIComponent(String(id))}`, parsePostEnvelope, signal),
     draft: (signal?: AbortSignal): Promise<Draft | null> => get('/draft', parseDraft, signal),

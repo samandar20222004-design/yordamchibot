@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { AiResult, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -173,6 +173,11 @@ export function parseScheduled(v: unknown): ScheduledPage {
     offset: int(o.offset, 'offset'),
     has_more: bool(o.has_more, 'has_more'),
   }
+}
+
+export function parseCalendar(v: unknown): CalendarData {
+  const o = rec(v, 'calendar')
+  return { items: arr(o.items, 'items').map(parsePost), truncated: bool(o.truncated, 'truncated') }
 }
 
 export function parsePostEnvelope(v: unknown): ScheduledPost {
