@@ -98,7 +98,7 @@ class Cursor:
             mine = sorted([p for p in m.posts if p["owner"] == uid and p["status"] == "pending"],
                           key=lambda p: (p["time"], p["id"]))[off: off + lim]
             self._rows = [(p["id"], p["channel_id"], p.get("title"), "text", p["content"][:200],
-                           False, p["time"], p["id"], "none", "pending") for p in mine]
+                           False, p["time"], p["id"], "none", "pending", None, None) for p in mine]   # haqiqiy SELECT: 12 ustun
         else:
             raise AssertionError("kutilmagan SQL: " + s)
 

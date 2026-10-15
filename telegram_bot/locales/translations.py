@@ -1224,6 +1224,10 @@ TRANSLATIONS = {
         "pend_update_fail": "❌ O'zgartirib bo'lmadi.",
         "pend_schedule_daily": "🔁 <b>Har kuni</b>, soat <b>{time}</b> da",
         "pend_schedule_weekly": "📅 <b>Har {day}</b>, soat <b>{time}</b> da",
+        "pend_schedule_interval": "🔁 <b>Har {n} kunda</b>, soat <b>{time}</b> da",
+        "pend_schedule_weekdays": "📅 <b>{days}</b> kunlari, soat <b>{time}</b> da",
+        "rec_weekends": "dam olish",
+        "rec_workdays": "ish",
         "pend_schedule_once": "⏰ Vaqti: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Vaqti: Noma'lum",
 
@@ -3374,6 +3378,10 @@ TRANSLATIONS = {
         "pend_update_fail": "❌ Не удалось изменить.",
         "pend_schedule_daily": "🔁 <b>Ежедневно</b>, в <b>{time}</b>",
         "pend_schedule_weekly": "📅 <b>Каждый {day}</b>, в <b>{time}</b>",
+        "pend_schedule_interval": "🔁 <b>Каждые {n} дн.</b>, в <b>{time}</b>",
+        "pend_schedule_weekdays": "📅 <b>{days}</b>, в <b>{time}</b>",
+        "rec_weekends": "По выходным",
+        "rec_workdays": "По будням",
         "pend_schedule_once": "⏰ Время: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Время: не указано",
 

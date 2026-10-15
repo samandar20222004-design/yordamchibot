@@ -86,6 +86,9 @@ export interface ScheduledPost {
   number: number | null
   recurrence: string | null
   status: string
+  /** Takrorlanish tafsiloti (Toshkent vaqti): interval -> kunlar soni, weekdays -> hafta kunlari bitmaski, weekly -> 0..6. */
+  recurrence_day?: number | null
+  recurrence_time?: string | null
   /** Faqat bitta postni olishda (tahrirlash uchun to'liq matn); ro'yxatda yo'q. */
   text?: string
 }
@@ -154,4 +157,23 @@ export interface CreatePostInput {
   button_text?: string
   button_url?: string
   use_draft?: boolean
+  recurrence?: RecurrenceInput
 }
+
+export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays'
+
+/** `time` — Toshkent vaqti (HH:MM); `day`: daily -> null, weekly -> 0..6, interval -> 2..30, weekdays -> bitmask 1..127 (Du=1). */
+export interface RecurrenceInput {
+  type: RecurrenceType
+  day: number | null
+  time: string
+}
+
+export interface ScheduleProposal {
+  scheduled_at: string
+  recurrence: RecurrenceInput | null
+}
+
+export type ScheduleParseResult =
+  | { ok: true; source: 'rules' | 'ai'; proposal: ScheduleProposal }
+  | { ok: false; reason: string }

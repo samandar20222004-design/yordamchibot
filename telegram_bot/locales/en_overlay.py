@@ -1456,6 +1456,10 @@ EN_OVERLAY = {
     "pend_update_fail": "❌ Could not change.",
     "pend_schedule_daily": "🔁 <b>Daily</b> at <b>{time}</b>",
     "pend_schedule_weekly": "📅 <b>Every {day}</b> at <b>{time}</b>",
+    "pend_schedule_interval": "🔁 <b>Every {n} days</b> at <b>{time}</b>",
+    "pend_schedule_weekdays": "📅 <b>{days}</b> at <b>{time}</b>",
+    "rec_weekends": "Weekends",
+    "rec_workdays": "Weekdays",
     "pend_schedule_once": "⏰ Time: <b>{time}</b>",
     "pend_schedule_unknown": "⏰ Time: unknown",
 

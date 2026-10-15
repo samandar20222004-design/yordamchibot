@@ -211,6 +211,9 @@ def _ensure_scheduler_stubs():
         sys.modules["services.lifecycle_service"] = life_mod
         sys.modules["services"] = sys.modules.get("services") or ModuleType("services")
         sys.modules["services"].lifecycle_service = life_mod
+    # services.recurrence — sof mantiq (DB/Telegram'siz): scheduler uni import qiladi, shuning uchun HAQIQIY modul yuklanadi
+    if "services.recurrence" not in sys.modules:
+        _load("services.recurrence", os.path.join(TELEGRAM_BOT_ROOT, "services", "recurrence.py"))
     # services.cleanup_service
     if "services.cleanup_service" not in sys.modules:
         clean_mod = ModuleType("services.cleanup_service")

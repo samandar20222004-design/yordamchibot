@@ -12,6 +12,7 @@ import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
 import { CalendarView } from './CalendarView'
 import { groupByDay, isFutureEnough, isoToLocalInput, localInputToIso } from './format'
+import { describeRecurrence } from './recurrence'
 
 const SENT = new Set(['posted', 'published', 'completed'])
 export function statusKey(status: string): MessageKey {
@@ -41,7 +42,7 @@ function PostItem({ post, actions, onEdit, onCancel }: {
         <span>{post.channel_title || t('schedule.unknownChannel')}</span>
         {!actions && <Badge>{t(statusKey(post.status))}</Badge>}
         {post.has_media && <Badge>{t('schedule.media')}</Badge>}
-        {repeats && <Badge>{t('schedule.repeats')}</Badge>}
+        {repeats && <Badge>{describeRecurrence({ type: post.recurrence ?? '', day: post.recurrence_day, time: post.recurrence_time }, t) ?? t('schedule.repeats')}</Badge>}
       </div>
       {actions && (
         <div className="item-actions">

@@ -5,14 +5,17 @@ import { AI_STYLES, type AiStyle, type CreatePostInput } from '../api/types'
 import { ConfirmDialog } from '../components/Dialog'
 import { Icon } from '../components/Icon'
 import { PostPreview } from '../components/PostPreview'
+import { RepeatPicker } from '../components/RepeatPicker'
 import { Page, PageHeader } from '../components/Shell'
+import { SmartSchedule } from '../components/SmartSchedule'
 import { Button, EmptyState, ErrorState, FormError, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
 import { config } from '../config'
 import { useDraftPhoto } from '../hooks/useDraftPhoto'
 import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
 import { toClientError } from '../hooks/useResource'
-import { defaultScheduleValue, isFutureEnough, isUnlimited, localInputToIso, toLocalInputValue } from './format'
+import { defaultScheduleValue, isFutureEnough, isoToLocalInput, isUnlimited, localInputToIso, toLocalInputValue } from './format'
+import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, tashkentParts, type RepeatChoice } from './recurrence'
 import { FORMATS, isSafeLink, linkOpen, wrapSelection } from './richtext'
 
 type Mode = 'schedule' | 'now'
@@ -52,6 +55,8 @@ export function PostPage() {
   const [text, setText] = useState('')
   const [mode, setMode] = useState<Mode>('schedule')
   const [when, setWhen] = useState(() => defaultScheduleValue())
+  const [repeat, setRepeat] = useState<RepeatChoice>(DEFAULT_REPEAT)
+  const [aligned, setAligned] = useState(false)
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const [error, setError] = useState<ApiClientError | null>(null)
@@ -173,6 +178,7 @@ export function PostPage() {
       }
     }
     if (mode === 'schedule' && !isFutureEnough(when)) { setFieldError({ field: 'when', key: 'post.errWhen' }); return false }
+    if (mode === 'schedule' && repeat.kind === 'weekdays' && repeat.mask === 0) { setFieldError({ field: 'when', key: 'rep.pickDay' }); return false }
     setFieldError(null)
     return true
   }
@@ -183,13 +189,17 @@ export function PostPage() {
     setBusy(true)
     setError(null)
     try {
+      const scheduledIso = localInputToIso(when) ?? ''
+      const recurrence = mode === 'schedule' && scheduledIso ? buildRecurrence(repeat, new Date(scheduledIso)) : null
       const payload: CreatePostInput = mode === 'now'
         ? { channel_id: selected, text: text.trim(), send_now: true }
-        : { channel_id: selected, text: text.trim(), scheduled_at: localInputToIso(when) ?? '' }
+        : { channel_id: selected, text: text.trim(), scheduled_at: scheduledIso, ...(recurrence ? { recurrence } : {}) }
       if (hasButton) { payload.button_text = btnText.trim(); payload.button_url = btnUrl.trim() }
       if (useDraft) payload.use_draft = true
       const result = await client.createPost(payload)
-      notify(result.created ? t(mode === 'now' ? 'post.createdNow' : 'post.created') : t('post.duplicate'))
+      notify(result.created ? t(mode === 'now' ? 'post.createdNow' : recurrence ? 'post.createdRepeat' : 'post.created') : t('post.duplicate'))
+      setRepeat(DEFAULT_REPEAT)
+      setAligned(false)
       setText('')
       setIdea('')
       setBtnText('')
@@ -275,6 +285,44 @@ export function PostPage() {
   }
 
   const quick = quickTimes(nowDate)
+  const deviceTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return '' } })()
+  const showTz = deviceTz !== '' && deviceTz !== 'Asia/Tashkent'
+
+  /** Takrorlash tanlovi o'zgarganda: hafta kunlari bo'yicha birinchi chiqish mos kunga suriladi (server shuni talab qiladi). */
+  const changeRepeat = (next: RepeatChoice) => {
+    setRepeat(next)
+    setFieldError(null)
+    const iso = localInputToIso(when)
+    if (iso && next.kind === 'weekdays' && next.mask) {
+      const moved = alignToWeekdays(new Date(iso), next.mask)
+      if (moved.getTime() !== new Date(iso).getTime()) {
+        setAligned(true)
+        setWhen(toLocalInputValue(moved))
+      }
+    } else {
+      setAligned(false)
+    }
+  }
+  const changeWhen = (value: string) => {
+    setFieldError(null)
+    const iso = localInputToIso(value)
+    if (iso && repeat.kind === 'weekdays' && repeat.mask) {
+      const moved = alignToWeekdays(new Date(iso), repeat.mask)
+      setAligned(moved.getTime() !== new Date(iso).getTime())
+      setWhen(toLocalInputValue(moved))
+    } else {
+      setAligned(false)
+      setWhen(value)
+    }
+  }
+  const applyProposal = (p: { scheduled_at: string; recurrence: Parameters<typeof choiceFromRecurrence>[0] }) => {
+    setMode('schedule')
+    setWhen(isoToLocalInput(p.scheduled_at))
+    setRepeat(choiceFromRecurrence(p.recurrence))
+    setAligned(false)
+    setFieldError(null)
+  }
+  const currentTashkentTime = (() => { const iso = localInputToIso(when); return iso ? tashkentParts(new Date(iso)).time : undefined })()
   const mediaType = media?.type ?? ''
   return (
     <Page wide>
@@ -379,11 +427,12 @@ export function PostPage() {
 
           {mode === 'schedule' ? (
             <>
+              <SmartSchedule onApply={applyProposal} defaultTime={currentTashkentTime} />
               <div className="chips" role="group" aria-label={t('post.quick.label')}>
                 {quick.map((q) => (
                   <button key={q.id} type="button" className="chip" aria-pressed={when === q.value}
                     disabled={!isFutureEnough(q.value, nowDate.getTime())}
-                    onClick={() => { setWhen(q.value); setFieldError(null) }}>
+                    onClick={() => changeWhen(q.value)}>
                     <Icon name="clock" size={16} /> {t(`post.quick.${q.id}` as MessageKey)}
                   </button>
                 ))}
@@ -391,8 +440,10 @@ export function PostPage() {
               <label className="field" htmlFor="when">{t('post.date')}</label>
               <input id="when" className="input" type="datetime-local" value={when}
                 aria-invalid={fieldError?.field === 'when' || undefined}
-                onChange={(e) => { setWhen(e.target.value); setFieldError(null) }} />
+                onChange={(e) => changeWhen(e.target.value)} />
               {fieldError?.field === 'when' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
+              <RepeatPicker value={repeat} onChange={changeRepeat} showTz={showTz} />
+              {aligned && <p className="muted small" role="status">{t('rep.aligned')}</p>}
             </>
           ) : <p className="muted">{t('post.nowHint')}</p>}
         </section>

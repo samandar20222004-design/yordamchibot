@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { AiResult, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -167,6 +167,8 @@ export function parsePost(v: unknown): ScheduledPost {
     number: p.number === null || p.number === undefined ? null : int(p.number, 'post.number'),
     recurrence: strOrNull(p.recurrence, 'post.recurrence'),
     status: str(p.status, 'post.status'),
+    ...(p.recurrence_day === undefined ? {} : { recurrence_day: intOrNull(p.recurrence_day, 'post.recurrence_day') }),
+    ...(p.recurrence_time === undefined ? {} : { recurrence_time: strOrNull(p.recurrence_time, 'post.recurrence_time') }),
   }
 }
 
@@ -179,6 +181,30 @@ export function parseScheduled(v: unknown): ScheduledPage {
     offset: int(o.offset, 'offset'),
     has_more: bool(o.has_more, 'has_more'),
   }
+}
+
+const REC_TYPES = ['daily', 'weekly', 'interval', 'weekdays'] as const
+
+function parseRecurrence(v: unknown): RecurrenceInput | null {
+  if (v === null || v === undefined) return null
+  const r = rec(v, 'recurrence')
+  const type = r.type
+  if (typeof type !== 'string' || !(REC_TYPES as readonly string[]).includes(type)) throw new ShapeError('recurrence.type')
+  const time = str(r.time, 'recurrence.time')
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) throw new ShapeError('recurrence.time')
+  return { type: type as RecurrenceInput['type'], day: intOrNull(r.day, 'recurrence.day'), time }
+}
+
+export function parseScheduleParse(v: unknown): ScheduleParseResult {
+  const o = rec(v, 'schedule')
+  if (o.ok === false) return { ok: false, reason: str(o.reason, 'reason') }
+  if (o.ok !== true) throw new ShapeError('ok')
+  const source = o.source
+  if (source !== 'rules' && source !== 'ai') throw new ShapeError('source')
+  const p = rec(o.proposal, 'proposal')
+  const at = str(p.scheduled_at, 'proposal.scheduled_at')
+  if (Number.isNaN(new Date(at).getTime())) throw new ShapeError('proposal.scheduled_at')
+  return { ok: true, source, proposal: { scheduled_at: at, recurrence: parseRecurrence(p.recurrence) } }
 }
 
 export function parseCalendar(v: unknown): CalendarData {
