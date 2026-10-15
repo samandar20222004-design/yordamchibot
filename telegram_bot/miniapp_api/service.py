@@ -1,7 +1,7 @@
 """Mini App servis qatlami: ruxsat + o'qish + javob shakli (HTTP'dan mustaqil).
 
 Har bir autentifikatsiyalangan so'rov BITTA read-only tranzaksiyada:
-foydalanuvchi qatori -> beta holati -> ruxsat qarori -> (ruxsat bo'lsa) ma'lumot.
+foydalanuvchi qatori -> ruxsat qarori -> (ruxsat bo'lsa) ma'lumot.
 PRO holati faqat ``users.plan_type`` / ``subscription_expires_at`` dan, DB vaqti
 bo'yicha hisoblanadi (``SubscriptionService.get_status`` ishlatilmaydi: u muddati
 o'tgan obunani YOZADI, bu esa o'qish tranzaksiyasi).
@@ -20,6 +20,13 @@ from .settings import MiniAppSettings
 _PRO_TYPES = ("pro", "ultra", "enterprise")
 
 
+def _is_admin(user_id: int, stored_role) -> bool:
+    """Keep write/AI role limits independent of the removed beta access gate."""
+    from services.rbac_service import ADMIN_ROLES, resolve_role
+
+    return resolve_role(user_id, stored_role) in ADMIN_ROLES
+
+
 def iso_utc(value) -> str | None:
     if value is None:
         return None
@@ -28,18 +35,6 @@ def iso_utc(value) -> str | None:
             value = value.replace(tzinfo=timezone.utc)
         return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return None
-
-
-def _config_invite_only() -> bool:
-    from services.beta_gate import _config_invite_only as fn
-
-    return fn()
-
-
-def _is_admin(user_id: int, stored_role) -> bool:
-    from services.rbac_service import ADMIN_ROLES, resolve_role
-
-    return resolve_role(user_id, stored_role) in ADMIN_ROLES
 
 
 def plan_limits() -> dict:
@@ -93,23 +88,17 @@ def _language(account: dict) -> str:
 
 class MiniAppService:
     def __init__(self, settings: MiniAppSettings, runner: ReadOnlyRunner, *,
-                 invite_only_getter=_config_invite_only, admin_check=_is_admin) -> None:
+                 admin_check=_is_admin) -> None:
         self._settings = settings
         self._runner = runner
-        self._invite_only = invite_only_getter
         self._is_admin = admin_check
 
     async def _authorized(self, user_id: int, query_fn):
-        invite_only = bool(self._invite_only())
-
         def work(cur):
             account = repo.load_account(cur, user_id)
-            beta_raw = repo.load_beta_state_raw(cur) if account else None
-            admin = bool(account) and self._is_admin(user_id, account["role"])
             decision = evaluate_access(
-                user_id, user_exists=bool(account),
+                user_exists=bool(account),
                 deleted=bool(account and account["deleted"]),
-                is_admin=admin, beta_raw=beta_raw, config_invite_only=invite_only,
             )
             if not decision.allowed:
                 return decision, None

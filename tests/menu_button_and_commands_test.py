@@ -56,7 +56,6 @@ os.environ.setdefault("ADMIN_ID", "123456789")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("PORT", "10061")
 os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("BETA_INVITE_ONLY", "false")
 
 warnings.filterwarnings("ignore")
 

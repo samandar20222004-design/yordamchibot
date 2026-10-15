@@ -70,7 +70,7 @@ Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilar
 Limitlar: yozuv `MINIAPP_RATE_WRITE_LIMIT` (30/min), AI `MINIAPP_RATE_AI_LIMIT` (4/min) — Redis limiter orqali, xatoda 503 (fail-closed).
 
 Xato formati: `{"error":{"code","message","request_id","retry_after","field"}}` (message uz/ru/en; `field` — faqat maydon NOMI).
-Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_registered`, `beta_access_required`, `not_found`,
+Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_registered`, `not_found`,
 `method_not_allowed`, `rate_limited`, `internal_error`, `service_unavailable`, `auth_unavailable`, `invalid_input`, `schedule_in_past`,
 `unsupported_media_type`, `payload_too_large`, `channel_not_found`, `not_editable`, `queue_limit_reached`, `ai_limit_reached`,
 `ai_unavailable`, `save_failed`.
@@ -99,9 +99,6 @@ Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_re
   > sinov **o'tkazilmagan**; Mini App'ni yoqishdan oldin shu birinchi smoke-test majburiy.
 - **Maxfiylik:** `BOT_TOKEN`, `initData`, `Authorization` log/javob/xato matniga tushmaydi (testlangan).
 - **Ruxsat:** `users` da qator bo'lishi va `deleted_at IS NULL`; API foydalanuvchi YARATMAYDI.
-  `BETA_INVITE_ONLY` yoqiq bo'lsa botdagi qoida bilan BIR XIL: admin yoki `approved` kiradi, `pending` kirmaydi,
-  ro'yxatda yo'q (qator bor) = eski foydalanuvchi (`REASON_EXISTING`) — kiradi. Beta holati o'qilmasa/JSON buzuq bo'lsa
-  `503`. `BetaGate.check()` chaqirilmaydi (u `pending` ga yozadi).
 - **Ownership:** har bir SQL `user_id = %s`; xato bo'sh ro'yxatga aylantirilmaydi (mavjud `get_user_channels`/
   `get_queue_posts` xatoni yutadi, shu sababli ishlatilmaydi).
 - **PRO holati:** faqat `users.plan_type`/`subscription_expires_at` dan, DB vaqti bo'yicha. To'lov yo'q.
@@ -132,11 +129,9 @@ Mini App botni faqat **`https://t.me/<BOT_USERNAME>`** orqali ochadi (`openTeleg
 | PRO | `/settings` → «💎 PRO va Tariflar» (`sub_open` → `subscription_callback`); yorliq botdagi `ss_btn_pro_plans` bilan bir xil |
 | Botni ochish | `https://t.me/<BOT_USERNAME>`; `BOT_USERNAME` berilmasa tugma ko'rsatilmaydi |
 
-**`?start=<payload>` deep-link ATAYLAB ishlatilmaydi.** `/start` handleri faqat `ref_<id>` ni taniydi; qolgan har
-qanday payload `handlers/beta_access.py:extract_invite_code` orqali beta **taklif kodi** deb olinadi — noma'lum payload
-yangi/kutilayotgan foydalanuvchini "noto'g'ri kod" sifatida qayd etishi mumkin. To'g'ridan-to'g'ri ochish kerak bo'lsa,
-botga alohida payload yo'naltirgich (kod parsingdan OLDIN, `ref_`/kod bilan to'qnashmasdan) qo'shilishi kerak — bu
-bot o'zgarishi, shuning uchun hozir qilinmagan (`tests/miniapp_navigation_test.py` shu holatni qo'riqlaydi).
+**`?start=<payload>` deep-link ATAYLAB ishlatilmaydi.** `/start` handleri faqat `ref_<id>` ni taniydi;
+boshqa payloadlar e'tiborsiz qoldiriladi va /newpost yoki PRO oqimini boshlamaydi.
+`tests/miniapp_navigation_test.py` shu holatni qo'riqlaydi.
 
 ## Sozlamalar (`MINIAPP_*`, hammasi ixtiyoriy; sukut = xavfsiz)
 
@@ -203,7 +198,7 @@ ogohlantirishi chiqadi, lekin ishlaydi). Dockerfile `node:22-slim` (suzuvchi 22.
 |---|---|
 | `MINIAPP_ENABLED` | sukut `0`; faqat yuqoridagi barcha shartlar bajarilgach `1` |
 | Redis (`REDIS_URL`) | MAJBURIY (`MINIAPP_RATE_REQUIRE_SHARED=1`); Redis yo'q/uzilgan -> API 503 (fail-closed) |
-| Beta qoidasi | `BETA_INVITE_ONLY` sukut `true`: faqat `approved` (yoki admin) kiradi; `pending`/ro'yxatda yo'qlar rad |
+| Kirish | `/start` orqali ro'yxatdan o'tgan (o'chirilmagan) barcha foydalanuvchilar kiradi; API foydalanuvchi yaratmaydi |
 | Ishonchli proksi | `MINIAPP_TRUSTED_PROXY_CIDRS` yoki `MINIAPP_PROXY_ASSERT_EDGE_ONLY=1` (+`MINIAPP_PROXY_HOPS`); HTTPS majburiy; sozlanmasa marshrutlar ulanmaydi |
 | `BOT_TOKEN` | initData HMAC kaliti; token log/Sentry'ga tushmaydi |
 

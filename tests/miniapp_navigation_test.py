@@ -5,7 +5,7 @@ Savollar va haqiqiy koddan javoblar:
   * Mini App Post/PRO tugmasi /newpost yoki PRO oqimini OCHA OLADIMI?  -> YO'Q: `https://t.me/<bot>`
     faqat chatni ochadi; buyruqni foydalanuvchi o'zi yuboradi (matn shunga mos).
   * `/start <payload>` deep-link handlerda yo'naltiriladimi?            -> YO'Q: faqat `ref_<id>`;
-    boshqa har qanday payload beta TAKLIF KODI deb olinadi (xavfli) -> Mini App `?start=` ishlatmaydi.
+    boshqa payload /start tomonidan e'tiborsiz qoldiriladi -> Mini App `?start=` ishlatmaydi.
   * Matnda aytilgan yo'l haqiqatmi? /settings -> «💎 PRO va Tariflar» -> `sub_open`.
 Bot deep-link yo'naltirishni qo'shsa bu test ataylab yiqiladi: Mini App (telegram.ts, matnlar) va README yangilansin.
 """
@@ -42,8 +42,6 @@ def test_frontend_links():
     T.check("hech bir fayl `?start=`/`startapp`/`tg://` havola yasamaydi", not bad, str(bad))
     tg = text[SRC / "telegram.ts"]
     T.check("openBot faqat `https://t.me/${username}` quradi", "`https://t.me/${username}`" in tg)
-    T.check("openBot izohida deep-link xavfi hujjatlashtirilgan",
-            "extract_invite_code" in (SRC / "telegram.ts").read_text(encoding="utf8"))
     ui = text[SRC / "components" / "ui.tsx"]
     T.check("openBot tugmasi username'ni tekshiradi (isValidBotUsername)", "isValidBotUsername" in ui)
     pages = "\n".join(t for p, t in text.items() if "pages" in p.parts)
@@ -63,18 +61,8 @@ def test_start_payload_behaviour():
     print("\n== 2. /start payload: haqiqiy bot xulqi ==")
     import importlib
 
-    from handlers import beta_access
-
     start_mod = importlib.import_module("handlers.start")  # `handlers.start` nomi paketda funksiya bilan soyalanadi
 
-    def ctx(*args):
-        return SimpleNamespace(args=list(args))
-
-    T.check("`ref_42` referal — taklif kodi emas", beta_access.extract_invite_code(ctx("ref_42")) == "")
-    for payload in ("newpost", "pro", "subscription", "settings"):
-        code = beta_access.extract_invite_code(ctx(payload))
-        T.check(f"`/start {payload}` — payload TAKLIF KODI deb olinadi ({code!r}) => deep-link xavfli",
-                code != "" and code == payload.upper())
     src = inspect.getsource(start_mod.start)
     T.check("start() handleri `ref_` ni tanlaydi", 'startswith("ref_")' in src)
     routed = [w for w in ("newpost", "start_new_post", "sub_open", "pro_plans", "subscription_callback") if w in src]

@@ -42,11 +42,6 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Сначала зарегистрируйтесь в боте: отправьте боту /start.",
         "en": "Please register in the bot first: send /start to the bot.",
     }),
-    "beta_access_required": (403, {
-        "uz": "Sizda hali kirish ruxsati yo'q. Botdagi ko'rsatmalarga qarang.",
-        "ru": "У вас пока нет доступа. Следуйте инструкциям в боте.",
-        "en": "You do not have access yet. Follow the instructions in the bot.",
-    }),
     "not_found": (404, {
         "uz": "Topilmadi.",
         "ru": "Не найдено.",

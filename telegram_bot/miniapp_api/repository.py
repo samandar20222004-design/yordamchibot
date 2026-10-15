@@ -14,8 +14,6 @@ user_post_number, recurrence_type), system_settings(key, value).
 """
 from __future__ import annotations
 
-from .access import BETA_STATE_KEY
-
 CHANNELS_HARD_LIMIT = 200
 MAX_OFFSET = 100_000
 PREVIEW_CHARS = 200
@@ -119,12 +117,6 @@ def views_summary(cur, channel_id: str) -> dict:
         "collected_at": r[3].isoformat() if (count and r[3]) else None,
         "sources": sorted(r[4]) if (count and r[4]) else [],
     }
-
-
-def load_beta_state_raw(cur):
-    cur.execute("SELECT value FROM system_settings WHERE key = %s", (BETA_STATE_KEY,))
-    row = cur.fetchone()
-    return row[0] if row else None
 
 
 def count_channels(cur, user_id: int) -> int:

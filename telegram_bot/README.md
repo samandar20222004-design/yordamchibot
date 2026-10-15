@@ -96,15 +96,9 @@ Menyuda ko'rinmaydigan, lekin ishlaydigan buyruqlar: `/profile`, `/queue`,
 
 Admin buyruqlari (faqat `ADMIN_IDS` yoki RBAC roli bo'lganlar uchun):
 `/admin`, `/stats`, `/admin_stats`, `/broadcast`, `/grant_pro`, `/create_promo`,
-`/setrole`, `/delrole`, `/audit`, `/health`, `/economics`, `/feature_usage`, `/beta`.
+`/setrole`, `/delrole`, `/audit`, `/health`, `/economics`, `/feature_usage`.
 
 ## To'lovlar
 
 PRO tarifni uch usulda olish mumkin: Telegram Stars, karta (chek admin
 tomonidan tasdiqlanadi) va Payme (avtomatik, [docs/PAYME.md](../docs/PAYME.md)).
-
-## Yopiq beta
-
-`BETA_INVITE_ONLY=true` (standart) bo'lsa, yangi foydalanuvchilar faqat taklif
-kodi (`/start BETA-XXXX`) yoki admin tasdig'i bilan kira oladi. Hamma uchun
-ochish: `BETA_INVITE_ONLY=false`.

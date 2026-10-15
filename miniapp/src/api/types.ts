@@ -119,7 +119,7 @@ export interface CalendarData {
 /** Server xato kodlari (telegram_bot/miniapp_api/errors.py) + mijoz tomoni kodlari. */
 export type ErrorCode =
   | 'bad_request' | 'https_required' | 'unauthorized' | 'auth_expired' | 'not_registered'
-  | 'beta_access_required' | 'not_found' | 'method_not_allowed' | 'rate_limited'
+  | 'not_found' | 'method_not_allowed' | 'rate_limited'
   | 'internal_error' | 'service_unavailable' | 'auth_unavailable'
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'

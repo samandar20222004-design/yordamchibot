@@ -28,7 +28,6 @@ os.environ.setdefault("BOT_TOKEN", "123456789:CHAIN_COST_TEST_TOKEN")
 os.environ.setdefault("ADMIN_ID", "123456789")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("ENVIRONMENT", "test")
-os.environ.setdefault("BETA_INVITE_ONLY", "false")
 warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent / "telegram_bot"
 sys.path.insert(0, str(ROOT))

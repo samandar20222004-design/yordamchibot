@@ -86,7 +86,7 @@ def main() -> int:
         load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                        "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"}), db_queue_wait_seconds=5.0)
     runner = ReadOnlyRunner(statement_timeout_ms=5000, max_inflight=4, queue_wait_seconds=5.0)
-    service = MiniAppService(settings, runner, invite_only_getter=lambda: False, admin_check=lambda u, r: False)
+    service = MiniAppService(settings, runner)
     api = appmod.build_api_app(settings, runner=runner, limiter=NullLimiter(), clock=lambda: NOW, service=service,
                                writer=PostWriter(service, settings, media_fetch=fake_fetch))
     app = web.Application()

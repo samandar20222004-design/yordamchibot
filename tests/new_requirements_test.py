@@ -2028,10 +2028,6 @@ def _run_start(is_new: bool, lang: str):
     async def fake_check(bot, uid):
         return True, []
 
-    async def fake_beta_gate(*args, **kwargs):
-        return {"allowed": True, "reason": "open_mode", "code": None,
-                "seats_left": None, "invite_only": False, "attempts": 0}
-
     class _Msg:
         def __init__(self):
             self.replies = []
@@ -2046,18 +2042,14 @@ def _run_start(is_new: bool, lang: str):
     upd = SimpleNamespace(message=msg, effective_user=user, effective_message=msg)
     ctx = SimpleNamespace(bot=_RecBot(), user_data={}, chat_data={}, args=[])
 
-    orig_run_db, orig_check, orig_beta_gate = (
-        db_mod.run_db, st_mod.check_user_subscribed, st_mod._beta_gate_decision,
-    )
+    orig_run_db, orig_check = db_mod.run_db, st_mod.check_user_subscribed
     db_mod.run_db = fake_run_db
     st_mod.check_user_subscribed = fake_check
-    st_mod._beta_gate_decision = fake_beta_gate
     try:
         _asyncio.run(st_mod.start(upd, ctx))
     finally:
         db_mod.run_db = orig_run_db
         st_mod.check_user_subscribed = orig_check
-        st_mod._beta_gate_decision = orig_beta_gate
     assert msg.replies, "start() javob bermadi"
     return msg.replies[0]
 
