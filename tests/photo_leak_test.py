@@ -435,6 +435,8 @@ def test_receipt_only_in_receipt_wait_state():
     conv = _get_main_conv(app)
     restore = _patch_db({
         "save_payment_receipt": 55,
+        "count_user_pending_receipts": 0,
+        "find_duplicate_receipts": [],
         "get_user_language": "uz",
     })
     try:
@@ -480,6 +482,8 @@ def test_receipt_album_only_first_photo_counted():
     saves = []
     restore = _patch_db({
         "save_payment_receipt": lambda *a, **k: saves.append(a) or 55,
+        "count_user_pending_receipts": 0,
+        "find_duplicate_receipts": [],
         "get_user_language": "uz",
     })
     bot = _RecBot()

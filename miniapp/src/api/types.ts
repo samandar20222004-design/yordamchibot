@@ -4,6 +4,14 @@ export interface PlanLimits {
   max_channels: number
   daily_ai_requests: number
   queued_posts: number
+  /** Ovozli rejalash (kuniga); eski serverda bo'lmasligi mumkin. */
+  voice_daily?: number
+}
+
+/** Mijozga ko'rsatiladigan tarif: limitlar va 1 oylik narx (so'm) — server (config) bilan bir manba. */
+export interface TierInfo {
+  limits: PlanLimits
+  price_from_uzs: number
 }
 
 export interface Plan {
@@ -26,6 +34,7 @@ export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads
 export interface Me {
   user: { id: number; name: string | null; username: string | null; language: Lang }
   plan: Plan
+  tiers?: { pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
   next_post_at: string | null
@@ -114,7 +123,7 @@ export type ErrorCode =
   | 'internal_error' | 'service_unavailable' | 'auth_unavailable'
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
-  | 'ai_unavailable' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long'
+  | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -177,3 +186,15 @@ export interface ScheduleProposal {
 export type ScheduleParseResult =
   | { ok: true; source: 'rules' | 'ai'; proposal: ScheduleProposal }
   | { ok: false; reason: string }
+
+export interface Template {
+  id: number
+  name: string
+  text: string
+  created_at: string
+}
+
+export interface TemplateList {
+  items: Template[]
+  limit: number
+}

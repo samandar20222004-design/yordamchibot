@@ -34,6 +34,39 @@ beforeEach(() => { vi.useRealTimers() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); setTelegram(null) })
 
 describe('App', () => {
+  it('Botdagi tugma ?tab= bilan ochsa shu bo\'lim ochiladi; noma\'lum qiymat e\'tiborsiz', async () => {
+    setTelegram('query_id=1')
+    mockApi(okRoutes)
+    window.history.replaceState({}, '', '/app/?tab=me')
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Men' })
+    cleanup()
+    window.history.replaceState({}, '', '/app/?tab=evil')
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    window.history.replaceState({}, '', '/app/')
+  })
+
+  it('/me kelguncha logo animatsiyali yuklash ekrani, keyin ilova', async () => {
+    setTelegram('query_id=1')
+    let release: (r: Response) => void = () => {}
+    mockApi((url) => {
+      if (url.includes('/me')) return new Promise<Response>((res) => { release = res })
+      if (url.includes('/channels')) return jsonResponse({ items: [], total: 0 })
+      if (url.includes('/scheduled-posts')) return jsonResponse(PAGE)
+      return jsonResponse(errorBody('not_found'), 404)
+    })
+    const { container } = render(<App />)
+    const splash = container.querySelector('.splash')
+    expect(splash).not.toBeNull()
+    expect(splash?.querySelector('svg.bm .bm-robot')).not.toBeNull()
+    expect(splash?.querySelector('svg.bm .bm-badge')).not.toBeNull()
+    expect(container.querySelector('.shell')).toBeNull()
+    release(jsonResponse(ME))
+    await waitFor(() => expect(container.querySelector('.shell')).not.toBeNull())
+    expect(container.querySelector('.splash')).toBeNull()
+  })
+
   it('Telegram tashqarisida: tushunarli ekran, so\'rov yuborilmaydi', () => {
     setTelegram(null)
     const f = mockApi(okRoutes)
@@ -155,7 +188,7 @@ describe('App', () => {
     await screen.findByText('Salom, Alice!')
     expect(screen.getByText('PRO')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
-    expect(await screen.findByText('PRO obunangiz faol.')).toBeTruthy()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
     expect(screen.getAllByText(/\/ ∞/).length).toBe(3) // 3 ta cheksiz limit: son / ∞
     expect(screen.queryAllByRole('progressbar')).toHaveLength(0) // cheksizda chiziq yo'q
   })

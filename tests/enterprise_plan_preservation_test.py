@@ -53,8 +53,15 @@ for rel in ("services/payment_service.py", "services/subscription_service.py", "
     src = re.sub(r'"\s*\n\s*"', "", src)  # qo'shni satr literallarini birlashtirish (SQL bo'laklari)
     grants = re.findall(r"UPDATE users SET[^;]*?GREATEST\(\s*COALESCE\(subscription_expires_at", src, flags=re.S)
     guarded = [g for g in grants if GUARD in g]
-    check(f"{rel}: har bir PRO berish SQL'ida enterprise qoidasi bor ({len(guarded)}/{len(grants)})",
-          len(grants) >= 1 and len(guarded) == len(grants))
+    # Yagona qoida (services/plan_sql.py) ishlatilsa — himoya o'sha yerda (quyida tekshiriladi).
+    via_helper = len(re.findall(r"grant_plan_case\(", src))
+    check(f"{rel}: har bir PRO berish SQL'ida enterprise qoidasi bor ({len(guarded)}+{via_helper} helper/{len(grants) + via_helper})",
+          (len(grants) + via_helper) >= 1 and len(guarded) == len(grants))
+
+plan_sql_src = (ROOT / "telegram_bot" / "services" / "plan_sql.py").read_text(encoding="utf-8")
+check("plan_sql.py: tarif va muddat ifodalarida muddatsiz enterprise himoyasi bor",
+      plan_sql_src.count(GUARD) >= 2 and "THEN plan_type" in plan_sql_src and "THEN NULL" in plan_sql_src)
+check("plan_sql.py: faol ultra PRO xaridida pasaymaydi", "WHEN plan_type = 'ultra' THEN plan_type" in plan_sql_src)
 
 if not URL:
     print("  [SKIP] real PostgreSQL URL yo'q — runtime qismi o'tkazilmadi")

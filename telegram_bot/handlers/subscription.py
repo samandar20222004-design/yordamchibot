@@ -8,8 +8,8 @@ from telegram.ext import BaseHandler, ContextTypes, ConversationHandler
 from config import (
     ADMIN_IDS_SET, BOT_USERNAME,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
-    PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
-    FREE_QUEUE_MAX_POSTS, PRO_QUEUE_MAX_POSTS, STARS_PLANS, SUBSCRIPTION_PLANS, plan_discount_percent,
+    PLAN_PRO, PLAN_ULTRA, STARS_PLANS, SUBSCRIPTION_PLANS, TARIFF_CATALOG, TARIFF_KEYS, TIER_LIMITS,
+    UNLIMITED_LIMIT, key_for_days, plan_discount_percent, tariff_keys_for, tier_of_key,
 )
 import database as db
 from keyboards.default import get_main_keyboard
@@ -57,49 +57,80 @@ RECEIPT_WAIT = 603
 # (.env: STARS_PRICE_1M/3M/1Y) avtomatik precheckout tekshiruvi va
 # PaymentService.validate_payload ga tarqaladi.
 
-# 💳 Karta orqali to'lov (Uzcard/Humo) tariflari.
-# Tartib: CARD_TARIFF_ORDER dagi ketma-ketlikda tugmalar chiqadi.
+# 💳 To'lov tariflari (karta / Payme / Stars) — YAGONA MANBA: config.TARIFF_CATALOG.
+# Kalitlar: PRO — '1m' | '3m' | '6m' | '1y' (eski callback/payload/buyurtmalar bilan mos); ULTRA — 'u1m' | 'u3m' | 'u6m' | 'u1y'.
 CARD_TARIFFS = {
-    "1m": {"days": 30, "amount": PAYMENT_PRICE_1M_UZS},
-    "3m": {"days": 90, "amount": PAYMENT_PRICE_3M_UZS},
-    "1y": {"days": 365, "amount": PAYMENT_PRICE_1Y_UZS},
+    key: {"days": info["days"], "amount": info["uzs"], "tier": info["tier"]}
+    for key, info in TARIFF_CATALOG.items()
 }
-CARD_TARIFF_ORDER = ("1m", "3m", "1y")
-# Eski yozuvlar uchun days -> plan_key zaxira xaritasi (migratsiyasiz to'g'ri ishlaydi)
-_DAYS_TO_PLAN = {30: "1m", 90: "3m", 365: "1y"}
+CARD_TARIFF_ORDER = TARIFF_KEYS
+# Eski yozuvlar uchun days -> plan_key zaxira xaritasi (PRO; migratsiyasiz to'g'ri ishlaydi)
+_DAYS_TO_PLAN = {info["days"]: key for key, info in TARIFF_CATALOG.items() if info["tier"] == PLAN_PRO}
 
-#: 💳 Karta to'lovi ekranida — TO'LOVDAN OLDIN ko'rsatiladigan to'liq PRO
-#: afzalliklari (3 til). Foydalanuvchi 19 000 so'm to'lashdan oldin nimaga
-#: ega bo'lishini aniq ko'radi.
-PRO_CARD_BENEFITS = {
-    "uz": (
-        "⭐️ <b>PRO imkoniyatlari:</b>\n"
-        "• 🤖 Kuniga 50 ta AI post\n"
-        "• 🧬 Cheksiz Channel DNA tahlili\n"
-        "• ✈️ 7 kunlik Avtopilot\n"
-        "• 📢 3 tagacha kanal ulash"
-    ),
-    "ru": (
-        "⭐️ <b>Возможности PRO:</b>\n"
-        "• 🤖 50 ИИ-постов в день\n"
-        "• 🧬 Безлимитный анализ Channel DNA\n"
-        "• ✈️ Автопилот на 7 дней\n"
-        "• 📢 Подключение до 3 каналов"
-    ),
-    "en": (
-        "⭐️ <b>PRO features:</b>\n"
-        "• 🤖 50 AI posts per day\n"
-        "• 🧬 Unlimited Channel DNA analysis\n"
-        "• ✈️ 7-day Autopilot\n"
-        "• 📢 Up to 3 channels"
-    ),
-}
+_TIER_EMOJI = {"free": "🆓", PLAN_PRO: "⭐️", PLAN_ULTRA: "👑", "enterprise": "💎"}
+_TIER_NAME = {"free": "FREE", PLAN_PRO: "PRO", PLAN_ULTRA: "ULTRA", "enterprise": "Enterprise"}
 
 
-def pro_card_benefits_text(lang: str = "uz") -> str:
-    """Karta to'lovi ekrani uchun PRO afzalliklari bloki (to'lovdan oldin)."""
-    code = str(lang or "uz").strip().lower().split("-")[0]
-    return PRO_CARD_BENEFITS.get(code) or PRO_CARD_BENEFITS["uz"]
+def _fmt_limit(n, lang: str = "uz") -> str:
+    """Limit qiymati: 999 va undan katta = 'cheksiz' (faqat enterprise / eski to'lagan PRO)."""
+    try:
+        value = int(n)
+    except (TypeError, ValueError):
+        return str(n)
+    return get_text("tl_unlimited", lang) if value >= UNLIMITED_LIMIT else str(value)
+
+
+def _cap_text(n, lang: str = "uz") -> str:
+    """'<b>10</b> tagacha' yoki (999+) '<b>cheksiz</b>'."""
+    try:
+        value = int(n)
+    except (TypeError, ValueError):
+        return str(n)
+    if value >= UNLIMITED_LIMIT:
+        return f"<b>{get_text('tl_unlimited', lang)}</b>"
+    return get_text("tl_upto", lang, n=value)
+
+
+def _perday_text(n, lang: str = "uz") -> str:
+    """'kuniga <b>40</b> ta' yoki (999+) '<b>cheksiz</b>'."""
+    try:
+        value = int(n)
+    except (TypeError, ValueError):
+        return str(n)
+    if value >= UNLIMITED_LIMIT:
+        return f"<b>{get_text('tl_unlimited', lang)}</b>"
+    return get_text("tl_perday", lang, n=value)
+
+
+def tier_limit_lines(limit_key: str, lang: str = "uz") -> list:
+    """Tarif imkoniyatlari ro'yxati (HAQIQIY limitlar ``config.TIER_LIMITS`` dan; va'da qilinmagan narsa yo'q).
+
+    ``limit_key``: 'free' | 'pro' | 'ultra' | 'pro_legacy' | 'enterprise'.
+    """
+    lim = TIER_LIMITS.get(limit_key) or TIER_LIMITS["free"]
+    lines = [
+        get_text("tl_channels", lang, n=_cap_text(lim["max_channels"], lang)),
+        get_text("tl_ai", lang, n=_perday_text(lim["daily_ai_requests"], lang)),
+        get_text("tl_queue", lang, n=_cap_text(lim["queued_posts"], lang)),
+    ]
+    if limit_key != "free":
+        lines.append(get_text("tl_voice", lang, n=_perday_text(lim["voice_daily"], lang)))
+        lines.append(get_text("tl_plans", lang))
+        lines.append(get_text("tl_nosig", lang))
+    if limit_key in (PLAN_ULTRA, "enterprise"):
+        lines.append(get_text("tl_usage", lang))
+    return lines
+
+
+def pro_card_benefits_text(lang: str = "uz", plan_key: str = "1m") -> str:
+    """To'lov ekrani uchun tanlangan tarif imkoniyatlari bloki (to'lovdan oldin; limitlar config'dan)."""
+    tier = tier_of_key(plan_key)
+    return "\n".join([get_text(f"tier_title_{tier}", lang), *tier_limit_lines(tier, lang)])
+
+
+def _period_label(plan_key: str, lang: str = "uz") -> str:
+    """'u3m' -> '3 oy' / '3 месяца' / '3 months'."""
+    return get_text(f"period_{(TARIFF_CATALOG.get(plan_key) or TARIFF_CATALOG['1m'])['period']}", lang)
 
 
 def _fmt_uzs(amount: int) -> str:
@@ -122,23 +153,20 @@ def _fmt_card_number(card: str) -> str:
 
 
 def _card_tariff_name(plan_key: str, lang: str = "uz") -> str:
-    """'1m' → '1 oy' / '1 месяц' (tarif NOMI, narxsiz)."""
-    return get_text(f"card_plan_{plan_key}", lang)
+    """'u3m' -> 'ULTRA — 3 oy' (tarif NOMI, narxsiz)."""
+    plan_key = plan_key if plan_key in TARIFF_CATALOG else "1m"
+    return f"{_TIER_NAME[tier_of_key(plan_key)]} — {_period_label(plan_key, lang)}"
 
 
 def _card_tariff_label(plan_key: str, lang: str = "uz") -> str:
-    """Tarif tugmasi yorlig'i: '1 oy — 19 000 so'm' (yoki ruscha)."""
+    """Tarif tugmasi yorlig'i: '3 oy — 49 000 so'm' (davr + narx; tarif darajasi ekran sarlavhasida)."""
     plan = CARD_TARIFFS.get(plan_key) or CARD_TARIFFS["1m"]
-    price = _fmt_uzs(plan["amount"])
-    return get_text(f"card_tariff_{plan_key}", lang, price=price)
+    return get_text("tariff_btn_tpl", lang, period=_period_label(plan_key, lang), uzs=_fmt_uzs(plan["amount"]))
 
 
-def _plan_key_for_days(days) -> str:
+def _plan_key_for_days(days, tier: str = PLAN_PRO) -> str:
     """Berilgan kunlar uchun mos plan kalitini qaytaradi ('1m' default)."""
-    try:
-        return _DAYS_TO_PLAN.get(int(days), "1m")
-    except (TypeError, ValueError):
-        return "1m"
+    return key_for_days(tier, days)
 
 
 # ---------------------------------------------------------------------------
@@ -154,10 +182,8 @@ USERDATA_PAY_REGION = "pay_region"       # 'uz' | 'intl'
 USERDATA_PENDING_PLAN = "pending_plan"   # '1m' | '3m' | '1y' | None
 
 # Xalqaro ekvivalent narxlar (Stars + AQSH dollariga taxminan moslama).
-INTL_STARS_AMOUNTS = {
-    k: int(SUBSCRIPTION_PLANS[k]["stars"]) for k in ("1m", "3m", "1y")
-}
-INTL_USD_EQUIV = {k: str(SUBSCRIPTION_PLANS[k]["usd"]) for k in ("1m", "3m", "1y")}
+INTL_STARS_AMOUNTS = {k: int(info["stars"]) for k, info in TARIFF_CATALOG.items()}
+INTL_USD_EQUIV = {k: str(info["usd"]) for k, info in TARIFF_CATALOG.items()}
 
 
 def _remember_payment_choice(context, region=None, plan_key=None) -> None:
@@ -252,8 +278,11 @@ async def _send_stars_invoice(
     plan_stars = INTL_STARS_AMOUNTS.get(plan_suffix)
     if plan_stars is None:
         return False
-    title = get_text(f"sub_inv_title_{plan_suffix}", lang)
-    desc = get_text(f"sub_inv_desc_{plan_suffix}", lang)
+    tier = tier_of_key(plan_suffix)
+    lim = TIER_LIMITS[tier]
+    title = get_text("sub_inv_title_tpl", lang, tier=_TIER_NAME[tier], period=_period_label(plan_suffix, lang))[:32]
+    desc = get_text("sub_inv_desc_tpl", lang, tier=_TIER_NAME[tier], period=_period_label(plan_suffix, lang),
+                    ch=lim["max_channels"], ai=lim["daily_ai_requests"], q=lim["queued_posts"])[:255]
     prices = [LabeledPrice(label=title, amount=plan_stars)]
     try:
         # Telegram Stars (XTR) uchun provider_token talab qilinmaydi,
@@ -375,15 +404,15 @@ async def _show_intl_payment(query, context, user_id: int, lang: str, plan_key: 
 LIMIT_CHANNEL_MSG = (
     "🚫 <b>Kanal limiti tugadi!</b>\n\n"
     "Sizda hozir <b>{current}/{max}</b> ta kanal ulangan.\n"
-    "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
-    "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
+    "Tarifingiz bo'yicha maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
+    "⭐️ Ko'proq kanal uchun tarifni yangilang: PRO (10 tagacha) yoki ULTRA (30 tagacha)."
 )
 
 LIMIT_AI_MSG = (
     "🚫 <b>Kunlik AI limiti tugadi!</b>\n\n"
     "Bugun <b>{used}/{max}</b> ta AI so'rovi ishlatildi.\n"
-    "Free tarifida kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
-    "⭐️ Cheksiz AI uchun PRO tarifiga o'ting."
+    "Tarifingiz bo'yicha kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
+    "⭐️ Limit ertaga yangilanadi. Ko'proq uchun tarifni yangilang: PRO yoki ULTRA."
 )
 
 
@@ -401,144 +430,107 @@ def _format_expires(expires_at, lang: str = "uz") -> str:
         return str(expires_at)
 
 
-def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
-    """Obuna holati kartasini yaratadi (uz/ru/en)."""
+def _limit_key_for(plan_info: dict) -> str:
+    """Obuna ma'lumotidan limit kaliti: eski (tarif yangilanishidan oldin to'langan) PRO muddati 'pro_legacy'."""
     plan = plan_info.get("plan_type", "free")
+    if plan != "pro":
+        return plan if plan in TIER_LIMITS else "free"
+    legacy = plan_info.get("legacy_until")
+    expires = plan_info.get("expires_at")
+    now = datetime.now(timezone.utc)
+    try:
+        if legacy is not None and getattr(legacy, "tzinfo", None) is None:
+            legacy = legacy.replace(tzinfo=timezone.utc)
+        if expires is None or (legacy is not None and legacy > now):
+            return "pro_legacy"
+    except Exception:  # noqa: BLE001
+        pass
+    return "pro"
+
+
+def _tier_price_lines(tier: str, lang: str) -> list:
+    """Tarifning 4 muddati: narx (so'm), Stars va 1 oylikka nisbatan HAQIQIY tejam foizi (config narxlaridan)."""
+    keys = tariff_keys_for(tier)
+    monthly = TARIFF_CATALOG[keys[0]]
+    lines = []
+    for key in keys:
+        info = TARIFF_CATALOG[key]
+        pct = plan_discount_percent(info["uzs"], monthly["uzs"], info["months"]) if info["months"] > 1 else 0
+        lines.append(get_text(
+            "tier_price_line", lang, period=_period_label(key, lang), uzs=_fmt_uzs(info["uzs"]),
+            stars=info["stars"], save=f" (−{pct}%)" if pct > 0 else "",
+        ))
+    return lines
+
+
+def _build_tier_card(tier: str, lang: str = "uz") -> str:
+    """Tarif tanlangach ko'rsatiladigan to'liq karta: kimlar uchun, imkoniyatlar, narxlar, shartlar (to'lovdan OLDIN)."""
+    parts = [
+        get_text(f"tier_title_{tier}", lang),
+        get_text(f"tier_audience_{tier}", lang),
+        "",
+        *tier_limit_lines(tier, lang),
+        "",
+        get_text("tier_prices_head", lang),
+        *_tier_price_lines(tier, lang),
+        "",
+        get_text("tier_terms", lang),
+        "",
+        get_text("tier_pick_period", lang),
+    ]
+    return "\n".join(parts)
+
+
+def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
+    """Obuna holati kartasi: tarif nomi, tugash sanasi, HAQIQIY limitlar va keyingi tarifga o'tish (uz/ru/en)."""
+    plan = plan_info.get("plan_type", "free")
+    if plan not in _TIER_NAME:
+        plan = "free"
     expires = plan_info.get("expires_at")
     ai_used = plan_info.get("ai_used", 0)
-
-    plan_emoji = {"free": "🆓", "pro": "⭐️", "enterprise": "💎"}.get(plan, "🆓")
-    plan_name = {"free": "Free", "pro": "PRO", "enterprise": "Enterprise"}.get(plan, "Free")
-
-    limits = db.PLAN_LIMITS.get(plan, db.PLAN_LIMITS["free"])
-    max_ch = limits["max_channels"]
-    max_ai = limits["daily_ai_requests"]
-    unlimited = {"uz": "Cheksiz", "ru": "Безлимит", "en": "Unlimited"}.get(lang, "Cheksiz")
-    ch_str = str(max_ch) if max_ch < 999 else unlimited
-    ai_str = str(max_ai) if max_ai < 999 else unlimited
-    your = {
-        "uz": f"{plan_emoji} <b>Sizning tarifingiz: {plan_name}</b>",
-        "ru": f"{plan_emoji} <b>Ваш тариф: {plan_name}</b>",
-        "en": f"{plan_emoji} <b>Your plan: {plan_name}</b>",
-    }.get(lang, f"{plan_emoji} <b>Sizning tarifingiz: {plan_name}</b>")
-    expires_l = {
-        "uz": f"📅 Obuna muddati: <b>{_format_expires(expires, lang)}</b>",
-        "ru": f"📅 Срок подписки: <b>{_format_expires(expires, lang)}</b>",
-        "en": f"📅 Subscription: <b>{_format_expires(expires, lang)}</b>",
-    }.get(lang)
-    ch_l = {
-        "uz": f"📢 Kanallar limiti: <b>{ch_str}</b>",
-        "ru": f"📢 Лимит каналов: <b>{ch_str}</b>",
-        "en": f"📢 Channel limit: <b>{ch_str}</b>",
-    }.get(lang)
-    max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else PRO_QUEUE_MAX_POSTS
-    q_str = str(max_q) if max_q < 999 else unlimited
-    queue_l = {
-        "uz": f"🗂 Navbat (rejalangan postlar): <b>{q_str}</b>",
-        "ru": f"🗂 Очередь постов: <b>{q_str}</b>",
-        "en": f"🗂 Scheduled posts queue: <b>{q_str}</b>",
-    }.get(lang)
-    ai_l = {
-        "uz": f"🤖 Kunlik AI so'rovlar: <b>{ai_used} / {ai_str}</b>",
-        "ru": f"🤖 ИИ-запросы за день: <b>{ai_used} / {ai_str}</b>",
-        "en": f"🤖 Daily AI requests: <b>{ai_used} / {ai_str}</b>",
-    }.get(lang)
+    limit_key = _limit_key_for(plan_info)
+    lim = TIER_LIMITS.get(limit_key) or TIER_LIMITS["free"]
 
     lines = [
-        your,
-        "━━━━━━━━━━━━━━━━━",
-        expires_l,
-        ch_l,
-        queue_l,
-        ai_l,
+        get_text("plan_card_head", lang, emoji=_TIER_EMOJI.get(plan, "🆓"), name=_TIER_NAME[plan]),
         "━━━━━━━━━━━━━━━━━",
     ]
-
+    if plan != "free":
+        lines.append(get_text("plan_card_expires", lang, when=_format_expires(expires, lang)))
+    limit_lines = tier_limit_lines(limit_key, lang)
+    lines.extend([limit_lines[0], limit_lines[2]])  # kanallar, navbat (AI — quyida, sarf bilan)
+    lines.append(get_text("plan_card_ai_used", lang, used=ai_used, max=_fmt_limit(lim["daily_ai_requests"], lang)))
+    lines.append("━━━━━━━━━━━━━━━━━")
+    if limit_key == "pro_legacy" and plan_info.get("legacy_until") is not None:
+        lines.append(get_text("plan_card_legacy", lang, until=_format_expires(plan_info.get("legacy_until"), lang)))
+    ctx = dict(
+        pro_price=_fmt_uzs(TARIFF_CATALOG["1m"]["uzs"]), ultra_price=_fmt_uzs(TARIFF_CATALOG["u1m"]["uzs"]),
+        pro_ch=TIER_LIMITS[PLAN_PRO]["max_channels"], pro_ai=TIER_LIMITS[PLAN_PRO]["daily_ai_requests"],
+        ultra_ch=TIER_LIMITS[PLAN_ULTRA]["max_channels"], ultra_ai=TIER_LIMITS[PLAN_ULTRA]["daily_ai_requests"],
+        ultra_q=TIER_LIMITS[PLAN_ULTRA]["queued_posts"],
+    )
     if plan == "free":
-        if lang == "ru":
-            lines.extend([
-                "",
-                "⭐️ <b>Возможности тарифа PRO:</b>",
-                "• Безлимитные каналы",
-                "• Безлимитный ИИ и контент-план",
-                "• Безлимитная очередь постов",
-                "• Полная аналитика",
-                "• Приоритетная поддержка",
-            ])
-        elif lang == "en":
-            lines.extend([
-                "",
-                "⭐️ <b>PRO features:</b>",
-                "• Unlimited channels",
-                "• Unlimited AI posts and content plan",
-                "• Unlimited queue",
-                "• Full analytics",
-                "• Priority support",
-            ])
-        else:
-            lines.extend([
-                "",
-                "⭐️ <b>PRO Tarif imkoniyatlari:</b>",
-                "• Cheksiz kanallar ulash",
-                "• Cheksiz AI post yordamchisi va Kontent-reja",
-                "• Cheksiz Queue (Navbat) postlari",
-                "• To'liq analitika",
-                "• Ustuvor yordam",
-            ])
-        s1, s3, sY = (
-            STARS_PLANS["stars_1m"]["stars"],
-            STARS_PLANS["stars_3m"]["stars"],
-            STARS_PLANS["stars_1y"]["stars"],
-        )
-        u1, u3, uY = (
-            STARS_PLANS["stars_1m"]["usd"],
-            STARS_PLANS["stars_3m"]["usd"],
-            STARS_PLANS["stars_1y"]["usd"],
-        )
-        disc_y = plan_discount_percent(sY, s1, 12)
-        price_lines = {
-            "ru": [
-                f"• 1 месяц — ⭐️ {s1} Stars (~${u1})",
-                f"• 3 месяца — ⭐️ {s3} Stars (~${u3})",
-                f"• 1 год — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
-            ],
-            "en": [
-                f"• 1 month — ⭐️ {s1} Stars (~${u1})",
-                f"• 3 months — ⭐️ {s3} Stars (~${u3})",
-                f"• 1 year — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
-            ],
-        }.get(lang, [
-            f"• 1 oy — ⭐️ {s1} Stars (~${u1})",
-            f"• 3 oy — ⭐️ {s3} Stars (~${u3})",
-            f"• 1 yil — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
-        ])
-        lines.extend([
-            "",
-            "💳 <b>PRO:</b>",
-            *price_lines,
-        ])
-
+        lines.extend(["", get_text("plan_card_upsell_free", lang, **ctx)])
+    elif plan == PLAN_PRO:
+        lines.extend(["", get_text("plan_card_upsell_pro", lang, **ctx)])
+    lines.extend(["", get_text("plan_card_help", lang)])
     return "\n".join(lines)
 
 
 def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Obuna sahifasi tugmalari — Stars to'lov tugmalari to'g'ridan-to'g'ri ko'rsatiladi.
+    """Obuna sahifasi tugmalari: tarif tanlash (PRO / ULTRA), tarix, promo-kod.
 
-    Free tarifda Stars yoniga 💳 Karta orqali to'lov (Uzcard / Humo) tugmasi
-    ham qo'shiladi — O'zbekiston foydalanuvchilari uchun qulaylik.
+    Faol ULTRA / Enterprise foydalanuvchiga PRO sotib olish tugmasi ko'rsatilmaydi (to'langan yuqori tarif pasaymasligi uchun);
+    Enterprise (muddatsiz) uchun sotib olish tugmalari umuman yo'q.
     """
     keyboard = []
-    if plan == "free":
-        keyboard.append([
-            InlineKeyboardButton(get_text("sub_pay_1m", lang, stars=STARS_PLANS["stars_1m"]["stars"]), callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton(get_text("sub_pay_3m", lang, stars=STARS_PLANS["stars_3m"]["stars"]), callback_data="sub_pay:stars_3m"),
-        ])
-        keyboard.append([
-            InlineKeyboardButton(get_text("sub_pay_1y", lang, stars=STARS_PLANS["stars_1y"]["stars"]), callback_data="sub_pay:stars_1y"),
-        ])
-        keyboard.append([
-            InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
-        ])
+    tier_row = []
+    if plan in ("free", PLAN_PRO):
+        tier_row.append(InlineKeyboardButton(get_text("btn_tier_pro", lang), callback_data=cb(f"sub_tier:{PLAN_PRO}")))
+    if plan in ("free", PLAN_PRO, PLAN_ULTRA):
+        tier_row.append(InlineKeyboardButton(get_text("btn_tier_ultra", lang), callback_data=cb(f"sub_tier:{PLAN_ULTRA}")))
+    if tier_row:
+        keyboard.append(tier_row)
     # Billing history belongs in the PRO hub, not in the primary settings grid.
     from translations import settings_stats_t
 
@@ -552,6 +544,16 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
     keyboard.append([
         InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back_main")
     ])
+    return InlineKeyboardMarkup(keyboard)
+
+
+def _get_tier_keyboard(tier: str, lang: str = "uz") -> InlineKeyboardMarkup:
+    """Tanlangan tarifning 4 muddati (har biri -> to'lov mintaqasi tanlash) + orqaga."""
+    keyboard = []
+    for key in tariff_keys_for(tier):
+        keyboard.append([InlineKeyboardButton(
+            _card_tariff_label(key, lang), callback_data=cb(f"sub_pay:{TARIFF_CATALOG[key]['stars_key']}"))])
+    keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -570,7 +572,7 @@ def _build_card_payment_text(
         get_text("card_payment_title", lang),
         "",
         # To'lovdan OLDIN — to'liq PRO afzalliklari (nima uchun to'lashi aniq).
-        pro_card_benefits_text(lang),
+        pro_card_benefits_text(lang, plan_key),
         "",
         get_text("card_payment_selected", lang, tarif=plan_name, summa=price),
         "",
@@ -595,7 +597,7 @@ def _build_card_payment_text(
 
 
 def _get_card_tariffs_keyboard(
-    lang: str = "uz", back_cb: str = "sub_back"
+    lang: str = "uz", back_cb: str = "sub_back", tier: str = PLAN_PRO
 ) -> InlineKeyboardMarkup:
     """💳 Karta to'lovi uchun TARIF TANLASH klaviaturasi (1m/3m/1y + orqaga).
 
@@ -604,7 +606,7 @@ def _get_card_tariffs_keyboard(
     obuna kartasiga (``sub_back``).
     """
     keyboard = []
-    for key in CARD_TARIFF_ORDER:
+    for key in tariff_keys_for(tier):
         keyboard.append([
             InlineKeyboardButton(
                 _card_tariff_label(key, lang), callback_data=cb(f"sub_tarif:{key}")
@@ -636,20 +638,6 @@ def _get_card_payment_keyboard(
             url=f"https://t.me/{PAYMENT_ADMIN_USERNAME}",
         )])
     keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
-    return InlineKeyboardMarkup(keyboard)
-
-
-def _get_stars_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
-    """Stars to'lov tanlash keyboard."""
-    keyboard = [
-        [
-            InlineKeyboardButton(get_text("sub_pay_1m_full", lang, stars=STARS_PLANS["stars_1m"]["stars"]), callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton(get_text("sub_pay_3m_full", lang, stars=STARS_PLANS["stars_3m"]["stars"]), callback_data="sub_pay:stars_3m"),
-        ],
-        [InlineKeyboardButton(get_text("sub_pay_1y_full", lang, stars=STARS_PLANS["stars_1y"]["stars"]), callback_data="sub_pay:stars_1y")],
-        [InlineKeyboardButton(get_text("sub_btn_promo", lang), callback_data="sub_promo")],
-        [InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")],
-    ]
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -798,17 +786,22 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await _show_intl_payment(query, context, user_id, lang, plan_key)
         return SUBSCRIPTION_VIEW
 
+    if data.startswith("sub_tier:"):
+        # Tarif tanlandi (PRO / ULTRA): imkoniyatlar, narxlar, shartlar va 4 muddat tugmasi (to'lovdan OLDIN).
+        tier = data.split(":", 1)[1]
+        if tier not in (PLAN_PRO, PLAN_ULTRA):
+            await query.message.reply_text(get_text("sub_invalid_plan", lang))
+            return SUBSCRIPTION_VIEW
+        _clear_payment_choice(context)
+        await _edit_or_reply(query, _build_tier_card(tier, lang), _get_tier_keyboard(tier, lang))
+        return SUBSCRIPTION_VIEW
+
     if data == "sub_card_pay":
-        # 💳 Karta to'lovi tugmasi O'ZI "🇺🇿 O'zbekiston" usulini
-        # tanlashdir (yozuvida Uzcard / Humo ko'rsatilgan) — mintaqa darhol
-        # qayd etiladi va FAQAT mahalliy tarif tanlagichi (so'mda) chiqadi.
-        _remember_payment_choice(context, PAYMENT_REGION_UZ, "")
-        text = get_text("card_tariff_title", lang)
-        markup = _get_card_tariffs_keyboard(lang)
-        try:
-            await query.edit_message_text(text, reply_markup=markup, parse_mode="HTML")
-        except Exception:
-            await query.message.reply_text(text, reply_markup=markup, parse_mode="HTML")
+        # Eski tugma (karta orqali to'lov): endi tarif va muddat avval tanlanadi — obuna kartasiga qaytamiz.
+        _clear_payment_choice(context)
+        plan_info = await db.run_db(db.get_user_plan, user_id)
+        await _edit_or_reply(query, _build_subscription_card(plan_info, lang),
+                             _get_subscription_keyboard(plan_info.get("plan_type", "free"), lang))
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_tarif:"):
@@ -947,7 +940,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 @require_permission(PERM_MANAGE_USERS,
                     message="❌ Sizda foydalanuvchilarga PRO berish uchun ruxsat yo'q.")
 async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Admin: /grant_pro <user_id> <days> — foydalanuvchiga PRO berish."""
+    """Admin: /grant_pro <user_id> <days> [pro|ultra] — foydalanuvchiga PRO (standart) yoki ULTRA berish."""
     user_id = update.effective_user.id
     if user_id not in ADMIN_IDS_SET and not has_permission(user_id, PERM_MANAGE_USERS):
         # 🌐 Admin bo'lmagan foydalanuvchiga tiliga mos rad javobi.
@@ -959,8 +952,8 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     if len(args) < 2:
         await update.message.reply_text(
-            "📝 Foydalanish: /grant_pro <user_id> <kunlar_soni>\n"
-            "Masalan: /grant_pro 123456789 30"
+            "📝 Foydalanish: /grant_pro <user_id> <kunlar_soni> [pro|ultra]\n"
+            "Masalan: /grant_pro 123456789 30 ultra"
         )
         return
 
@@ -977,12 +970,16 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if days > MAX_ADMIN_GRANT_DAYS:
         await update.message.reply_text(admin_t("days_too_large", get_lang(context), max=MAX_ADMIN_GRANT_DAYS))
         return
+    tier = (args[2].strip().lower() if len(args) > 2 else PLAN_PRO)
+    if tier not in (PLAN_PRO, PLAN_ULTRA):
+        await update.message.reply_text("❌ Tarif: pro yoki ultra. Masalan: /grant_pro 123456789 30 ultra")
+        return
 
-    success = await db.run_db(db.set_user_plan, target_id, "pro", days,
+    success = await db.run_db(db.set_user_plan, target_id, tier, days,
                               admin_id=user_id)
     if success:
         await update.message.reply_text(
-            f"✅ <b>PRO tarif berildi!</b>\n\n"
+            f"✅ <b>{_TIER_NAME[tier]} tarif berildi!</b>\n\n"
             f"👤 Foydalanuvchi: <code>{target_id}</code>\n"
             f"📅 Muddat: <b>{days} kun</b>",
             parse_mode="HTML",
@@ -990,11 +987,11 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Foydalanuvchiga xabar berishga harakat qilamiz (o'z tilida).
         try:
             target_lang = await db.run_db(db.get_user_language, target_id)
-            await context.bot.send_message(
-                chat_id=target_id,
-                text=get_text("sub_pro_granted", target_lang, days=days),
-                parse_mode="HTML",
-            )
+            if tier == PLAN_PRO:
+                notice = get_text("sub_pro_granted", target_lang, days=days)
+            else:
+                notice = await payment_success_text(target_id, tier, target_lang or "uz")
+            await context.bot.send_message(chat_id=target_id, text=notice, parse_mode="HTML")
         except Exception as _silent_exc:
             log_silent_failure("handlers.subscription:grant_pro_command", _silent_exc)
     else:
@@ -1005,7 +1002,7 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # TELEGRAM STARS PAYMENT HANDLERS
 # ============================================================
 
-_STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_1m|stars_3m|stars_1y)_([0-9]+)$")
+_STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_u?(?:1m|3m|6m|1y))_([0-9]+)$")
 
 
 def _validate_stars_payload(payload: str, user_id: int, amount=None, currency=None,
@@ -1036,7 +1033,7 @@ def _validate_stars_payload(payload: str, user_id: int, amount=None, currency=No
                 return None, get_text("sub_pay_err_amount", lang)
         except (TypeError, ValueError):
             return None, get_text("sub_pay_err_amount_bad", lang)
-    return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"]}, None
+    return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"], "tier": plan.get("tier", PLAN_PRO)}, None
 
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1151,10 +1148,8 @@ def refunded_payment_filter():
 
 
 async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Stars to'lovi qaytarilganda (``Message.refunded_payment``): log + adminlarga ogohlantirish.
-
-    Refund SIYOSATI egasi qarori (AUDIT-006) — shuning uchun PRO huquqi va ``payments`` HECH QAYERDA o'zgartirilmaydi,
-    faqat kuzatuv. Hech qachon istisno tashlamaydi.
+    """Stars to'lovi qaytarilganda (``Message.refunded_payment``): to'lov ``refunded`` bo'ladi, shu to'lovning kunlari PRO'dan
+    ayriladi (idempotent, muddatsiz tarifga tegilmaydi), foydalanuvchiga va adminlarga xabar ketadi. Hech qachon istisno tashlamaydi.
     """
     message = getattr(update, "message", None)
     refund = getattr(message, "refunded_payment", None)
@@ -1165,9 +1160,16 @@ async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAUL
     charge_id = str(getattr(refund, "telegram_payment_charge_id", "") or "-")
     amount = getattr(refund, "total_amount", "?")
     currency = str(getattr(refund, "currency", "") or "")
+    try:
+        outcome = await db.run_db(db.refund_stars_payment, charge_id)
+    except Exception as exc:  # noqa: BLE001 — DB xatosi handler'ni qulatmasin; adminga baribir xabar ketadi
+        log_silent_failure("handlers.subscription:stars_refund_apply", exc, user_id=user_id)
+        outcome = {"result": "error", "user_id": user_id, "days": 0}
+    result = str((outcome or {}).get("result") or "error")
+    days = int((outcome or {}).get("days") or 0)
     logger.warning(
-        "Stars to'lovi QAYTARILDI (refund): user=%s charge_id=%s summa=%s %s — PRO avtomatik o'zgartirilmadi",
-        user_id, charge_id, amount, currency,
+        "Stars to'lovi QAYTARILDI (refund): user=%s charge_id=%s summa=%s %s natija=%s kun=%s",
+        user_id, charge_id, amount, currency, result, days,
     )
     bot = getattr(context, "bot", None)
     for admin_id in ADMIN_IDS_SET:
@@ -1176,14 +1178,22 @@ async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAUL
                 admin_lang = await db.run_db(db.get_user_language, admin_id)
             except Exception:  # noqa: BLE001 — til aniqlanmasa uz
                 admin_lang = "uz"
+            lang = admin_lang or "uz"
+            outcome_text = admin_t(f"stars_refund_outcome_{result}", lang, days=days)
             text = admin_t(
-                "stars_refund_admin", admin_lang or "uz",
+                "stars_refund_admin", lang,
                 user_id=user_id, charge_id=html_escape(charge_id),
-                amount=amount, currency=html_escape(currency),
+                amount=amount, currency=html_escape(currency), outcome=outcome_text,
             )
             await bot.send_message(chat_id=admin_id, text=text, parse_mode="HTML")
         except Exception as exc:  # noqa: BLE001 — bitta admin xatosi boshqasini to'xtatmasin
             log_silent_failure("handlers.subscription:stars_refund_alert", exc, user_id=admin_id)
+    if result == "revoked" and user_id:
+        try:
+            lang = await db.run_db(db.get_user_language, user_id) or "uz"
+            await bot.send_message(chat_id=user_id, text=get_text("stars_refund_user", lang, days=days), parse_mode="HTML")
+        except Exception as exc:  # noqa: BLE001
+            log_silent_failure("handlers.subscription:stars_refund_user_notice", exc, user_id=user_id)
 
 
 async def _report_stars_activation_failure(context, user_id, charge_id, days, reason) -> None:
@@ -1214,6 +1224,20 @@ async def _report_stars_activation_failure(context, user_id, charge_id, days, re
         except Exception as exc:  # noqa: BLE001 — bitta admin xatosi boshqasini to'xtatmasin
             log_silent_failure("handlers.subscription:stars_activation_alert", exc,
                                user_id=admin_id)
+
+
+async def payment_success_text(user_id: int, tier: str, lang: str) -> str:
+    """To'lov muvaffaqiyatli bo'lgach: tarif nomi, amal qilish muddati va ochilgan imkoniyatlar (haqiqiy holatdan)."""
+    plan_info = await db.run_db(db.get_user_plan, user_id)
+    if not isinstance(plan_info, dict):
+        plan_info = {}
+    plan = plan_info.get("plan_type") or tier
+    if plan not in _TIER_NAME or plan == "free":
+        plan = tier  # eski/kechikkan o'qish: ko'rsatiladigan tarif — xarid qilingani
+    return get_text(
+        "sub_pay_success_v2", lang, emoji=_TIER_EMOJI.get(plan, "⭐️"), name=_TIER_NAME[plan],
+        when=_format_expires(plan_info.get("expires_at"), lang), limits="\n".join(tier_limit_lines(_limit_key_for(plan_info), lang)),
+    )
 
 
 async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1267,7 +1291,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             "XTR",
             payload,
             charge_id,
-            "pro",
+            plan.get("tier", PLAN_PRO),
             plan["days"],
         )
     except Exception as exc:  # noqa: BLE001 — to'lov o'tgan: jim qolmaslik kerak
@@ -1315,9 +1339,8 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             # an expired plan if this best-effort metadata sync fails.
             logger.exception("Recurring Stars subscription metadata sync failed (user=%s)", user_id)
 
-    days = plan["days"]
     await update.message.reply_text(
-        get_text("sub_pay_success", lang, stars=total_stars, days=days),
+        await payment_success_text(user_id, plan.get("tier", PLAN_PRO), lang),
         reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang),
         parse_mode="HTML",
     )

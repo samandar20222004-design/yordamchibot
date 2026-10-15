@@ -182,7 +182,7 @@ def test_01_stars_duplicate_parallel():
         with ThreadPoolExecutor(max_workers=10) as pool:
             results = list(pool.map(
                 lambda _: ps.PaymentService.process_stars_payment(
-                    uid, charge, 75, f"sub_stars_1m_{uid}", "pro", 30),
+                    uid, charge, 115, f"sub_stars_1m_{uid}", "pro", 30),
                 range(10)))
 
     fresh = [r for r in results if r.get("ok") and not r.get("duplicate")]
@@ -637,8 +637,8 @@ def test_07_expired_pro_downgrade():
     with patch.object(db, "db_cursor", fake_cursor3):
         n = db.downgrade_expired_subscriptions()
     check("downgrade_expired_subscriptions: 7 ta user tushirildi", n == 7, str(n))
-    check("sweep sharti: plan IN (pro, enterprise) AND expires_at <= NOW()",
-          sweep_cur.queries and "plan_type IN ('pro', 'enterprise')" in sweep_cur.queries[0]
+    check("sweep sharti: plan IN (pro, ultra, enterprise) AND expires_at <= NOW()",
+          sweep_cur.queries and "plan_type IN ('pro', 'ultra', 'enterprise')" in sweep_cur.queries[0]
           and "subscription_expires_at <= NOW()" in sweep_cur.queries[0], str(sweep_cur.queries))
 
     # d) Scheduler sweep job'i mavjud va xatosiz ishlaydi
@@ -690,7 +690,7 @@ class _ReceiptCursor:
         s = " ".join(str(q).split()).lower()
         if s.startswith("select status, user_id, days_granted"):
             self.row = (self.st.status, 777008, 30, 19000)
-        elif s.startswith("update users set plan_type = case when plan_type = 'enterprise' then plan_type else 'pro'"):
+        elif s.startswith("update users set plan_type = case when plan_type = 'enterprise' then plan_type") and "else 'pro'" in s:
             self.st.grants += 1
         elif s.startswith("update payment_receipts set status = 'approved'"):
             self.st.status = "approved"
@@ -1171,25 +1171,25 @@ def test_14_invoice_manipulation():
     from services.payment_service import PaymentService as P
 
     uid = 777014
-    ok, err = P.validate_payload(f"sub_stars_1m_{uid}", uid, 75, "XTR")
+    ok, err = P.validate_payload(f"sub_stars_1m_{uid}", uid, 115, "XTR")
     check("to'g'ri payload qabul", ok and ok["days"] == 30 and err is None, str((ok, err)))
     cases = {
         "summa kamaytirilgan (1 star)": (f"sub_stars_1m_{uid}", uid, 1, "XTR"),
         "summa boshqa tarifniki": (f"sub_stars_1m_{uid}", uid, 175, "XTR"),
-        "boshqa foydalanuvchi ID'si": (f"sub_stars_1m_{uid + 1}", uid, 75, "XTR"),
-        "valyuta USD": (f"sub_stars_1m_{uid}", uid, 75, "USD"),
+        "boshqa foydalanuvchi ID'si": (f"sub_stars_1m_{uid + 1}", uid, 115, "XTR"),
+        "valyuta USD": (f"sub_stars_1m_{uid}", uid, 115, "USD"),
         "yo'q tarif": (f"sub_stars_99y_{uid}", uid, 75, "XTR"),
         "bo'sh payload": ("", uid, 75, "XTR"),
-        "SQL/format inyeksiya": (f"sub_stars_1m_{uid}; DROP TABLE users", uid, 75, "XTR"),
+        "SQL/format inyeksiya": (f"sub_stars_1m_{uid}; DROP TABLE users", uid, 115, "XTR"),
     }
     for label, args in cases.items():
         plan, err = P.validate_payload(*args)
         check(f"rad: {label}", plan is None and bool(err), str((plan, err)))
 
-    r = P.process_stars_payment(uid, "", 75, f"sub_stars_1m_{uid}", "pro", 30)
+    r = P.process_stars_payment(uid, "", 115, f"sub_stars_1m_{uid}", "pro", 30)
     check("bo'sh charge_id → invalid_payment",
           r.get("ok") is False and r.get("reason") == "invalid_payment", str(r))
-    r = P.process_stars_payment(uid, "ch", 75, f"sub_stars_1m_{uid}", "pro", 0)
+    r = P.process_stars_payment(uid, "ch", 115, f"sub_stars_1m_{uid}", "pro", 0)
     check("duration 0 → invalid_payment",
           r.get("ok") is False and r.get("reason") == "invalid_payment", str(r))
 
@@ -1214,10 +1214,10 @@ def test_14_invoice_manipulation():
     answers = asyncio.run(_precheckout(f"sub_stars_1m_{uid}", 1, "XTR"))
     check("precheckout: summa manipulyatsiyasi → ok=False",
           answers and answers[0].get("ok") is False, str(answers))
-    answers = asyncio.run(_precheckout(f"sub_stars_1m_{uid + 5}", 75, "XTR"))
+    answers = asyncio.run(_precheckout(f"sub_stars_1m_{uid + 5}", 115, "XTR"))
     check("precheckout: boshqa user payload'i → ok=False",
           answers and answers[0].get("ok") is False, str(answers))
-    answers = asyncio.run(_precheckout(f"sub_stars_1m_{uid}", 75, "XTR"))
+    answers = asyncio.run(_precheckout(f"sub_stars_1m_{uid}", 115, "XTR"))
     check("precheckout: to'g'ri invoice → ok=True",
           answers and answers[0].get("ok") is True, str(answers))
 

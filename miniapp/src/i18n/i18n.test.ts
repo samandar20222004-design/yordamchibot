@@ -30,9 +30,9 @@ describe('tarjimalar', () => {
     }
   })
   it('bot yorliqlari (PRO bo\'limi) botdagi matn bilan bir xil', () => {
-    expect(messages.uz['me.proBody']).toContain('💎 PRO va Tariflar')
-    expect(messages.ru['me.proBody']).toContain('💎 PRO и тарифы')
-    expect(messages.en['me.proBody']).toContain('💎 PRO & Plans')
+    expect(messages.uz['me.tierBuy']).toContain('💎 PRO va Tariflar')
+    expect(messages.ru['me.tierBuy']).toContain('💎 PRO и тарифы')
+    expect(messages.en['me.tierBuy']).toContain('💎 PRO & Plans')
   })
   it('translate o\'zgaruvchini almashtiradi', () => {
     expect(translate('en', 'home.hello', { name: 'Bob' })).toBe('Hello, Bob!')

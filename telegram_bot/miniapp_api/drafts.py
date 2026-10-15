@@ -117,6 +117,13 @@ def read_draft(cur, user_id: int) -> dict | None:
     return {"payload": payload, "updated_at": row[1]}
 
 
+def _previewable(payload: dict) -> bool:
+    """Mini App oldindan ko'rsata oladimi: rasm / video / GIF / hujjat (rasm bo'lsa) yoki albomdagi birinchi shunday fayl."""
+    from miniapp_api.writes import previewable_file_id
+
+    return previewable_file_id(payload) is not None
+
+
 def public_view(draft: dict, iso) -> dict:
     """Mijozga beriladigan ko'rinish (``file_id`` YO'Q)."""
     p = draft["payload"]
@@ -137,6 +144,6 @@ def public_view(draft: dict, iso) -> dict:
         "reactions": bool(p.get("enable_reactions")),
         "delete_after_hours": int(p.get("delete_after_hours") or 0),
         "media": None if post_type == "text" else {
-            "type": post_type, "previewable": post_type == "photo", "count": count},
+            "type": post_type, "previewable": _previewable(p), "count": count},
         "updated_at": iso(draft["updated_at"]),
     }

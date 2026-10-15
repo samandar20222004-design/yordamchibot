@@ -3,6 +3,7 @@ import { ApiClientError } from '../api/client'
 import { closeApp, isValidBotUsername, openBot } from '../telegram'
 import { useI18n, type MessageKey } from '../i18n'
 import { Icon, type IconName } from './Icon'
+import { BrandMark } from './BrandMark'
 
 export function Button({
   variant = 'secondary', busy = false, block = false, icon, children, className, ...rest
@@ -41,6 +42,20 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
   )
 }
 
+export function Splash() {
+  const { t } = useI18n()
+  return (
+    <div className="splash" role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">{t('common.loading')}</span>
+      <div className="splash-logo">
+        <BrandMark />
+      </div>
+      <div className="splash-name" aria-hidden="true">PostAssist</div>
+      <div className="splash-dots" aria-hidden="true"><i /><i /><i /></div>
+    </div>
+  )
+}
+
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="state">
@@ -72,6 +87,8 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   queue_limit_reached: 'err.queue_limit_reached',
   ai_limit_reached: 'err.ai_limit_reached',
   ai_unavailable: 'err.ai_unavailable',
+  templates_limit_reached: 'err.templates_limit_reached',
+  upload_failed: 'err.upload_failed',
   save_failed: 'err.save_failed',
   draft_not_found: 'err.draft_not_found',
   media_unavailable: 'err.media_unavailable',

@@ -32,6 +32,8 @@ from utils.handler_timeout import run_background_task
 
 from utils.silent_errors import log_silent_failure
 
+from services.start_splash import remove_splash, send_splash
+
 logger = logging.getLogger(__name__)
 
 
@@ -296,6 +298,14 @@ async def _warm_user_stats(user_id: int) -> None:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
+    splash = await send_splash(update.message)  # markazda animatsiyali yuklash (ixtiyoriy)
+    try:
+        return await _start_flow(update, context)
+    finally:
+        await remove_splash(splash)
+
+
+async def _start_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     detected = detect_language(getattr(user, "language_code", None))
 
@@ -1288,3 +1298,19 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(lang), parse_mode="HTML")
         return
+
+
+async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/app (/miniapp) — Mini App'ni ochuvchi tugma; Mini App yoqilmagan bo'lsa tushunarli javob."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    lang = await ensure_user_lang(context, user.id)
+    from miniapp_api.menu import miniapp_button
+
+    button = miniapp_button(lang, "home")
+    if button is None:
+        await update.message.reply_text(get_text("miniapp_unavailable", lang))
+        return
+    await update.message.reply_text(get_text("miniapp_app_msg", lang),
+                                    reply_markup=InlineKeyboardMarkup([[button]]))

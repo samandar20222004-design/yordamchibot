@@ -98,12 +98,13 @@ async def time_voice_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return GET_TIME
 
     is_admin = user_id in ADMIN_IDS_SET
-    is_pro = False
+    tier = "free"
     if not is_admin:
         try:
-            is_pro = bool(await db.run_db(db.is_premium, user_id))
+            tier = str(await db.run_db(db.get_plan_tier, user_id) or "free")
         except Exception:  # noqa: BLE001 — aniqlab bo'lmasa free qoidasi (qat'iyroq)
-            is_pro = False
+            tier = "free"
+    is_pro = tier != "free"
 
     ok, limit = check_duration(getattr(media, "duration", 0), is_pro)
     if not ok:
@@ -114,7 +115,7 @@ async def time_voice_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return GET_TIME
 
     # --- kvota (ovozni matnga o'girishdan OLDIN) ---
-    quota = await voice_quota.reserve(db, user_id, is_pro, is_admin)
+    quota = await voice_quota.reserve(db, user_id, tier, is_admin)
     if not quota["allowed"]:
         await msg.reply_text(_quota_message(quota, lang), parse_mode="HTML")
         return GET_TIME

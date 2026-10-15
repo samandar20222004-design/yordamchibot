@@ -265,7 +265,10 @@ def _get_analytics_view_keyboard(show_pro: bool = False, lang: str = "uz") -> In
     if show_pro:
         rows.append([_pro_button(lang)])
     rows.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="an_overview")])
-    return InlineKeyboardMarkup(rows)
+    from miniapp_api.menu import with_miniapp_row
+
+    # Mini App yoqilgan bo'lsa: kanal tahlili (Men -> Kanallar -> Tahlil)
+    return with_miniapp_row(InlineKeyboardMarkup(rows), lang, "me", before_last=True)
 
 
 async def _show_user_overview(user_id: int, lang: str, context, reply) -> None:

@@ -84,6 +84,21 @@ def _pick_receipt_media(msg):
         return None
 
 
+#: Bitta foydalanuvchining hali ko'rilmagan cheklari chegarasi (admin chatini spamdan himoya).
+RECEIPT_MAX_PENDING = 3
+
+
+def _media_unique_id(msg) -> str | None:
+    """Chek rasmi/hujjatining Telegram ``file_unique_id``'si (takrorni aniqlash uchun; ``file_id`` har yuborishda o'zgaradi)."""
+    try:
+        if getattr(msg, "photo", None):
+            return str(msg.photo[-1].file_unique_id)
+        doc = getattr(msg, "document", None)
+        return str(doc.file_unique_id) if doc is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _get_admin_receipt_keyboard(receipt_id: int, lang: str) -> InlineKeyboardMarkup:
     """Admin [✅ Tasdiqlash] / [❌ Rad etish] klaviaturasi."""
     return InlineKeyboardMarkup([
@@ -117,7 +132,9 @@ def _receipt_plan_for(context) -> tuple:
     """
     ud = getattr(context, "user_data", None) or {}
     plan_key = ud.get("card_plan") or "1m"
-    plan = CARD_TARIFFS.get(plan_key) or CARD_TARIFFS["1m"]
+    if plan_key not in CARD_TARIFFS:
+        plan_key = "1m"
+    plan = CARD_TARIFFS[plan_key]
     return plan_key, plan["days"], int(plan.get("amount") or 0)
 
 
@@ -205,9 +222,16 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # va payments ledger'iga to'g'ri valyuta (UZS / 'uzcard_humo') yoziladi.
     plan_key, plan_days, plan_amount = _receipt_plan_for(context)
 
+    pending = await db.run_db(db.count_user_pending_receipts, user_id)
+    if int(pending or 0) >= RECEIPT_MAX_PENDING:
+        await msg.reply_text(get_text("receipt_too_many_pending", lang, n=RECEIPT_MAX_PENDING), parse_mode="HTML")
+        return RECEIPT_WAIT
+
+    unique_id = _media_unique_id(msg)
     receipt_id = await db.run_db(
         db.save_payment_receipt, user_id, media_type, file_id, caption,
         username, full_name, lang, plan_days, amount_uzs=plan_amount,
+        file_unique_id=unique_id, plan_key=plan_key,
     )
 
     if not receipt_id:
@@ -226,6 +250,7 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # (ism + @username), ID, tanlangan tarif + summa va vaqt ko'rsatiladi.
     tarif_sum = _fmt_uzs(CARD_TARIFFS[plan_key]["amount"])
     sana = _fmt_receipt_time()
+    duplicates = await db.run_db(db.find_duplicate_receipts, unique_id, receipt_id) if unique_id else []
     for admin_id in ADMIN_IDS_SET:
         if admin_id == user_id:
             continue
@@ -237,6 +262,10 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tarif_sum=tarif_sum,
                 sana=sana,
             )
+            if duplicates:
+                dup = duplicates[0]
+                cap += "\n" + get_text("receipt_admin_duplicate_line", admin_lang or "uz", id=dup["id"],
+                                        user_id=dup["user_id"], status=html_escape(dup["status"]))
             markup = _get_admin_receipt_keyboard(receipt_id, admin_lang or "uz")
             if media_type == "photo":
                 await context.bot.send_photo(
@@ -312,13 +341,15 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         if res.get("ok"):
             # Foydalanuvchiga O'Z TILIDA tabrik
             try:
-                await context.bot.send_message(
-                    chat_id=res["user_id"],
-                    text=get_text("receipt_approved_user",
-                                  res.get("language_code") or "uz",
-                                  days=res.get("days") or 30),
-                    parse_mode="HTML",
-                )
+                from handlers.subscription import payment_success_text
+
+                try:
+                    notice = await payment_success_text(
+                        res["user_id"], res.get("tier") or "pro", res.get("language_code") or "uz")
+                except Exception:  # noqa: BLE001 — matn tayyorlanmasa eski qisqa xabar
+                    notice = get_text("receipt_approved_user", res.get("language_code") or "uz",
+                                      days=res.get("days") or 30)
+                await context.bot.send_message(chat_id=res["user_id"], text=notice, parse_mode="HTML")
             except Exception as e:
                 logger.warning("Tasdiqlash tabrigini yuborishda xato: %s", e)
             try:

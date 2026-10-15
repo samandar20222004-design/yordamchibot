@@ -477,8 +477,13 @@ ADMIN_PANEL_I18N = {
             "👤 Foydalanuvchi: <code>{user_id}</code>\n"
             "🧾 Charge ID: <code>{charge_id}</code>\n"
             "💰 Summa: {amount} {currency}\n"
-            "⚠️ PRO huquqi avtomatik O'ZGARTIRILMADI — qaror sizda (kerak bo'lsa tarifni qo'lda tekshiring)."
+            "{outcome}"
         ),
+        "stars_refund_outcome_revoked": "✅ PRO'dan {days} kun ayrildi (muddatsiz tarifga tegilmaydi).",
+        "stars_refund_outcome_already": "ℹ️ Bu refund avval qayta ishlangan — hech narsa o'zgarmadi.",
+        "stars_refund_outcome_unknown_charge": "⚠️ Bunday to'lov bazada topilmadi — PRO'ni qo'lda tekshiring.",
+        "stars_refund_outcome_no_days": "⚠️ To'lov kunlari aniqlanmadi — PRO'ni qo'lda tekshiring.",
+        "stars_refund_outcome_error": "🚨 Bazada xato — PRO'ni qo'lda tekshiring.",
         "stars_activation_failed_admin": (
             "🚨 <b>Stars to'lovi qabul qilindi, lekin PRO faollashmadi</b>\n"
             "👤 Foydalanuvchi: <code>{user_id}</code>\n"
@@ -953,8 +958,13 @@ ADMIN_PANEL_I18N["ru"] = {
         "👤 Пользователь: <code>{user_id}</code>\n"
         "🧾 Charge ID: <code>{charge_id}</code>\n"
         "💰 Сумма: {amount} {currency}\n"
-        "⚠️ Право PRO автоматически НЕ изменено — решение за вами (при необходимости проверьте тариф вручную)."
+        "{outcome}"
     ),
+        "stars_refund_outcome_revoked": "✅ Из PRO вычтено {days} дн. (бессрочный тариф не затрагивается).",
+    "stars_refund_outcome_already": "ℹ️ Этот возврат уже обработан — ничего не изменено.",
+    "stars_refund_outcome_unknown_charge": "⚠️ Такой платёж в базе не найден — проверьте PRO вручную.",
+    "stars_refund_outcome_no_days": "⚠️ Не удалось определить дни платежа — проверьте PRO вручную.",
+    "stars_refund_outcome_error": "🚨 Ошибка базы — проверьте PRO вручную.",
     "stars_activation_failed_admin": (
         "🚨 <b>Оплата Stars получена, но PRO не активирован</b>\n"
         "👤 Пользователь: <code>{user_id}</code>\n"
@@ -1426,8 +1436,13 @@ ADMIN_PANEL_I18N["en"] = {
         "👤 User: <code>{user_id}</code>\n"
         "🧾 Charge ID: <code>{charge_id}</code>\n"
         "💰 Amount: {amount} {currency}\n"
-        "⚠️ PRO access was NOT changed automatically — the decision is yours (check the plan manually if needed)."
+        "{outcome}"
     ),
+    "stars_refund_outcome_revoked": "✅ {days} days were deducted from PRO (unlimited plans are untouched).",
+    "stars_refund_outcome_already": "ℹ️ This refund was already processed — nothing changed.",
+    "stars_refund_outcome_unknown_charge": "⚠️ No such payment found in the database — check PRO manually.",
+    "stars_refund_outcome_no_days": "⚠️ Could not determine the payment's days — check PRO manually.",
+    "stars_refund_outcome_error": "🚨 Database error — check PRO manually.",
     "stars_activation_failed_admin": (
         "🚨 <b>Stars payment received, but PRO was not activated</b>\n"
         "👤 User: <code>{user_id}</code>\n"

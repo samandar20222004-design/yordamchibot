@@ -1542,3 +1542,4 @@ def quick_clean(text: str, entities=None, signature_html: str = "",
         length = _utf16(body.text)
     return QuickCleanResult(html=html, length=length, removed_lines=removed,
                             signature_added=added)
+

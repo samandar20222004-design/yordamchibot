@@ -26,7 +26,7 @@ def load_account(cur, user_id: int) -> dict | None:
                subscription_expires_at, role, COALESCE(ai_credits, 0),
                CASE WHEN last_limit_reset >= CURRENT_DATE
                     THEN COALESCE(ai_requests_today, 0) ELSE 0 END,
-               (deleted_at IS NOT NULL), NOW()
+               (deleted_at IS NOT NULL), NOW(), pro_legacy_until
           FROM users WHERE user_id = %s
         """,
         (user_id,),
@@ -40,6 +40,7 @@ def load_account(cur, user_id: int) -> dict | None:
         "subscription_expires_at": row[5], "role": row[6],
         "ai_credits": int(row[7] or 0), "ai_requests_today": int(row[8] or 0),
         "deleted": bool(row[9]), "db_now": row[10],
+        "pro_legacy_until": row[11] if len(row) > 11 else None,
     }
 
 

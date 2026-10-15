@@ -1083,7 +1083,9 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """
     from translations import settings_stats_t
 
-    return InlineKeyboardMarkup([
+    from miniapp_api.menu import with_miniapp_row
+
+    markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_lang", lang),
                                  callback_data="stgs_lang"),
@@ -1103,6 +1105,7 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="stgs_help_hub"),
         ],
     ])
+    return with_miniapp_row(markup, lang, "me")  # Mini App yoqilgan bo'lsagina 4-qator
 
 
 def get_profile_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
@@ -1654,7 +1657,7 @@ def get_payment_region_keyboard(
 
 
 def get_intl_tariffs_keyboard(
-    lang: str = "uz", plan_order: tuple = ("1m", "3m", "1y")
+    lang: str = "uz", plan_order: tuple = ("1m", "3m", "6m", "1y")
 ) -> InlineKeyboardMarkup:
     """🌍 Xalqaro tarif tanlash — FAQAT Stars/Crypto paketlari.
 
@@ -1665,7 +1668,8 @@ def get_intl_tariffs_keyboard(
     """
     rows = [
         [InlineKeyboardButton(
-            get_text(f"intl_tariff_{key}", lang, stars=STARS_PLANS[f"stars_{key}"]["stars"]),
+            get_text("intl_tariff_tpl", lang, period=get_text(f"period_{key.lstrip('u')}", lang),
+                     stars=STARS_PLANS[f"stars_{key}"]["stars"]),
             callback_data=cb(CB_PAY_INTL_PLAN, key),
         )]
         for key in plan_order

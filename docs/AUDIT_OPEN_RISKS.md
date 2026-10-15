@@ -215,3 +215,12 @@ kuni bilan. Qaysi chegara "to'g'ri" ekani biznes qarori; DB sessiya zonasi kodda
 `register_*` va `_build_*_states` ni `handlers/registration/` ga, guard'larni `handlers/guards.py` ga ko'chirish
 (importlar facade orqali saqlanadi); har qadamdan keyin `tests/run_tests.sh`. Ikki i18n tizimi (`locales/` va
 `translations/`) hozircha birlashtirilmadi.
+
+## To'lov bandlari — YOPILDI (egasi: «to'lovni to'g'irla»)
+| Band | Qaror / holat | Test |
+| --- | --- | --- |
+| AUDIT-006 Stars refund | `refund_stars_payment`: to'lov `refunded` bo'ladi, shu to'lovning kunlari PRO'dan ayriladi (Payme refund qoidasi bilan bir xil: muddatsiz pro/enterprise'ga tegilmaydi, boshqa to'lovlardan qo'shilgan muddat saqlanadi, qolgan muddat <= hozir bo'lsa `free`). Idempotent (`FOR UPDATE` + holat o'tishi). Foydalanuvchiga va adminlarga natija bilan xabar. Payload tarifga mos kelmasa: `no_days` — to'lov belgilanadi, PRO tegilmaydi, admin qo'lda ko'radi. | `tests/stars_refund_apply_test.py` (real PG), `stars_refund_notice_test` |
+| AUDIT-007 karta cheki | `payment_receipts.file_unique_id` (ustun + qisman indeks). Takroriy rasm RAD ETILMAYDI (oila a'zolari qonuniy ulashishi mumkin) — admin kartasida «bu rasm avval yuborilgan (chek #, foydalanuvchi, holat)». Bitta foydalanuvchida kutayotgan cheklar <= 3. | `tests/payment_gaps_test.py` |
+| P-1 photo_check | Tasdiq `system_settings` kaliti bilan atomik: bir foydalanuvchiga bir kunda BIR marta (+30 kun ikki admin/qayta bosishda takrorlanmaydi); PRO berish muvaffaqiyatsiz bo'lsa huquq qaytariladi. Sxema/callback formati o'zgarmadi, daromad hisobotlariga ta'sir yo'q. | `tests/payment_gaps_test.py` |
+| P-2 Payme perform | Foydalanuvchi qatori yo'q bo'lsa `PerformTransaction` -31008 (bajarib bo'lmaydi) qaytaradi, butun tranzaksiya (ledger ham) bekor — pul olinmaydi, PRO'siz «to'langan» holat qolmaydi. | `tests/payment_gaps_test.py` |
+| `process_stars_payment` payload | O'ZGARTIRILMADI (ataylab): `sub_` payload to'liq validatsiya qilinadi, boshqa payload'lar karta/qo'lda yo'llar va 16 ta test tomonidan ishlatiladi. Hozirgi yagona Stars chaqiruvchisi payload'ni oldindan validatsiya qiladi. | `stars_rejected_payment_test` |

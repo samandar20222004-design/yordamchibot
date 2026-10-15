@@ -33,7 +33,8 @@ from database import (
 )
 # admin harakatlari auditi (chek tasdiqlash/rad etish).
 from services.audit_service import AuditService
-from config import STARS_PLANS as CONFIG_STARS_PLANS
+from services.plan_sql import grant_expiry_case, grant_plan_case
+from config import STARS_PLANS as CONFIG_STARS_PLANS, tier_of_key
 
 from utils.silent_errors import log_silent_failure
 
@@ -118,11 +119,11 @@ class PaymentService:
     # ──────────────────────────────────────────────────────────────
     # VALIDATE_PAYLOAD — Stars invoice payload tekshiruvi
     # ──────────────────────────────────────────────────────────────
-    _STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_1m|stars_3m|stars_1y)_([0-9]+)$")
+    _STARS_PAYLOAD_RE = re.compile(r"^sub_(stars_u?(?:1m|3m|6m|1y))_([0-9]+)$")
 
     # Standart tariflar — yagona manba: config.STARS_PLANS
     STARS_PLANS = {
-        key: {"stars": int(info["stars"]), "days": int(info["days"])}
+        key: {"stars": int(info["stars"]), "days": int(info["days"]), "tier": info.get("tier", "pro")}
         for key, info in CONFIG_STARS_PLANS.items()
     }
 
@@ -136,7 +137,7 @@ class PaymentService:
         """Invoice payload + summa + valuta'ni qat'iy tekshiradi.
 
         Returns: ``(plan_info, error_message)``
-          - plan_info: ``{"plan_key": str, "stars": int, "days": int}`` yoki ``None``
+          - plan_info: ``{"plan_key": str, "stars": int, "days": int, "tier": "pro"|"ultra"}`` yoki ``None``
           - error_message: ``str`` yoki ``None``
         """
         match = PaymentService._STARS_PAYLOAD_RE.fullmatch(str(payload_data or ""))
@@ -165,7 +166,7 @@ class PaymentService:
             except (TypeError, ValueError):
                 return None, "To'lov summasi noto'g'ri."
 
-        return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"]}, None
+        return {"plan_key": plan_key, "stars": plan["stars"], "days": plan["days"], "tier": plan.get("tier", "pro")}, None
 
     # ──────────────────────────────────────────────────────────────
     # PROCESS_STARS_PAYMENT — atomik to'lov + obuna berish
@@ -224,6 +225,7 @@ class PaymentService:
                 }
             duration_days = int(plan_info["days"])
             amount = int(plan_info["stars"])
+            plan = plan_info.get("tier") or plan
 
         status = PAYMENT_STATUS_SUCCEEDED
         method = normalize_payment_method(payment_method)
@@ -282,15 +284,12 @@ class PaymentService:
                 # 4) Obuna uzaytirish: max(current_expiry, NOW()) + days (additive)
                 # Enterprise (muddatsiz) foydalanuvchi huquqini yo'qotmaydi: tarif saqlanadi, muddatsiz
                 # bo'lsa muddat NULL qoladi (qoida: users_repository.sync_stars_subscription bilan bir xil).
+                tier = plan if plan in ("pro", "ultra") else "pro"
                 cur.execute(
-                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-                    "THEN plan_type ELSE %s END, "
-                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
-                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL END "
+                    f"UPDATE users SET plan_type = {grant_plan_case(tier)}, "  # nosec B608 — tarif oq ro'yxatdan
+                    f"subscription_expires_at = {grant_expiry_case()} "
                     "WHERE user_id = %s",
-                    (plan, str(int(duration_days)), user_id),
+                    (str(int(duration_days)), user_id),
                 )
                 if cur.rowcount == 0:
                     _record_payment_failure_metric()
@@ -423,7 +422,7 @@ class PaymentService:
                 # ixtiyoriy o'qiladi (len tekshiruvi).
                 try:
                     cur.execute(
-                        "SELECT status, user_id, days_granted, amount_uzs, order_id "
+                        "SELECT status, user_id, days_granted, amount_uzs, order_id, plan_key "
                         "FROM payment_receipts WHERE id = %s FOR UPDATE",
                         (int(receipt_id),),
                     )
@@ -443,6 +442,7 @@ class PaymentService:
                 default_days = row[2] if len(row) > 2 else 30
                 amount_uzs = row[3] if len(row) > 3 else 0
                 order_id = row[4] if len(row) > 4 else None
+                receipt_tier = tier_of_key(row[5]) if len(row) > 5 and row[5] else "pro"  # eski cheklar (NULL) = PRO
 
                 if status != RECEIPT_STATUS_PENDING:
                     if status == RECEIPT_STATUS_APPROVED:
@@ -515,12 +515,8 @@ class PaymentService:
                 # 5) PRO berish: max(current_expiry, NOW()) + days (additive)
                 # Enterprise (muddatsiz) huquqi saqlanadi (qarang: process_stars_payment).
                 cur.execute(
-                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-                    "THEN plan_type ELSE 'pro' END, "
-                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
-                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL END "
+                    f"UPDATE users SET plan_type = {grant_plan_case(receipt_tier)}, "  # nosec B608 — tarif oq ro'yxatdan
+                    f"subscription_expires_at = {grant_expiry_case()} "
                     "WHERE user_id = %s",
                     (str(grant_days), int(user_id)),
                 )
@@ -553,6 +549,7 @@ class PaymentService:
                 "ok": True,
                 "user_id": int(user_id),
                 "days": grant_days,
+                "tier": receipt_tier,
                 "language_code": lang,
             }
         except Exception as e:

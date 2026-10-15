@@ -101,7 +101,7 @@ EN_OVERLAY = {
         "Make sure the bot is an <b>administrator</b> with post permission, "
         "then connect the channel in «📢 My channels».\n\n"
         "<b>2. How do I get AI credits?</b>\n"
-        "Tap daily bonus, invite friends, or switch to ⭐️ PRO for unlimited AI.\n\n"
+        "Tap daily bonus, invite friends, or switch to ⭐️ PRO / 👑 ULTRA for a much higher daily AI limit.\n\n"
         "<b>3. Can I edit a scheduled post?</b>\n"
         "Yes — Account → Pending posts.\n\n"
         "<b>4. How do I turn off ads?</b>\n"
@@ -186,7 +186,7 @@ EN_OVERLAY = {
         "To earn more credits:\n"
         "• 🎁 Claim daily bonus\n"
         "• 👥 Invite friends (1–3rd friend: +3, after: +1)\n"
-        "• ⭐️ Switch to PRO (unlimited AI, 100% ad-free posts)"
+        "• ⭐️ Switch to PRO or 👑 ULTRA (much higher daily AI limit, ad-free posts)"
     ),
 
     # Daily bonus
@@ -536,6 +536,8 @@ EN_OVERLAY = {
     "receipt_admin_user_id_line": "🆔 ID: {user_id}",
     "receipt_admin_tarif_line": "🎫 Selected plan: {tarif} ({summa} so'm)",
     "receipt_admin_time_line": "🕐 Time: {sana}",
+    "receipt_admin_duplicate_line": "⚠️ <b>This receipt image was submitted before</b> (receipt #{id}, user <code>{user_id}</code>, status: {status}). Check before approving.",
+    "receipt_too_many_pending": "⏳ <b>Your {n} receipts are still under review.</b>\n\nPlease wait for the admin's reply — do not send a new receipt.",
     "receipt_btn_approve": "✅ Approve",
     "receipt_btn_reject": "❌ Reject",
     # 🔒 Kanalga obuna (majburiy) ekrani
@@ -851,8 +853,8 @@ EN_OVERLAY = {
     "ai_limit_msg": (
         "🚫 <b>Daily AI limit reached!</b>\n\n"
         "Today <b>{used}/{max}</b> AI requests were used.\n"
-        "The Free plan allows max <b>{max}</b> AI requests per day.\n\n"
-        "⭐️ Switch to PRO for unlimited AI."
+        "Your plan allows max <b>{max}</b> AI requests per day.\n\n"
+        "⭐️ The limit renews tomorrow. Upgrade for more: PRO or ULTRA."
     ),
     "ai_media_received": (
         "🖼 <b>Media received!</b>\n\nNow write the post topic or text."
@@ -1084,6 +1086,44 @@ EN_OVERLAY = {
     "vs_heard": "🎤 <b>Heard:</b> <i>{text}</i>",
     "vs_not_understood": "🤔 <b>I couldn't work out the time.</b>\n\nHeard: <i>{text}</i>\n\nPlease say or type it again, e.g. <i>tomorrow at 18:00</i>. Your attempt was not counted.",
     "vs_free_used_note": "ℹ️ Free voice scheduling is available once. PRO: up to {n} per day.",
+    "stars_refund_user": "↩️ <b>Payment refunded.</b>\n\nBecause your Stars payment was refunded, {days} days were deducted from your PRO period. If you have questions, write via ⚙️ Settings → ❓ Help.",
+    "period_1m": "1 month",
+    "period_3m": "3 months",
+    "period_6m": "6 months",
+    "period_1y": "1 year",
+    "btn_tier_pro": "⭐️ PRO",
+    "btn_tier_ultra": "👑 ULTRA",
+    "tier_title_pro": "⭐️ <b>PRO plan</b>",
+    "tier_title_ultra": "👑 <b>ULTRA plan</b>",
+    "tier_audience_pro": "👤 Who it's for: channel owners (1–10 channels), content creators and small SMM specialists.",
+    "tier_audience_ultra": "👤 Who it's for: SMM specialists running 10–30 channels, active creators and teams that prepare lots of posts.",
+    "tl_channels": "📢 Channels: {n}",
+    "tl_perday": "<b>{n}</b> per day",
+    "tl_upto": "up to <b>{n}</b>",
+    "tl_ai": "🤖 AI requests: {n}",
+    "tl_queue": "🗂 Queue: {n} scheduled posts",
+    "tl_voice": "🎤 Voice scheduling: {n}",
+    "tl_plans": "📅 Content plans: 7 and 30 days",
+    "tl_nosig": "✨ No PostAssist signature in channel posts",
+    "tl_usage": "📊 View AI and queue usage (bot and Mini App)",
+    "tl_unlimited": "unlimited",
+    "tier_prices_head": "💳 <b>Prices</b> (UZS · Stars)",
+    "tier_price_line": "• {period} — <b>{uzs}</b> UZS · ⭐️ {stars}{save}",
+    "tier_pick_period": "👇 Choose a period:",
+    "tier_terms": "ℹ️ After a successful payment the plan turns on immediately and the period is ADDED to your current subscription. Each AI request uses 1 of your daily limit; when it runs out, credits on your balance are used.",
+    "plan_card_head": "{emoji} <b>Your plan: {name}</b>",
+    "plan_card_expires": "📅 Subscription: <b>{when}</b>",
+    "plan_card_ai_used": "🤖 AI requests today: <b>{used} / {max}</b>",
+    "plan_card_legacy": "🎁 Your previous PRO terms (extended limits) are kept until <b>{until}</b> — the period you paid for is not shortened.",
+    "plan_card_upsell_free": "⭐️ <b>PRO</b> — from {pro_price} UZS/month: {pro_ch} channels, {pro_ai} AI per day, no signature in posts.\n👑 <b>ULTRA</b> — from {ultra_price} UZS/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue.",
+    "plan_card_upsell_pro": "👑 <b>ULTRA</b> — from {ultra_price} UZS/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue. If you move from PRO to ULTRA, your remaining PRO time continues as ULTRA too.",
+    "plan_card_help": "🆘 Payment or plan questions: ⚙️ Settings → ❓ Help.",
+    "plan_name_enterprise": "Enterprise (unlimited)",
+    "sub_pay_success_v2": "✅ <b>Payment received!</b>\n\n{emoji} Plan: <b>{name}</b>\n📅 Valid until: <b>{when}</b>\n\nUnlocked:\n{limits}",
+    "sub_inv_title_tpl": "⭐️ PostAssist {tier} ({period})",
+    "sub_inv_desc_tpl": "{tier} plan — {period}. Channels: {ch}, AI: {ai}/day, queue: {q}.",
+    "intl_tariff_tpl": "⭐️ {period} — {stars}★",
+    "tariff_btn_tpl": "{period} — {uzs} UZS",
     "np_time_future": (
         "⚠️ <b>This time has already passed.</b>\n\n"
         "Please enter a time in the FUTURE.\n"
@@ -1161,6 +1201,9 @@ EN_OVERLAY = {
     "np_confirm_ok_btn": "✅ Schedule",
     "np_confirm_queue_btn": "⏳ Add to queue",
     "np_confirm_miniapp_btn": "📱 In Mini App",
+    "btn_miniapp_open": "📱 Mini App",
+    "miniapp_app_msg": "📱 Mini App — a handy editor, calendar and analytics. Tap the button below:",
+    "miniapp_unavailable": "📱 Mini App is not enabled yet.",
     "np_confirm_edit_btn": "✏️ Edit",
     "np_album_received": (
         "🖼 <b>Album received:</b> {count} media items — "
@@ -1327,8 +1370,8 @@ EN_OVERLAY = {
     "ch_limit_msg": (
         "🚫 <b>Channel limit reached!</b>\n\n"
         "You now have <b>{current}/{max}</b> channels connected.\n"
-        "The Free plan allows max <b>{max}</b> channels.\n\n"
-        "⭐️ Switch to PRO for unlimited use."
+        "Your plan allows max <b>{max}</b> channels.\n\n"
+        "⭐️ Upgrade for more channels: PRO (up to 10) or ULTRA (up to 30)."
     ),
     "ch_success": (
         "✅ <b>Channel connected successfully!</b>\n\n"
@@ -1465,8 +1508,8 @@ EN_OVERLAY = {
     "queue_limit_msg": (
         "🚫 <b>Scheduled posts limit reached!</b>\n\n"
         "You have <b>{current}/{max}</b> scheduled posts.\n"
-        "The Free plan allows max <b>{max}</b> posts in the schedule.\n\n"
-        "⭐️ Switch to PRO for unlimited scheduling."
+        "Your plan allows max <b>{max}</b> posts in the schedule.\n\n"
+        "⭐️ Upgrade for more: PRO or ULTRA."
     ),
     "queue_not_found": "⚠️ Post not found or already deleted.",
     "queue_not_found_short": "⚠️ Post not found!",
@@ -2093,6 +2136,7 @@ EN_OVERLAY = {
     "pc_bad_callback": "Invalid callback data.",
     "pc_bad_user_id": "Invalid user ID.",
     "pc_db_error": "Something went wrong.",
+    "pc_already_decided": "PRO was already granted to this user today (another admin or a repeated tap).",
     # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding (EN) ──
     "err_ux_ai_busy": "AI is currently busy. Please try again in 20 seconds.",
     "err_ux_telegram_flood": "Telegram rate limit reached. Your message has been queued.",

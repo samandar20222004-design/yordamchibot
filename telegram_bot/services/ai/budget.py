@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""💳 AI BYUDJET — FREE va PRO tarif uchun kunlik/oylik token + USD limiti.
+"""💳 AI BYUDJET — FREE, PRO va ULTRA tarif uchun kunlik/oylik token + USD limiti.
 
 Nega kerak
 ----------
@@ -11,7 +11,7 @@ tarif uchun TO'RT cheklov:
 * ``daily_usd`` / ``monthly_usd`` — taxminiy xarajat (USD, narx jadvali bo'yicha).
 
 PRO oylik USD limiti standart holatda PRO narxining (``PAYMENT_PRICE_1M_UZS``,
-19 000 so'm) ``AI_BUDGET_PRO_MAX_COST_SHARE`` (standart 40%) ulushi —
+29 000 so'm) ``AI_BUDGET_PRO_MAX_COST_SHARE`` (standart 40%) ulushi —
 ya'ni AI xarajati PRO daromadining katta qismini yemasligi uchun.
 
 Qat'iylik (atomiklik)
@@ -73,7 +73,8 @@ logger = logging.getLogger(__name__)
 
 TIER_FREE = "free"
 TIER_PRO = "pro"
-TIERS: tuple[str, ...] = (TIER_FREE, TIER_PRO)
+TIER_ULTRA = "ultra"
+TIERS: tuple[str, ...] = (TIER_FREE, TIER_PRO, TIER_ULTRA)
 
 #: Byudjet tekshiruvi uchun DB so'rovi kutish chegarasi (soniya).
 DB_SNAPSHOT_TIMEOUT = 1.5
@@ -144,7 +145,20 @@ def pro_monthly_usd_default() -> float:
 
         price_usd = cost_tracker.uzs_to_usd(cost_tracker._pro_price_uzs())
     except Exception:  # noqa: BLE001 — konfiguratsiya xatosi AI'ni to'xtatmasin
-        price_usd = 19000 / 12600.0
+        price_usd = 29000 / 12600.0
+    share = _float_env(os.getenv("AI_BUDGET_PRO_MAX_COST_SHARE"), 0.40)
+    return round(price_usd * max(0.0, share), 4)
+
+
+def ultra_monthly_usd_default() -> float:
+    """ULTRA oylik AI xarajat limiti (USD) — ULTRA 1 oylik narxi x ulush (env bo'lmasa)."""
+    try:
+        import config
+        from services.ai import cost_tracker
+
+        price_usd = cost_tracker.uzs_to_usd(int(config.TARIFF_CATALOG["u1m"]["uzs"]))
+    except Exception:  # noqa: BLE001
+        price_usd = 39000 / 12600.0
     share = _float_env(os.getenv("AI_BUDGET_PRO_MAX_COST_SHARE"), 0.40)
     return round(price_usd * max(0.0, share), 4)
 
@@ -154,6 +168,16 @@ def tier_budget(tier: str | None) -> TierBudget:
 
     Noma'lum tarif → FREE (eng qat'iy, xarajat xavfsizligi uchun).
     """
+    if str(tier or "").lower() == TIER_ULTRA:
+        monthly_usd_raw = os.getenv("AI_BUDGET_ULTRA_MONTHLY_USD")
+        return TierBudget(
+            tier=TIER_ULTRA,
+            daily_tokens=_int_env(os.getenv("AI_BUDGET_ULTRA_DAILY_TOKENS"), 750_000),
+            daily_usd=_float_env(os.getenv("AI_BUDGET_ULTRA_DAILY_USD"), 0.25),
+            monthly_tokens=_int_env(os.getenv("AI_BUDGET_ULTRA_MONTHLY_TOKENS"), 7_500_000),
+            monthly_usd=(_float_env(monthly_usd_raw, 0.0) if monthly_usd_raw not in (None, "")
+                         else ultra_monthly_usd_default()),
+        )
     if str(tier or "").lower() == TIER_PRO:
         monthly_usd_raw = os.getenv("AI_BUDGET_PRO_MONTHLY_USD")
         return TierBudget(
@@ -203,11 +227,15 @@ def estimate_request(prompt: str = "", system_instruction: str = "") -> tuple[in
 # ---------------------------------------------------------------------------
 # Tarif aniqlash (FREE / PRO)
 # ---------------------------------------------------------------------------
-def _is_premium_sync(user_id: int) -> bool:
-    """DB orqali PRO holati (baza yo'q bo'lsa — FREE)."""
+def _is_premium_sync(user_id: int):
+    """DB orqali tarif: ``True``/``False`` (eski) yoki tarif nomi (``'free'|'pro'|'ultra'``). Baza yo'q bo'lsa — FREE."""
     if not _db_ready():
         return False
-    return bool(sys.modules["database"].is_premium(int(user_id)))
+    db = sys.modules["database"]
+    getter = getattr(db, "get_plan_tier", None)
+    if getter is not None:
+        return str(getter(int(user_id)))
+    return bool(db.is_premium(int(user_id)))
 
 
 _tier_resolver = _is_premium_sync
@@ -231,6 +259,11 @@ async def resolve_tier(user_id, is_pro: bool = False) -> str:
     except Exception as exc:  # noqa: BLE001 — tarif aniqlanmasa FREE limit
         logger.debug("budget: tarif aniqlanmadi (user=%s): %s", user_id, exc)
         return TIER_FREE
+    if isinstance(premium, str):
+        name = premium.strip().lower()
+        if name in ("ultra", "enterprise"):
+            return TIER_ULTRA
+        return TIER_PRO if name == "pro" else TIER_FREE
     return TIER_PRO if premium else TIER_FREE
 
 
@@ -765,6 +798,7 @@ __all__ = [
     "PERIOD_MONTHLY",
     "TIER_FREE",
     "TIER_PRO",
+    "TIER_ULTRA",
     "TierBudget",
     "budget_message",
     "default_guard",

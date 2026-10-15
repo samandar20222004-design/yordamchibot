@@ -215,3 +215,31 @@ describe('Tahrirlagich: format, tugma, tez vaqt', () => {
     expect(when.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
   })
 })
+
+describe('Qoralamadagi video/GIF oldindan ko\'rish', () => {
+  it('video qoralama: <video> ko\'rinadi (blob:), rasm bo\'lsa <img>', async () => {
+    const created: string[] = []
+    vi.stubGlobal('URL', Object.assign(URL, {
+      createObjectURL: vi.fn((b: Blob) => { created.push(b.type); return 'blob:test-media' }), revokeObjectURL: vi.fn() }))
+    mockApi({ ...DRAFT, post_type: 'video', media: { type: 'video', previewable: true, count: null } }, (url) =>
+      url.endsWith('/draft/media') ? new Response(new Uint8Array([0, 0, 0, 24]), { status: 200, headers: { 'Content-Type': 'video/mp4' } }) : undefined)
+    const { container } = render(<App />)
+    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await waitFor(() => expect(container.querySelector('video.bubble-media')).not.toBeNull())
+    const video = container.querySelector('video.bubble-media') as HTMLVideoElement
+    expect(video.getAttribute('src')).toBe('blob:test-media')
+    expect(video.muted).toBe(true)
+    expect(container.querySelector('img.bubble-media')).toBeNull()
+    expect(created).toContain('video/mp4')
+  })
+
+  it('HTML (rasm emas, video emas) javobi ko\'rsatilmaydi: belgi bilan o\'rin egasi', async () => {
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }))
+    mockApi(DRAFT, (url) =>
+      url.endsWith('/draft/media') ? new Response('<html>', { status: 200, headers: { 'Content-Type': 'text/html' } }) : undefined)
+    const { container } = render(<App />)
+    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await waitFor(() => expect(container.querySelector('.bubble-media-ph')).not.toBeNull())
+    expect(container.querySelector('video.bubble-media, img.bubble-media')).toBeNull()
+  })
+})

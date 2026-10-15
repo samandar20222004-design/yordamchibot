@@ -101,20 +101,29 @@ def test_auto_ad_free_mode():
 
 def test_card_payment_button_and_text():
     from handlers.subscription import (
-        _get_subscription_keyboard, _build_card_payment_text, _get_card_payment_keyboard,
+        _get_subscription_keyboard, _build_card_payment_text, _get_card_payment_keyboard, _get_tier_keyboard,
     )
+    from keyboards.inline import get_payment_region_keyboard
     for lang in ("uz", "ru"):
+        # 1-ekran: tarif tanlash (PRO / ULTRA)
         kb = _get_subscription_keyboard("free", lang)
         flat = [b for row in kb.inline_keyboard for b in row]
-        card = [b for b in flat if b.callback_data == "sub_card_pay"]
-        assert len(card) == 1 and "Uzcard" in card[0].text and "Humo" in card[0].text
-        assert "sub_pay:stars_1m" in [b.callback_data for b in flat]  # Stars saqlanadi
+        assert {"sub_tier:pro", "sub_tier:ultra"} <= {b.callback_data for b in flat}
+        # 2-ekran: muddat (Stars to'lov oqimiga) — har bir muddat so'mdagi narx bilan
+        tier_cbs = [b.callback_data for row in _get_tier_keyboard("pro", lang).inline_keyboard for b in row]
+        assert "sub_pay:stars_1m" in tier_cbs  # Stars saqlanadi
+        # 3-ekran: to'lov mintaqasi — Uzcard/Humo (so'm) yoki xalqaro (Stars)
+        region = [b for row in get_payment_region_keyboard(lang, "1m").inline_keyboard for b in row]
+        assert len([b for b in region if (b.callback_data or "").startswith("sub_region:uz")]) == 1
+        assert len([b for b in region if (b.callback_data or "").startswith("sub_region:intl")]) == 1
+        from handlers.subscription import _build_pay_region_text
+        assert "Uzcard" in _build_pay_region_text(lang, "1m")  # mintaqa ekrani Uzcard/Humo'ni tushuntiradi
         text = _build_card_payment_text(42, lang)
-        assert "Uzcard" in text and "42" in text and "19 000" in text
+        assert "Uzcard" in text and "42" in text and "29 000" in text
         back = [b.callback_data for row in _get_card_payment_keyboard(lang).inline_keyboard for b in row]
         assert "sub_back" in back
-    pro_kb = _get_subscription_keyboard("pro", "uz")
-    assert "sub_card_pay" not in [b.callback_data for row in pro_kb.inline_keyboard for b in row]
+    ent_kb = _get_subscription_keyboard("enterprise", "uz")
+    assert not any((b.callback_data or "").startswith("sub_tier:") for row in ent_kb.inline_keyboard for b in row)
 
 
 def test_i18n_new_keys():
@@ -286,13 +295,13 @@ def test_ru_cabinet_keys_format_without_missing_key():
     samples = {
         "cabinet_streak": {"streak": 3},
         "credits_value": {"n": 12},
-        "card_tariff_1m": {"price": "19 000"},
+        "card_tariff_1m": {"price": "29 000"},
         "card_tariff_3m": {"price": "45 000"},
         "card_tariff_1y": {"price": "140 000"},
-        "card_payment_selected": {"tarif": "1 oy", "summa": "19 000"},
+        "card_payment_selected": {"tarif": "1 oy", "summa": "29 000"},
         "card_payment_card": {"card": "8600 0609 5082 5589", "holder": "Sayitqulov S."},
         "card_payment_steps": {"user_id": 42, "admin": "@admin"},
-        "receipt_prompt": {"user_id": 42, "tarif": "1 oy", "summa": "19 000"},
+        "receipt_prompt": {"user_id": 42, "tarif": "1 oy", "summa": "29 000"},
         "receipt_admin_user_line": {"name": "Ali", "username": "ali"},
         "receipt_admin_user_nick_line": {"name": "Ali"},
         "receipt_admin_user_id_line": {"user_id": 42},
@@ -329,24 +338,28 @@ def test_card_payment_tariff_and_receipt_flow():
 
     # --- 1) Karta raqami/summa formatlash ---
     assert sub._fmt_card_number(cfg.CARD_NUMBER) == "8600 0609 5082 5589"
-    assert sub._fmt_uzs(sub.CARD_TARIFFS["1m"]["amount"]) == "19 000"
-    assert sub._fmt_uzs(sub.CARD_TARIFFS["3m"]["amount"]) == "45 000"
-    assert sub._fmt_uzs(sub.CARD_TARIFFS["1y"]["amount"]) == "140 000"
-    assert [sub._plan_key_for_days(d) for d in (30, 90, 365)] == ["1m", "3m", "1y"]
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["1m"]["amount"]) == "29 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["3m"]["amount"]) == "75 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["6m"]["amount"]) == "135 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["1y"]["amount"]) == "245 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["u1m"]["amount"]) == "69 000"
+    assert sub._fmt_uzs(sub.CARD_TARIFFS["u1y"]["amount"]) == "620 000"
+    assert [sub._plan_key_for_days(d) for d in (30, 90, 180, 365)] == ["1m", "3m", "6m", "1y"]
 
     # --- 2) Tarif tanlash klaviaturasi: 1m/3m/1y + orqaga (uz va ru) ---
     for lang in ("uz", "ru"):
         kb = sub._get_card_tariffs_keyboard(lang)
         flat = [(b.text, b.callback_data) for row in kb.inline_keyboard for b in row]
-        assert [cb for _, cb in flat] == ["sub_tarif:1m", "sub_tarif:3m", "sub_tarif:1y", "sub_back"], flat
-        assert flat[0][0] == get_text("card_tariff_1m", lang, price="19 000"), flat[0]
-        assert flat[1][0] == get_text("card_tariff_3m", lang, price="45 000"), flat[1]
-        assert flat[2][0] == get_text("card_tariff_1y", lang, price="140 000"), flat[2]
+        assert [cb for _, cb in flat] == ["sub_tarif:1m", "sub_tarif:3m", "sub_tarif:6m", "sub_tarif:1y", "sub_back"], flat
+        for (label, _cb), key, price in zip(flat, ("1m", "3m", "6m", "1y"), ("29 000", "75 000", "135 000", "245 000")):
+            assert label == get_text("tariff_btn_tpl", lang, period=get_text(f"period_{key}", lang), uzs=price), (label, key)
+        ultra = [cb for row in sub._get_card_tariffs_keyboard(lang, tier="ultra").inline_keyboard for b in row for cb in [b.callback_data]]
+        assert ultra == ["sub_tarif:u1m", "sub_tarif:u3m", "sub_tarif:u6m", "sub_tarif:u1y", "sub_back"], ultra
 
     # --- 3) Tanlangan tarif bo'yicha karta ekrani (summa, karta, egasi, ID) ---
     for lang, plan_word in (("uz", "3 oy"), ("ru", "3 месяца")):
         text = sub._build_card_payment_text(42, lang, "3m")
-        assert plan_word in text and "45 000" in text, text[:200]
+        assert plan_word in text and "75 000" in text, text[:200]
         assert "8600 0609 5082 5589" in text and "Sayitqulov S." in text, text[:200]
         assert "42" in text  # foydalanuvchi ID yo'riqnomada ko'rsatiladi
 
@@ -466,7 +479,7 @@ def test_card_payment_tariff_and_receipt_flow():
             cap = bot.photos[0][1]
             assert "Aziz (@purchaser)" in cap, cap
             assert "ID: 777001" in cap, cap
-            assert "3 месяца (45 000 сум)" in cap, cap
+            assert "PRO — 3 месяца (75 000 сум)" in cap, cap
             assert "Время: " in cap, cap
             kb = bot.photos[0][2]
             flat = [b for row in kb.inline_keyboard for b in row]
@@ -478,7 +491,7 @@ def test_card_payment_tariff_and_receipt_flow():
             await pr.receipt_admin_callback(_UpdQ(q), _Ctx(bot2))
             user_msgs = [m for m in bot2.messages if m[0] == 777001]
             assert user_msgs, "tasdiqlash xabari yo'q"
-            assert "PRO на 90 дней" in user_msgs[-1][1], user_msgs[-1][1]
+            assert "Оплата принята" in user_msgs[-1][1] and "PRO" in user_msgs[-1][1], user_msgs[-1][1]  # tarif nomi + muddat + limitlar
 
             # Admin ❌ Rad etish → user'ga bildirishnoma
             bot3 = _Bot()

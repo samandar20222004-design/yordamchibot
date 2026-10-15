@@ -78,6 +78,8 @@ def test_static():
         T.check("index.html no-cache", h.get("Cache-Control") == "no-cache")
         st, body, h = run(fetch(app, "GET", "/app"))
         T.check("/app -> /app/ ga yo'naltirish", st == 308 and h.get("Location") == "/app/")
+        st, body, h = run(fetch(app, "GET", "/app/?tab=schedule"))
+        T.check("/app/?tab=schedule (botdagi tugma) -> index.html", st == 200 and b"MINIAPP-INDEX" in body)
         st, body, h = run(fetch(app, "GET", "/app/index.html"))
         T.check("/app/index.html", st == 200 and b"MINIAPP-INDEX" in body)
         st, body, h = run(fetch(app, "GET", "/app/assets/app.js"))
@@ -92,8 +94,9 @@ def test_static():
         T.check("CSP: default-src 'self', object-src 'none'", "default-src 'self'" in csp and "object-src 'none'" in csp)
         directives = {d.strip().split(" ", 1)[0]: d.strip() for d in csp.split(";") if d.strip()}
         T.check("CSP: img-src 'blob:' ruxsat (qoralama rasmi blob: URL)", "blob:" in directives.get("img-src", "").split(), directives.get("img-src", ""))
-        T.check("CSP: blob: FAQAT img-src'da (script/connect/default/style/font kengaytirilmagan)",
-                [k for k, v in directives.items() if "blob:" in v.split()] == ["img-src"], str(directives))
+        T.check("CSP: media-src 'blob:' ruxsat (qoralama videosi/GIF'i blob: URL)", "blob:" in directives.get("media-src", "").split(), directives.get("media-src", ""))
+        T.check("CSP: blob: FAQAT img-src va media-src'da (script/connect/default/style/font kengaytirilmagan)",
+                sorted(k for k, v in directives.items() if "blob:" in v.split()) == ["img-src", "media-src"], str(directives))
         T.check("CSP: img-src boshqa manbalari saqlangan ('self' data: https:)",
                 all(x in directives.get("img-src", "").split() for x in ("'self'", "data:", "https:")))
         T.check("CSP: connect-src hamon faqat 'self'", directives.get("connect-src") == "connect-src 'self'", directives.get("connect-src", ""))
@@ -177,11 +180,17 @@ def test_real_build():
     kinds = {}
     for ref in refs:
         st, body, h = run(fetch(app, "GET", ref))
-        kinds[ref.rsplit(".", 1)[-1]] = (st, h.get("Content-Type", ""), h.get("Cache-Control", ""))
         T.check(f"{ref}: 200 va bo'sh emas", st == 200 and len(body) > 100)
+        if ref.startswith("/app/assets/"):  # faqat hash'li build assetlari immutable bo'lishi shart
+            kinds[ref.rsplit(".", 1)[-1]] = (st, h.get("Content-Type", ""), h.get("Cache-Control", ""))
     T.check("JS to'g'ri content-type bilan", "javascript" in kinds.get("js", (0, ""))[1])
     T.check("CSS to'g'ri content-type bilan", "text/css" in kinds.get("css", (0, ""))[1])
     T.check("hash'li assetlar immutable", all("immutable" in v[2] for v in kinds.values()))
+    # Yuklash ekrani logosi: hash'siz statik fayl — rasm sifatida beriladi, immutable EMAS (almashtirilsa yangilansin).
+    st, body, h = run(fetch(app, "GET", "/app/logo-192.png"))
+    T.check("yuklash ekrani logosi /app/logo-192.png: 200 + image/png", st == 200 and "image/png" in h.get("Content-Type", "") and body[:4] == b"\x89PNG")
+    T.check("logo immutable emas (qisqa kesh)", "immutable" not in h.get("Cache-Control", "") and "max-age" in h.get("Cache-Control", ""))
+    T.check("index.html yuklash ekrani (splash) logosi bilan", "splash" in html and "/app/logo-192.png" in html)
     T.check("Telegram WebApp SDK <script> bor (CSP script-src bilan mos)", "https://telegram.org/js/telegram-web-app.js" in html)
     st, body, h = run(fetch(app, "GET", "/app/some/deep/link"))
     T.check("SPA chuqur havola index.html beradi", st == 200 and b'id="root"' in body)

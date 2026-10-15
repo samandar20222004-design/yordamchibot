@@ -6,7 +6,7 @@ Nima uchun bu modul:
       (``ai_usage_events``) — model bo'yicha narx (``$ / 1K token``) yagona
       jadvalda emas, "kim qancha sarflayapti" va "PRO tarif o'zini oqlaydimi"
       degan savolga aniq javob yo'q edi;
-    * yopiq beta (30–50 kanal egasi) va PRO tarif narxi (19 000 so'm) uchun
+    * yopiq beta (30–50 kanal egasi) va PRO tarif narxi (29 000 so'm) uchun
       **unit economics** — bitta faol foydalanuvchining AI xarajati, marja va
       rentabellik chegarasi — hisoblanmaydi.
 
@@ -736,13 +736,13 @@ def _active_users_from_db(db_module, period: str) -> int | None:
 
 
 def _pro_price_uzs() -> int:
-    """PRO tarif narxi (so'm) — config'dan (yagona manba), fallback 19 000."""
+    """PRO tarif narxi (so'm) — config'dan (yagona manba), fallback 29 000."""
     try:
         from config import PAYMENT_PRICE_1M_UZS  # type: ignore
 
         return int(PAYMENT_PRICE_1M_UZS)
     except Exception:  # noqa: BLE001
-        return 19000
+        return 29000
 
 
 __all__ = [

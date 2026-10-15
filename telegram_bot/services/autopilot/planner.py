@@ -1088,9 +1088,9 @@ async def check_user_is_pro(user_id: int, db_module: Any = None) -> bool:
         if hasattr(db, "get_user_plan"):
             plan_info = await _db_call(db, db.get_user_plan, int(user_id))
             if isinstance(plan_info, dict):
-                return bool(plan_info.get("is_pro")) or str(plan_info.get("plan_type") or "").lower() in ("pro", "enterprise", "vip")
+                return bool(plan_info.get("is_pro")) or str(plan_info.get("plan_type") or "").lower() in ("pro", "ultra", "enterprise", "vip")
             if isinstance(plan_info, str):
-                return plan_info.lower() in ("pro", "enterprise", "vip")
+                return plan_info.lower() in ("pro", "ultra", "enterprise", "vip")
     except Exception:
         logger.debug("check_user_is_pro xatosi (user=%s)", user_id, exc_info=True)
     return False

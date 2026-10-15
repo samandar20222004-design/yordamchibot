@@ -5,9 +5,9 @@ import App from './App'
 import { Meter, initialOf } from './pages/MePage'
 import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
 
-function setTelegram() {
+function setTelegram(photo?: string) {
   ;(window as unknown as { Telegram: unknown }).Telegram = {
-    WebApp: { initData: 'auth_date=1&hash=a', colorScheme: 'light', initDataUnsafe: { user: { language_code: 'uz' } },
+    WebApp: { initData: 'auth_date=1&hash=a', colorScheme: 'light', initDataUnsafe: { user: { language_code: 'uz', ...(photo ? { photo_url: photo } : {}) } },
       ready: vi.fn(), expand: vi.fn(), close: vi.fn(), openTelegramLink: vi.fn(), onEvent: vi.fn(), offEvent: vi.fn() },
   }
 }
@@ -76,17 +76,36 @@ describe('Profil sahifasi', () => {
     expect(screen.getByText('2 / 3')).toBeTruthy()     // kanallar
     expect(screen.getByText('1 / 5')).toBeTruthy()     // AI (bugun)
     expect(screen.getByText('3 / 5')).toBeTruthy()     // navbat
-    for (const perk of ['Cheksiz kanallar', 'Cheksiz AI so\'rovlar', 'Cheksiz navbat', 'Postlarda bot belgisi yo\'q']) expect(screen.getByText(perk)).toBeTruthy()
+    // Free uchun ikkala tarif kartasi: PRO va ULTRA — HAQIQIY limitlar (server) va narx
+    expect(screen.getByText('PRO', { selector: 'h4' })).toBeTruthy()
+    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
+    expect(screen.getByText('Kanallar: 10 tagacha')).toBeTruthy()
+    expect(screen.getByText('Kanallar: 30 tagacha')).toBeTruthy()
+    expect(screen.getByText('AI: kuniga 40 ta')).toBeTruthy()
+    expect(screen.getByText('Navbat: 900 tagacha post')).toBeTruthy()
+    expect(screen.getByText(/29 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.getByText(/69 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
     expect(screen.getByRole('button', { name: 'Botni ochish' })).toBeTruthy()
   })
 
-  it('PRO: afzalliklar ro\'yxati va "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
-    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 999, daily_ai_requests: 999, queued_posts: 999 } } })
+  it('PRO: faqat ULTRA kartasi, "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
+    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 300 } } })
     await openMe()
-    expect(await screen.findByText('PRO obunangiz faol.')).toBeTruthy()
-    expect(screen.queryByText('Cheksiz kanallar')).toBeNull()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
+    expect(screen.getAllByText('PRO').length).toBeGreaterThan(0)   // belgi
+    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
+    expect(screen.queryByText('PRO', { selector: 'h4' })).toBeNull() // PRO foydalanuvchiga PRO kartasi ko'rsatilmaydi
     expect(screen.queryByText('Bepul')).toBeNull()
     expect(screen.getByText(/Amal qilish muddati/)).toBeTruthy()
+  })
+
+  it('ULTRA: belgi "ULTRA", tarif kartalari yo\'q', async () => {
+    mockApi({ ...ME, plan: { type: 'ultra', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 900 } } })
+    await openMe()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
+    expect(screen.getAllByText('ULTRA').length).toBe(1)
+    expect(screen.queryByText('Tariflar')).toBeNull()
   })
 
   it('kanal qatori: uzun nom saqlanadi (title atributi/matn), "Tahlil" tugmasi ishlaydi', async () => {
@@ -105,5 +124,33 @@ describe('Profil sahifasi', () => {
     const btns = within(group).getAllByRole('button')
     expect(btns).toHaveLength(3)
     expect(btns.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+  })
+})
+
+describe('Sozlamalar: profil muqovasi va bo\'limlar', () => {
+  it('Telegram profil rasmi (https) ko\'rsatiladi; bo\'limlar: tarif, til, kanallar, ilova', async () => {
+    setTelegram('https://t.me/i/userpic/320/me.jpg')
+    mockApi()
+    await openMe()
+    const img = document.querySelector('.me-cover img.avatar-photo') as HTMLImageElement | null
+    expect(img?.getAttribute('src')).toBe('https://t.me/i/userpic/320/me.jpg')
+    expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
+    const labels = Array.from(document.querySelectorAll('.sec-label')).map((e) => e.textContent)
+    expect(labels).toEqual(['Tarif va limitlar', 'Til', 'Kanallar', 'Ilova'])
+    expect(screen.getByRole('button', { name: 'Ilovani yopish' })).toBeTruthy()
+  })
+
+  it('Rasm yuklanmasa bosh harfga qaytadi; https bo\'lmagan manzil e\'tiborsiz', async () => {
+    setTelegram('https://t.me/i/userpic/320/me.jpg')
+    mockApi()
+    await openMe()
+    const img = document.querySelector('.me-cover img.avatar-photo') as HTMLImageElement
+    fireEvent.error(img)
+    expect(document.querySelector('.me-cover img.avatar-photo')).toBeNull()
+    expect(document.querySelector('.me-cover .avatar-lg')?.textContent).toBe('A')
+    cleanup()
+    setTelegram('http://evil.example/x.jpg')
+    await openMe()
+    expect(document.querySelector('.me-cover img')).toBeNull()
   })
 })

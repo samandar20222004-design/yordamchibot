@@ -132,6 +132,16 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "AI сейчас не смог ответить. Лимит возвращён, попробуйте чуть позже.",
         "en": "The AI could not respond right now. Your limit was refunded; please try again shortly.",
     }),
+    "upload_failed": (503, {
+        "uz": "Faylni Telegram'ga yuklab bo'lmadi. Botni ishga tushirib (/start), qayta urinib ko'ring.",
+        "ru": "Не удалось загрузить файл в Telegram. Запустите бота (/start) и попробуйте снова.",
+        "en": "The file could not be uploaded to Telegram. Start the bot (/start) and try again.",
+    }),
+    "templates_limit_reached": (403, {
+        "uz": "Shablonlar limiti to'ldi. Keraksizini o'chirib, qayta urinib ko'ring.",
+        "ru": "Лимит шаблонов исчерпан. Удалите ненужный и попробуйте снова.",
+        "en": "The templates limit is reached. Delete one you no longer need and try again.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

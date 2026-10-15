@@ -76,6 +76,8 @@ Oxirgi natija (audit tuzatishlaridan keyin, lokal PG bilan): 18 480 `[OK]`, 0 `[
 
 - **Ovozli/tabiiy til rejalash (bot):** post vaqti bosqichida (`handlers/schedule_smart.py`) matn («har dam olish kuni 12:00», «ikki kunda bir») AI'siz, ovoz — kvota bilan (free butun umr 1, PRO 24 soatda 20, admin cheksiz; `services/voice_schedule_quota.py`, jadval `voice_schedule_usage`, env `FREE_VOICE_SCHEDULE_TOTAL`/`PRO_VOICE_SCHEDULE_DAILY`). Bron STT'dan oldin, xatoda qaytadi, DB xatosida rad. Takrorlanish turlari: interval/weekdays (`services/recurrence.py`, `services/schedule_nlp.py`). Testlar: `schedule_smart_test`, `voice_schedule_quota_test`. Batafsil — `docs/SMART_SCHEDULE.md`.
 
+- **Tariflar (FREE/PRO/ULTRA, 4 muddat 1/3/6/12 oy):** yagona manba `config.TARIFF_CATALOG` + `TIER_LIMITS`; narx/limit/qoidalar — `docs/PLANS.md`. `services/plan_sql.py` (tarif berishning yagona SQL qoidasi), `users.pro_legacy_until` (eski to'langan PRO limitlari tugaguncha saqlanadi; bir martalik migratsiya schema.sql'da), tarif kalitlari `1m 3m 6m 1y` (PRO) va `u1m..u1y` (ULTRA). Test: `tariff_tiers_test`.
+
 ## 📱 Mini App (yangi, `MINIAPP_ENABLED=0` — sukut bo'yicha O'CHIQ)
 
 Vite + React + TS frontend `miniapp/`, backend qatlami `telegram_bot/miniapp_api/` (o'qish: `/api/v1/health|me|channels|scheduled-posts|posts/{id}`;
@@ -83,6 +85,14 @@ yozish: `POST/PATCH/DELETE /posts`, `PATCH /me/settings`, `POST /ai/generate`; `
 sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd miniapp && npm test`).
 
 - **Bot -> Mini App qoralama (PostBot uslubi):** Mini App yoqilgan bo'lsa botdagi post tasdiqlash kartasida «📱 Mini App'da» (web_app) tugmasi; post `miniapp_drafts` ga yoziladi (bitta joriy qoralama, 48 soat). Mini App qoralama bilan ochilsa to'g'ridan-to'g'ri tahrirlagichga tushadi (format paneli, Telegram ko'rinishi, tugma, tez vaqt). Kod: `miniapp_api/drafts.py`, `handlers/new_post.py:_save_miniapp_draft`; test: `tests/miniapp_draft_test.py`, `miniapp/src/draft.test.tsx`.
+
+- **Yuklash ekrani (Mini App):** robot + Telegram belgisi animatsiyasi (`components/BrandMark.tsx` SVG, `components/ui.tsx:Splash`, uslub `styles/base.css`; manba `scripts/brand/`); `index.html` ichida xuddi shu statik splash (JS yuklanguncha), birinchi `/me` kelguncha React `Splash` ko'rsatadi. `prefers-reduced-motion` hurmat qilinadi.
+- **Sozlamalar (Men) sahifasi:** profil muqovasi (Telegram `photo_url`, faqat https; yuklanmasa bosh harf), bo'limlar: Tarif va limitlar / Til / Kanallar / Ilova.
+- **Mini App media ko'rinishi:** qoralamadagi rasm, video, GIF, rasm-hujjat va albomning birinchi fayli `/draft/media` orqali ko'rsatiladi (tur baytlardan aniqlanadi; CSP `media-src blob:`; hajm 16 MB gacha).
+
+- **Bot <-> Mini App bog'lanishi:** Mini App yoqilgan bo'lsa bot «📱 Mini App» web_app tugmasini ko'rsatadi: Sozlamalar (tab=me), Rejalashtirilgan ro'yxat (tab=schedule), Tahlil (tab=me), post tasdiqlash kartasi (qoralama), `/app` va `/miniapp` buyrug'i; Mini App `?tab=home|post|schedule|me` ni o'qiydi (boshqa qiymat e'tiborsiz). O'chiq bo'lsa bot ekranlari o'zgarmaydi. Kod: `miniapp_api/menu.py` (`miniapp_tab_url`, `miniapp_button`, `with_miniapp_row`); test: `tests/miniapp_bot_links_test.py`. Mini App -> bot: «Botni ochish» (oddiy havola; `?start=` yo'q — xavfsizlik testi). To'lov, referal, autopilot, kontent-reja, jamoa — faqat botda (ataylab).
+
+- **Bot yuklash animatsiyasi:** `/start` da `services/start_splash.py` robot + Telegram belgisi animatsiyasi (`assets/loading.mp4`; `scripts/make_loading_video.mjs` Mini App'dagi `BrandMark` SVG/CSS'dan yaratadi, manba `scripts/brand/`) yuboradi, javobdan keyin o'chiradi; `file_id` keshlanadi, xato `/start` ni buzmaydi; `START_SPLASH=0` o'chiradi. Test: `tests/start_splash_test.py`.
 
 - **Audit tuzatishlari:** AUDIT-001/002/003/004/005/009/010/011/013/014 + P3 (qarang `docs/AUDIT_OPEN_RISKS.md` — tuzatilganlar (recurring 'yuborildi'+qayta rejalash endi bitta tranzaksiya) va ATAYLAB qoldirilgan qarorlar: 006 Stars refund, 007 chek takrori, 015 global AI budget; 008 qisman (recovery'da kanal tekshiruvi, dublikat to'liq yo'qolmagan); 002: `DELIVERY_CARRY_ATTEMPTS` sukut yoqilgan). Regression testlar `run_tests.sh` oxirida (`scheduler_*`, `subscription_downgrade_race`, `stars_rejected_payment`, `team_i18n`, ...).
 

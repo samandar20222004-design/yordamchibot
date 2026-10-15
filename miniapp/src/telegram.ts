@@ -4,7 +4,7 @@
 
 interface TgWebApp {
   initData?: string
-  initDataUnsafe?: { user?: { language_code?: string } }
+  initDataUnsafe?: { user?: { language_code?: string; photo_url?: string } }
   colorScheme?: 'light' | 'dark'
   ready?: () => void
   expand?: () => void
@@ -41,6 +41,22 @@ export function isInTelegram(): boolean {
 /** Faqat interfeys tili uchun ishora (autentifikatsiya EMAS). */
 export function getLanguageHint(): string {
   return webApp()?.initDataUnsafe?.user?.language_code ?? navigator.language ?? 'uz'
+}
+
+/** Telegram profil rasmi URL (faqat https; imzosiz ishora — faqat ko'rsatish uchun, autentifikatsiya EMAS). */
+export function getUserPhotoUrl(): string | null {
+  const url = webApp()?.initDataUnsafe?.user?.photo_url
+  return typeof url === 'string' && /^https:\/\/[^\s"'<>]+$/.test(url) && url.length <= 512 ? url : null
+}
+
+/** Botdagi «📱 Mini App» tugmalari `?tab=` bilan ochadi: faqat ma'lum bo'limlar (boshqa qiymat e'tiborsiz). */
+export function getInitialTab(): 'home' | 'post' | 'schedule' | 'me' | null {
+  try {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'me' ? tab : null
+  } catch {
+    return null
+  }
 }
 
 export function getColorScheme(): 'light' | 'dark' {

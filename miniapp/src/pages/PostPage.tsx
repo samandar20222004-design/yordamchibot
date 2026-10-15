@@ -8,6 +8,7 @@ import { PostPreview } from '../components/PostPreview'
 import { RepeatPicker } from '../components/RepeatPicker'
 import { Page, PageHeader } from '../components/Shell'
 import { SmartSchedule } from '../components/SmartSchedule'
+import { TemplatesCard } from '../components/TemplatesCard'
 import { Button, EmptyState, ErrorState, FormError, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
 import { config } from '../config'
 import { useDraftPhoto } from '../hooks/useDraftPhoto'
@@ -74,6 +75,8 @@ export function PostPage() {
   const [discard, setDiscard] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [aiOpen, setAiOpen] = useState<boolean | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -264,6 +267,38 @@ export function PostPage() {
     }
   }
 
+  /** Qurilmadan rasm/video: mijozda tur va hajm tekshiriladi (server baribir baytlardan tekshiradi), matn/tugma birga saqlanadi. */
+  const pickMedia = async (file: File | undefined) => {
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file || uploading) return
+    const isVideo = file.type === 'video/mp4' || file.type === 'video/quicktime'
+    const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+    if (!isVideo && !isImage) { notify(t('media.errType'), 'error'); return }
+    if (file.size > (isVideo ? config.maxUploadVideoBytes : config.maxUploadPhotoBytes)) { notify(t('media.errSize'), 'error'); return }
+    if (text.length > CAPTION_MAX) { setFieldError({ field: 'text', key: 'post.errCaption' }); notify(t('media.errCaption'), 'error'); return }
+    if (btnOpen && (btnText.trim() !== '' || btnUrl.trim() !== '')
+      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl))) {
+      setFieldError({ field: 'button', key: 'post.errButton' }); return
+    }
+    setUploading(true)
+    try {
+      await client.uploadMedia(file, {
+        text: text.trim(),
+        button_text: hasButton ? btnText.trim() : '',
+        button_url: hasButton ? btnUrl.trim() : '',
+      })
+      draft.reload()
+      notify(t('media.added'))
+    } catch (e) {
+      const err = toClientError(e)
+      const key = err.code === 'unsupported_media_type' ? 'media.errType' : err.code === 'payload_too_large' ? 'media.errSize'
+        : err.code === 'caption_too_long' ? 'media.errCaption' : errorMessageKey(err.code)
+      notify(t(key), 'error')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const discardDraft = async () => {
     setDiscarding(true)
     try {
@@ -383,6 +418,15 @@ export function PostPage() {
             onChange={(e) => { setText(e.target.value); setFieldError(null) }}
             onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
             onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
+          <div className="media-row">
+            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+              onChange={(e) => void pickMedia(e.target.files?.[0])} />
+            <Button variant="secondary" icon="image" busy={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? t('media.uploading') : media ? t('media.replace') : t('media.add')}
+            </Button>
+            <p className="muted small">{t('media.hint')}</p>
+          </div>
           <p className="muted" aria-live="off">
             {t('post.counter', { n: text.length, max: textMax })}
             {media && <> · {t('post.captionLimit', { max: CAPTION_MAX })}</>}
@@ -414,7 +458,7 @@ export function PostPage() {
         </section>
 
         <PostPreview channelTitle={selectedTitle || t('post.channelPick')} html={text}
-          media={media ? { type: media.type, count: media.count, url: photo.url, loading: photo.loading } : null}
+          media={media ? { type: media.type, count: media.count, url: photo.url, loading: photo.loading, video: photo.video } : null}
           buttonText={hasButton ? btnText.trim() || null : null} />
 
         <section className="card compose-when" aria-labelledby="when-title">
@@ -456,6 +500,8 @@ export function PostPage() {
           <p className="muted">{t('post.queue', { used: usage.pending_posts, limit: limit(plan.limits.queued_posts) })}</p>
         </div>
       </form>
+
+      <TemplatesCard text={text} onApply={(tpl) => { setText(tpl); setFieldError(null) }} />
 
       <details className="card ai-card" open={aiIsOpen} onToggle={(e) => setAiOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary><h2 id="ai">{t('post.ai.title')}</h2></summary>

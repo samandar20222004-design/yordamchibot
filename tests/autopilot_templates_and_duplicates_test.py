@@ -54,7 +54,7 @@ import os
 import sys
 import warnings
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -676,17 +676,19 @@ def test_quota_control():
                                       db_module=_QuotaDB(True, 0, 999, error=True)))
     check("DB xatosi: fail-closed (ruxsat yo'q)", r3["allowed"] is False, str(r3))
 
-    # REAL check_queue_limit + fake cursor: free plan, 4 pending → 4+7 > 5.
+    # REAL check_queue_limit + fake cursor: free plan, (limit-1) pending → +7 limitdan oshadi.
+    import config as _cfg
+    free_lim = _cfg.FREE_QUEUE_MAX_POSTS
     store = default_store()
     store.plans[USER_ID] = "free"
-    for i in range(4):
+    for i in range(free_lim - 1):
         store.posts.append({"id": 900 + i, "user_id": USER_ID,
                             "channel_id": CH_ID, "content": f"p{i}",
-                            "scheduled_time": datetime(2026, 9, 20 + i),
+                            "scheduled_time": datetime(2026, 9, 1) + timedelta(days=i),
                             "status": "pending", "user_post_number": i + 1})
     real = _with_db(store, lambda: check_week_quota(USER_ID, 7))
-    check("real check_queue_limit: FREE 4/5 → 7 postga ruxsat YO'Q",
-          real["allowed"] is False and real["current"] == 4 and real["max"] == 5,
+    check("real check_queue_limit: FREE (limit-1)/limit → 7 postga ruxsat YO'Q",
+          real["allowed"] is False and real["current"] == free_lim - 1 and real["max"] == free_lim,
           str(real))
 
 
@@ -803,10 +805,12 @@ def test_autopilot_handler_flow():
 
     # --- 5.4 [🚀 Hammasini rejalashtirish]: FREE limit to'lgan ---
     store.plans[USER_ID] = "free"
-    for i in range(3):
+    import config as _cfg2
+    pre_posts = _cfg2.FREE_QUEUE_MAX_POSTS - 3  # 3 ta bo'sh joy qoladi: 7 post sig'maydi
+    for i in range(pre_posts):
         store.posts.append({"id": 950 + i, "user_id": USER_ID,
                             "channel_id": CH_ID, "content": f"x{i}",
-                            "scheduled_time": datetime(2026, 9, 20 + i),
+                            "scheduled_time": datetime(2026, 9, 1) + timedelta(days=i),
                             "status": "pending", "user_post_number": 50 + i})
     q_confirm = _Query("ap_confirm")
     ctxq = _ctx("uz")
@@ -821,7 +825,7 @@ def test_autopilot_handler_flow():
     check("limit: xavfsiz ogohlantirish (Navbat limiti)",
           "Navbat limiti" in q_confirm.screen.get("text", ""),
           q_confirm.screen.get("text", "")[:80])
-    check("limit: hech narsa yozilmadi", len(store.posts) == 3,
+    check("limit: hech narsa yozilmadi", len(store.posts) == pre_posts,
           str(len(store.posts)))
     check("limit: 💎 PRO taklifi chiqadi",
           "sub_open" in _cbs(q_confirm.screen.get("reply_markup")),

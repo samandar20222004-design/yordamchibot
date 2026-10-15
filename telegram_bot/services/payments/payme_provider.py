@@ -322,6 +322,7 @@ class PaymeEvent:
     user_id: int
     days: int
     order_id: str
+    tier: str = "pro"  # "pro" | "ultra" (buyurtma tarif kalitidan)
 
 
 @dataclass
@@ -346,7 +347,7 @@ class PaymeUnitOfWork(Protocol):  # pragma: no cover - typing contract only
     def set_order_status(self, order_id: str, status: str) -> None: ...
     def record_ledger(self, tx: PaymeTransaction, order: PaymeOrder) -> bool: ...
     def refund_ledger(self, tx: PaymeTransaction) -> None: ...
-    def grant_subscription(self, user_id: int, days: int) -> bool: ...
+    def grant_subscription(self, user_id: int, days: int, tier: str = "pro") -> bool: ...
     def revoke_subscription(self, user_id: int, days: int) -> None: ...
     def list_transactions(self, from_ms: int, to_ms: int) -> list[PaymeTransaction]: ...
 
@@ -361,6 +362,11 @@ def _default_store() -> PaymeStore:
     from repositories.payme_repository import PostgresPaymeStore
 
     return PostgresPaymeStore()
+
+
+def _tier_for_plan_key(plan_key: str) -> str:
+    """Tarif kaliti -> 'ultra' ('u1m', 'u3m', ...) yoki 'pro' (config.TARIFF_CATALOG kalit qoidasi; eski buyurtmalar = PRO)."""
+    return "ultra" if str(plan_key or "").startswith("u") else "pro"
 
 
 # ---------------------------------------------------------------------------
@@ -672,8 +678,15 @@ class PaymeProvider:
                     raise PaymeError(ERR_CANNOT_PERFORM, data="id")
                 performed = replace(tx, state=STATE_PERFORMED, perform_time=now)
                 if uow.record_ledger(performed, order):
-                    uow.grant_subscription(order.user_id, order.days)
-                    outcome.events.append(PaymeEvent("paid", order.user_id, order.days, order.order_id))
+                    if uow.grant_subscription(order.user_id, order.days, _tier_for_plan_key(order.plan_key)) is False:
+                        # Foydalanuvchi qatori yo'q: PRO berib bo'lmaydi. Butun tranzaksiya (ledger ham) bekor qilinadi va Payme'ga
+                        # "bajarib bo'lmaydi" javobi qaytadi — pul olinmaydi, PRO'siz to'lov qolib ketmaydi (audit P-2).
+                        logger.error("Payme perform: foydalanuvchi qatori yo'q — tranzaksiya bekor", extra={
+                            "event": "payme_perform_no_user", "transaction": tx.id,
+                        })
+                        raise PaymeError(ERR_CANNOT_PERFORM, data="id")
+                    outcome.events.append(PaymeEvent("paid", order.user_id, order.days, order.order_id,
+                                                  _tier_for_plan_key(order.plan_key)))
                 else:
                     logger.warning("Payme ledger row already exists — subscription NOT re-granted", extra={
                         "event": "payme_duplicate_ledger", "transaction": tx.id,

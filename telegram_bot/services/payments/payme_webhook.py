@@ -138,11 +138,14 @@ def build_bot_notifier(bot) -> PaidNotifier:
             lang = await db.run_db(db.get_user_language, int(event.user_id))
         except Exception:  # noqa: BLE001
             lang = "uz"
-        await bot.send_message(
-            chat_id=int(event.user_id),
-            text=get_text("payme_paid_notice", lang or "uz", days=int(event.days)),
-            parse_mode="HTML",
-        )
+        try:
+            # Tarif nomi, amal qilish muddati va ochilgan imkoniyatlar (haqiqiy holatdan).
+            from handlers.subscription import payment_success_text
+
+            text = await payment_success_text(int(event.user_id), event.tier, lang or "uz")
+        except Exception:  # noqa: BLE001 — matn tayyorlanmasa eski qisqa xabar
+            text = get_text("payme_paid_notice", lang or "uz", days=int(event.days))
+        await bot.send_message(chat_id=int(event.user_id), text=text, parse_mode="HTML")
 
     return _notify
 

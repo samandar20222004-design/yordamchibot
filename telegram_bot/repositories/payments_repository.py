@@ -202,6 +202,55 @@ def process_stars_payment(
     )
 
 
+def refund_stars_payment(charge_id: str) -> dict:
+    """Telegram Stars to'lovi QAYTARILDI: to'lov ``refunded`` deb belgilanadi va shu to'lov bergan kunlar PRO'dan ayriladi.
+
+    Idempotent: to'lov qatori ``FOR UPDATE`` bilan qulflanadi, faqat ``succeeded`` holatdan o'tadi — takroriy hodisa hech narsa o'zgartirmaydi.
+    Qoida Payme refund'i (``revoke_subscription``) bilan bir xil: muddatsiz (admin bergan) pro/enterprise'ga tegilmaydi; qolgan muddat
+    ayriladi, ``<= hozir`` bo'lsa ``free``; boshqa to'lovlardan qo'shilgan muddat saqlanadi.
+
+    Qaytadi: ``{"result": "revoked" | "already" | "unknown_charge" | "no_days" | "error", "user_id", "days"}``.
+    """
+    cid = str(charge_id or "").strip()
+    if not cid:
+        return {"result": "unknown_charge", "user_id": None, "days": 0}
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT user_id, payload, amount, currency, status FROM payments "
+                "WHERE telegram_payment_charge_id = %s FOR UPDATE", (cid,))
+            row = cur.fetchone()
+            if not row:
+                return {"result": "unknown_charge", "user_id": None, "days": 0}
+            user_id, payload, amount, currency, status = row
+            if status == PAYMENT_STATUS_REFUNDED:
+                return {"result": "already", "user_id": user_id, "days": 0}
+            from services.payment_service import PaymentService
+
+            plan, _err = PaymentService.validate_payload(payload, user_id=user_id, amount=amount, currency=currency or "XTR")
+            days = int(plan["days"]) if plan else 0
+            cur.execute("UPDATE payments SET status = %s WHERE telegram_payment_charge_id = %s", (PAYMENT_STATUS_REFUNDED, cid))
+            if days <= 0:
+                return {"result": "no_days", "user_id": user_id, "days": 0}
+            cur.execute(
+                "UPDATE users SET "
+                "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro', 'ultra') AND subscription_expires_at IS NULL "
+                "  THEN plan_type "
+                "  WHEN subscription_expires_at IS NULL "
+                "  OR subscription_expires_at - (%s || ' days')::INTERVAL <= NOW() "
+                "  THEN 'free' ELSE plan_type END, "
+                "subscription_expires_at = CASE WHEN subscription_expires_at IS NULL THEN NULL "
+                "  ELSE GREATEST(NOW(), subscription_expires_at - (%s || ' days')::INTERVAL) END "
+                "WHERE user_id = %s",
+                (str(days), str(days), int(user_id)))
+        _cache_clear("system_stats")
+        _cache_clear("admin_dashboard_stats")
+        return {"result": "revoked", "user_id": user_id, "days": days}
+    except Exception as e:  # noqa: BLE001
+        logger.error("refund_stars_payment xatosi: %s", type(e).__name__)
+        return {"result": "error", "user_id": None, "days": 0}
+
+
 # ============================================================
 # CARD PAYMENT RECEIPTS — Admin Approval Flow
 # ============================================================
@@ -284,6 +333,8 @@ def save_payment_receipt(
     language_code: str = "uz",
     days_granted: int = 30,
     amount_uzs: int = 0,
+    file_unique_id: str | None = None,
+    plan_key: str | None = None,
 ) -> int:
     """Yangi karta chekini ``pending`` holatida saqlaydi.
 
@@ -304,20 +355,79 @@ def save_payment_receipt(
                 """
                 INSERT INTO payment_receipts
                     (user_id, username, full_name, language_code, media_type,
-                     file_id, caption, status, days_granted, amount_uzs)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+                     file_id, caption, status, days_granted, amount_uzs, file_unique_id, plan_key)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (int(user_id), username or "", full_name or "",
                  _normalize_language_code(language_code) or "uz",
                  media_type if media_type in ("photo", "document") else "photo",
                  file_id, caption or "", int(days_granted) if days_granted else 30,
-                 amount_uzs),
+                 amount_uzs, (str(file_unique_id)[:128] if file_unique_id else None),
+                 (str(plan_key)[:8] if plan_key else None)),
             )
             row = cur.fetchone()
             return int(row[0]) if row else 0
     except Exception as e:
         logger.error(f"payment_receipt saqlash xatosi: {e}")
+        return 0
+
+
+def claim_photo_check_grant(user_id: int) -> bool:
+    """«Rasm bilan PRO» tasdig'ini bir foydalanuvchi uchun BIR KUNDA bir marta beradi (atomik; audit P-1).
+
+    Bir nechta admin bir xil so'rovni bosganda yoki bitta tugma qayta bosilganda +30 kun ikki marta berilmasligi uchun
+    ``system_settings`` da kalit yoziladi (``ON CONFLICT DO NOTHING``). ``True`` — navbat sizniki. Xatoda ``False`` (xavfsiz tomon)."""
+    from datetime import datetime, timezone
+
+    key = f"photocheck_grant:{int(user_id)}:{datetime.now(timezone.utc):%Y%m%d}"
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("INSERT INTO system_settings (key, value) VALUES (%s, 'claimed') ON CONFLICT (key) DO NOTHING RETURNING key",
+                        (key,))
+            return cur.fetchone() is not None
+    except Exception as e:  # noqa: BLE001
+        logger.error("claim_photo_check_grant xatosi: %s", type(e).__name__)
+        return False
+
+
+def release_photo_check_grant(user_id: int) -> None:
+    """PRO berish muvaffaqiyatsiz bo'lsa, tasdiq huquqi qaytariladi (admin qayta bosa oladi)."""
+    from datetime import datetime, timezone
+
+    key = f"photocheck_grant:{int(user_id)}:{datetime.now(timezone.utc):%Y%m%d}"
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("DELETE FROM system_settings WHERE key = %s", (key,))
+    except Exception as e:  # noqa: BLE001
+        logger.error("release_photo_check_grant xatosi: %s", type(e).__name__)
+
+
+def find_duplicate_receipts(file_unique_id: str, exclude_id: int = 0, limit: int = 3) -> list[dict]:
+    """Shu rasm (``file_unique_id``) bilan avval yuborilgan cheklar (yangidan eskiga). Rad ETMAYDI: oila a'zolari bitta chekni
+    qonuniy ulashishi mumkin — faqat admin ogohlantiriladi. Xatoda bo'sh ro'yxat."""
+    uid = str(file_unique_id or "").strip()
+    if not uid:
+        return []
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT id, user_id, status FROM payment_receipts WHERE file_unique_id = %s AND id <> %s "
+                "ORDER BY id DESC LIMIT %s", (uid, int(exclude_id or 0), max(1, min(int(limit), 10))))
+            return [{"id": int(r[0]), "user_id": int(r[1]), "status": str(r[2])} for r in cur.fetchall()]
+    except Exception as e:  # noqa: BLE001
+        logger.error("find_duplicate_receipts xatosi: %s", type(e).__name__)
+        return []
+
+
+def count_user_pending_receipts(user_id: int) -> int:
+    """Foydalanuvchining hali ko'rilmagan cheklari soni (spamdan himoya). Xatoda 0 (to'lovni to'smaydi)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM payment_receipts WHERE user_id = %s AND status = 'pending'", (int(user_id),))
+            return int(cur.fetchone()[0] or 0)
+    except Exception as e:  # noqa: BLE001
+        logger.error("count_user_pending_receipts xatosi: %s", type(e).__name__)
         return 0
 
 

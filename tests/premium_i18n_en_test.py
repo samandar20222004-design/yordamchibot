@@ -194,8 +194,9 @@ def test_button_labels_still_routed():
     check("Premium tugmasi EN routing'da", "BTN_PREMIUM_EN" in h and "exact(BTN_PREMIUM_EN)" in h)
     # To'lov/chek tugmalari — inline (callback_data orqali), matn bo'yicha tanalmaydi.
     sub = (ROOT / "handlers" / "subscription.py").read_text(encoding="utf-8")
-    check("btn_card_payment inline — callback_data sub_card_pay",
-          "get_text(\"btn_card_payment\", lang)" in sub and "sub_card_pay" in sub)
+    inline_kb = (ROOT / "keyboards" / "inline.py").read_text(encoding="utf-8")
+    check("karta to'lovi inline — tarif tanlangach 'pay_region_uz' tugmasi (sub_region:uz), eski sub_card_pay callback'i ham ishlaydi",
+          "get_text(\"pay_region_uz\", lang)" in inline_kb and "sub_card_pay" in sub and "sub_tier:" in sub)
     check("btn_send_receipt inline — callback_data sub_send_receipt",
           "get_text(\"btn_send_receipt\", lang)" in sub and "sub_send_receipt" in sub)
     # Inline tugma matni 64 bayt cheklovi (callback_data) ga ta'sir qilmaydi,

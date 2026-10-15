@@ -68,6 +68,13 @@ def _ai(handler):
     return handler
 
 
+def _upload(handler):
+    """Fayl yuklash marshruti: yozuv-limiti + qat'iy yuklash limiti + uzoqroq HTTP timeout."""
+    handler.miniapp_write = True
+    handler.miniapp_upload = True
+    return handler
+
+
 def _post_id(request: web.Request) -> int:
     raw = request.match_info.get("post_id", "")
     if not _INT_RE.match(raw) or int(raw) <= 0:
@@ -169,6 +176,12 @@ async def draft_media_handler(request: web.Request):
         "Content-Security-Policy": "default-src 'none'"})
 
 
+@_upload
+async def draft_media_upload_handler(request: web.Request):
+    data = await request.app[_K_WRITER].upload_media(request["user_id"], request)
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
 @_write
 async def draft_delete_handler(request: web.Request):
     data = await request.app[_K_WRITER].delete_draft(request["user_id"])
@@ -199,6 +212,27 @@ async def post_delete_handler(request: web.Request):
 async def settings_update_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
     data = await request.app[_K_WRITER].set_language(request["user_id"], body)
+    return web.json_response(data)
+
+
+async def templates_handler(request: web.Request):
+    data = await request.app[_K_WRITER].list_templates(request["user_id"])
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def template_create_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    data = await request.app[_K_WRITER].create_template(request["user_id"], body)
+    return web.json_response(data, status=201 if data["created"] else 200)
+
+
+@_write
+async def template_delete_handler(request: web.Request):
+    raw = request.match_info.get("template_id", "")
+    if not _INT_RE.match(raw) or int(raw) <= 0:
+        raise ApiError("not_found")
+    data = await request.app[_K_WRITER].delete_template(request["user_id"], int(raw))
     return web.json_response(data)
 
 
@@ -302,6 +336,10 @@ async def _guarded(request: web.Request, handler):
     if getattr(route_handler, "miniapp_write", False):
         await limiter.hit("write", str(verified.user_id), limit=settings.rate_write_limit,
                           window=settings.rate_write_window)
+    if getattr(route_handler, "miniapp_upload", False):
+        await limiter.hit("upload", str(verified.user_id), limit=settings.rate_ai_limit,
+                          window=settings.rate_ai_window)
+        timeout = max(timeout, 60.0)
     if getattr(route_handler, "miniapp_ai", False):
         await limiter.hit("ai", str(verified.user_id), limit=settings.rate_ai_limit,
                           window=settings.rate_ai_window)
@@ -340,6 +378,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/posts/{post_id}", post_detail_handler)
     api.router.add_get("/draft", draft_handler)
     api.router.add_get("/draft/media", draft_media_handler)
+    api.router.add_post("/draft/media", draft_media_upload_handler)
     api.router.add_delete("/draft", draft_delete_handler)
     api.router.add_post("/posts", post_create_handler)
     api.router.add_patch("/posts/{post_id}", post_update_handler)
@@ -347,6 +386,9 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_patch("/me/settings", settings_update_handler)
     api.router.add_post("/ai/generate", ai_generate_handler)
     api.router.add_post("/schedule/parse", schedule_parse_handler)
+    api.router.add_get("/templates", templates_handler)
+    api.router.add_post("/templates", template_create_handler)
+    api.router.add_delete("/templates/{template_id}", template_delete_handler)
     return api
 
 

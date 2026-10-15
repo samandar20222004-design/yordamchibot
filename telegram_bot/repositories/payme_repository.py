@@ -168,16 +168,15 @@ class PostgresPaymeUnitOfWork:
             (tx.ledger_key,),
         )
 
-    def grant_subscription(self, user_id: int, days: int) -> bool:
-        # Same additive formula as Stars / approved receipts.
-        # Enterprise (muddatsiz) huquqi saqlanadi (qoida: sync_stars_subscription bilan bir xil).
+    def grant_subscription(self, user_id: int, days: int, tier: str = "pro") -> bool:
+        # Same additive formula as Stars / approved receipts (services/plan_sql.py): enterprise saqlanadi,
+        # faol ultra PRO xaridida pasaymaydi, PRO -> ULTRA xaridida tarif ko'tariladi.
+        from services.plan_sql import grant_expiry_case, grant_plan_case
+
+        tier = tier if tier in ("pro", "ultra") else "pro"
         self.cur.execute(
-            "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-            "THEN plan_type ELSE 'pro' END, "
-            "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-            "AND subscription_expires_at IS NULL THEN NULL ELSE "
-            "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-            "+ (%s || ' days')::INTERVAL END "
+            f"UPDATE users SET plan_type = {grant_plan_case(tier)}, "  # nosec B608 — tarif oq ro'yxatdan
+            f"subscription_expires_at = {grant_expiry_case()} "
             "WHERE user_id = %s",
             (str(int(days)), int(user_id)),
         )
@@ -189,7 +188,7 @@ class PostgresPaymeUnitOfWork:
     def revoke_subscription(self, user_id: int, days: int) -> None:
         self.cur.execute(
             "UPDATE users SET "
-            "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro') AND subscription_expires_at IS NULL "
+            "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro', 'ultra') AND subscription_expires_at IS NULL "
             "  THEN plan_type "  # muddatsiz enterprise/pro (admin bergan): grant unga muddat qo'shmagan, qaytarish ham tegmaydi
             "  WHEN subscription_expires_at IS NULL "
             "  OR subscription_expires_at - (%s || ' days')::INTERVAL <= NOW() "
