@@ -35,4 +35,13 @@ Scheduler: `calculate_next_time` yangi turlarni qo'llaydi; yuborilgach «posted 
 
 ## Cheklovlar (ataylab)
 Tugash sanasi («10 kun davomida»), oylik takror («har oyning 1-si»), so'z bilan yozilgan soat («o'n ikkida») qo'llab-quvvatlanmaydi — qo'lda kiritiladi.
-Takrorlanish vaqti Toshkent bo'yicha; qurilma boshqa zonada bo'lsa interfeys buni eslatadi. Ovozli rejalash — keyingi bosqich.
+Takrorlanish vaqti Toshkent bo'yicha; qurilma boshqa zonada bo'lsa interfeys buni eslatadi.
+
+## Botda (post vaqti bosqichi)
+- **Matn**: «har dam olish kuni 12:00», «ikki kunda bir marta 18:30» kabi iboralar `handlers/schedule_smart.py` orqali qoidalar bilan aniqlanadi
+  (AI'siz, hamma uchun) va tasdiq kartasiga tushadi. Oddiy vaqt («18:00», «ertaga 9:00», `DD.MM.YYYY HH:MM`) eski parserda qoladi — xulq o'zgarmagan.
+  Bot matnida AI zaxirasi yo'q (faqat Mini App'da).
+- **Ovoz**: vaqt bosqichida ovozli/audio xabar. Kvota (`voice_schedule_usage`): free — butun umr bo'yicha **1 ta**, PRO — 24 soatda **20 ta**,
+  admin — cheksiz. Bron ovozni matnga o'girishdan OLDIN (atomik); yuklash/STT xatosi yoki vaqt aniqlanmasa bron **qaytariladi**; DB xatosida rad (fail-closed).
+  Natija doim tasdiq kartasida ko'rsatiladi — foydalanuvchi tasdiqlamaguncha hech narsa rejalanmaydi.
+- Post botga yuborilgach (o'ziniki yoki boshqa kanaldan forward) davom etish: botda yoki «📱 Mini App'da» tugmasi (qoralama) — Mini App yoqilgan bo'lsa.

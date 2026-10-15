@@ -74,6 +74,8 @@ Oxirgi natija (audit tuzatishlaridan keyin, lokal PG bilan): 18 480 `[OK]`, 0 `[
   (`refund_ai_request`); kunlik faollik bonusi parallel chaqiruvda ikki marta berilmaydi (users qatori `FOR UPDATE`).
   Testlar: `enterprise_plan_preservation_test`, `ai_refund_period_test`, `credits_bonus_concurrency_test` (real PG, SKIP agar URL yo'q).
 
+- **Ovozli/tabiiy til rejalash (bot):** post vaqti bosqichida (`handlers/schedule_smart.py`) matn («har dam olish kuni 12:00», «ikki kunda bir») AI'siz, ovoz — kvota bilan (free butun umr 1, PRO 24 soatda 20, admin cheksiz; `services/voice_schedule_quota.py`, jadval `voice_schedule_usage`, env `FREE_VOICE_SCHEDULE_TOTAL`/`PRO_VOICE_SCHEDULE_DAILY`). Bron STT'dan oldin, xatoda qaytadi, DB xatosida rad. Takrorlanish turlari: interval/weekdays (`services/recurrence.py`, `services/schedule_nlp.py`). Testlar: `schedule_smart_test`, `voice_schedule_quota_test`. Batafsil — `docs/SMART_SCHEDULE.md`.
+
 ## 📱 Mini App (yangi, `MINIAPP_ENABLED=0` — sukut bo'yicha O'CHIQ)
 
 Vite + React + TS frontend `miniapp/`, backend qatlami `telegram_bot/miniapp_api/` (o'qish: `/api/v1/health|me|channels|scheduled-posts|posts/{id}`;

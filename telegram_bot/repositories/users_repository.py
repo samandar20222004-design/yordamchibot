@@ -2167,6 +2167,10 @@ def delete_user_data(user_id: int) -> dict:
                 channel_members = int(cur.rowcount or 0)
             summary["cleaned"]["channel_members"] = channel_members
 
+            # Ovozli rejalash kvotasi (faqat user_id + vaqt): hisob bilan birga o'chadi.
+            cur.execute("DELETE FROM voice_schedule_usage WHERE user_id = %s", (uid,))
+            summary["cleaned"]["voice_schedule_usage"] = int(cur.rowcount or 0)
+
             # Manbalar: avval ularga bog'langan item/draft, keyin manba.
             cur.execute(
                 "DELETE FROM source_drafts WHERE user_id = %s", (uid,))

@@ -792,6 +792,20 @@ def format_post_type_label(post_type: str, lang: str = "uz") -> str:
     # "🖼 Rasm" → "Rasm"; "🎬 Video" → "Video"; emoji qismi olib tashlanadi.
     return get_text(key, lang).split(" ", 1)[-1] if " " in get_text(key, lang) else get_text(key, lang)
 
+def weekdays_text(mask, lang: str = "uz") -> str:
+    """Hafta kunlari bitmaskining o'qiladigan matni: 'dam olish' / 'ish' / 'Dushanba, Chorshanba' (foydalanuvchi tilida)."""
+    from locales.translations import get_text, normalize_lang
+    from services.recurrence import ALL_DAYS_MASK, WEEKEND_MASK, WORKDAYS_MASK, mask_to_weekdays
+    from utils.date_format import weekday_label
+    lang = normalize_lang(lang)
+    m = int(mask) & ALL_DAYS_MASK
+    if m == WEEKEND_MASK:
+        return get_text("rec_weekends", lang)
+    if m == WORKDAYS_MASK:
+        return get_text("rec_workdays", lang)
+    return ", ".join(weekday_label(d, lang) for d in mask_to_weekdays(m))
+
+
 def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_time, lang: str = "uz"):
     """Post chiqish vaqtini foydalanuvchi TILIDA formatlaydi (uz/ru/en).
 
@@ -814,15 +828,7 @@ def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_tim
         return get_text("pend_schedule_interval", lang, n=int(recurrence_day),
                         time=format_time(recurrence_time, lang))
     elif recurrence_type == 'weekdays' and recurrence_day:
-        from services.recurrence import ALL_DAYS_MASK, WEEKEND_MASK, WORKDAYS_MASK, mask_to_weekdays
-        mask = int(recurrence_day) & ALL_DAYS_MASK
-        if mask == WEEKEND_MASK:
-            days = get_text("rec_weekends", lang)
-        elif mask == WORKDAYS_MASK:
-            days = get_text("rec_workdays", lang)
-        else:
-            days = ", ".join(weekday_label(d, lang) for d in mask_to_weekdays(mask))
-        return get_text("pend_schedule_weekdays", lang, days=days,
+        return get_text("pend_schedule_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                         time=format_time(recurrence_time, lang))
 
     if s_time:

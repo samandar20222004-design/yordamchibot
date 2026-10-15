@@ -131,7 +131,8 @@ def main() -> int:
         T.check("ko'rishlar: faqat MANBALI qatorlar (soxta 0 va NULL hisobga olinmaydi): 2 ta, o'rtacha 200, eng ko'pi 300",
                 v.get("with_views") == 2 and v.get("avg") == 200.0 and v.get("max") == 300 and v.get("available") is True, str(v))
         T.check("ko'rishlar manbasi ochiq aytiladi", v.get("sources") == ["tme_preview"], str(v))
-        T.check("javobda boshqa foydalanuvchi ma'lumoti yo'q", "B-SECRET" not in json.dumps(d) and "777" not in json.dumps(d))
+        _dump = json.dumps({k: v for k, v in d.items() if k != "request_id"})  # tasodifiy request_id "777" bo'lishi mumkin
+        T.check("javobda boshqa foydalanuvchi ma'lumoti yo'q", "B-SECRET" not in _dump and "777" not in _dump)
 
         print("\n== 2. Ma'lumot yo'q: to'qilmaydi ==")
         st, d = run(get(f"/api/v1/channels/{CH_EMPTY}/analytics"))

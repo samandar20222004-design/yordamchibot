@@ -5,7 +5,7 @@ import { useI18n, type MessageKey } from '../i18n'
 import { Icon, type IconName } from './Icon'
 
 export function Button({
-  variant = 'secondary', busy = false, block = false, icon, children, ...rest
+  variant = 'secondary', busy = false, block = false, icon, children, className, ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost'
   busy?: boolean
@@ -14,7 +14,7 @@ export function Button({
 }) {
   return (
     <button type="button" {...rest} disabled={rest.disabled || busy} aria-busy={busy || undefined}
-      className={`btn btn-${variant}${block ? ' btn-block' : ''}${children ? '' : ' icon-btn'}`}>
+      className={`btn btn-${variant}${block ? ' btn-block' : ''}${children ? '' : ' icon-btn'}${className ? ` ${className}` : ''}`}>
       {icon && <Icon name={icon} size={20} />}
       {children}
     </button>

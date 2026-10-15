@@ -1232,3 +1232,15 @@ NOT EXISTS channel_member_counts (
 );
 CREATE INDEX IF
 NOT EXISTS idx_channel_member_counts_channel_date ON channel_member_counts (channel_id, snapshot_date DESC);
+
+-- 🎙 Ovozli rejalash kvotasi: har bir foydalanilgan imkoniyat — bitta qator (faqat user_id va vaqt; matn/ovoz SAQLANMAYDI).
+-- Free: butun umr bo'yicha FREE_VOICE_SCHEDULE_TOTAL (1) ta; PRO: oxirgi 24 soatda PRO_VOICE_SCHEDULE_DAILY ta. Bron advisory-lock
+-- ostida atomik (repositories/voice_quota_repository.py). Hisob o'chirilganda qatorlar ham o'chadi.
+CREATE TABLE IF
+NOT EXISTS voice_schedule_usage (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    used_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF
+NOT EXISTS idx_voice_schedule_usage_user ON voice_schedule_usage (user_id, used_at DESC);

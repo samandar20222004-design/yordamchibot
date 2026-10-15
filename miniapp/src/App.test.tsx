@@ -138,7 +138,7 @@ describe('App', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
-    expect(await screen.findByText('@alice')).toBeTruthy()
+    expect(await screen.findByText(/@alice/)).toBeTruthy()
     expect(await screen.findByText('Kanal A')).toBeTruthy()
     expect(screen.getByText(/PRO va Tariflar/)).toBeTruthy()
     expect(screen.queryByText(/To'lash|Sotib/i)).toBeNull()
@@ -156,7 +156,8 @@ describe('App', () => {
     expect(screen.getByText('PRO')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
     expect(await screen.findByText('PRO obunangiz faol.')).toBeTruthy()
-    expect(screen.getAllByText('cheksiz').length).toBe(3)
+    expect(screen.getAllByText(/\/ ∞/).length).toBe(3) // 3 ta cheksiz limit: son / ∞
+    expect(screen.queryAllByRole('progressbar')).toHaveLength(0) // cheksizda chiziq yo'q
   })
 
   it('Til profil bo\'yicha almashadi (ru)', async () => {

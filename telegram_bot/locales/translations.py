@@ -784,8 +784,16 @@ TRANSLATIONS = {
             "Tayyor tugmalardan tanlang yoki aniq vaqtni yozing.\n"
             "Format: <code>DD.MM.YYYY HH:MM</code>\n"
             "Namuna: <code>{example}</code>\n\n"
+            "Yoki oddiy so'z bilan yozing, masalan: <i>har kuni 12:00</i>, <i>har 2 kunda 09:30</i>, <i>har dam olish kuni 10:00</i>. 🎤 Ovozli xabar ham yuborishingiz mumkin.\n\n"
             "🕒 <i>Toshkent vaqti (UTC+5).</i>"
         ),
+        "vs_limit_free": "🎤 <b>Bepul ovozli rejalash ishlatilgan.</b>\n\nBepul tarifda ovoz bilan rejalash bir marta beriladi. PRO tarifda kuniga {n} tagacha. Vaqtni matn bilan yozishingiz mumkin.",
+        "vs_limit_pro": "🎤 <b>Ovozli rejalash chegarasi tugadi.</b>\n\nBugun {n} ta ovozli rejalash ishlatildi. Keyinroq urinib ko'ring yoki vaqtni matn bilan yozing.",
+        "vs_disabled": "🎤 Ovozli rejalash hozir o'chirilgan. Vaqtni matn bilan yozing.",
+        "vs_unavailable": "🎤 Ovozli rejalash vaqtincha ishlamayapti. Vaqtni matn bilan yozing.",
+        "vs_heard": "🎤 <b>Eshitildi:</b> <i>{text}</i>",
+        "vs_not_understood": "🤔 <b>Vaqtni aniqlay olmadim.</b>\n\nEshitilgan matn: <i>{text}</i>\n\nIltimos, qayta ayting yoki yozing, masalan: <i>ertaga 18:00</i>. Urinish hisobingizdan ayirilmadi.",
+        "vs_free_used_note": "ℹ️ Bepul ovozli rejalash bir marta beriladi. PRO: kuniga {n} tagacha.",
         "np_time_future": (
             "⚠️ <b>Bu vaqt allaqachon o'tib ketgan.</b>\n\n"
             "Iltimos, KELAJAKDAGI vaqtni kiriting.\n"
@@ -860,6 +868,8 @@ TRANSLATIONS = {
         "np_confirm_time_single": "⏰ {time} (Toshkent vaqti)",
         "np_confirm_time_daily": "🔁 Har kuni, soat {time} da",
         "np_confirm_time_weekly": "📅 Har {day}, soat {time} da",
+        "np_confirm_time_interval": "🔁 Har {n} kunda, soat {time} da",
+        "np_confirm_time_weekdays": "📅 {days} kunlari, soat {time} da",
         "np_confirm_content": "📋 <b>Matn:</b>\n{content}",
         "np_confirm_button": "🔘 Tugma: <b>{text}</b>",
         "np_confirm_reactions": "👍 Reaksiyalar: {emojis}",
@@ -934,6 +944,8 @@ TRANSLATIONS = {
         "np_scheduled_when_single": "⏰ {time}",
         "np_scheduled_when_daily": "🔁 Har kuni, soat {time} da",
         "np_scheduled_when_weekly": "📅 Har {day}, soat {time} da",
+        "np_scheduled_when_interval": "🔁 Har {n} kunda, soat {time} da",
+        "np_scheduled_when_weekdays": "📅 {days} kunlari, soat {time} da",
         "np_scheduled_del": "\n⏳ Kanalda turish muddati: <b>{hours} soat</b>",
         "np_queue_added": (
             "⚡️ <b>Post navbatga qo'yildi!</b>\n\n"
@@ -2946,8 +2958,16 @@ TRANSLATIONS = {
             "Выберите готовую кнопку или напишите точное время.\n"
             "Формат: <code>DD.MM.YYYY HH:MM</code>\n"
             "Пример: <code>{example}</code>\n\n"
+            "Или напишите обычными словами, например: <i>каждый день в 12:00</i>, <i>раз в 2 дня в 09:30</i>, <i>по выходным в 10:00</i>. 🎤 Можно отправить и голосовое сообщение.\n\n"
             "🕒 <i>Время по Ташкенту (UTC+5).</i>"
         ),
+        "vs_limit_free": "🎤 <b>Бесплатное голосовое планирование использовано.</b>\n\nНа бесплатном тарифе оно доступно один раз. В PRO — до {n} в день. Время можно написать текстом.",
+        "vs_limit_pro": "🎤 <b>Лимит голосового планирования исчерпан.</b>\n\nСегодня использовано {n}. Попробуйте позже или напишите время текстом.",
+        "vs_disabled": "🎤 Голосовое планирование сейчас отключено. Напишите время текстом.",
+        "vs_unavailable": "🎤 Голосовое планирование временно недоступно. Напишите время текстом.",
+        "vs_heard": "🎤 <b>Услышано:</b> <i>{text}</i>",
+        "vs_not_understood": "🤔 <b>Не удалось определить время.</b>\n\nРаспознанный текст: <i>{text}</i>\n\nСкажите или напишите ещё раз, например: <i>завтра в 18:00</i>. Попытка не списана.",
+        "vs_free_used_note": "ℹ️ Бесплатное голосовое планирование доступно один раз. PRO: до {n} в день.",
         "np_time_future": (
             "⚠️ <b>Это время уже прошло.</b>\n\n"
             "Пожалуйста, укажите время в БУДУЩЕМ.\n"
@@ -3023,6 +3043,8 @@ TRANSLATIONS = {
         "np_confirm_time_single": "⏰ {time} (время Ташкента)",
         "np_confirm_time_daily": "🔁 Ежедневно, в {time}",
         "np_confirm_time_weekly": "📅 Каждый {day}, в {time}",
+        "np_confirm_time_interval": "🔁 Каждые {n} дн., в {time}",
+        "np_confirm_time_weekdays": "📅 {days}, в {time}",
         "np_confirm_content": "📋 <b>Текст:</b>\n{content}",
         "np_confirm_button": "🔘 Кнопка: <b>{text}</b>",
         "np_confirm_reactions": "👍 Реакции: {emojis}",
@@ -3093,6 +3115,8 @@ TRANSLATIONS = {
         "np_scheduled_when_single": "⏰ {time}",
         "np_scheduled_when_daily": "🔁 Ежедневно, в {time}",
         "np_scheduled_when_weekly": "📅 Каждый {day}, в {time}",
+        "np_scheduled_when_interval": "🔁 Каждые {n} дн., в {time}",
+        "np_scheduled_when_weekdays": "📅 {days}, в {time}",
         "np_scheduled_del": "\n⏳ Время в канале: <b>{hours} ч.</b>",
         "np_queue_added": (
             "⚡️ <b>Пост добавлен в очередь!</b>\n\n"
