@@ -12,7 +12,7 @@ ishga tushirishdan oldin AI xarajati, to'lov komissiyalari va haqiqiy foydalanis
 | Kimlar uchun | sinab ko'ruvchi, kichik kanal | 1–10 kanal yuritadigan kanal egasi, kontent yaratuvchi | 10–30 kanal, SMM mutaxassis, jamoa |
 | Kanallar | 3 | 10 | 30 |
 | Kunlik AI so'rov | 5 | 40 | 100 |
-| Navbat (kutilayotgan postlar) | 5 | 100 | 500 |
+| Navbat (kutilayotgan postlar, barcha kanallar bo'yicha) | 40 | 300 | 900 |
 | Ovozli rejalash | 1 marta (butun umr) | kuniga 20 | kuniga 100 |
 | Kontent-reja | 7 kunlik, haftasiga 1 | 7 va 30 kunlik | 7 va 30 kunlik |
 | Kanal postida PostAssist imzosi | bor | yo'q | yo'q |
@@ -30,10 +30,24 @@ Majburlash: `check_channel_limit`, `reserve_ai_request` / `check_ai_limit` (atom
 
 | Muddat | PRO so'm | PRO tejam | PRO Stars | ULTRA so'm | ULTRA tejam | ULTRA Stars |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 oy | 19 000 | — | 80 | 39 000 | — | 165 |
-| 3 oy | 49 000 | 14% | 205 | 99 000 | 15% | 415 |
-| 6 oy | 89 000 | 22% | 375 | 189 000 | 19% | 790 |
-| 1 yil | 159 000 | 30% | 665 | 349 000 | 25% | 1 460 |
+| 1 oy | 29 000 | — | 115 | 69 000 | — | 275 |
+| 3 oy | 75 000 | 14% | 300 | 175 000 | 15% | 695 |
+| 6 oy | 135 000 | 22% | 535 | 335 000 | 19% | 1 330 |
+| 1 yil | 245 000 | 30% | 970 | 620 000 | 25% | 2 460 |
+
+### Narx qanday belgilandi (bozor bilan solishtirish)
+Hisob: 1 USD ≈ 12 600 so'm (`USD_UZS_RATE`), 1 ★ ≈ 0,02 USD. Ochiq manbalarda topilgan ko'rsatkichlar (aniq tarif sahifalari har xil va tez eskiradi — ishga
+tushirishdan oldin qayta tekshiring):
+* Telegram Premium ≈ 4,99 USD/oy (~63 000 so'm) — bu rejalash vositasi emas, lekin foydalanuvchi uchun «Telegram uchun to'lov» mezoni;
+* xalqaro kanal rejalash xizmatlari ≈ 9–14 USD/oy (~115 000–175 000 so'm) (masalan Schedulala, Postmypost — 2020–2026 ma'lumotlari, manbalar bir-biriga mos kelmaydi);
+* SMMplanner (RF) boshlang'ich ≈ 675 RUB/oy (~90 000 so'm).
+Avvalgi 19 000 / 39 000 so'm (≈ 1,5 / 3,1 USD) bu darajalardan 5–10 baravar past edi va AI xarajati uchun ajratilgan ulush juda kichik qolardi
+(oylik AI chegarasi narxning 40% i). Yangi PRO 29 000 (≈ 2,3 USD), ULTRA 69 000 (≈ 5,5 USD): xalqaro analoglardan hamon 2–5 baravar arzon, mahalliy
+xarid qobiliyatiga mos, AI byudjeti esa mos ravishda oshadi (`services/ai/budget.py`). Tejam foizlari avvalgi qaror bilan bir xil (14/22/30 va 15/19/25).
+Narxlar env bilan o'zgartiriladi; o'zgartirsangiz hujjat, matnlar va byudjet o'zi moslashadi.
+
+Telegram o'zining rejalashi (har bir chatga odatda ~100 ta kutilayotgan xabar — rasmiy raqam e'lon qilinmagan) takroriy post, AI, ovozli rejalash va
+bir nechta kanalni yagona navbatda boshqarishni bermaydi; bizda bepul navbat BARCHA kanallar bo'yicha 40 ta.
 
 Tejam foizi `plan_discount_percent` bilan HAQIQIY narxlardan hisoblanadi (matnda qattiq foiz yo'q). Stars hisobi: taxminan 1 ★ ≈ 0,02 $ —
 yakuniy qiymat emas; Stars bo'yicha tushum, komissiya va xarid narxi alohida tekshiriladi.

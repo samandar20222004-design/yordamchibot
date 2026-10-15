@@ -1,8 +1,8 @@
 # Bonus, tariflar va taklif (referal) — tavsiya
 
 Holat (kodda): ball/kredit (`credits_ledger`: kunlik bonus, faollik bonusi, promo, o'tkazma), referal **harakatga asoslangan** (do'st BIRINCHI
-postini yaratgach, `services/referral_service.py`: self-referral, takror profil, noma'lum referrer himoyalari), PRO: 1 oy 19 000 / 3 oy 45 000 / 1 yil
-140 000 so'm (+ Stars). Quyidagi — TAVSIYA; narxlar va foizlarni egasi belgilaydi, hech narsa kodga kiritilmagan.
+postini yaratgach, `services/referral_service.py`: self-referral, takror profil, noma'lum referrer himoyalari), PRO: 1 oy 29 000 / 3 oy 75 000 / 6 oy 135 000 / 1 yil
+245 000 so'm (+ Stars; ULTRA 69 000 dan). Quyidagi — TAVSIYA; narxlar va foizlarni egasi belgilaydi, hech narsa kodga kiritilmagan.
 
 ## 1. Bonus — nimani qoldirish
 * **Qoldiring:** kunlik/faollik bonusi (odat shakllantiradi), promo-kod. **Soddalashtiring:** ballni FAQAT AI so'rovlari va kichik «sovg'a»lar

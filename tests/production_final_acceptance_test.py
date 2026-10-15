@@ -149,7 +149,7 @@ def test_01_stars_duplicate_parallel():
         with ThreadPoolExecutor(max_workers=10) as pool:
             results = list(pool.map(
                 lambda _: ps.PaymentService.process_stars_payment(
-                    uid, "ch_dup_parallel", 80, f"sub_stars_1m_{uid}", "pro", 30),
+                    uid, "ch_dup_parallel", 115, f"sub_stars_1m_{uid}", "pro", 30),
                 range(10)))
     fresh = [r for r in results if r.get("ok") and not r.get("duplicate")]
     dups = [r for r in results if r.get("ok") and r.get("duplicate")]
@@ -170,7 +170,7 @@ def test_01_live(db_mod):
         cur.execute("UPDATE users SET plan_type='free', subscription_expires_at=NULL WHERE user_id=%s", (uid,))
     with ThreadPoolExecutor(max_workers=10) as pool:
         results = list(pool.map(
-            lambda _: PaymentService.process_stars_payment(uid, charge, 80, f"sub_stars_1m_{uid}", "pro", 30),
+            lambda _: PaymentService.process_stars_payment(uid, charge, 115, f"sub_stars_1m_{uid}", "pro", 30),
             range(10)))
     fresh = [r for r in results if r.get("ok") and not r.get("duplicate")]
     with db_mod.db_cursor() as cur:
@@ -900,25 +900,25 @@ def test_14_invoice_manipulation():
     section("14) INVOICE PAYLOAD / SUMMA MANIPULYATSIYASI → RAD")
     from services.payment_service import PaymentService as P
     uid = 777014
-    ok, err = P.validate_payload(f"sub_stars_1m_{uid}", uid, 80, "XTR")
+    ok, err = P.validate_payload(f"sub_stars_1m_{uid}", uid, 115, "XTR")
     check("to'g'ri payload qabul", ok and ok["days"] == 30 and err is None, str((ok, err)))
     cases = {
         "summa kamaytirilgan (1 star)": (f"sub_stars_1m_{uid}", uid, 1, "XTR"),
         "summa boshqa tarifniki (175 → 1m)": (f"sub_stars_1m_{uid}", uid, 175, "XTR"),
-        "boshqa foydalanuvchi ID'si": (f"sub_stars_1m_{uid + 1}", uid, 80, "XTR"),
-        "valyuta USD": (f"sub_stars_1m_{uid}", uid, 80, "USD"),
+        "boshqa foydalanuvchi ID'si": (f"sub_stars_1m_{uid + 1}", uid, 115, "XTR"),
+        "valyuta USD": (f"sub_stars_1m_{uid}", uid, 115, "USD"),
         "yo'q tarif": (f"sub_stars_99y_{uid}", uid, 75, "XTR"),
         "bo'sh payload": ("", uid, 75, "XTR"),
-        "SQL/format inyeksiya": (f"sub_stars_1m_{uid}; DROP TABLE users", uid, 80, "XTR"),
+        "SQL/format inyeksiya": (f"sub_stars_1m_{uid}; DROP TABLE users", uid, 115, "XTR"),
         "1 yillik tarif arzon narxda": (f"sub_stars_1y_{uid}", uid, 75, "XTR"),
     }
     for label, args in cases.items():
         plan, err = P.validate_payload(*args)
         check(f"rad: {label}", plan is None and bool(err), str((plan, err)))
     # process_stars_payment: charge_id bo'sh / kun ≤ 0 → invalid
-    r = P.process_stars_payment(uid, "", 80, f"sub_stars_1m_{uid}", "pro", 30)
+    r = P.process_stars_payment(uid, "", 115, f"sub_stars_1m_{uid}", "pro", 30)
     check("bo'sh charge_id → invalid_payment", r.get("ok") is False and r.get("reason") == "invalid_payment", str(r))
-    r = P.process_stars_payment(uid, "ch", 80, f"sub_stars_1m_{uid}", "pro", 0)
+    r = P.process_stars_payment(uid, "ch", 115, f"sub_stars_1m_{uid}", "pro", 0)
     check("duration 0 → invalid_payment", r.get("ok") is False and r.get("reason") == "invalid_payment", str(r))
 
 

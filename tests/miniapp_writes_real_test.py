@@ -257,11 +257,13 @@ def main() -> int:
                 and counts["failed"] == 0, f"{counts} {real}")
 
         print("\n== 6. Navbat limiti (bepul tarif) ==")
-        for i in range(5):
+        import config as _cfg
+        free_lim = _cfg.FREE_QUEUE_MAX_POSTS
+        for i in range(free_lim):
             st, body = call("POST", "/api/v1/posts", FULL, {"channel_id": CH_FULL, "text": f"limit {i}", "scheduled_at": at(10 + i)})
-        T.check("5 ta post yaratildi", len(rows(FULL, "pending")) == 5)
+        T.check(f"{free_lim} ta post yaratildi (bepul navbat to'ladi)", len(rows(FULL, "pending")) == free_lim)
         st, body = call("POST", "/api/v1/posts", FULL, {"channel_id": CH_FULL, "text": "oltinchi", "scheduled_at": at(30)})
-        T.check("6-post -> 403 queue_limit_reached, qator yozilmadi", st == 403 and body["error"]["code"] == "queue_limit_reached" and len(rows(FULL, "pending")) == 5)
+        T.check("limitdan keyingi post -> 403 queue_limit_reached, qator yozilmadi", st == 403 and body["error"]["code"] == "queue_limit_reached" and len(rows(FULL, "pending")) == free_lim)
 
         print("\n== 7. Til sozlamasi ==")
         st, body = call("PATCH", "/api/v1/me/settings", A, {"language": "ru"})

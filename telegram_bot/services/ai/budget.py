@@ -11,7 +11,7 @@ tarif uchun TO'RT cheklov:
 * ``daily_usd`` / ``monthly_usd`` — taxminiy xarajat (USD, narx jadvali bo'yicha).
 
 PRO oylik USD limiti standart holatda PRO narxining (``PAYMENT_PRICE_1M_UZS``,
-19 000 so'm) ``AI_BUDGET_PRO_MAX_COST_SHARE`` (standart 40%) ulushi —
+29 000 so'm) ``AI_BUDGET_PRO_MAX_COST_SHARE`` (standart 40%) ulushi —
 ya'ni AI xarajati PRO daromadining katta qismini yemasligi uchun.
 
 Qat'iylik (atomiklik)
@@ -145,7 +145,7 @@ def pro_monthly_usd_default() -> float:
 
         price_usd = cost_tracker.uzs_to_usd(cost_tracker._pro_price_uzs())
     except Exception:  # noqa: BLE001 — konfiguratsiya xatosi AI'ni to'xtatmasin
-        price_usd = 19000 / 12600.0
+        price_usd = 29000 / 12600.0
     share = _float_env(os.getenv("AI_BUDGET_PRO_MAX_COST_SHARE"), 0.40)
     return round(price_usd * max(0.0, share), 4)
 

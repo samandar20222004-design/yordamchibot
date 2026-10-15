@@ -189,15 +189,15 @@ PAID_TIERS = (PLAN_PRO, PLAN_ULTRA)
 TARIFF_PERIODS = (("1m", 1, 30), ("3m", 3, 90), ("6m", 6, 180), ("1y", 12, 365))
 
 # So'mdagi narxlar (PRO: eski env nomlari saqlangan; ULTRA: ULTRA_PRICE_*).
-_PRO_UZS = (_int_env("PAYMENT_PRICE_1M_UZS", 19000), _int_env("PAYMENT_PRICE_3M_UZS", 49000),
-            _int_env("PAYMENT_PRICE_6M_UZS", 89000), _int_env("PAYMENT_PRICE_1Y_UZS", 159000))
-_ULTRA_UZS = (_int_env("ULTRA_PRICE_1M_UZS", 39000), _int_env("ULTRA_PRICE_3M_UZS", 99000),
-              _int_env("ULTRA_PRICE_6M_UZS", 189000), _int_env("ULTRA_PRICE_1Y_UZS", 349000))
+_PRO_UZS = (_int_env("PAYMENT_PRICE_1M_UZS", 29000), _int_env("PAYMENT_PRICE_3M_UZS", 75000),
+            _int_env("PAYMENT_PRICE_6M_UZS", 135000), _int_env("PAYMENT_PRICE_1Y_UZS", 245000))
+_ULTRA_UZS = (_int_env("ULTRA_PRICE_1M_UZS", 69000), _int_env("ULTRA_PRICE_3M_UZS", 175000),
+              _int_env("ULTRA_PRICE_6M_UZS", 335000), _int_env("ULTRA_PRICE_1Y_UZS", 620000))
 # Telegram Stars (taxminiy 1 Star = 0,02 USD). Yakuniy qiymatlarni ishga tushirishdan oldin komissiya/tushum bilan tekshiring.
-_PRO_STARS = (_int_env("STARS_PRICE_1M", 80), _int_env("STARS_PRICE_3M", 205),
-              _int_env("STARS_PRICE_6M", 375), _int_env("STARS_PRICE_1Y", 665))
-_ULTRA_STARS = (_int_env("ULTRA_STARS_PRICE_1M", 165), _int_env("ULTRA_STARS_PRICE_3M", 415),
-                _int_env("ULTRA_STARS_PRICE_6M", 790), _int_env("ULTRA_STARS_PRICE_1Y", 1460))
+_PRO_STARS = (_int_env("STARS_PRICE_1M", 115), _int_env("STARS_PRICE_3M", 300),
+              _int_env("STARS_PRICE_6M", 535), _int_env("STARS_PRICE_1Y", 970))
+_ULTRA_STARS = (_int_env("ULTRA_STARS_PRICE_1M", 275), _int_env("ULTRA_STARS_PRICE_3M", 695),
+                _int_env("ULTRA_STARS_PRICE_6M", 1330), _int_env("ULTRA_STARS_PRICE_1Y", 2460))
 
 PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_6M_UZS, PAYMENT_PRICE_1Y_UZS = _PRO_UZS
 STARS_1M, STARS_3M, STARS_6M, STARS_1Y = _PRO_STARS
@@ -215,9 +215,9 @@ ULTRA_MAX_CHANNELS = _int_env("ULTRA_MAX_CHANNELS", 30)
 ULTRA_DAILY_AI = _int_env("ULTRA_DAILY_AI", 100)
 UNLIMITED_LIMIT = 999
 # Navbatdagi (kutilayotgan) postlar soni: bot, Mini App va tarif kartasi SHU qiymatlarni o'qiydi.
-FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 5)
-PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 100)
-ULTRA_QUEUE_MAX_POSTS = _int_env("ULTRA_QUEUE_MAX_POSTS", 500)
+FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 40)
+PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 300)
+ULTRA_QUEUE_MAX_POSTS = _int_env("ULTRA_QUEUE_MAX_POSTS", 900)
 # 🎙 Ovozli rejalash: free — BUTUN UMR bo'yicha bir martalik; PRO/ULTRA — oxirgi 24 soatda shuncha (0 = o'chiq).
 FREE_VOICE_SCHEDULE_TOTAL = _int_env("FREE_VOICE_SCHEDULE_TOTAL", 1)
 PRO_VOICE_SCHEDULE_DAILY = _int_env("PRO_VOICE_SCHEDULE_DAILY", 20)

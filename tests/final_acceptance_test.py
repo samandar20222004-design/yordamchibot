@@ -124,7 +124,7 @@ def test_payment_idempotency_static():
 
     with patch.object(ps, "transaction", tx1):
         res1 = ps.PaymentService.process_stars_payment(
-            777001, "ch_final_1", 80, "sub_stars_1m_777001", "pro", 30)
+            777001, "ch_final_1", 115, "sub_stars_1m_777001", "pro", 30)
     check("birinchi to'lov: ok=True, duplicate=False",
           res1.get("ok") is True and res1.get("duplicate") is False, str(res1))
     check("birinchi to'lov: 30 kun berildi", res1.get("days") == 30, str(res1))
@@ -138,16 +138,16 @@ def test_payment_idempotency_static():
 
     with patch.object(ps, "transaction", tx2):
         res2 = ps.PaymentService.process_stars_payment(
-            777001, "ch_final_1", 80, "sub_stars_1m_777001", "pro", 30)
+            777001, "ch_final_1", 115, "sub_stars_1m_777001", "pro", 30)
     check("takroriy to'lov: ok=True, duplicate=True (PRO ikki marta berilmaydi)",
           res2.get("ok") is True and res2.get("duplicate") is True, str(res2))
     check("takroriy to'lov: days=0", res2.get("days") == 0, str(res2))
 
     # validate_payload kontraktlari.
-    plan, err = ps.PaymentService.validate_payload("sub_stars_1m_777001", 777001, 80, "XTR")
+    plan, err = ps.PaymentService.validate_payload("sub_stars_1m_777001", 777001, 115, "XTR")
     check("validate_payload: to'g'ri payload qabul qilinadi",
           plan is not None and err is None, f"{plan} {err}")
-    plan, err = ps.PaymentService.validate_payload("sub_stars_1m_777002", 777001, 80, "XTR")
+    plan, err = ps.PaymentService.validate_payload("sub_stars_1m_777002", 777001, 115, "XTR")
     check("validate_payload: boshqa user payload'i rad etiladi",
           plan is None and err, "")
     plan, err = ps.PaymentService.validate_payload("sub_stars_1m_777001", 777001, 74, "XTR")
@@ -166,8 +166,8 @@ def test_payment_idempotency_live(db_mod):
             "VALUES (%s, %s, 'free') ON CONFLICT (user_id) DO NOTHING",
             (uid, f"final_{uid}"))
 
-    res1 = PaymentService.process_stars_payment(uid, charge, 80, f"sub_stars_1m_{uid}", "pro", 30)
-    res2 = PaymentService.process_stars_payment(uid, charge, 80, f"sub_stars_1m_{uid}", "pro", 30)
+    res1 = PaymentService.process_stars_payment(uid, charge, 115, f"sub_stars_1m_{uid}", "pro", 30)
+    res2 = PaymentService.process_stars_payment(uid, charge, 115, f"sub_stars_1m_{uid}", "pro", 30)
     check("LIVE birinchi to'lov muvaffaqiyatli", res1.get("ok") and not res1.get("duplicate"), str(res1))
     check("LIVE takroriy to'lov dublikat deb topildi", res2.get("ok") and res2.get("duplicate"), str(res2))
 

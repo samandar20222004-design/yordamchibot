@@ -82,15 +82,15 @@ describe('Profil sahifasi', () => {
     expect(screen.getByText('Kanallar: 10 tagacha')).toBeTruthy()
     expect(screen.getByText('Kanallar: 30 tagacha')).toBeTruthy()
     expect(screen.getByText('AI: kuniga 40 ta')).toBeTruthy()
-    expect(screen.getByText('Navbat: 500 tagacha post')).toBeTruthy()
-    expect(screen.getByText(/19 000 so'm\/oydan/)).toBeTruthy()
-    expect(screen.getByText(/39 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.getByText('Navbat: 900 tagacha post')).toBeTruthy()
+    expect(screen.getByText(/29 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.getByText(/69 000 so'm\/oydan/)).toBeTruthy()
     expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
     expect(screen.getByRole('button', { name: 'Botni ochish' })).toBeTruthy()
   })
 
   it('PRO: faqat ULTRA kartasi, "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
-    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 100 } } })
+    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 300 } } })
     await openMe()
     expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
     expect(screen.getAllByText('PRO').length).toBeGreaterThan(0)   // belgi
@@ -101,7 +101,7 @@ describe('Profil sahifasi', () => {
   })
 
   it('ULTRA: belgi "ULTRA", tarif kartalari yo\'q', async () => {
-    mockApi({ ...ME, plan: { type: 'ultra', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 500 } } })
+    mockApi({ ...ME, plan: { type: 'ultra', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 900 } } })
     await openMe()
     expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
     expect(screen.getAllByText('ULTRA').length).toBe(1)

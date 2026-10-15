@@ -45,8 +45,8 @@ import config  # noqa: E402
 
 print("== Tarif katalogi ==")
 EXPECT = {  # kalit: (tarif, kun, so'm, Stars)
-    "1m": ("pro", 30, 19000, 80), "3m": ("pro", 90, 49000, 205), "6m": ("pro", 180, 89000, 375), "1y": ("pro", 365, 159000, 665),
-    "u1m": ("ultra", 30, 39000, 165), "u3m": ("ultra", 90, 99000, 415), "u6m": ("ultra", 180, 189000, 790), "u1y": ("ultra", 365, 349000, 1460),
+    "1m": ("pro", 30, 29000, 115), "3m": ("pro", 90, 75000, 300), "6m": ("pro", 180, 135000, 535), "1y": ("pro", 365, 245000, 970),
+    "u1m": ("ultra", 30, 69000, 275), "u3m": ("ultra", 90, 175000, 695), "u6m": ("ultra", 180, 335000, 1330), "u1y": ("ultra", 365, 620000, 2460),
 }
 for key, (tier, days, uzs, stars) in EXPECT.items():
     c = config.TARIFF_CATALOG[key]
@@ -56,9 +56,9 @@ check("PRO eski kalitlar ('1m','3m','1y') saqlangan; ULTRA 'u' prefiksi", tuple(
       and tuple(config.tariff_keys_for("ultra")) == ("u1m", "u3m", "u6m", "u1y"))
 check("tier_of_key / key_for_days", config.tier_of_key("u6m") == "ultra" and config.tier_of_key("3m") == "pro"
       and config.key_for_days("ultra", 180) == "u6m" and config.key_for_days("pro", 365) == "1y")
-check("limitlar: free 3/5/5, pro 10/40/100, ultra 30/100/500",
+check("limitlar: free 3/5/40, pro 10/40/300, ultra 30/100/900",
       [tuple(config.TIER_LIMITS[t][k] for k in ("max_channels", "daily_ai_requests", "queued_posts")) for t in ("free", "pro", "ultra")]
-      == [(3, 5, 5), (10, 40, 100), (30, 100, 500)])
+      == [(3, 5, 40), (10, 40, 300), (30, 100, 900)])
 from services import voice_schedule_quota as vq  # noqa: E402
 check("ovozli rejalash: free butun umr 1; PRO 24 soatda 20; ULTRA/enterprise 100",
       vq.limits_for("free")[:2] == ("lifetime", 1) and vq.limits_for("pro")[:2] == ("day", 20)
@@ -79,9 +79,9 @@ from miniapp_api.service import resolve_plan, tier_catalog  # noqa: E402
 now = datetime.now(timezone.utc)
 acct = {"plan_type": "ultra", "subscription_expires_at": now + timedelta(days=5), "db_now": now}
 p = resolve_plan(acct)
-check("Mini App: ULTRA -> type=ultra, is_pro, 30/100/500", p["type"] == "ultra" and p["is_pro"] and (p["limits"]["max_channels"], p["limits"]["daily_ai_requests"], p["limits"]["queued_posts"]) == (30, 100, 500), str(p))
+check("Mini App: ULTRA -> type=ultra, is_pro, 30/100/900", p["type"] == "ultra" and p["is_pro"] and (p["limits"]["max_channels"], p["limits"]["daily_ai_requests"], p["limits"]["queued_posts"]) == (30, 100, 900), str(p))
 p = resolve_plan({"plan_type": "pro", "subscription_expires_at": now + timedelta(days=5), "db_now": now})
-check("Mini App: yangi PRO -> 10/40/100", (p["limits"]["max_channels"], p["limits"]["daily_ai_requests"]) == (10, 40), str(p))
+check("Mini App: yangi PRO -> 10/40/300", (p["limits"]["max_channels"], p["limits"]["daily_ai_requests"]) == (10, 40), str(p))
 p = resolve_plan({"plan_type": "pro", "subscription_expires_at": now + timedelta(days=5), "db_now": now, "pro_legacy_until": now + timedelta(days=3)})
 check("Mini App: eski PRO (legacy muddati faol) -> eski limitlar 999", p["limits"]["max_channels"] == 999, str(p))
 p = resolve_plan({"plan_type": "pro", "subscription_expires_at": now + timedelta(days=5), "db_now": now, "pro_legacy_until": now - timedelta(days=1)})
@@ -89,8 +89,8 @@ check("Mini App: legacy muddati o'tgach (yangi to'lov) -> 10/40", p["limits"]["m
 p = resolve_plan({"plan_type": "ultra", "subscription_expires_at": now - timedelta(days=1), "db_now": now})
 check("Mini App: muddati o'tgan ULTRA -> free", p["type"] == "free" and not p["is_pro"] and p["limits"]["max_channels"] == 3, str(p))
 tc = tier_catalog()
-check("Mini App /me tiers: limitlar va 1 oylik narx config'dan", tc["pro"]["price_from_uzs"] == 19000 and tc["ultra"]["price_from_uzs"] == 39000
-      and tc["ultra"]["limits"]["queued_posts"] == 500)
+check("Mini App /me tiers: limitlar va 1 oylik narx config'dan", tc["pro"]["price_from_uzs"] == 29000 and tc["ultra"]["price_from_uzs"] == 69000
+      and tc["ultra"]["limits"]["queued_posts"] == 900)
 
 if not URL:
     print("  [SKIP] real PostgreSQL URL yo'q (DB qismi)")
@@ -181,7 +181,7 @@ try:
 
     # navbat
     q("UPDATE channels SET channel_id = '-1009600000001' WHERE user_id = %s AND channel_id = %s", (FREE, f"-100{FREE}0"))
-    for uid, posts, expect in ((PRO, 100, (False, 100, 100)), (ULTRA, 100, (True, 100, 500)), (LEG, 100, (True, 100, 999))):
+    for uid, posts, expect in ((PRO, 300, (False, 300, 300)), (ULTRA, 300, (True, 300, 900)), (LEG, 300, (True, 300, 999))):
         fill(uid, posts=posts)
         check(f"navbat {uid - B}: {posts} post -> {expect}", db.check_queue_limit(uid) == expect, str(db.check_queue_limit(uid)))
     check("db.get_plan_tier: free/pro/ultra/enterprise/muddati o'tgan -> free",
@@ -207,8 +207,8 @@ try:
               and abs(days_left(SUBS) - config.TARIFF_CATALOG[key]["days"]) < 0.1, f"{r} {user(SUBS)}")
     r = PaymentService.process_stars_payment(SUBS, "tier-cheat", config.TARIFF_CATALOG["1m"]["stars"], f"sub_stars_u1y_{SUBS}", "pro", 365)
     check("ULTRA 1 yillik payload PRO 1 oylik narxda -> RAD (summa tarifga mos emas)", not r.get("ok"), str(r))
-    r = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 80, f"sub_stars_1m_{SUBS}", "pro", 30)
-    r2 = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 80, f"sub_stars_1m_{SUBS}", "pro", 30)
+    r = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 115, f"sub_stars_1m_{SUBS}", "pro", 30)
+    r2 = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 115, f"sub_stars_1m_{SUBS}", "pro", 30)
     check("takroriy charge: ikkinchisi duplicate (kun qo'shilmaydi)", r.get("ok") and r2.get("duplicate") is True, f"{r} {r2}")
 
     before = days_left(UP)
@@ -233,11 +233,11 @@ try:
 
     # karta cheki
     seed(RCPT, "free")
-    rid = db.save_payment_receipt(RCPT, "photo", "FID", "", "u", "N", "uz", 90, amount_uzs=99000, file_unique_id="TIER-1", plan_key="u3m")
+    rid = db.save_payment_receipt(RCPT, "photo", "FID", "", "u", "N", "uz", 90, amount_uzs=175000, file_unique_id="TIER-1", plan_key="u3m")
     res = db.approve_payment_receipt(rid, 1)
     check("karta cheki (u3m): ULTRA, 90 kun, javobda tier=ultra", res.get("ok") and res.get("tier") == "ultra" and user(RCPT)[0] == "ultra"
           and abs(days_left(RCPT) - 90) < 0.1, f"{res} {user(RCPT)}")
-    rid2 = db.save_payment_receipt(RCPT, "photo", "FID2", "", "u", "N", "uz", 30, amount_uzs=19000, file_unique_id="TIER-2")
+    rid2 = db.save_payment_receipt(RCPT, "photo", "FID2", "", "u", "N", "uz", 30, amount_uzs=29000, file_unique_id="TIER-2")
     res2 = db.approve_payment_receipt(rid2, 1)
     check("eski chek (plan_key yo'q) = PRO; ULTRA'ni pasaytirmaydi", res2.get("ok") and res2.get("tier") == "pro" and user(RCPT)[0] == "ultra", f"{res2} {user(RCPT)}")
 

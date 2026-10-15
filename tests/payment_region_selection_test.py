@@ -234,7 +234,7 @@ def test_region_buttons_all_languages():
     text_ru = sub._build_pay_region_text("ru", "1m")
     for lang_text in (text_uz, text_ru):
         check("Mintaqa menyusida rekvizit yo'q (faqat tanlov)",
-              "8600 0609 5082 5589" not in lang_text and "19 000" not in lang_text,
+              "8600 0609 5082 5589" not in lang_text and "29 000" not in lang_text,
               lang_text[:80])
     check("Mintaqa menyusida tanlangan tarif eslatiladi (RU)",
           "1 месяц" in text_ru, text_ru)
@@ -258,8 +258,8 @@ def test_ru_user_local_flow():
           first_screen[:160])
     check("Tarif tanlashda REKVIZIT DARHOL chiqmaydi: mintaqa tanlovigacha invoice yo'q",
           not bot.invoices, bot.invoices)
-    check("RU tanlovdan so'ng mahalliy ekran: so'mdagi narx 19 000",
-          "19 000" in joined, joined[:200])
+    check("RU tanlovdan so'ng mahalliy ekran: so'mdagi narx 29 000",
+          "29 000" in joined, joined[:200])
     check("RU tanlovdan so'ng karta rekviziti ko'rsatiladi",
           "8600 0609 5082 5589" in joined and "Sayitqulov S." in joined,
           joined[:200])
@@ -282,8 +282,8 @@ def test_ru_user_local_flow():
     # Tarif -> muddat ekrani: har bir muddat so'mdagi narx bilan (RU).
     from handlers.subscription import _get_tier_keyboard
     tier_labels = [b.text for row in _get_tier_keyboard("pro", "ru").inline_keyboard for b in row]
-    check("tarif muddatlari RU'da so'mdagi narx bilan (1 месяц — 19 000 сум ... 1 год — 159 000 сум)",
-          any("1 месяц" in t and "19 000" in t for t in tier_labels) and any("1 год" in t and "159 000" in t for t in tier_labels), tier_labels)
+    check("tarif muddatlari RU'da so'mdagi narx bilan (1 месяц — 29 000 сум ... 1 год — 245 000 сум)",
+          any("1 месяц" in t and "29 000" in t for t in tier_labels) and any("1 год" in t and "245 000" in t for t in tier_labels), tier_labels)
     check("sub_card_pay hali ham invoice YUBORMAYDI", not bot2.invoices)
 
 
@@ -304,7 +304,7 @@ def test_international_flow_hides_local_cards():
           "Humo" not in joined and "Humo" not in kb_all, (joined + kb_all)[:160])
     check("Intl ekranida karta raqami YO'Q",
           "8600 0609 5082 5589" not in joined + kb_all)
-    check("Intl ekranida so'm narxlari ko'rsatilmaydi", "19 000" not in joined)
+    check("Intl ekranida so'm narxlari ko'rsatilmaydi", "29 000" not in joined)
     cb_all = [b.callback_data for b in _flat_kb(markups[0])] if markups else []
     check("Intl tarif tanlagichi: faqat 4 Stars paketi (1/3/6 oy, 1 yil) + orqaga (mintaqa menyusiga)",
           cb_all == ["sub_intl_plan:1m", "sub_intl_plan:3m", "sub_intl_plan:6m", "sub_intl_plan:1y",
@@ -314,17 +314,17 @@ def test_international_flow_hides_local_cards():
     bot2, q2, texts2, markups2, ctx2 = _run_region_flow("en", ["sub_region:intl:1y"])
     check("Intl plan tanlangach invoice YUBORILDI", len(bot2.invoices) == 1, bot2.invoices)
     inv = bot2.invoices[0] if bot2.invoices else {}
-    check("Invoice: valuta XTR (Stars), summa 665 (PRO 1 yil)",
+    check("Invoice: valuta XTR (Stars), summa 970 (PRO 1 yil)",
           inv.get("currency") == "XTR" and inv.get("prices")
-          and inv["prices"][0].amount == 665, inv)
+          and inv["prices"][0].amount == 970, inv)
     check("Invoice payload eski kontrakt bilan mos (sub_stars_<plan>_<uid>)",
           inv.get("payload") == "sub_stars_1y_555001", inv.get("payload"))
     check("Invoice sarlavha/tavsif foydalanuvchi TILIDA (en)",
           "1 year" in str(inv.get("title")) and "1 year" in str(inv.get("description")),
           f"{inv.get('title')} / {inv.get('description')}")
     joined2 = "\n".join(texts2)
-    check("Intl ekran: ekvivalent valyuta — Stars + ~$13.30 ko'rsatiladi",
-          "665 Stars" in joined2 and "$13.30" in joined2, joined2[:200])
+    check("Intl ekran: ekvivalent valyuta — Stars + ~$19.40 ko'rsatiladi",
+          "970 Stars" in joined2 and "$19.40" in joined2, joined2[:200])
     kb_all2 = _kb_texts_kb(markups2[-1]) if markups2 else ""
     check("Intl to'lov ekranida ham Uzcard/Humo YO'Q",
           "Uzcard" not in joined2 + kb_all2 and "Humo" not in joined2 + kb_all2,
@@ -337,9 +337,9 @@ def test_international_flow_hides_local_cards():
     # 3.3 sub_intl_plan:3m ham invoice yuboradi (tanlagich tugmasi).
     bot3, _, texts3, _, _ = _run_region_flow("uz", ["sub_intl_plan:3m"])
     inv3 = bot3.invoices[0] if bot3.invoices else {}
-    check("sub_intl_plan:3m → 205 Stars XTR invoice",
+    check("sub_intl_plan:3m → 300 Stars XTR invoice",
           len(bot3.invoices) == 1 and inv3.get("prices")
-          and inv3["prices"][0].amount == 205 and inv3.get("currency") == "XTR",
+          and inv3["prices"][0].amount == 300 and inv3.get("currency") == "XTR",
           inv3)
     check("sub_intl_plan ekranida Uzcard/Humo yo'q",
           all("Uzcard" not in t and "Humo" not in t for t in texts3), texts3)
@@ -347,10 +347,10 @@ def test_international_flow_hides_local_cards():
     # 3.4 Stars invoice payload'i validator + servis kontraktidan o'tadi.
     from services.payment_service import PaymentService
     import handlers.subscription as sub
-    plan, err = PaymentService.validate_payload("sub_stars_3m_555001", 555001, 205, "XTR")
+    plan, err = PaymentService.validate_payload("sub_stars_3m_555001", 555001, 300, "XTR")
     check("validate_payload: intl invoice payload qabul qilindi",
           plan is not None and err is None, err)
-    vp, verr = sub._validate_stars_payload("sub_stars_3m_555001", 555001, 205, "XTR", "uz")
+    vp, verr = sub._validate_stars_payload("sub_stars_3m_555001", 555001, 300, "XTR", "uz")
     check("_validate_stars_payload: handler validatori ham qabul qiladi",
           vp is not None and verr is None, verr)
 
@@ -422,12 +422,12 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur1)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res1 = ps.PaymentService.process_stars_payment(
-            777001, "ch_intl_1", 665, "sub_stars_1y_777001", "pro", 365)
+            777001, "ch_intl_1", 970, "sub_stars_1y_777001", "pro", 365)
     check("Stars ledger yozuvi: XTR + international_stars parametrlari",
           res1.get("ok") is True and res1.get("payment_method") == "international_stars"
           and res1.get("currency") == "XTR"
           and any("INSERT INTO payments" in q for q in cur1.queries)
-          and cur1.params[-2] == (777001, 665, "XTR", "sub_stars_1y_777001",
+          and cur1.params[-2] == (777001, 970, "XTR", "sub_stars_1y_777001",
                                   "ch_intl_1", "succeeded", "international_stars"),
           f"{res1} {cur1.params}")
     check("Stars to'lovi ham davomida GREATEST/COALESCE bilan uzaytiradi (regression)",
@@ -438,7 +438,7 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur2)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         ps.PaymentService.process_stars_payment(
-            777002, "ch_norm_1", 80, "sub_stars_1m_777002", "pro", 30,
+            777002, "ch_norm_1", 115, "sub_stars_1m_777002", "pro", 30,
             payment_method="BIT_NOTUSUV_USUL")
     check("Noma'lum usul ledger'da international_stars bo'lib qoladi",
           cur2.params[-2][-1] == "international_stars", cur2.params)
@@ -462,7 +462,7 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur4)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res4 = ps.PaymentService.process_stars_payment(
-            777001, "ch_intl_1", 665, "sub_stars_1y_777001", "pro", 365)
+            777001, "ch_intl_1", 970, "sub_stars_1y_777001", "pro", 365)
     check("Takroriy Stars to'lovi: duplicate=True, days=0",
           res4.get("ok") is True and res4.get("duplicate") is True
           and res4.get("days") == 0, res4)
@@ -577,7 +577,7 @@ def test_schema_and_database_additive():
     with patch.object(db_mod, "db_cursor", _fake_dc), \
          patch.object(db_mod, "_cache_clear"):
         db_mod.log_stars_payment(1, 19000, "UZS", "receipt:9", "receipt:9")
-        db_mod.log_stars_payment(1, 80, "XTR", "sub_stars_1m_1", "ch_x")
+        db_mod.log_stars_payment(1, 115, "XTR", "sub_stars_1m_1", "ch_x")
     check("log_stars_payment: UZS → uzcard_humo, XTR → international_stars",
           len(calls) == 2 and calls[0][1][-1] == "uzcard_humo"
           and calls[1][1][-1] == "international_stars", calls)

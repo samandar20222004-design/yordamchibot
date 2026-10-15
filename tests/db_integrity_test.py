@@ -701,7 +701,7 @@ def test_service_flows_atomic(db_mod):
         with patch("services.payment_service.db_cursor",
                    _explosive_db_cursor(db_mod, marker)):
             result = PaymentService.process_stars_payment(
-                seed["user_id"], f"int-charge-{uuid.uuid4().hex}", 80,
+                seed["user_id"], f"int-charge-{uuid.uuid4().hex}", 115,
                 f"sub_stars_1m_{seed['user_id']}", "pro", 30)
         check("to'lov oqimi xatoni yutdi (ok=False)", result.get("ok") is False, str(result))
         with db_mod.db_cursor() as cur:
@@ -715,7 +715,7 @@ def test_service_flows_atomic(db_mod):
 
         # Nazorat: xatosiz oqim — ikkala yozuv birga paydo bo'ladi
         charge = f"int-charge-ok-{uuid.uuid4().hex}"
-        ok = PaymentService.process_stars_payment(seed["user_id"], charge, 80,
+        ok = PaymentService.process_stars_payment(seed["user_id"], charge, 115,
                                                  f"sub_stars_1m_{seed['user_id']}", "pro", 30)
         check("to'lov oqimi muvaffaqiyatli (ok=True)", ok.get("ok") is True, str(ok))
         with db_mod.db_cursor() as cur:

@@ -4,7 +4,7 @@
 Admin buyrug'i bitta ekranda javob beradi:
   * davr bo'yicha AI so'rovlar, tokenlar va umumiy xarajat (USD + so'm);
   * O'RTACHA bitta faol foydalanuvchi sarfi;
-  * PRO tarif narxi (19 000 so'm — ``PAYMENT_PRICE_1M_UZS``) bilan
+  * PRO tarif narxi (29 000 so'm — ``PAYMENT_PRICE_1M_UZS``) bilan
     solishtirib marja, rentabellik xulosasi va zararsizlik nuqtasi;
   * eng ko'p sarflagan foydalanuvchilar (jarayon xotirasi kesimida).
 

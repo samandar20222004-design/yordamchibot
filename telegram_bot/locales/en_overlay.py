@@ -1536,7 +1536,7 @@ EN_OVERLAY = {
         "🚫 <b>Scheduled posts limit reached!</b>\n\n"
         "You have <b>{current}/{max}</b> scheduled posts.\n"
         "Your plan allows max <b>{max}</b> posts in the schedule.\n\n"
-        "⭐️ Upgrade for more: PRO (100) or ULTRA (500)."
+        "⭐️ Upgrade for more: PRO or ULTRA."
     ),
     "queue_not_found": "⚠️ Post not found or already deleted.",
     "queue_not_found_short": "⚠️ Post not found!",

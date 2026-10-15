@@ -47,8 +47,8 @@ import config  # noqa: E402
 print("== Tarif limitlari: yagona manba va e'lon == majburlash ==")
 
 # ---- DB'siz: yagona manba ----
-check("config: navbat limiti free=5, pro=100, ultra=500 (env bilan o'zgartiriladi)",
-      (config.FREE_QUEUE_MAX_POSTS, config.PRO_QUEUE_MAX_POSTS, config.ULTRA_QUEUE_MAX_POSTS) == (5, 100, 500),
+check("config: navbat limiti free=40, pro=300, ultra=900 (env bilan o'zgartiriladi)",
+      (config.FREE_QUEUE_MAX_POSTS, config.PRO_QUEUE_MAX_POSTS, config.ULTRA_QUEUE_MAX_POSTS) == (40, 300, 900),
       f"{config.FREE_QUEUE_MAX_POSTS} {config.PRO_QUEUE_MAX_POSTS} {config.ULTRA_QUEUE_MAX_POSTS}")
 check("config: kanallar 3/10/30 va kunlik AI 5/40/100",
       (config.FREE_MAX_CHANNELS, config.PRO_MAX_CHANNELS, config.ULTRA_MAX_CHANNELS) == (3, 10, 30)
@@ -89,15 +89,15 @@ for lang, word in (("uz", "Navbat"), ("ru", "Очередь"), ("en", "queue")):
                                              datetime.now(timezone.utc) + timedelta(days=5), "ai_used": 0}, lang)
         return [ln for ln in card.splitlines() if word.lower() in ln.lower() and "<b>" in ln and "ULTRA" not in ln]
     fl, pl_, ul, el = queue_line("free"), queue_line("pro"), queue_line("ultra"), queue_line("enterprise")
-    check(f"[{lang}] free kartada navbat limiti qatori ({config.FREE_QUEUE_MAX_POSTS})", len(fl) == 1 and ">5<" in fl[0], str(fl))
-    check(f"[{lang}] pro kartada navbat 100 (cheksiz deb ko'rsatilmaydi)", len(pl_) == 1 and ">100<" in pl_[0], str(pl_))
-    check(f"[{lang}] ultra kartada navbat 500", len(ul) == 1 and ">500<" in ul[0], str(ul))
-    check(f"[{lang}] enterprise (muddatsiz) kartada cheksiz", len(el) == 1 and ">5<" not in el[0] and ">100<" not in el[0], str(el))
+    check(f"[{lang}] free kartada navbat limiti qatori ({config.FREE_QUEUE_MAX_POSTS})", len(fl) == 1 and ">40<" in fl[0], str(fl))
+    check(f"[{lang}] pro kartada navbat 300 (cheksiz deb ko'rsatilmaydi)", len(pl_) == 1 and ">300<" in pl_[0], str(pl_))
+    check(f"[{lang}] ultra kartada navbat 900", len(ul) == 1 and ">900<" in ul[0], str(ul))
+    check(f"[{lang}] enterprise (muddatsiz) kartada cheksiz", len(el) == 1 and ">40<" not in el[0] and ">300<" not in el[0] and ">900<" not in el[0], str(el))
 free_uz = SUB._build_subscription_card({"plan_type": "free", "expires_at": None, "ai_used": 0}, "uz")
 check("karta '-40%' qat'iy yozuvini ishlatmaydi (haqiqiy tejam)", "-40%" not in free_uz, free_uz[-400:])
 tier_uz = SUB._build_tier_card("pro", "uz") + SUB._build_tier_card("ultra", "uz")
 check("tarif kartalarida narx, Stars va haqiqiy tejam foizi bor (-14% / -22% / -30%; -15% / -19% / -25%)",
-      all(t in tier_uz for t in ("19 000", "159 000", "349 000", "−14%", "−22%", "−30%", "−15%", "−19%", "−25%")) and "{" not in tier_uz, tier_uz[:200])
+      all(t in tier_uz for t in ("29 000", "245 000", "620 000", "−14%", "−22%", "−30%", "−15%", "−19%", "−25%")) and "{" not in tier_uz, tier_uz[:200])
 
 # ---- DB'siz: Stars tugma narxlari config'dan (qattiq yozilgan emas) ----
 from keyboards.inline import get_intl_tariffs_keyboard  # noqa: E402
@@ -114,11 +114,11 @@ try:
 finally:
     config.STARS_PLANS["stars_1m"].update(orig[0]); config.STARS_PLANS["stars_1y"].update(orig[1])
 labels = [b.text for row in get_intl_tariffs_keyboard("uz").inline_keyboard for b in row]
-check("standart narxlarda PRO Stars: 80★/205★/375★/665★, shablon qolmaydi",
-      all(any(f"{n}★" in t for t in labels) for n in (80, 205, 375, 665)) and not any("{" in t for t in labels), str(labels))
+check("standart narxlarda PRO Stars: 115★/300★/535★/970★, shablon qolmaydi",
+      all(any(f"{n}★" in t for t in labels) for n in (115, 300, 535, 970)) and not any("{" in t for t in labels), str(labels))
 ultra_labels = [b.text for row in get_intl_tariffs_keyboard("uz", plan_order=("u1m", "u3m", "u6m", "u1y")).inline_keyboard for b in row]
-check("standart narxlarda ULTRA Stars: 165★/415★/790★/1460★",
-      all(any(f"{n}★" in t for t in ultra_labels) for n in (165, 415, 790, 1460)), str(ultra_labels))
+check("standart narxlarda ULTRA Stars: 275★/695★/1330★/2460★",
+      all(any(f"{n}★" in t for t in ultra_labels) for n in (275, 695, 1330, 2460)), str(ultra_labels))
 
 # ---- Real PG: muddati o'tgan PRO navbat limiti ----
 if not URL:
@@ -164,19 +164,19 @@ try:
     for n, uid in enumerate(USERS):
         chan = f"-10096500{n:02d}"
         q("INSERT INTO channels (user_id, channel_id, channel_title, is_active) VALUES (%s, %s, 'PL', TRUE)", (uid, chan))
-        for i in range(5):
+        for i in range(config.FREE_QUEUE_MAX_POSTS):
             q("INSERT INTO scheduled_posts (user_id, channel_id, post_type, content, scheduled_time, status) "
               "VALUES (%s, %s, 'text', %s, %s, 'pending')", (uid, chan, f"p{i}", now + timedelta(days=1 + i)))
 
     lim = config.FREE_QUEUE_MAX_POSTS
     r = db.check_queue_limit(U_FREE)
-    check("free, 5 post: navbat to'la (False, 5, 5)", r == (False, 5, lim), str(r))
+    check("free, 40 post: navbat to'la (False, 40, 40)", r == (False, lim, lim) and lim == 40, str(r))
     r = db.check_queue_limit(U_PRO)
-    check("faol PRO, 5 post: limit 100 (True, 5, 100)", r == (True, 5, config.PRO_QUEUE_MAX_POSTS) and r[2] == 100, str(r))
+    check("faol PRO, 40 post: limit 300 (True, 40, 300)", r == (True, 40, config.PRO_QUEUE_MAX_POSTS) and r[2] == 300, str(r))
     r = db.check_queue_limit(U_ENT)
     check("muddatsiz enterprise: cheksiz (999)", r[0] is True and r[2] == config.TIER_LIMITS["enterprise"]["queued_posts"] == 999, str(r))
     r = db.check_queue_limit(U_EXP)
-    check("MUDDATI O'TGAN PRO (sweep hali tushirmagan): free limiti qo'llanadi (False, 5, 5)", r == (False, 5, lim), str(r))
+    check("MUDDATI O'TGAN PRO (sweep hali tushirmagan): free limiti qo'llanadi (False, 40, 40)", r == (False, 40, lim), str(r))
     plan = q("SELECT plan_type FROM users WHERE user_id = %s", (U_EXP,))[0][0]
     check("muddati o'tgan PRO lazy ravishda 'free' qilindi (kanal/AI limiti bilan bir xil)", plan == "free", plan)
     # kanal limiti shu foydalanuvchi uchun allaqachon muddatni hisobga olgan (taqqoslash)

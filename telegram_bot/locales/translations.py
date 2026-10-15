@@ -1264,7 +1264,7 @@ TRANSLATIONS = {
             "🚫 <b>Rejalashtirilgan postlar limiti tugadi!</b>\n\n"
             "Sizda <b>{current}/{max}</b> ta rejalashtirilgan post bor.\n"
             "Tarifingiz bo'yicha maksimal <b>{max}</b> ta post rejada turishi mumkin.\n\n"
-            "⭐️ Ko'proq rejalashtirish uchun tarifni yangilang: PRO (100 ta) yoki ULTRA (500 ta)."
+            "⭐️ Ko'proq rejalashtirish uchun tarifni yangilang: PRO yoki ULTRA."
         ),
         "queue_not_found": "⚠️ Post topilmadi yoki allaqachon o'chirilgan.",
         "queue_not_found_short": "⚠️ Post topilmadi!",
@@ -3465,7 +3465,7 @@ TRANSLATIONS = {
             "🚫 <b>Лимит запланированных постов исчерпан!</b>\n\n"
             "У вас <b>{current}/{max}</b> запланированных постов.\n"
             "По вашему тарифу максимум <b>{max}</b> постов в расписании.\n\n"
-            "⭐️ Для большего планирования обновите тариф: PRO (100) или ULTRA (500)."
+            "⭐️ Для большего планирования обновите тариф: PRO или ULTRA."
         ),
         "queue_not_found": "⚠️ Пост не найден или уже удалён.",
         "queue_not_found_short": "⚠️ Пост не найден!",

@@ -274,10 +274,10 @@ def test_economics_summary():
     empty = ct.economics_summary(period="monthly", active_users=0, rate=12600)
     check("faol foydalanuvchi 0 — xavfsiz (avg=0, crash yo'q)",
           empty["avg_cost_uzs"] == 0.0 and empty["active_users"] == 0)
-    check("PRO narxi config'dan (19 000 so'm)",
-          empty["pro_price_uzs"] == 19000, empty["pro_price_uzs"])
+    check("PRO narxi config'dan (29 000 so'm)",
+          empty["pro_price_uzs"] == 29000, empty["pro_price_uzs"])
     check("PRO narxi USD da ham ko'rsatiladi",
-          _close(empty["pro_price_usd"], 1.507937, 1e-4), empty["pro_price_usd"])
+          _close(empty["pro_price_usd"], 29000 / 12600, 1e-4), empty["pro_price_usd"])
 
     # Aktiv foydalanuvchilar bazadan olinadi (observability metrikasi).
     fake = _FakeDBReport(cost_usd=0.40, requests=40, tokens=10000)

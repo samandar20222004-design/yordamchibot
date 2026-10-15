@@ -1275,8 +1275,8 @@ def test_stars_payment_plans():
     from handlers.subscription import STARS_PLANS
 
     expected = {  # kalit: (Stars, kun)
-        "stars_1m": (80, 30), "stars_3m": (205, 90), "stars_6m": (375, 180), "stars_1y": (665, 365),
-        "stars_u1m": (165, 30), "stars_u3m": (415, 90), "stars_u6m": (790, 180), "stars_u1y": (1460, 365),
+        "stars_1m": (115, 30), "stars_3m": (300, 90), "stars_6m": (535, 180), "stars_1y": (970, 365),
+        "stars_u1m": (275, 30), "stars_u3m": (695, 90), "stars_u6m": (1330, 180), "stars_u1y": (2460, 365),
     }
     for key, (stars, days) in expected.items():
         check(f"{key}: mavjud", key in STARS_PLANS)
@@ -1292,8 +1292,8 @@ def test_stars_keyboard():
     print("== Tier keyboard ==")
     from handlers.subscription import _get_tier_keyboard
 
-    for tier, keys, prices in (("pro", ("1m", "3m", "6m", "1y"), ("19 000", "49 000", "89 000", "159 000")),
-                               ("ultra", ("u1m", "u3m", "u6m", "u1y"), ("39 000", "99 000", "189 000", "349 000"))):
+    for tier, keys, prices in (("pro", ("1m", "3m", "6m", "1y"), ("29 000", "75 000", "135 000", "245 000")),
+                               ("ultra", ("u1m", "u3m", "u6m", "u1y"), ("69 000", "175 000", "335 000", "620 000"))):
         kb = _get_tier_keyboard(tier, "uz")
         cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
         labels = [b.text for row in kb.inline_keyboard for b in row]
@@ -2748,7 +2748,7 @@ def test_queue_limit_function():
     import database as db_mod
 
     check("FREE_QUEUE_MAX_POSTS mavjud", hasattr(db_mod, "FREE_QUEUE_MAX_POSTS"))
-    check("FREE_QUEUE_MAX_POSTS = 5", db_mod.FREE_QUEUE_MAX_POSTS == 5)
+    check("FREE_QUEUE_MAX_POSTS = 40", db_mod.FREE_QUEUE_MAX_POSTS == 40)
     check("check_queue_limit callable", callable(db_mod.check_queue_limit))
 
     result = db_mod.check_queue_limit(0)  # non-existent user (DB xato → default)
