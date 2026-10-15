@@ -215,9 +215,9 @@ TRANSLATIONS = {
             "⭐️ Telegram Stars — bir zumda to'lov va PRO avtomatik yoqiladi.\n"
             "🪙 Crypto (USDT) va 💳 xalqaro kartalar (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 oy — 75★",
-        "intl_tariff_3m": "⭐️ 3 oy — 175★",
-        "intl_tariff_1y": "⭐️ 1 yil — 550★",
+        "intl_tariff_1m": "⭐️ 1 oy — {stars}★",
+        "intl_tariff_3m": "⭐️ 3 oy — {stars}★",
+        "intl_tariff_1y": "⭐️ 1 yil — {stars}★",
         "intl_payment_selected": (
             "🎫 Tanlangan tarif: <b>{tarif}</b>\n"
             "⭐️ Narx: <b>{stars} Stars</b> (~${usd})"
@@ -1958,12 +1958,12 @@ TRANSLATIONS = {
         ),
 
         # --- Obuna / to'lov (subscription) ---
-        "sub_pay_1m": "⭐️ 1 oy (75 Stars)",
-        "sub_pay_3m": "⭐️ 3 oy (175★)",
-        "sub_pay_1y": "⭐️ 1 yil (550★)",
-        "sub_pay_1m_full": "⭐️ 1 oy (75★)",
-        "sub_pay_3m_full": "⭐️ 3 oy (175★)",
-        "sub_pay_1y_full": "⭐️ 1 yil (550★)",
+        "sub_pay_1m": "⭐️ 1 oy ({stars}★)",
+        "sub_pay_3m": "⭐️ 3 oy ({stars}★)",
+        "sub_pay_1y": "⭐️ 1 yil ({stars}★)",
+        "sub_pay_1m_full": "⭐️ 1 oy ({stars}★)",
+        "sub_pay_3m_full": "⭐️ 3 oy ({stars}★)",
+        "sub_pay_1y_full": "⭐️ 1 yil ({stars}★)",
         "sub_btn_promo": "🎁 Promo-kod",
         "sub_btn_send_receipt_admin": "✉️ Adminga chek",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 oy)",
@@ -2376,9 +2376,9 @@ TRANSLATIONS = {
             "⭐️ Telegram Stars — мгновенная оплата, PRO включается сразу.\n"
             "🪙 Крипта (USDT) и 💳 международные карты (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 мес — 75★",
-        "intl_tariff_3m": "⭐️ 3 мес — 175★",
-        "intl_tariff_1y": "⭐️ 1 год — 550★",
+        "intl_tariff_1m": "⭐️ 1 мес — {stars}★",
+        "intl_tariff_3m": "⭐️ 3 мес — {stars}★",
+        "intl_tariff_1y": "⭐️ 1 год — {stars}★",
         "intl_payment_selected": (
             "🎫 Выбранный тариф: <b>{tarif}</b>\n"
             "⭐️ Цена: <b>{stars} Stars</b> (~${usd})"
@@ -4112,12 +4112,12 @@ TRANSLATIONS = {
         ),
 
         # --- Подписка / оплата (subscription) ---
-        "sub_pay_1m": "⭐️ 1 мес (75★)",
-        "sub_pay_3m": "⭐️ 3 мес (175★)",
-        "sub_pay_1y": "⭐️ 1 год (550★)",
-        "sub_pay_1m_full": "⭐️ 1 мес (75★)",
-        "sub_pay_3m_full": "⭐️ 3 мес (175★)",
-        "sub_pay_1y_full": "⭐️ 1 год (550★)",
+        "sub_pay_1m": "⭐️ 1 мес ({stars}★)",
+        "sub_pay_3m": "⭐️ 3 мес ({stars}★)",
+        "sub_pay_1y": "⭐️ 1 год ({stars}★)",
+        "sub_pay_1m_full": "⭐️ 1 мес ({stars}★)",
+        "sub_pay_3m_full": "⭐️ 3 мес ({stars}★)",
+        "sub_pay_1y_full": "⭐️ 1 год ({stars}★)",
         "sub_btn_promo": "🎁 Ввести промокод",
         "sub_btn_send_receipt_admin": "✉️ Чек админу",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 месяц)",

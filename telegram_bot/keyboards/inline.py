@@ -2,6 +2,7 @@ import unicodedata
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+from config import STARS_PLANS
 from locales.translations import get_text, normalize_lang
 from keyboards.callback_data import (  # noqa: F401 — re-export (eski importlar uchun)
     CALLBACK_DATA_MAX_BYTES,
@@ -1664,7 +1665,7 @@ def get_intl_tariffs_keyboard(
     """
     rows = [
         [InlineKeyboardButton(
-            get_text(f"intl_tariff_{key}", lang),
+            get_text(f"intl_tariff_{key}", lang, stars=STARS_PLANS[f"stars_{key}"]["stars"]),
             callback_data=cb(CB_PAY_INTL_PLAN, key),
         )]
         for key in plan_order

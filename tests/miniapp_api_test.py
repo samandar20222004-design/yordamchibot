@@ -320,8 +320,10 @@ def test_pagination_validation():
         T.check("sukut limit=20", st == 200 and b["limit"] == 20 and b["offset"] == 0)
         st, b, _ = run(call(app, "GET", "/api/v1/scheduled-posts?limit=1&limit=2", headers=hdr(1)))
         T.check("takroriy limit parametri xavfsiz (400 yoki aniq qiymat)", st in (200, 400))
-        T.check("javobda kiritilgan qiymat qaytarilmaydi (xato matni)",
-                "abc" not in json.dumps(run(call(app, "GET", "/api/v1/scheduled-posts?limit=abc", headers=hdr(1)))[1]))
+        echoed = run(call(app, "GET", "/api/v1/scheduled-posts?limit=abc", headers=hdr(1)))[1]
+        # request_id tasodifiy hex (ichida "abc" uchrashi mumkin) — faqat xato matni/maydonlari tekshiriladi
+        echoed = {**echoed, "error": {k: v for k, v in echoed.get("error", {}).items() if k != "request_id"}}
+        T.check("javobda kiritilgan qiymat qaytarilmaydi (xato matni)", "abc" not in json.dumps(echoed))
 
 
 def test_plan():
