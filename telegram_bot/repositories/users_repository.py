@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 import logging
 
 
-from config import DATABASE_URL, FREE_QUEUE_MAX_POSTS, PLAN_LIMITS as CONFIG_PLAN_LIMITS, PRO_QUEUE_MAX_POSTS  # noqa: F401
+from config import DATABASE_URL, FREE_QUEUE_MAX_POSTS, PLAN_LIMITS as CONFIG_PLAN_LIMITS, PRO_QUEUE_MAX_POSTS, TIER_LIMITS  # noqa: F401
 
 from database import DB_STATS_CACHE_TTL, DB_USER_CACHE_TTL, _MISS, tashkent_tz
 from repositories.runtime import (  # noqa: F401
@@ -1124,22 +1124,43 @@ def get_user_plan(user_id: int) -> dict:
         with db_cursor() as cur:
             _ensure_limit_reset(cur, user_id)
             cur.execute(
-                "SELECT plan_type, subscription_expires_at, ai_requests_today "
+                "SELECT plan_type, subscription_expires_at, ai_requests_today, pro_legacy_until "
                 "FROM users WHERE user_id = %s",
                 (user_id,),
             )
             row = cur.fetchone()
             if not row:
                 return {"plan_type": "free", "expires_at": None, "ai_used": 0}
-            plan_type, expires_at, ai_used = row
+            plan_type, expires_at, ai_used = row[0], row[1], row[2]
+            legacy_until = row[3] if len(row) > 3 else None
             return {
                 "plan_type": plan_type or "free",
                 "expires_at": expires_at,
                 "ai_used": ai_used or 0,
+                "legacy_until": legacy_until,
             }
     except Exception as e:
         logger.error(f"get_user_plan xatosi: {e}")
         return {"plan_type": "free", "expires_at": None, "ai_used": 0}
+
+
+def get_plan_tier(user_id: int) -> str:
+    """Amaldagi tarif darajasi: ``free`` | ``pro`` | ``ultra`` | ``enterprise`` (muddati o'tgan -> ``free``; eski PRO -> ``pro``).
+
+    Xatoda ``free`` (qat'iyroq tomon)."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (int(user_id),))
+            row = cur.fetchone()
+            plan = ((row[0] if row else "free") or "free").strip().lower()
+            if plan not in ("pro", "ultra", "enterprise"):
+                return "free"
+            if _subscription_expired(cur, int(user_id)):
+                return "free"
+            return plan
+    except Exception as e:  # noqa: BLE001
+        logger.error("get_plan_tier xatosi: %s", type(e).__name__)
+        return "free"
 
 
 def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
@@ -1182,7 +1203,7 @@ def downgrade_expired_subscriptions() -> int:
         with db_cursor(commit=True) as cur:
             cur.execute(
                 "UPDATE users SET plan_type = 'free' "
-                "WHERE plan_type IN ('pro', 'enterprise') "
+                "WHERE plan_type IN ('pro', 'ultra', 'enterprise') "
                 "AND subscription_expires_at IS NOT NULL "
                 "AND subscription_expires_at <= NOW()"
             )
@@ -1253,13 +1274,13 @@ def _subscription_expired(cur, user_id: int) -> bool:
 
 def _effective_plan(cur, plan: str, user_id: int) -> str:
     """Plan nomini obuna muddatini hisobga olib tuzatadi (expired PRO → free)."""
-    if plan in ("pro", "enterprise") and _subscription_expired(cur, user_id):
+    if plan in ("pro", "ultra", "enterprise") and _subscription_expired(cur, user_id):
         # Lazy downgrade: keyingi so'rovlarda qayta tekshirilmasin.
         try:
             # Shartli UPDATE (AUDIT-004): parallel to'lov muddatni uzaytirgan bo'lsa, faol obuna tushirilmaydi.
             cur.execute(
                 "UPDATE users SET plan_type = 'free' WHERE user_id = %s "
-                "AND plan_type IN ('pro', 'enterprise') "
+                "AND plan_type IN ('pro', 'ultra', 'enterprise') "
                 "AND subscription_expires_at IS NOT NULL "
                 "AND subscription_expires_at <= NOW()",
                 (user_id,),
@@ -1267,7 +1288,19 @@ def _effective_plan(cur, plan: str, user_id: int) -> str:
         except Exception as _silent_exc:
             log_silent_failure("repositories.users_repository:_effective_plan", _silent_exc, user_id=user_id)
         return "free"
+    if plan == "pro" and _legacy_pro_active(cur, user_id):
+        return "pro_legacy"
     return plan
+
+
+def _legacy_pro_active(cur, user_id: int) -> bool:
+    """Tarif yangilanishidan OLDIN to'langan PRO muddati davomida (``users.pro_legacy_until``) eski (katta) limitlar saqlanadi."""
+    try:
+        cur.execute("SELECT pro_legacy_until IS NOT NULL AND pro_legacy_until > NOW() FROM users WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        return bool(row and row[0])
+    except Exception:  # noqa: BLE001 — ustun hali yo'q (migratsiyadan oldin): yangi limitlar
+        return False
 
 
 def check_ai_limit(user_id: int) -> tuple[bool, int, int]:
@@ -1471,7 +1504,7 @@ def _effective_plan_strict(cur, plan: str, user_id: int) -> str:
     rad etadi.
     """
     plan = (plan or "free").strip().lower() or "free"
-    if plan not in ("pro", "enterprise"):
+    if plan not in ("pro", "ultra", "enterprise"):
         return plan
     # Xato bo'lsa istisno tarqaladi — bu yerda yutilmaydi (fail-closed).
     cur.execute(
@@ -1480,12 +1513,15 @@ def _effective_plan_strict(cur, plan: str, user_id: int) -> str:
     )
     row = cur.fetchone()
     if not row or row[0] is None:
-        return plan  # cheksiz obuna (enterprise/legacy)
+        # Cheksiz obuna: enterprise; muddatsiz (admin bergan) PRO — eski limitlarda qoladi.
+        return "pro_legacy" if plan == "pro" else plan
     from datetime import timezone as _tz
     expires_at = row[0]
     if getattr(expires_at, "tzinfo", None) is None:
         expires_at = expires_at.replace(tzinfo=_tz.utc)
     if expires_at > datetime.now(_tz.utc):
+        if plan == "pro" and _legacy_pro_active(cur, user_id):
+            return "pro_legacy"
         return plan
     # Muddati o'tgan PRO → FREE (lazy downgrade, shu tranzaksiyada).
     cur.execute(
@@ -1824,7 +1860,7 @@ def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
                 (user_id,),
             )
             count = cur.fetchone()[0]
-            max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else PRO_QUEUE_MAX_POSTS
+            max_q = TIER_LIMITS.get(plan, TIER_LIMITS["free"])["queued_posts"]
             return (count < max_q, count, max_q)
     except Exception as e:
         logger.error(f"check_queue_limit xatosi: {e}")
@@ -1854,7 +1890,7 @@ def sync_stars_subscription(user_id: int, state: str, expires_at=None) -> bool:
             if status == "active" and expires_at is not None:
                 cur.execute(
                     "UPDATE users SET "
-                    "plan_type = CASE WHEN plan_type = 'enterprise' THEN plan_type ELSE 'pro' END, "
+                    "plan_type = CASE WHEN plan_type IN ('enterprise', 'ultra') THEN plan_type ELSE 'pro' END, "
                     "subscription_expires_at = CASE "
                     "WHEN plan_type = 'enterprise' THEN subscription_expires_at "
                     "ELSE GREATEST(COALESCE(subscription_expires_at, %s), %s) END, "
@@ -1869,7 +1905,8 @@ def sync_stars_subscription(user_id: int, state: str, expires_at=None) -> bool:
                 cur.execute(
                     "UPDATE users SET "
                     "plan_type = CASE "
-                    "WHEN plan_type = 'enterprise' THEN 'enterprise' "
+                    "WHEN plan_type IN ('enterprise', 'ultra') AND (plan_type = 'enterprise' "
+                    "  OR subscription_expires_at > NOW() OR subscription_expires_at IS NULL) THEN plan_type "
                     "WHEN subscription_expires_at > NOW() "
                     "  OR (plan_type = 'pro' AND subscription_expires_at IS NULL) "
                     "THEN 'pro' ELSE 'free' END, "
@@ -1884,7 +1921,8 @@ def sync_stars_subscription(user_id: int, state: str, expires_at=None) -> bool:
                 cur.execute(
                     "UPDATE users SET "
                     "plan_type = CASE "
-                    "WHEN plan_type = 'enterprise' THEN 'enterprise' "
+                    "WHEN plan_type IN ('enterprise', 'ultra') AND (plan_type = 'enterprise' "
+                    "  OR subscription_expires_at > NOW() OR subscription_expires_at IS NULL) THEN plan_type "
                     "WHEN subscription_expires_at > NOW() "
                     "  OR (plan_type = 'pro' AND subscription_expires_at IS NULL) "
                     "THEN 'pro' ELSE 'free' END, "

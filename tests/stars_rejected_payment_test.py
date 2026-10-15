@@ -49,6 +49,8 @@ async def fake_run_db(fn, *a, **k):
         return fake_process(*a, **k)
     if fn is sub.db.get_user_language:
         return "uz"
+    if fn is sub.db.get_user_plan:  # muvaffaqiyat xabari: tarif nomi, muddat va limitlar (haqiqiy holatdan)
+        return {"plan_type": "pro", "expires_at": None, "ai_used": 0}
     raise AssertionError(f"kutilmagan DB chaqiruvi: {getattr(fn, '__name__', fn)}")
 
 

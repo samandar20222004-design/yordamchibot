@@ -3,6 +3,10 @@ import type { Me, ScheduledPage } from '../api/types'
 export const ME: Me = {
   user: { id: 4242, name: 'Alice', username: 'alice', language: 'uz' },
   plan: { type: 'free', is_pro: false, expires_at: null, limits: { max_channels: 3, daily_ai_requests: 5, queued_posts: 5 } },
+  tiers: {
+    pro: { limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 100, voice_daily: 20 }, price_from_uzs: 19000 },
+    ultra: { limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 500, voice_daily: 100 }, price_from_uzs: 39000 },
+  },
   usage: { channels: 2, pending_posts: 3, ai_requests_today: 1, ai_credits: 5 },
   posts: { pending: 3, sent: 7, failed: 1, cancelled: 2 },
   next_post_at: '2026-10-14T09:30:00Z',

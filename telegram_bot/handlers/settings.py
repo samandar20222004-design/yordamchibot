@@ -673,7 +673,7 @@ async def _render_profile_screen(query, context, user_id: int, lang: str,
             plan = {"plan_type": "free", "expires_at": None}
     plan_type = str((plan or {}).get("plan_type") or "free").lower()
     expires_at = (plan or {}).get("expires_at")
-    if plan_type in ("pro", "enterprise") and expires_at:
+    if plan_type in ("pro", "ultra", "enterprise") and expires_at:
         try:
             date_text = expires_at.strftime("%d.%m.%Y")
         except AttributeError:

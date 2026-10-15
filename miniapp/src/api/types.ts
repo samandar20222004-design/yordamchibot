@@ -4,6 +4,14 @@ export interface PlanLimits {
   max_channels: number
   daily_ai_requests: number
   queued_posts: number
+  /** Ovozli rejalash (kuniga); eski serverda bo'lmasligi mumkin. */
+  voice_daily?: number
+}
+
+/** Mijozga ko'rsatiladigan tarif: limitlar va 1 oylik narx (so'm) — server (config) bilan bir manba. */
+export interface TierInfo {
+  limits: PlanLimits
+  price_from_uzs: number
 }
 
 export interface Plan {
@@ -26,6 +34,7 @@ export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads
 export interface Me {
   user: { id: number; name: string | null; username: string | null; language: Lang }
   plan: Plan
+  tiers?: { pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
   next_post_at: string | null

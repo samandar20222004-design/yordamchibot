@@ -57,7 +57,7 @@ from services.payments import memory_store  # noqa: E402
 provider, store, clock, order = make_provider(CONFIG)
 rpc(provider, "CreateTransaction", create_params(order))
 orig = memory_store._MemoryUnitOfWork.grant_subscription
-memory_store._MemoryUnitOfWork.grant_subscription = lambda self, user_id, days: False  # foydalanuvchi qatori yo'q
+memory_store._MemoryUnitOfWork.grant_subscription = lambda self, user_id, days, tier="pro": False  # foydalanuvchi qatori yo'q
 try:
     resp, _ = rpc(provider, "PerformTransaction", {"id": "6630a1b2c3d4e5f600000001"})
 finally:

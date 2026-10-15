@@ -132,7 +132,9 @@ def _receipt_plan_for(context) -> tuple:
     """
     ud = getattr(context, "user_data", None) or {}
     plan_key = ud.get("card_plan") or "1m"
-    plan = CARD_TARIFFS.get(plan_key) or CARD_TARIFFS["1m"]
+    if plan_key not in CARD_TARIFFS:
+        plan_key = "1m"
+    plan = CARD_TARIFFS[plan_key]
     return plan_key, plan["days"], int(plan.get("amount") or 0)
 
 
@@ -229,7 +231,7 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     receipt_id = await db.run_db(
         db.save_payment_receipt, user_id, media_type, file_id, caption,
         username, full_name, lang, plan_days, amount_uzs=plan_amount,
-        file_unique_id=unique_id,
+        file_unique_id=unique_id, plan_key=plan_key,
     )
 
     if not receipt_id:
@@ -339,13 +341,15 @@ async def receipt_admin_callback(update: Update, context: ContextTypes.DEFAULT_T
         if res.get("ok"):
             # Foydalanuvchiga O'Z TILIDA tabrik
             try:
-                await context.bot.send_message(
-                    chat_id=res["user_id"],
-                    text=get_text("receipt_approved_user",
-                                  res.get("language_code") or "uz",
-                                  days=res.get("days") or 30),
-                    parse_mode="HTML",
-                )
+                from handlers.subscription import payment_success_text
+
+                try:
+                    notice = await payment_success_text(
+                        res["user_id"], res.get("tier") or "pro", res.get("language_code") or "uz")
+                except Exception:  # noqa: BLE001 — matn tayyorlanmasa eski qisqa xabar
+                    notice = get_text("receipt_approved_user", res.get("language_code") or "uz",
+                                      days=res.get("days") or 30)
+                await context.bot.send_message(chat_id=res["user_id"], text=notice, parse_mode="HTML")
             except Exception as e:
                 logger.warning("Tasdiqlash tabrigini yuborishda xato: %s", e)
             try:

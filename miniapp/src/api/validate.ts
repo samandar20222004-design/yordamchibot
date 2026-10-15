@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -41,12 +41,22 @@ function parsePlan(v: unknown): Plan {
     type: str(p.type, 'plan.type'),
     is_pro: bool(p.is_pro, 'plan.is_pro'),
     expires_at: strOrNull(p.expires_at, 'plan.expires_at'),
-    limits: {
-      max_channels: int(l.max_channels, 'limits.max_channels'),
-      daily_ai_requests: int(l.daily_ai_requests, 'limits.daily_ai_requests'),
-      queued_posts: int(l.queued_posts, 'limits.queued_posts'),
-    },
+    limits: parseLimits(l),
   }
+}
+
+function parseLimits(l: Rec): PlanLimits {
+  return {
+    max_channels: int(l.max_channels, 'limits.max_channels'),
+    daily_ai_requests: int(l.daily_ai_requests, 'limits.daily_ai_requests'),
+    queued_posts: int(l.queued_posts, 'limits.queued_posts'),
+    ...(l.voice_daily === undefined ? {} : { voice_daily: int(l.voice_daily, 'limits.voice_daily') }),
+  }
+}
+
+function parseTier(v: unknown, what: string): TierInfo {
+  const t = rec(v, what)
+  return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`) }
 }
 
 function parseCounts(v: unknown): PostCounts {
@@ -72,6 +82,7 @@ export function parseMe(v: unknown): Me {
       language: lang(u.language),
     },
     plan: parsePlan(o.plan),
+    ...(o.tiers === undefined ? {} : { tiers: { pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
     usage: {
       channels: int(usage.channels, 'usage.channels'),
       pending_posts: int(usage.pending_posts, 'usage.pending_posts'),

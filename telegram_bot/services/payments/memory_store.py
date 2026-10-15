@@ -86,7 +86,7 @@ class _MemoryUnitOfWork:
         if row is not None:
             row["status"] = "refunded"
 
-    def grant_subscription(self, user_id, days):
+    def grant_subscription(self, user_id, days, tier="pro"):
         self._s.subscription_days[user_id] = self._s.subscription_days.get(user_id, 0) + int(days)
         self._s.grants.append((int(user_id), int(days)))
         return True

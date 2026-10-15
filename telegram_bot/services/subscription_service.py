@@ -23,6 +23,7 @@ from database import (
 )
 # admin harakatlari auditi (PRO berish/bekor qilish).
 from services.audit_service import AuditService
+from services.plan_sql import grant_expiry_case, grant_plan_case
 
 from utils.silent_errors import log_silent_failure
 
@@ -75,16 +76,25 @@ class SubscriptionService:
             # Tarif + muddat BITTA blokda yangilanadi.
             with transaction() as cur:
                 # Enterprise (muddatsiz) huquqi saqlanadi (qarang: PaymentService.process_stars_payment).
-                cur.execute(
-                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-                    "THEN plan_type ELSE %s END, "
-                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
-                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL END "
-                    "WHERE user_id = %s",
-                    (plan, str(days), user_id),
-                )
+                if plan in ("pro", "ultra"):
+                    # Yagona qoida (services/plan_sql.py): enterprise o'zgarmaydi, faol ultra PRO'ga tushmaydi.
+                    cur.execute(
+                        f"UPDATE users SET plan_type = {grant_plan_case(plan)}, "  # nosec B608 — tarif oq ro'yxatdan
+                        f"subscription_expires_at = {grant_expiry_case()} "
+                        "WHERE user_id = %s",
+                        (str(days), user_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+                        "THEN plan_type ELSE %s END, "
+                        "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+                        "AND subscription_expires_at IS NULL THEN NULL ELSE "
+                        "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+                        "+ (%s || ' days')::INTERVAL END "
+                        "WHERE user_id = %s",
+                        (plan, str(days), user_id),
+                    )
                 updated = cur.rowcount > 0
                 if updated and admin_id is not None:
                     # PRO berish auditi — shu tranzaksiyada.
@@ -177,7 +187,7 @@ class SubscriptionService:
                 }
             plan_type, expires_at = row
             plan_type = plan_type or "free"
-            if plan_type in ("pro", "enterprise"):
+            if plan_type in ("pro", "ultra", "enterprise"):
                 if expires_at is None:
                     # Cheksiz (enterprise yoki legacy)
                     return {
@@ -203,7 +213,7 @@ class SubscriptionService:
                         # va faol obuna 'free'ga TUSHIRILMAYDI.
                         wcur.execute(
                             "UPDATE users SET plan_type = 'free' WHERE user_id = %s "
-                            "AND plan_type IN ('pro', 'enterprise') "
+                            "AND plan_type IN ('pro', 'ultra', 'enterprise') "
                             "AND subscription_expires_at IS NOT NULL "
                             "AND subscription_expires_at <= NOW()",
                             (user_id,),

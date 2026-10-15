@@ -176,29 +176,67 @@ def _env_flag(name: str, default: bool) -> bool:
     return raw in {"1", "true", "yes", "on"}
 
 
-PAYMENT_PRICE_1M_UZS = _int_env("PAYMENT_PRICE_1M_UZS", 19000)
-PAYMENT_PRICE_3M_UZS = _int_env("PAYMENT_PRICE_3M_UZS", 45000)
-PAYMENT_PRICE_1Y_UZS = _int_env("PAYMENT_PRICE_1Y_UZS", 140000)
-
 # --- YAGONA TARIF MANBAI (single source of truth) ---
-# Stars / karta / AI-kanal limitlari faqat shu yerdan o'qiladi.
-STARS_1M = _int_env("STARS_PRICE_1M", 75)
-STARS_3M = _int_env("STARS_PRICE_3M", 175)
-STARS_1Y = _int_env("STARS_PRICE_1Y", 550)
-USD_1M = _str_env("USD_EQUIV_1M", "1.5")
-USD_3M = _str_env("USD_EQUIV_3M", "3.5")
-USD_1Y = _str_env("USD_EQUIV_1Y", "11.0")
+# Uch tarif: FREE / PRO / ULTRA. Pullik tariflarda 4 muddat: 1, 3, 6 oy va 1 yil. Narxlar, Stars, limitlar, muddatlar
+# faqat shu yerdan o'qiladi (bot, Mini App, to'lov oqimlari, hujjat). Env bilan o'zgartiriladi (qiymatlar quyida).
+PLAN_FREE = "free"
+PLAN_PRO = "pro"
+PLAN_ULTRA = "ultra"
+#: Pullik tariflar (past -> yuqori). Muddatsiz admin berganlari 'enterprise' (ULTRA'ga teng huquqli, cheksiz) alohida.
+PAID_TIERS = (PLAN_PRO, PLAN_ULTRA)
 
+#: (davr kaliti, oylar, kunlar). 6 oylik = 180 kun.
+TARIFF_PERIODS = (("1m", 1, 30), ("3m", 3, 90), ("6m", 6, 180), ("1y", 12, 365))
+
+# So'mdagi narxlar (PRO: eski env nomlari saqlangan; ULTRA: ULTRA_PRICE_*).
+_PRO_UZS = (_int_env("PAYMENT_PRICE_1M_UZS", 19000), _int_env("PAYMENT_PRICE_3M_UZS", 49000),
+            _int_env("PAYMENT_PRICE_6M_UZS", 89000), _int_env("PAYMENT_PRICE_1Y_UZS", 159000))
+_ULTRA_UZS = (_int_env("ULTRA_PRICE_1M_UZS", 39000), _int_env("ULTRA_PRICE_3M_UZS", 99000),
+              _int_env("ULTRA_PRICE_6M_UZS", 189000), _int_env("ULTRA_PRICE_1Y_UZS", 349000))
+# Telegram Stars (taxminiy 1 Star = 0,02 USD). Yakuniy qiymatlarni ishga tushirishdan oldin komissiya/tushum bilan tekshiring.
+_PRO_STARS = (_int_env("STARS_PRICE_1M", 80), _int_env("STARS_PRICE_3M", 205),
+              _int_env("STARS_PRICE_6M", 375), _int_env("STARS_PRICE_1Y", 665))
+_ULTRA_STARS = (_int_env("ULTRA_STARS_PRICE_1M", 165), _int_env("ULTRA_STARS_PRICE_3M", 415),
+                _int_env("ULTRA_STARS_PRICE_6M", 790), _int_env("ULTRA_STARS_PRICE_1Y", 1460))
+
+PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_6M_UZS, PAYMENT_PRICE_1Y_UZS = _PRO_UZS
+STARS_1M, STARS_3M, STARS_6M, STARS_1Y = _PRO_STARS
+USD_1M = _str_env("USD_EQUIV_1M", "%.2f" % (STARS_1M * 0.02))
+USD_3M = _str_env("USD_EQUIV_3M", "%.2f" % (STARS_3M * 0.02))
+USD_6M = _str_env("USD_EQUIV_6M", "%.2f" % (STARS_6M * 0.02))
+USD_1Y = _str_env("USD_EQUIV_1Y", "%.2f" % (STARS_1Y * 0.02))
+
+# Limitlar (999 = cheksiz belgisi; faqat enterprise va eski to'lagan PRO uchun).
 FREE_MAX_CHANNELS = _int_env("FREE_MAX_CHANNELS", 3)
 FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
-PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
-PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
-# Navbatdagi (kutilayotgan) postlar soni: bot, Mini App va tarif kartasi SHU qiymatlarni o'qiydi (999 = cheksiz).
+PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 10)
+PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 40)
+ULTRA_MAX_CHANNELS = _int_env("ULTRA_MAX_CHANNELS", 30)
+ULTRA_DAILY_AI = _int_env("ULTRA_DAILY_AI", 100)
+UNLIMITED_LIMIT = 999
+# Navbatdagi (kutilayotgan) postlar soni: bot, Mini App va tarif kartasi SHU qiymatlarni o'qiydi.
 FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 5)
-PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 999)
-# 🎙 Ovozli rejalash: free — BUTUN UMR bo'yicha bir martalik; PRO — oxirgi 24 soatda shuncha (0 = o'chiq).
+PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 100)
+ULTRA_QUEUE_MAX_POSTS = _int_env("ULTRA_QUEUE_MAX_POSTS", 500)
+# 🎙 Ovozli rejalash: free — BUTUN UMR bo'yicha bir martalik; PRO/ULTRA — oxirgi 24 soatda shuncha (0 = o'chiq).
 FREE_VOICE_SCHEDULE_TOTAL = _int_env("FREE_VOICE_SCHEDULE_TOTAL", 1)
 PRO_VOICE_SCHEDULE_DAILY = _int_env("PRO_VOICE_SCHEDULE_DAILY", 20)
+ULTRA_VOICE_SCHEDULE_DAILY = _int_env("ULTRA_VOICE_SCHEDULE_DAILY", 100)
+
+#: Tarif -> limitlar. ``pro_legacy`` — tarif yangilanishidan OLDIN to'langan PRO muddati (limitlar birdaniga kamaytirilmaydi);
+#: ``enterprise`` — muddatsiz admin bergan (cheksiz).
+TIER_LIMITS = {
+    PLAN_FREE: {"max_channels": FREE_MAX_CHANNELS, "daily_ai_requests": FREE_DAILY_AI,
+                "queued_posts": FREE_QUEUE_MAX_POSTS, "voice_daily": 0},
+    PLAN_PRO: {"max_channels": PRO_MAX_CHANNELS, "daily_ai_requests": PRO_DAILY_AI,
+               "queued_posts": PRO_QUEUE_MAX_POSTS, "voice_daily": PRO_VOICE_SCHEDULE_DAILY},
+    PLAN_ULTRA: {"max_channels": ULTRA_MAX_CHANNELS, "daily_ai_requests": ULTRA_DAILY_AI,
+                 "queued_posts": ULTRA_QUEUE_MAX_POSTS, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY},
+    "pro_legacy": {"max_channels": UNLIMITED_LIMIT, "daily_ai_requests": UNLIMITED_LIMIT,
+                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": PRO_VOICE_SCHEDULE_DAILY},
+    "enterprise": {"max_channels": UNLIMITED_LIMIT, "daily_ai_requests": UNLIMITED_LIMIT,
+                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY},
+}
 
 
 def plan_discount_percent(total_price, monthly_price, months) -> int:
@@ -358,106 +396,97 @@ RATE_LIMIT_FETCH_GLOBAL_MAX = _int_env("RATE_LIMIT_FETCH_GLOBAL_MAX", 120)
 RATE_LIMIT_AI_ACTIONS = _str_env("RATE_LIMIT_AI_ACTIONS", "")
 RATE_LIMIT_FETCH_ACTIONS = _str_env("RATE_LIMIT_FETCH_ACTIONS", "")
 
+def _build_catalog() -> dict:
+    """Barcha pullik tariflar: kalit -> ma'lumot. Kalit: PRO uchun davr ('1m', '3m', '6m', '1y' — eski callback/payload/buyurtmalar
+    bilan mos), ULTRA uchun 'u' + davr ('u1m', ...)."""
+    catalog = {}
+    for tier, uzs, stars in ((PLAN_PRO, _PRO_UZS, _PRO_STARS), (PLAN_ULTRA, _ULTRA_UZS, _ULTRA_STARS)):
+        for (period, months, days), price, star in zip(TARIFF_PERIODS, uzs, stars):
+            key = period if tier == PLAN_PRO else "u" + period
+            catalog[key] = {"key": key, "tier": tier, "period": period, "months": months, "days": days,
+                            "uzs": int(price), "stars": int(star),
+                            "usd": {"1m": USD_1M, "3m": USD_3M, "6m": USD_6M, "1y": USD_1Y}[period]
+                            if tier == PLAN_PRO else "%.2f" % (int(star) * 0.02),
+                            "stars_key": f"stars_{key}"}
+    return catalog
+
+
+#: Tarif katalogi (yagona manba). Tartib: PRO 1m..1y, ULTRA u1m..u1y.
+TARIFF_CATALOG = _build_catalog()
+TARIFF_KEYS = tuple(TARIFF_CATALOG)
+
+
+def tariff_keys_for(tier: str) -> tuple:
+    """Berilgan tarifning (pro|ultra) davr kalitlari (1 oy -> 1 yil)."""
+    return tuple(k for k, v in TARIFF_CATALOG.items() if v["tier"] == tier)
+
+
+def tier_of_key(plan_key: str) -> str:
+    """Tarif kaliti -> 'pro' | 'ultra' (noma'lum kalit -> 'pro': eski yozuvlar)."""
+    return (TARIFF_CATALOG.get(str(plan_key or "")) or {}).get("tier", PLAN_PRO)
+
+
+def key_for_days(tier: str, days) -> str:
+    """Tarif va kunlar bo'yicha kalit (eski yozuvlar/chek uchun zaxira): 30/90/180/365; noma'lum -> 1 oylik."""
+    try:
+        d = int(days)
+    except (TypeError, ValueError):
+        d = 30
+    for key, info in TARIFF_CATALOG.items():
+        if info["tier"] == tier and info["days"] == d:
+            return key
+    return "u1m" if tier == PLAN_ULTRA else "1m"
+
+
 STARS_PLANS = {
-    "stars_1m": {
-        "key": "1m",
-        "stars": STARS_1M,
-        "days": 30,
-        "usd": USD_1M,
-        "uzs": PAYMENT_PRICE_1M_UZS,
-        "label": f"⭐️ 1 oylik ({STARS_1M} Stars)",
-        "description": f"~${USD_1M}",
-    },
-    "stars_3m": {
-        "key": "3m",
-        "stars": STARS_3M,
-        "days": 90,
-        "usd": USD_3M,
-        "uzs": PAYMENT_PRICE_3M_UZS,
-        "label": f"⭐️ 3 oylik ({STARS_3M} Stars)",
-        "description": f"~${USD_3M}",
-    },
-    "stars_1y": {
-        "key": "1y",
-        "stars": STARS_1Y,
-        "days": 365,
-        "usd": USD_1Y,
-        "uzs": PAYMENT_PRICE_1Y_UZS,
-        "label": f"⭐️ 1 yillik ({STARS_1Y} Stars)",
-        "description": f"~${USD_1Y} / -{plan_discount_percent(STARS_1Y, STARS_1M, 12)}% chegirma",
-    },
+    info["stars_key"]: {
+        "key": info["key"],
+        "tier": info["tier"],
+        "stars": info["stars"],
+        "days": info["days"],
+        "usd": info["usd"],
+        "uzs": info["uzs"],
+        "label": f"⭐️ {info['tier'].upper()} {info['months']} oy ({info['stars']} Stars)",
+        "description": f"~${info['usd']}" + (
+            f" / -{plan_discount_percent(info['stars'], TARIFF_CATALOG[('u' if info['tier'] == PLAN_ULTRA else '') + '1m']['stars'], info['months'])}% chegirma"
+            if info["months"] > 1 else ""),
+    }
+    for info in TARIFF_CATALOG.values()
 }
 
 SUBSCRIPTION_PLANS = {
-    "1m": {
-        "days": 30,
-        "stars": STARS_1M,
-        "usd": USD_1M,
-        "uzs": PAYMENT_PRICE_1M_UZS,
-        "stars_key": "stars_1m",
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
-    },
-    "3m": {
-        "days": 90,
-        "stars": STARS_3M,
-        "usd": USD_3M,
-        "uzs": PAYMENT_PRICE_3M_UZS,
-        "stars_key": "stars_3m",
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
-    },
-    "1y": {
-        "days": 365,
-        "stars": STARS_1Y,
-        "usd": USD_1Y,
-        "uzs": PAYMENT_PRICE_1Y_UZS,
-        "stars_key": "stars_1y",
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
+    **{
+        key: {
+            "days": info["days"], "stars": info["stars"], "usd": info["usd"], "uzs": info["uzs"],
+            "stars_key": info["stars_key"], "tier": info["tier"],
+            "max_channels": TIER_LIMITS[info["tier"]]["max_channels"],
+            "daily_ai_requests": TIER_LIMITS[info["tier"]]["daily_ai_requests"],
+        }
+        for key, info in TARIFF_CATALOG.items()
     },
     "free": {
-        "days": 0,
-        "stars": 0,
-        "usd": "0",
-        "uzs": 0,
-        "stars_key": None,
-        "max_channels": FREE_MAX_CHANNELS,
-        "daily_ai_requests": FREE_DAILY_AI,
+        "days": 0, "stars": 0, "usd": "0", "uzs": 0, "stars_key": None, "tier": PLAN_FREE,
+        "max_channels": FREE_MAX_CHANNELS, "daily_ai_requests": FREE_DAILY_AI,
     },
+    # Eski kalitlar (orqaga moslik): 'pro' = PRO 1 oylik, 'enterprise' = muddatsiz.
     "pro": {
-        "days": 30,
-        "stars": STARS_1M,
-        "usd": USD_1M,
-        "uzs": PAYMENT_PRICE_1M_UZS,
-        "stars_key": "stars_1m",
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
+        "days": 30, "stars": STARS_1M, "usd": USD_1M, "uzs": PAYMENT_PRICE_1M_UZS, "stars_key": "stars_1m",
+        "tier": PLAN_PRO, "max_channels": PRO_MAX_CHANNELS, "daily_ai_requests": PRO_DAILY_AI,
+    },
+    "ultra": {
+        "days": 30, "stars": _ULTRA_STARS[0], "usd": "%.2f" % (_ULTRA_STARS[0] * 0.02), "uzs": _ULTRA_UZS[0],
+        "stars_key": "stars_u1m", "tier": PLAN_ULTRA, "max_channels": ULTRA_MAX_CHANNELS,
+        "daily_ai_requests": ULTRA_DAILY_AI,
     },
     "enterprise": {
-        "days": 365,
-        "stars": STARS_1Y,
-        "usd": USD_1Y,
-        "uzs": PAYMENT_PRICE_1Y_UZS,
-        "stars_key": "stars_1y",
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
+        "days": 365, "stars": STARS_1Y, "usd": USD_1Y, "uzs": PAYMENT_PRICE_1Y_UZS, "stars_key": "stars_1y",
+        "tier": "enterprise", "max_channels": UNLIMITED_LIMIT, "daily_ai_requests": UNLIMITED_LIMIT,
     },
 }
 
 PLAN_LIMITS = {
-    "free": {
-        "max_channels": FREE_MAX_CHANNELS,
-        "daily_ai_requests": FREE_DAILY_AI,
-    },
-    "pro": {
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
-    },
-    "enterprise": {
-        "max_channels": PRO_MAX_CHANNELS,
-        "daily_ai_requests": PRO_DAILY_AI,
-    },
+    name: {"max_channels": lim["max_channels"], "daily_ai_requests": lim["daily_ai_requests"]}
+    for name, lim in TIER_LIMITS.items()
 }
 
 

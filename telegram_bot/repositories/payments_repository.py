@@ -234,7 +234,7 @@ def refund_stars_payment(charge_id: str) -> dict:
                 return {"result": "no_days", "user_id": user_id, "days": 0}
             cur.execute(
                 "UPDATE users SET "
-                "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro') AND subscription_expires_at IS NULL "
+                "plan_type = CASE WHEN plan_type IN ('enterprise', 'pro', 'ultra') AND subscription_expires_at IS NULL "
                 "  THEN plan_type "
                 "  WHEN subscription_expires_at IS NULL "
                 "  OR subscription_expires_at - (%s || ' days')::INTERVAL <= NOW() "
@@ -334,6 +334,7 @@ def save_payment_receipt(
     days_granted: int = 30,
     amount_uzs: int = 0,
     file_unique_id: str | None = None,
+    plan_key: str | None = None,
 ) -> int:
     """Yangi karta chekini ``pending`` holatida saqlaydi.
 
@@ -354,15 +355,16 @@ def save_payment_receipt(
                 """
                 INSERT INTO payment_receipts
                     (user_id, username, full_name, language_code, media_type,
-                     file_id, caption, status, days_granted, amount_uzs, file_unique_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s)
+                     file_id, caption, status, days_granted, amount_uzs, file_unique_id, plan_key)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (int(user_id), username or "", full_name or "",
                  _normalize_language_code(language_code) or "uz",
                  media_type if media_type in ("photo", "document") else "photo",
                  file_id, caption or "", int(days_granted) if days_granted else 30,
-                 amount_uzs, (str(file_unique_id)[:128] if file_unique_id else None)),
+                 amount_uzs, (str(file_unique_id)[:128] if file_unique_id else None),
+                 (str(plan_key)[:8] if plan_key else None)),
             )
             row = cur.fetchone()
             return int(row[0]) if row else 0

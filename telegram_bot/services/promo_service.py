@@ -11,6 +11,8 @@ Foydalanish::
 """
 
 import logging
+
+from services.plan_sql import grant_expiry_case, grant_plan_case
 from contextlib import contextmanager
 
 from database import (
@@ -166,16 +168,25 @@ class PromoService:
 
                 # 5) Obuna berish: max(current_expiry, NOW()) + days
                 # Enterprise (muddatsiz) huquqi saqlanadi (qarang: PaymentService.process_stars_payment).
-                cur.execute(
-                    "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-                    "THEN plan_type ELSE %s END, "
-                    "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-                    "AND subscription_expires_at IS NULL THEN NULL ELSE "
-                    "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-                    "+ (%s || ' days')::INTERVAL END "
-                    "WHERE user_id = %s",
-                    (plan_type, str(duration_days), user_id),
-                )
+                if plan_type in ("pro", "ultra"):
+                    # Yagona qoida (services/plan_sql.py): enterprise o'zgarmaydi, faol ultra PRO promo bilan pasaymaydi.
+                    cur.execute(
+                        f"UPDATE users SET plan_type = {grant_plan_case(plan_type)}, "  # nosec B608 — tarif oq ro'yxatdan
+                        f"subscription_expires_at = {grant_expiry_case()} "
+                        "WHERE user_id = %s",
+                        (str(duration_days), user_id),
+                    )
+                else:
+                    cur.execute(
+                        "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
+                        "THEN plan_type ELSE %s END, "
+                        "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
+                        "AND subscription_expires_at IS NULL THEN NULL ELSE "
+                        "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
+                        "+ (%s || ' days')::INTERVAL END "
+                        "WHERE user_id = %s",
+                        (plan_type, str(duration_days), user_id),
+                    )
                 if cur.rowcount == 0:
                     return False, "Foydalanuvchi topilmadi."
 

@@ -408,6 +408,8 @@ CREATE TABLE IF NOT EXISTS payment_orders (
 CREATE INDEX IF NOT EXISTS idx_payment_orders_user
     ON payment_orders (user_id, status);
 ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;
+-- Tanlangan tarif kaliti (1m/3m/6m/1y = PRO, u1m/.. = ULTRA); eski cheklarda NULL = PRO.
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS plan_key VARCHAR(8);
 
 -- 💳 PAYME MERCHANT API — avtomatik to'lov (services/payments/payme_provider.py).
 -- payme_orders: bot yaratgan bir martalik buyurtma (ac.order_id), summa TIYIN'da.
@@ -789,6 +791,17 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_
 -- PHASE 10: DAU/MAU faoliyat belgilari (matn yoki boshqa PII yozilmaydi).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';
+-- Tarif yangilanishi (FREE/PRO/ULTRA): eski PRO foydalanuvchilarning ALLAQACHON to'langan muddati eski (katta) limitlar bilan
+-- tugaguncha saqlanadi. Belgi BIR MARTA qo'yiladi (system_settings kaliti), keyingi startup'larda yangi xaridorlarga tegmaydi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_legacy_until TIMESTAMP WITH TIME ZONE;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'tariff_v2_legacy_marked') THEN
+        UPDATE users SET pro_legacy_until = COALESCE(subscription_expires_at, TIMESTAMPTZ '9999-12-31')
+        WHERE plan_type = 'pro' AND (subscription_expires_at IS NULL OR subscription_expires_at > NOW());
+        INSERT INTO system_settings (key, value) VALUES ('tariff_v2_legacy_marked', NOW()::text);
+    END IF;
+END $$;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;

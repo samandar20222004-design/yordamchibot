@@ -91,6 +91,7 @@ audit.AuditService = AuditService
 sys.modules["services.audit_service"] = audit
 sys.modules.setdefault("services", ModuleType("services"))
 
+_load("services.plan_sql", os.path.join(TELEGRAM_BOT_ROOT, "services/plan_sql.py"))
 ps = _load("services.payment_service", os.path.join(TELEGRAM_BOT_ROOT, "services/payment_service.py"))
 PaymentService = ps.PaymentService
 RECEIPT_STATUS_PENDING = ps.RECEIPT_STATUS_PENDING

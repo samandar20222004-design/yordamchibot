@@ -723,7 +723,7 @@ def test_bot_wiring():
         asyncio.run(payme_webhook.build_bot_notifier(bot)(PaymeEvent("paid", USER_ID, 30, "pm1")))
     check("bildirishnoma foydalanuvchi tilida yuboriladi",
           len(bot.sent) == 1 and bot.sent[0]["chat_id"] == USER_ID
-          and bot.sent[0]["text"] == get_text("payme_paid_notice", "ru", days=30))
+          and "Оплата принята" in bot.sent[0]["text"] and "PRO" in bot.sent[0]["text"])  # tarif nomi + muddat + limitlar (RU)
 
 
 # ---------------------------------------------------------------------------

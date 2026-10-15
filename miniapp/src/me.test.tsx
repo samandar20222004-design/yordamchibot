@@ -76,17 +76,36 @@ describe('Profil sahifasi', () => {
     expect(screen.getByText('2 / 3')).toBeTruthy()     // kanallar
     expect(screen.getByText('1 / 5')).toBeTruthy()     // AI (bugun)
     expect(screen.getByText('3 / 5')).toBeTruthy()     // navbat
-    for (const perk of ['Cheksiz kanallar', 'Cheksiz AI so\'rovlar', 'Cheksiz navbat', 'Postlarda bot belgisi yo\'q']) expect(screen.getByText(perk)).toBeTruthy()
+    // Free uchun ikkala tarif kartasi: PRO va ULTRA — HAQIQIY limitlar (server) va narx
+    expect(screen.getByText('PRO', { selector: 'h4' })).toBeTruthy()
+    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
+    expect(screen.getByText('Kanallar: 10 tagacha')).toBeTruthy()
+    expect(screen.getByText('Kanallar: 30 tagacha')).toBeTruthy()
+    expect(screen.getByText('AI: kuniga 40 ta')).toBeTruthy()
+    expect(screen.getByText('Navbat: 500 tagacha post')).toBeTruthy()
+    expect(screen.getByText(/19 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.getByText(/39 000 so'm\/oydan/)).toBeTruthy()
+    expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
     expect(screen.getByRole('button', { name: 'Botni ochish' })).toBeTruthy()
   })
 
-  it('PRO: afzalliklar ro\'yxati va "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
-    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 999, daily_ai_requests: 999, queued_posts: 999 } } })
+  it('PRO: faqat ULTRA kartasi, "bepul" belgisi yo\'q, muddat ko\'rsatiladi', async () => {
+    mockApi({ ...ME, plan: { type: 'pro', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 10, daily_ai_requests: 40, queued_posts: 100 } } })
     await openMe()
-    expect(await screen.findByText('PRO obunangiz faol.')).toBeTruthy()
-    expect(screen.queryByText('Cheksiz kanallar')).toBeNull()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
+    expect(screen.getAllByText('PRO').length).toBeGreaterThan(0)   // belgi
+    expect(screen.getByText('ULTRA', { selector: 'h4' })).toBeTruthy()
+    expect(screen.queryByText('PRO', { selector: 'h4' })).toBeNull() // PRO foydalanuvchiga PRO kartasi ko'rsatilmaydi
     expect(screen.queryByText('Bepul')).toBeNull()
     expect(screen.getByText(/Amal qilish muddati/)).toBeTruthy()
+  })
+
+  it('ULTRA: belgi "ULTRA", tarif kartalari yo\'q', async () => {
+    mockApi({ ...ME, plan: { type: 'ultra', is_pro: true, expires_at: '2026-11-01T00:00:00Z', limits: { max_channels: 30, daily_ai_requests: 100, queued_posts: 500 } } })
+    await openMe()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
+    expect(screen.getAllByText('ULTRA').length).toBe(1)
+    expect(screen.queryByText('Tariflar')).toBeNull()
   })
 
   it('kanal qatori: uzun nom saqlanadi (title atributi/matn), "Tahlil" tugmasi ishlaydi', async () => {

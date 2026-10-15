@@ -17,7 +17,7 @@ from .db import ReadOnlyRunner
 from .errors import ApiError, SUPPORTED_LANGS, DEFAULT_LANG
 from .settings import MiniAppSettings
 
-_PRO_TYPES = ("pro", "enterprise")
+_PRO_TYPES = ("pro", "ultra", "enterprise")
 
 
 def iso_utc(value) -> str | None:
@@ -43,15 +43,25 @@ def _is_admin(user_id: int, stored_role) -> bool:
 
 
 def plan_limits() -> dict:
+    """Tarif -> limitlar (``config.TIER_LIMITS`` — bot va to'lov oqimlari bilan BIR manba)."""
     import config
 
+    out = {}
+    for name, lim in config.TIER_LIMITS.items():
+        out[name] = {"max_channels": int(lim["max_channels"]), "daily_ai_requests": int(lim["daily_ai_requests"]),
+                     "queued_posts": int(lim["queued_posts"]), "voice_daily": int(lim["voice_daily"])}
+    out["pro"] = dict(out["pro"])
+    return out
+
+
+def tier_catalog() -> dict:
+    """Mijozga ko'rsatiladigan tariflar (``config`` — bot bilan BIR manba): limitlar va 1 oylik narx (so'm)."""
+    import config
+
+    limits = plan_limits()
     return {
-        "free": {"max_channels": int(config.FREE_MAX_CHANNELS),
-                 "daily_ai_requests": int(config.FREE_DAILY_AI),
-                 "queued_posts": int(config.FREE_QUEUE_MAX_POSTS)},
-        "pro": {"max_channels": int(config.PRO_MAX_CHANNELS),
-                "daily_ai_requests": int(config.PRO_DAILY_AI),
-                "queued_posts": int(config.PRO_QUEUE_MAX_POSTS)},
+        "pro": {"limits": limits["pro"], "price_from_uzs": int(config.TARIFF_CATALOG["1m"]["uzs"])},
+        "ultra": {"limits": limits["ultra"], "price_from_uzs": int(config.TARIFF_CATALOG["u1m"]["uzs"])},
     }
 
 
@@ -63,7 +73,11 @@ def resolve_plan(account: dict) -> dict:
     if plan_type in _PRO_TYPES:
         active = expires is None or (now is not None and expires > now)
     effective = plan_type if active else "free"
-    limits = plan_limits()["pro" if active else "free"]
+    limit_key = effective
+    legacy_until = account.get("pro_legacy_until")
+    if effective == "pro" and (expires is None or (legacy_until is not None and now is not None and legacy_until > now)):
+        limit_key = "pro_legacy"  # tarif yangilanishidan oldin to'langan muddat: eski limitlar tugaguncha saqlanadi
+    limits = plan_limits().get(limit_key) or plan_limits()["free"]
     return {
         "type": effective,
         "is_pro": active,
@@ -118,6 +132,7 @@ class MiniAppService:
                          "username": account["username"],
                          "language": _language(account)},
                 "plan": plan,
+                "tiers": tier_catalog(),
                 "usage": {"channels": channels, "pending_posts": pending,
                           "ai_requests_today": account["ai_requests_today"],
                           "ai_credits": account["ai_credits"]},

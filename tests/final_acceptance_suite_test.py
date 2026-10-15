@@ -853,8 +853,8 @@ def test_m_pro_subscription_opens():
     check("PRO: xabar yuborildi", bool(msg.sent))
     check("PRO: get_user_plan chaqirildi", "get_user_plan" in fake.calls, str(fake.calls))
     cbs = _cbs(msg.sent[-1]["reply_markup"]) if msg.sent else []
-    check("PRO: Stars to'lov tugmalari (sub_pay:stars_*) mavjud",
-          any(str(c).startswith("sub_pay:stars_") for c in cbs), str(cbs))
+    check("PRO: tarif tanlash tugmalari (sub_tier:pro / sub_tier:ultra) mavjud (muddat va Stars keyingi ekranda)",
+          "sub_tier:pro" in cbs and "sub_tier:ultra" in cbs, str(cbs))
     check("PRO: 6-tugma menyudagi [💎 PRO] aynan shu handlerga yo'naltiriladi",
           _targets(get_text("btn_premium", "uz")) == {"start_subscription"},
           str(_targets(get_text("btn_premium", "uz"))))

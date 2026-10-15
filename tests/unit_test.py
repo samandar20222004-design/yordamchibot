@@ -1176,17 +1176,25 @@ def test_plan_limits():
     check("free: max_channels = 3", PLAN_LIMITS["free"]["max_channels"] == 3)
     check("free: daily_ai = 5", PLAN_LIMITS["free"]["daily_ai_requests"] == 5)
 
-    # 2. PRO limitlari
-    check("pro: max_channels = 999", PLAN_LIMITS["pro"]["max_channels"] == 999)
-    check("pro: daily_ai = 999", PLAN_LIMITS["pro"]["daily_ai_requests"] == 999)
+    # 2. PRO limitlari (yangi tarif strategiyasi: 10 kanal, kuniga 40 AI)
+    check("pro: max_channels = 10", PLAN_LIMITS["pro"]["max_channels"] == 10)
+    check("pro: daily_ai = 40", PLAN_LIMITS["pro"]["daily_ai_requests"] == 40)
 
-    # 3. Enterprise limitlari
+    # 2b. ULTRA limitlari (30 kanal, kuniga 100 AI)
+    check("ultra: max_channels = 30", PLAN_LIMITS["ultra"]["max_channels"] == 30)
+    check("ultra: daily_ai = 100", PLAN_LIMITS["ultra"]["daily_ai_requests"] == 100)
+
+    # 2c. Tarif yangilanishidan oldin to'langan PRO muddati eski (cheksiz) limitlarda qoladi
+    check("pro_legacy: 999 / 999", PLAN_LIMITS["pro_legacy"]["max_channels"] == 999 and PLAN_LIMITS["pro_legacy"]["daily_ai_requests"] == 999)
+
+    # 3. Enterprise limitlari (muddatsiz admin bergan)
     check("enterprise: max_channels = 999", PLAN_LIMITS["enterprise"]["max_channels"] == 999)
     check("enterprise: daily_ai = 999", PLAN_LIMITS["enterprise"]["daily_ai_requests"] == 999)
 
     # 4. Barcha tariflar mavjud
     check("free mavjud", "free" in PLAN_LIMITS)
     check("pro mavjud", "pro" in PLAN_LIMITS)
+    check("ultra mavjud", "ultra" in PLAN_LIMITS)
     check("enterprise mavjud", "enterprise" in PLAN_LIMITS)
 
     # Free limit = 3 (yangilangan)
@@ -1262,50 +1270,39 @@ def test_free_channel_limit_enforcement():
 
 
 def test_stars_payment_plans():
-    """Stars to'lov paketlari to'g'ri konfiguratsiya qilingan."""
+    """Stars to'lov paketlari: 2 tarif x 4 muddat (1/3/6/12 oy), narxlar yagona manbadan (config.TARIFF_CATALOG)."""
     print("== Stars payment plans ==")
     from handlers.subscription import STARS_PLANS
 
-    # 1. 1 oylik paket
-    check("1m: mavjud", "stars_1m" in STARS_PLANS)
-    check("1m: stars = 75", STARS_PLANS["stars_1m"]["stars"] == 75)
-    check("1m: days = 30", STARS_PLANS["stars_1m"]["days"] == 30)
-    check("1m: label bor", "75 Stars" in STARS_PLANS["stars_1m"]["label"])
-
-    # 2. 3 oylik paket
-    check("3m: mavjud", "stars_3m" in STARS_PLANS)
-    check("3m: stars = 175", STARS_PLANS["stars_3m"]["stars"] == 175)
-    check("3m: days = 90", STARS_PLANS["stars_3m"]["days"] == 90)
-    check("3m: label bor", "175 Stars" in STARS_PLANS["stars_3m"]["label"])
-
-    # 3. 1 yillik paket
-    check("1y: mavjud", "stars_1y" in STARS_PLANS)
-    check("1y: stars = 550", STARS_PLANS["stars_1y"]["stars"] == 550)
-    check("1y: days = 365", STARS_PLANS["stars_1y"]["days"] == 365)
-    check("1y: label bor", "550 Stars" in STARS_PLANS["stars_1y"]["label"])
-
-    # 4. XTR valyutasi
-    check("1m: XTR valyutasi", True)  # Invoice da currency="XTR" ishlatiladi
-    check("3m: XTR valyutasi", True)
+    expected = {  # kalit: (Stars, kun)
+        "stars_1m": (80, 30), "stars_3m": (205, 90), "stars_6m": (375, 180), "stars_1y": (665, 365),
+        "stars_u1m": (165, 30), "stars_u3m": (415, 90), "stars_u6m": (790, 180), "stars_u1y": (1460, 365),
+    }
+    for key, (stars, days) in expected.items():
+        check(f"{key}: mavjud", key in STARS_PLANS)
+        check(f"{key}: stars = {stars}", STARS_PLANS[key]["stars"] == stars)
+        check(f"{key}: days = {days}", STARS_PLANS[key]["days"] == days)
+        check(f"{key}: label'da narx bor", f"{stars} Stars" in STARS_PLANS[key]["label"])
+    check("PRO tarifi: tier=pro, ULTRA: tier=ultra", STARS_PLANS["stars_1m"]["tier"] == "pro" and STARS_PLANS["stars_u1m"]["tier"] == "ultra")
+    check("XTR valyutasi", True)  # Invoice da currency="XTR" ishlatiladi
 
 
 def test_stars_keyboard():
-    """Stars to'lov keyboard to'g'ri shakllanishi."""
-    print("== Stars keyboard ==")
-    from handlers.subscription import _get_stars_keyboard
+    """Tarif tanlangach 4 ta muddat tugmasi (har biri Stars to'lov oqimiga) + orqaga."""
+    print("== Tier keyboard ==")
+    from handlers.subscription import _get_tier_keyboard
 
-    kb = _get_stars_keyboard()
-    cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    labels = [b.text for row in kb.inline_keyboard for b in row]
-
-    check("stars kb: 1m bor", "sub_pay:stars_1m" in cbs)
-    check("stars kb: 3m bor", "sub_pay:stars_3m" in cbs)
-    check("stars kb: 1y bor", "sub_pay:stars_1y" in cbs)
-    check("stars kb: back bor", "sub_back" in cbs)
-    check("stars kb: 5 ta tugma", len(cbs) == 5)
-    check("stars kb: 75★ label", any("75★" in t for t in labels))
-    check("stars kb: 175★ label", any("175★" in t for t in labels))
-    check("stars kb: 550★ label", any("550★" in t for t in labels))
+    for tier, keys, prices in (("pro", ("1m", "3m", "6m", "1y"), ("19 000", "49 000", "89 000", "159 000")),
+                               ("ultra", ("u1m", "u3m", "u6m", "u1y"), ("39 000", "99 000", "189 000", "349 000"))):
+        kb = _get_tier_keyboard(tier, "uz")
+        cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
+        labels = [b.text for row in kb.inline_keyboard for b in row]
+        for key in keys:
+            check(f"{tier} kb: {key} bor", f"sub_pay:stars_{key}" in cbs)
+        check(f"{tier} kb: back bor", "sub_back" in cbs)
+        check(f"{tier} kb: 5 ta tugma", len(cbs) == 5)
+        for price in prices:
+            check(f"{tier} kb: {price} so'm label", any(price in t for t in labels))
 
 
 def test_referral_pro_functions():
@@ -1383,16 +1380,12 @@ def test_subscription_keyboard_stars():
     kb = _get_subscription_keyboard("free")
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
     labels = [b.text for row in kb.inline_keyboard for b in row]
-    check("free kb: stars_1m bor", "sub_pay:stars_1m" in cbs)
-    check("free kb: stars_3m bor", "sub_pay:stars_3m" in cbs)
-    check("free kb: stars_1y bor", "sub_pay:stars_1y" in cbs)
+    check("free kb: PRO va ULTRA tanlash tugmalari", "sub_tier:pro" in cbs and "sub_tier:ultra" in cbs)
     check("free kb: promo bor", "sub_promo" in cbs)
     check("free kb: back_main bor", "sub_back_main" in cbs)
-    check("free kb: 75★ label", any("75★" in t for t in labels))
-    check("free kb: 175★ label", any("175★" in t for t in labels))
-    check("free kb: 550★ label", any("550★" in t for t in labels))
+    check("free kb: tarif yorliqlari (PRO / ULTRA)", any("PRO" in t for t in labels) and any("ULTRA" in t for t in labels))
 
-    # PRO da Stars yo'q
+    # PRO'da to'g'ridan-to'g'ri Stars tugmalari yo'q (avval tarif va muddat tanlanadi)
     kb_pro = _get_subscription_keyboard("pro")
     cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
     check("pro kb: stars_1m yo'q", "sub_pay:stars_1m" not in cbs_pro)
@@ -2221,8 +2214,8 @@ def test_subscription_card_format():
     # 1. Free foydalanuvchi
     free_info = {"plan_type": "free", "expires_at": None, "ai_used": 2}
     card_free = _build_subscription_card(free_info)
-    check("free card: Free tarif", "Free" in card_free)
-    check("free card: PRO taklif", "PRO Tarif" in card_free)
+    check("free card: Free tarif", "FREE" in card_free)
+    check("free card: PRO va ULTRA taklifi", "PRO" in card_free and "ULTRA" in card_free)
     check("free card: kanal limiti", "2" in card_free)
     check("free card: AI limiti", "5" in card_free)
     check("free card: separator", "━━━" in card_free)
@@ -2233,7 +2226,8 @@ def test_subscription_card_format():
     pro_info = {"plan_type": "pro", "expires_at": future, "ai_used": 10}
     card_pro = _build_subscription_card(pro_info)
     check("pro card: PRO tarif", "PRO" in card_pro)
-    check("pro card: Cheksiz kanal", "Cheksiz" in card_pro)
+    check("pro card: kanal limiti 10", "10" in card_pro and "Cheksiz" not in card_pro)
+    check("pro card: ULTRA'ga o'tish taklifi", "ULTRA" in card_pro)
     check("pro card: muddat", "31.12.2027" in card_pro)
 
     # 3. Enterprise
@@ -2258,18 +2252,19 @@ def test_subscription_keyboards():
     # 1. Free foydalanuvchi — Stars to'lov tugmalari va Uzcard/Humo karta to'lovi tugmasi
     kb_free = _get_subscription_keyboard("free")
     cbs_free = [b.callback_data for row in kb_free.inline_keyboard for b in row]
-    check("free kb: stars_1m", "sub_pay:stars_1m" in cbs_free)
-    check("free kb: stars_3m", "sub_pay:stars_3m" in cbs_free)
-    check("free kb: stars_1y", "sub_pay:stars_1y" in cbs_free)
-    check("free kb: sub_card_pay bor", "sub_card_pay" in cbs_free)
+    check("free kb: PRO tanlash", "sub_tier:pro" in cbs_free)
+    check("free kb: ULTRA tanlash", "sub_tier:ultra" in cbs_free)
     check("free kb: promo", "sub_promo" in cbs_free)
     check("free kb: back_main", "sub_back_main" in cbs_free)
 
-    # 2. PRO foydalanuvchi — Stars va Karta to'lovi yo'q, promo va back bor
+    # 2. PRO foydalanuvchi — ULTRA'ga o'tish (va PRO'ni uzaytirish) mumkin; ULTRA/Enterprise'ga PRO sotilmaydi
     kb_pro = _get_subscription_keyboard("pro")
     cbs_pro = [b.callback_data for row in kb_pro.inline_keyboard for b in row]
-    check("pro kb: stars_1m yo'q", "sub_pay:stars_1m" not in cbs_pro)
-    check("pro kb: sub_card_pay yo'q", "sub_card_pay" not in cbs_pro)
+    check("pro kb: PRO uzaytirish va ULTRA tanlash bor", "sub_tier:pro" in cbs_pro and "sub_tier:ultra" in cbs_pro)
+    cbs_ultra = [b.callback_data for row in _get_subscription_keyboard("ultra").inline_keyboard for b in row]
+    check("ultra kb: faqat ULTRA uzaytirish (PRO yo'q)", "sub_tier:ultra" in cbs_ultra and "sub_tier:pro" not in cbs_ultra)
+    cbs_ent = [b.callback_data for row in _get_subscription_keyboard("enterprise").inline_keyboard for b in row]
+    check("enterprise kb: sotib olish tugmalari yo'q", not any(c.startswith("sub_tier:") for c in cbs_ent))
     check("pro kb: promo bor", "sub_promo" in cbs_pro)
     check("pro kb: back_main bor", "sub_back_main" in cbs_pro)
 
@@ -2291,12 +2286,12 @@ def test_limit_messages():
     # 1. Channel limit xabari
     ch_msg = LIMIT_CHANNEL_MSG.format(current=2, max=2)
     check("ch limit: current", "2/2" in ch_msg)
-    check("ch limit: PRO taklif", "PRO" in ch_msg)
+    check("ch limit: tarifni yangilash taklifi (PRO/ULTRA)", "PRO" in ch_msg and "ULTRA" in ch_msg)
 
     # 2. AI limit xabari
     ai_msg = LIMIT_AI_MSG.format(used=5, max=5)
     check("ai limit: used", "5/5" in ai_msg)
-    check("ai limit: PRO taklif", "PRO" in ai_msg)
+    check("ai limit: tarifni yangilash taklifi (PRO/ULTRA)", "PRO" in ai_msg and "ULTRA" in ai_msg)
 
 
 def test_promo_code_schema():

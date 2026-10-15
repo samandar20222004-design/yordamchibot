@@ -253,3 +253,9 @@ button, .btn, .chip, .badge, legend, label, h1, h2, h3, dt { overflow-wrap: norm
 
 .media-row { display: grid; gap: var(--s2); justify-items: start; margin: var(--s2) 0; }
 .media-row .small { margin: 0; }
+
+.tiers { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s3); }
+.tier-card { display: grid; gap: var(--s2); padding: var(--s3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg); min-width: 0; }
+.tier-name { margin: 0; font-size: 1rem; }
+.tier-price { text-align: right; }
+@media (min-width: 640px) { .tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

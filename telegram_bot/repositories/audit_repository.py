@@ -190,7 +190,7 @@ def get_admin_dashboard_stats() -> dict:
             cur.execute("SELECT COUNT(*) FROM users")
             stats["users"] = cur.fetchone()[0]
             cur.execute(
-                "SELECT COUNT(*) FROM users WHERE plan_type IN ('pro', 'enterprise') "
+                "SELECT COUNT(*) FROM users WHERE plan_type IN ('pro', 'ultra', 'enterprise') "
                 "AND (subscription_expires_at IS NULL OR subscription_expires_at > NOW())"
             )
             stats["pro_subscribers"] = cur.fetchone()[0]

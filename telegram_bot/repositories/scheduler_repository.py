@@ -715,7 +715,7 @@ def cleanup_old_data() -> dict:
             with db_cursor(commit=True) as cur:
                 cur.execute(
                     "DELETE FROM voice_schedule_usage v WHERE v.used_at < NOW() - INTERVAL '3 days' "
-                    "AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = v.user_id AND u.plan_type IN ('pro', 'enterprise'))"
+                    "AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = v.user_id AND u.plan_type IN ('pro', 'ultra', 'enterprise'))"
                 )
                 deleted["voice_schedule_usage"] = cur.rowcount
         except Exception as e:

@@ -16,14 +16,29 @@ SCOPE_DAY = "day"
 PRO_WINDOW_HOURS = 24
 
 
-def limits_for(is_pro: bool) -> tuple[str, int, int | None]:
-    """(scope, limit, window_hours). Free: butun umr; PRO: 24 soat."""
-    if is_pro:
+def _tier_name(plan) -> str:
+    """``bool`` (eski chaqiruvlar: PRO/free) yoki tarif nomi -> 'free' | 'pro' | 'ultra'."""
+    if plan is True:
+        return "pro"
+    if not plan:
+        return "free"
+    name = str(plan).strip().lower()
+    if name in ("ultra", "enterprise"):
+        return "ultra"
+    return "pro" if name in ("pro", "pro_legacy") else "free"
+
+
+def limits_for(plan) -> tuple[str, int, int | None]:
+    """(scope, limit, window_hours). Free: butun umr (1); PRO: 24 soatda 20; ULTRA/enterprise: 24 soatda 100."""
+    tier = _tier_name(plan)
+    if tier == "ultra":
+        return SCOPE_DAY, int(config.ULTRA_VOICE_SCHEDULE_DAILY), PRO_WINDOW_HOURS
+    if tier == "pro":
         return SCOPE_DAY, int(config.PRO_VOICE_SCHEDULE_DAILY), PRO_WINDOW_HOURS
     return SCOPE_LIFETIME, int(config.FREE_VOICE_SCHEDULE_TOTAL), None
 
 
-async def reserve(db, user_id: int, is_pro: bool, is_admin: bool = False) -> dict:
+async def reserve(db, user_id: int, is_pro, is_admin: bool = False) -> dict:
     """``{"allowed", "reservation_id", "scope", "used", "limit", "reason"}`` — ``reason``: ok | limit | disabled | unavailable."""
     if is_admin:
         return {"allowed": True, "reservation_id": None, "scope": "admin", "used": 0, "limit": 0, "reason": "ok"}

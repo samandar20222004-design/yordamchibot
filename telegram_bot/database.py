@@ -986,7 +986,7 @@ def _profile_store(uid, snap, started):
 def _plan_is_pro(plan_type, expires_at) -> bool:
     """``SubscriptionService.get_status`` bilan bir xil qoida (faqat KO'RSATISH uchun):
     PRO/enterprise va muddati o'tmagan. Muddat o'qish paytida hisoblanadi."""
-    if (plan_type or "free") not in ("pro", "enterprise"):
+    if (plan_type or "free") not in ("pro", "ultra", "enterprise"):
         return False
     if expires_at is None:
         return True
@@ -2376,6 +2376,7 @@ from repositories.settings_repository import (  # noqa: E402, F401
 )
 # --- 👤 USERS — profil, til, tier, kvota, kredits, referallar, onboarding
 from repositories.users_repository import (  # noqa: E402, F401
+    _legacy_pro_active,
     ACCOUNT_DELETE_RETAINED_TABLES,
     AI_OPERATION_TYPES, AI_RESERVATION_ACTIVE, AI_RESERVATION_REFUNDED,
     AI_RESERVE_COST_MAX, AI_RESERVE_COST_MIN, AI_RESERVE_DB_ERROR,
@@ -2396,7 +2397,7 @@ from repositories.users_repository import (  # noqa: E402, F401
     get_referral_stats, get_referrer_id, get_user_channel_list_for_analytics,
     touch_user_activity,
     get_user_code, get_user_credits, get_user_language, get_user_onboarding,
-    get_user_overview_stats, get_user_plan, get_user_setting,
+    get_plan_tier, get_user_overview_stats, get_user_plan, get_user_setting,
     get_retention_cohort, get_referral_conversion_stats,
     get_user_settings_bulk, get_user_settings_and_signature,
     increment_ai_usage, invalidate_user_overview_stats,
@@ -2904,6 +2905,7 @@ def _ddl_user_settings_and_migrations(cur):
         "ALTER TABLE scheduled_posts ALTER COLUMN file_id TYPE TEXT;",
         "ALTER TABLE channels ADD COLUMN IF NOT EXISTS tone_of_voice VARCHAR(30) DEFAULT 'friendly';",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_legacy_until TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS stars_subscription_state VARCHAR(16);",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_requests_today INTEGER DEFAULT 0;",
@@ -2954,6 +2956,7 @@ def _ddl_user_settings_and_migrations(cur):
         # bilan yozish uchun (eski cheklar: 0 — hisob kitobi buzilmaydi).
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS amount_uzs INT DEFAULT 0;",
         "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS order_id TEXT;",
+        "ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS plan_key VARCHAR(8);",
         # approval metadata (additive; existing single-owner rows unchanged).
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS delivery_options JSONB NOT NULL DEFAULT '{}'::jsonb;",
         "ALTER TABLE scheduled_posts ADD COLUMN IF NOT EXISTS created_by BIGINT;",

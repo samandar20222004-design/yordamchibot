@@ -299,12 +299,8 @@ async def _studio_menu_text(user_id: int, lang: str) -> str:
     if is_admin:
         credits_label = safe_t("ai_credits_unlimited", lang)
     else:
-        is_pro = await db.run_db(db.is_premium, user_id)
-        if is_pro:
-            credits_label = safe_t("ai_credits_unlimited_pro", lang)
-        else:
-            credits = await db.run_db(db.get_user_credits, user_id)
-            credits_label = safe_t("credits_value", lang, n=credits)
+        credits = await db.run_db(db.get_user_credits, user_id)
+        credits_label = safe_t("credits_value", lang, n=credits)
     return safe_t("ai_studio_menu", lang, credits=credits_label)
 
 
@@ -366,8 +362,6 @@ async def start_ai_assistant(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     if is_admin:
         limit_info = safe_t("cabinet_credits_admin", lang)
-    elif is_pro:
-        limit_info = safe_t("ai_credits_unlimited_pro", lang)
     else:
         limit_info = safe_t("credits_value", lang, n=credits)
 

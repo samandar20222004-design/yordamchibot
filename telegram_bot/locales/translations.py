@@ -155,7 +155,7 @@ TRANSLATIONS = {
             "Ballarni ko'paytirish uchun:\n"
             "• 🎁 Kunlik bonus oling\n"
             "• 👥 Do'stlarni taklif qiling (1–3-do'st: +3, keyingilar: +1)\n"
-            "• ⭐️ PRO tarifga o'ting (cheksiz AI, 100% reklamasiz postlar)"
+            "• ⭐️ PRO yoki 👑 ULTRA tarifga o'ting (kunlik AI limiti ancha yuqori, reklamasiz postlar)"
         ),
         "ad_mode_admin": "👑 <b>Admin</b> — reklamasiz",
         "ad_mode_pro": "✨ <b>PRO</b> — postlar va bot javoblari avtomatik 100% reklamasiz",
@@ -559,8 +559,8 @@ TRANSLATIONS = {
         "ai_limit_msg": (
             "🚫 <b>Kunlik AI limiti tugadi!</b>\n\n"
             "Bugun <b>{used}/{max}</b> ta AI so'rovi ishlatildi.\n"
-            "Free tarifida kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
-            "⭐️ Cheksiz AI uchun PRO tarifiga o'ting."
+            "Tarifingiz bo'yicha kuniga maksimal <b>{max}</b> ta AI so'rovi.\n\n"
+            "⭐️ Limit ertaga yangilanadi. Ko'proq uchun tarifni yangilang: PRO yoki ULTRA."
         ),
         "ai_credits_unlimited": "♾ Cheksiz",
         "ai_credits_unlimited_pro": "♾ Cheksiz (PRO)",
@@ -1070,8 +1070,8 @@ TRANSLATIONS = {
         "ch_limit_msg": (
             "🚫 <b>Kanal limiti tugadi!</b>\n\n"
             "Sizda hozir <b>{current}/{max}</b> ta kanal ulangan.\n"
-            "Free tarifida maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
-            "⭐️ Ushbu imkoniyatdan cheksiz foydalanish uchun PRO tarifiga o'ting."
+            "Tarifingiz bo'yicha maksimal <b>{max}</b> ta kanal ulash mumkin.\n\n"
+            "⭐️ Ko'proq kanal uchun tarifni yangilang: PRO (10 tagacha) yoki ULTRA (30 tagacha)."
         ),
         "ch_pro_btn": "⭐️ PRO tarif",
         "ch_success": (
@@ -1263,8 +1263,8 @@ TRANSLATIONS = {
         "queue_limit_msg": (
             "🚫 <b>Rejalashtirilgan postlar limiti tugadi!</b>\n\n"
             "Sizda <b>{current}/{max}</b> ta rejalashtirilgan post bor.\n"
-            "Free tarifida maksimal <b>{max}</b> ta post rejada turishi mumkin.\n\n"
-            "⭐️ Cheksiz rejalashtirish uchun PRO tarifiga o'ting."
+            "Tarifingiz bo'yicha maksimal <b>{max}</b> ta post rejada turishi mumkin.\n\n"
+            "⭐️ Ko'proq rejalashtirish uchun tarifni yangilang: PRO (100 ta) yoki ULTRA (500 ta)."
         ),
         "queue_not_found": "⚠️ Post topilmadi yoki allaqachon o'chirilgan.",
         "queue_not_found_short": "⚠️ Post topilmadi!",
@@ -1622,7 +1622,7 @@ TRANSLATIONS = {
             "keyin uni «📢 Mening kanallarim» ro'yxatiga ulang.\n\n"
             "<b>2. AI so'rovlar (ballar) qanday olinadi?</b>\n"
             "Har kuni «🎁 Kunlik bonus» tugmasini bosing, do'stlaringizni taklif qiling "
-            "(1–3-do'st: +3, keyingilar: +1) yoki ⭐️ PRO tarifga o'ting — PRO'da AI cheksiz.\n\n"
+            "(1–3-do'st: +3, keyingilar: +1) yoki ⭐️ PRO / 👑 ULTRA tarifga o'ting — kunlik AI limiti ancha yuqori.\n\n"
             "<b>3. Rejalashtirilgan postni tahrirlash mumkinmi?</b>\n"
             "Ha — «📅 Rejalashtirilgan» bo'limida vaqt, matn, "
             "tugma va reaksiyalarni alohida o'zgartirasiz.\n\n"
@@ -2035,6 +2035,43 @@ TRANSLATIONS = {
             "• To'liq analitika"
         ),
         "sub_pay_err_payload": "Noto'g'ri to'lov payload'i.",
+        "period_1m": "1 oy",
+        "period_3m": "3 oy",
+        "period_6m": "6 oy",
+        "period_1y": "1 yil",
+        "btn_tier_pro": "⭐️ PRO",
+        "btn_tier_ultra": "👑 ULTRA",
+        "tier_title_pro": "⭐️ <b>PRO tarifi</b>",
+        "tier_title_ultra": "👑 <b>ULTRA tarifi</b>",
+        "tier_audience_pro": "👤 Kimlar uchun: 1–10 ta kanal yuritadigan kanal egalari, kontent yaratuvchilar va kichik SMM mutaxassislari.",
+        "tier_audience_ultra": "👤 Kimlar uchun: 10–30 ta kanal yuritadigan SMM mutaxassislari, faol kontent yaratuvchilar va ko'p post tayyorlaydigan jamoalar.",
+        "tl_channels": "📢 Kanallar: {n}",
+        "tl_perday": "kuniga <b>{n}</b> ta",
+        "tl_upto": "<b>{n}</b> tagacha",
+        "tl_ai": "🤖 AI so'rovlar: {n}",
+        "tl_queue": "🗂 Navbat: {n} rejalangan post",
+        "tl_voice": "🎤 Ovozli rejalash: {n}",
+        "tl_plans": "📅 Kontent-reja: 7 va 30 kunlik",
+        "tl_nosig": "✨ Kanal postlarida PostAssist imzosi yo'q",
+        "tl_usage": "📊 AI va navbat sarfini ko'rish (bot va Mini App)",
+        "tl_unlimited": "cheksiz",
+        "tier_prices_head": "💳 <b>Narxlar</b> (so'm · Stars)",
+        "tier_price_line": "• {period} — <b>{uzs}</b> so'm · ⭐️ {stars}{save}",
+        "tier_pick_period": "👇 Muddatni tanlang:",
+        "tier_terms": "ℹ️ To'lov muvaffaqiyatli bo'lgach tarif darhol yoqiladi, muddat hozirgi obuna muddatingizga QO'SHILADI. Har bir AI so'rovi kunlik limitdan 1 ta ayiradi; limit tugasa balansdagi kreditlar ishlatiladi.",
+        "plan_card_head": "{emoji} <b>Sizning tarifingiz: {name}</b>",
+        "plan_card_expires": "📅 Obuna muddati: <b>{when}</b>",
+        "plan_card_ai_used": "🤖 Bugungi AI so'rovlar: <b>{used} / {max}</b>",
+        "plan_card_legacy": "🎁 Eski PRO shartlari (kengaytirilgan limitlar) <b>{until}</b> gacha saqlanadi — to'langan muddatingiz qisqartirilmaydi.",
+        "plan_card_upsell_free": "⭐️ <b>PRO</b> — {pro_price} so'm/oydan: {pro_ch} kanal, kuniga {pro_ai} AI, imzosiz postlar.\n👑 <b>ULTRA</b> — {ultra_price} so'm/oydan: {ultra_ch} kanal, kuniga {ultra_ai} AI, {ultra_q} navbat.",
+        "plan_card_upsell_pro": "👑 <b>ULTRA</b> — {ultra_price} so'm/oydan: {ultra_ch} kanal, kuniga {ultra_ai} AI, {ultra_q} navbat. PRO'dan ULTRA'ga o'tsangiz, qolgan PRO muddatingiz ham ULTRA sifatida davom etadi.",
+        "plan_card_help": "🆘 To'lov yoki tarif bo'yicha savol: ⚙️ Sozlamalar → ❓ Yordam.",
+        "plan_name_enterprise": "Enterprise (muddatsiz)",
+        "sub_pay_success_v2": "✅ <b>To'lov qabul qilindi!</b>\n\n{emoji} Tarif: <b>{name}</b>\n📅 Amal qilish muddati: <b>{when}</b>\n\nOchilgan imkoniyatlar:\n{limits}",
+        "sub_inv_title_tpl": "⭐️ PostAssist {tier} ({period})",
+        "sub_inv_desc_tpl": "{tier} tarifi — {period}. Kanallar: {ch}, AI: {ai}/kun, navbat: {q}.",
+        "intl_tariff_tpl": "⭐️ {period} — {stars}★",
+        "tariff_btn_tpl": "{period} — {uzs} so'm",
         "stars_refund_user": "↩️ <b>To'lov qaytarildi.</b>\n\nStars to'lovingiz qaytarilgani uchun PRO muddatidan {days} kun ayrildi. Savollar bo'lsa, ⚙️ Sozlamalar → ❓ Yordam orqali yozing.",
         "sub_pay_err_user": "To'lov foydalanuvchiga mos emas.",
         "sub_pay_err_user_id": "Noto'g'ri foydalanuvchi ID.",
@@ -2339,7 +2376,7 @@ TRANSLATIONS = {
             "Чтобы получить больше баллов:\n"
             "• 🎁 Забирайте ежедневный бонус\n"
             "• 👥 Приглашайте друзей (1–3-й друг: +3, далее: +1)\n"
-            "• ⭐️ Перейдите на PRO (безлимитный ИИ, посты 100% без рекламы)"
+            "• ⭐️ Перейдите на PRO или 👑 ULTRA (дневной лимит ИИ значительно выше, посты без рекламы)"
         ),
         "ad_mode_admin": "👑 <b>Админ</b> — без рекламы",
         "ad_mode_pro": "✨ <b>PRO</b> — посты и ответы бота автоматически 100% без рекламы",
@@ -2737,8 +2774,8 @@ TRANSLATIONS = {
         "ai_limit_msg": (
             "🚫 <b>Дневной лимит ИИ исчерпан!</b>\n\n"
             "Сегодня использовано <b>{used}/{max}</b> ИИ-запросов.\n"
-            "На бесплатном тарифе максимум <b>{max}</b> ИИ-запросов в день.\n\n"
-            "⭐️ Перейдите на PRO для безлимитного ИИ."
+            "По вашему тарифу максимум <b>{max}</b> ИИ-запросов в день.\n\n"
+            "⭐️ Лимит обновится завтра. Для большего обновите тариф: PRO или ULTRA."
         ),
         "ai_credits_unlimited": "♾ Безлимит",
         "ai_credits_unlimited_pro": "♾ Безлимит (PRO)",
@@ -3242,8 +3279,8 @@ TRANSLATIONS = {
         "ch_limit_msg": (
             "🚫 <b>Лимит каналов исчерпан!</b>\n\n"
             "Сейчас подключено <b>{current}/{max}</b> каналов.\n"
-            "На бесплатном тарифе можно подключить максимум <b>{max}</b> каналов.\n\n"
-            "⭐️ Перейдите на PRO, чтобы использовать без ограничений."
+            "По вашему тарифу можно подключить максимум <b>{max}</b> каналов.\n\n"
+            "⭐️ Для большего числа каналов обновите тариф: PRO (до 10) или ULTRA (до 30)."
         ),
         "ch_pro_btn": "⭐️ Перейти на PRO",
         "ch_success": (
@@ -3427,8 +3464,8 @@ TRANSLATIONS = {
         "queue_limit_msg": (
             "🚫 <b>Лимит запланированных постов исчерпан!</b>\n\n"
             "У вас <b>{current}/{max}</b> запланированных постов.\n"
-            "На бесплатном тарифе максимум <b>{max}</b> постов в расписании.\n\n"
-            "⭐️ Перейдите на PRO для безлимитного планирования."
+            "По вашему тарифу максимум <b>{max}</b> постов в расписании.\n\n"
+            "⭐️ Для большего планирования обновите тариф: PRO (100) или ULTRA (500)."
         ),
         "queue_not_found": "⚠️ Пост не найден или уже удалён.",
         "queue_not_found_short": "⚠️ Пост не найден!",
@@ -3800,7 +3837,7 @@ TRANSLATIONS = {
             "«Отправка сообщений», затем подключите его в «📢 Мои каналы».\n\n"
             "<b>2. Как получить AI-запросы (баллы)?</b>\n"
             "Нажимайте «🎁 Ежедневный бонус» каждый день, приглашайте друзей "
-            "(за 1–3-го: +3, далее: +1) или перейдите на ⭐️ PRO — там AI безлимитный.\n\n"
+            "(за 1–3-го: +3, далее: +1) или перейдите на ⭐️ PRO / 👑 ULTRA — там дневной лимит ИИ значительно выше.\n\n"
             "<b>3. Можно ли отредактировать запланированный пост?</b>\n"
             "Да — в разделе «📅 Запланированные» время, "
             "текст, кнопку и реакции меняются отдельно.\n\n"
@@ -4209,6 +4246,43 @@ TRANSLATIONS = {
             "• Полная аналитика"
         ),
         "sub_pay_err_payload": "Неверный payload платежа.",
+        "period_1m": "1 месяц",
+        "period_3m": "3 месяца",
+        "period_6m": "6 месяцев",
+        "period_1y": "1 год",
+        "btn_tier_pro": "⭐️ PRO",
+        "btn_tier_ultra": "👑 ULTRA",
+        "tier_title_pro": "⭐️ <b>Тариф PRO</b>",
+        "tier_title_ultra": "👑 <b>Тариф ULTRA</b>",
+        "tier_audience_pro": "👤 Для кого: владельцы каналов (1–10 каналов), авторы контента и небольшие SMM-специалисты.",
+        "tier_audience_ultra": "👤 Для кого: SMM-специалисты с 10–30 каналами, активные авторы и команды, которые готовят много постов.",
+        "tl_channels": "📢 Каналы: {n}",
+        "tl_perday": "<b>{n}</b> в день",
+        "tl_upto": "до <b>{n}</b>",
+        "tl_ai": "🤖 ИИ-запросы: {n}",
+        "tl_queue": "🗂 Очередь: {n} запланированных постов",
+        "tl_voice": "🎤 Голосовое планирование: {n}",
+        "tl_plans": "📅 Контент-план: на 7 и 30 дней",
+        "tl_nosig": "✨ Без подписи PostAssist в постах канала",
+        "tl_usage": "📊 Просмотр расхода ИИ и очереди (бот и Mini App)",
+        "tl_unlimited": "безлимит",
+        "tier_prices_head": "💳 <b>Цены</b> (сум · Stars)",
+        "tier_price_line": "• {period} — <b>{uzs}</b> сум · ⭐️ {stars}{save}",
+        "tier_pick_period": "👇 Выберите срок:",
+        "tier_terms": "ℹ️ После успешной оплаты тариф включается сразу, срок ДОБАВЛЯЕТСЯ к текущей подписке. Каждый запрос к ИИ списывает 1 из дневного лимита; когда лимит исчерпан, используются кредиты на балансе.",
+        "plan_card_head": "{emoji} <b>Ваш тариф: {name}</b>",
+        "plan_card_expires": "📅 Срок подписки: <b>{when}</b>",
+        "plan_card_ai_used": "🤖 ИИ-запросы за сегодня: <b>{used} / {max}</b>",
+        "plan_card_legacy": "🎁 Прежние условия PRO (расширенные лимиты) сохраняются до <b>{until}</b> — оплаченный срок не сокращается.",
+        "plan_card_upsell_free": "⭐️ <b>PRO</b> — от {pro_price} сум/мес: {pro_ch} каналов, {pro_ai} ИИ в день, посты без подписи.\n👑 <b>ULTRA</b> — от {ultra_price} сум/мес: {ultra_ch} каналов, {ultra_ai} ИИ в день, очередь {ultra_q}.",
+        "plan_card_upsell_pro": "👑 <b>ULTRA</b> — от {ultra_price} сум/мес: {ultra_ch} каналов, {ultra_ai} ИИ в день, очередь {ultra_q}. При переходе с PRO на ULTRA остаток PRO тоже продолжится как ULTRA.",
+        "plan_card_help": "🆘 Вопросы по оплате и тарифу: ⚙️ Настройки → ❓ Помощь.",
+        "plan_name_enterprise": "Enterprise (бессрочный)",
+        "sub_pay_success_v2": "✅ <b>Оплата принята!</b>\n\n{emoji} Тариф: <b>{name}</b>\n📅 Действует до: <b>{when}</b>\n\nОткрытые возможности:\n{limits}",
+        "sub_inv_title_tpl": "⭐️ PostAssist {tier} ({period})",
+        "sub_inv_desc_tpl": "Тариф {tier} — {period}. Каналы: {ch}, ИИ: {ai}/день, очередь: {q}.",
+        "intl_tariff_tpl": "⭐️ {period} — {stars}★",
+        "tariff_btn_tpl": "{period} — {uzs} сум",
         "stars_refund_user": "↩️ <b>Платёж возвращён.</b>\n\nВ связи с возвратом Stars из срока PRO вычтено {days} дн. Если есть вопросы, напишите через ⚙️ Настройки → ❓ Помощь.",
         "sub_pay_err_user": "Платёж не соответствует пользователю.",
         "sub_pay_err_user_id": "Неверный ID пользователя.",

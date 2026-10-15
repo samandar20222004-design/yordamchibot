@@ -155,7 +155,7 @@ describe('App', () => {
     await screen.findByText('Salom, Alice!')
     expect(screen.getByText('PRO')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
-    expect(await screen.findByText('PRO obunangiz faol.')).toBeTruthy()
+    expect(await screen.findByText('Obunangiz faol.')).toBeTruthy()
     expect(screen.getAllByText(/\/ ∞/).length).toBe(3) // 3 ta cheksiz limit: son / ∞
     expect(screen.queryAllByRole('progressbar')).toHaveLength(0) // cheksizda chiziq yo'q
   })
