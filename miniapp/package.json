@@ -6,7 +6,7 @@
   "description": "PostAssist Telegram Mini App (Vite + React + TypeScript)",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/check-dist.mjs && node scripts/compress-dist.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "preview": "vite preview"

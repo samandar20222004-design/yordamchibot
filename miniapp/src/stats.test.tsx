@@ -44,12 +44,15 @@ function mockApi(analytics: () => Response, channels = [{ id: '-1001', title: 'K
 }
 
 const nav = (name: RegExp) => within(screen.getByRole('navigation')).getByRole('button', { name })
+/** Profil -> «Kanallarim» qatori (kanallar alohida ekranda). */
+const openChannels = () => fireEvent.click(screen.getAllByRole('button', { name: /^Kanallarim/ }).find((b) => b.classList.contains('set-row'))!)
 
 /** Men -> Kanallarim -> kanal yonidagi «Tahlil» tugmasi (index = ro'yxatdagi tartib). */
 async function openStats(index = 0) {
   render(<App />)
   await screen.findByText('Salom, Alice!')
   fireEvent.click(nav(/^Men/))
+  openChannels()
   const buttons = await screen.findAllByRole('button', { name: 'Tahlil' })
   fireEvent.click(buttons[index]!)
 }
@@ -103,6 +106,7 @@ describe('Kanal tahlili sahifasi', () => {
     expect(within(screen.getByRole('navigation')).queryByRole('button', { name: /Tahlil/ })).toBeNull()
     expect(within(screen.getByRole('navigation')).getAllByRole('button')).toHaveLength(4)
     fireEvent.click(nav(/^Men/))
+    openChannels()
     expect(await screen.findByText('Ulangan kanal yo\'q.')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Tahlil' })).toBeNull()
   })
@@ -125,6 +129,7 @@ describe('Kanal tahlili sahifasi', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(nav(/^Men/))
+    openChannels()
     expect(await screen.findByText(/Rejada: 3/)).toBeTruthy()
     expect(screen.getByText(/Obunachi: 12[,.\s\u00a0\u202f]?345/)).toBeTruthy()
     expect(screen.getByText(/Rejada: 0/)).toBeTruthy()

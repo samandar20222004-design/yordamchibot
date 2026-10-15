@@ -56,7 +56,14 @@ function parseLimits(l: Rec): PlanLimits {
 
 function parseTier(v: unknown, what: string): TierInfo {
   const t = rec(v, what)
-  return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`) }
+  const periods = t.periods === undefined ? [] : arr(t.periods, `${what}.periods`).map((x, i) => {
+    const p = rec(x, `${what}.periods.${i}`)
+    return {
+      months: int(p.months, `${what}.months`), days: int(p.days, `${what}.days`), uzs: int(p.uzs, `${what}.uzs`),
+      stars: int(p.stars, `${what}.stars`), save_pct: int(p.save_pct, `${what}.save_pct`),
+    }
+  })
+  return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`), periods }
 }
 
 function parseCounts(v: unknown): PostCounts {
@@ -82,7 +89,9 @@ export function parseMe(v: unknown): Me {
       language: lang(u.language),
     },
     plan: parsePlan(o.plan),
-    ...(o.tiers === undefined ? {} : { tiers: { pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
+    ...(o.tiers === undefined ? {} : { tiers: {
+      ...(rec(o.tiers, 'tiers').free === undefined ? {} : { free: parseTier(rec(o.tiers, 'tiers').free, 'tiers.free') }),
+      pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
     usage: {
       channels: int(usage.channels, 'usage.channels'),
       pending_posts: int(usage.pending_posts, 'usage.pending_posts'),

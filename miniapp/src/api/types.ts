@@ -9,9 +9,20 @@ export interface PlanLimits {
 }
 
 /** Mijozga ko'rsatiladigan tarif: limitlar va 1 oylik narx (so'm) — server (config) bilan bir manba. */
+export interface TierPeriod {
+  months: number
+  days: number
+  uzs: number
+  stars: number
+  /** 1 oylikka nisbatan HAQIQIY tejam (butun foiz). */
+  save_pct: number
+}
+
 export interface TierInfo {
   limits: PlanLimits
   price_from_uzs: number
+  /** Davrlar (1/3/6/12 oy); FREE uchun bo'sh. */
+  periods: TierPeriod[]
 }
 
 export interface Plan {
@@ -34,7 +45,7 @@ export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads
 export interface Me {
   user: { id: number; name: string | null; username: string | null; language: Lang }
   plan: Plan
-  tiers?: { pro: TierInfo; ultra: TierInfo }
+  tiers?: { free?: TierInfo; pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
   next_post_at: string | null
