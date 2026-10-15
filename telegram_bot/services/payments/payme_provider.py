@@ -672,7 +672,13 @@ class PaymeProvider:
                     raise PaymeError(ERR_CANNOT_PERFORM, data="id")
                 performed = replace(tx, state=STATE_PERFORMED, perform_time=now)
                 if uow.record_ledger(performed, order):
-                    uow.grant_subscription(order.user_id, order.days)
+                    if uow.grant_subscription(order.user_id, order.days) is False:
+                        # Foydalanuvchi qatori yo'q: PRO berib bo'lmaydi. Butun tranzaksiya (ledger ham) bekor qilinadi va Payme'ga
+                        # "bajarib bo'lmaydi" javobi qaytadi — pul olinmaydi, PRO'siz to'lov qolib ketmaydi (audit P-2).
+                        logger.error("Payme perform: foydalanuvchi qatori yo'q — tranzaksiya bekor", extra={
+                            "event": "payme_perform_no_user", "transaction": tx.id,
+                        })
+                        raise PaymeError(ERR_CANNOT_PERFORM, data="id")
                     outcome.events.append(PaymeEvent("paid", order.user_id, order.days, order.order_id))
                 else:
                     logger.warning("Payme ledger row already exists — subscription NOT re-granted", extra={

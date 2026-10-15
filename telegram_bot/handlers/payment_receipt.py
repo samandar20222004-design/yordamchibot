@@ -84,6 +84,21 @@ def _pick_receipt_media(msg):
         return None
 
 
+#: Bitta foydalanuvchining hali ko'rilmagan cheklari chegarasi (admin chatini spamdan himoya).
+RECEIPT_MAX_PENDING = 3
+
+
+def _media_unique_id(msg) -> str | None:
+    """Chek rasmi/hujjatining Telegram ``file_unique_id``'si (takrorni aniqlash uchun; ``file_id`` har yuborishda o'zgaradi)."""
+    try:
+        if getattr(msg, "photo", None):
+            return str(msg.photo[-1].file_unique_id)
+        doc = getattr(msg, "document", None)
+        return str(doc.file_unique_id) if doc is not None else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _get_admin_receipt_keyboard(receipt_id: int, lang: str) -> InlineKeyboardMarkup:
     """Admin [✅ Tasdiqlash] / [❌ Rad etish] klaviaturasi."""
     return InlineKeyboardMarkup([
@@ -205,9 +220,16 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # va payments ledger'iga to'g'ri valyuta (UZS / 'uzcard_humo') yoziladi.
     plan_key, plan_days, plan_amount = _receipt_plan_for(context)
 
+    pending = await db.run_db(db.count_user_pending_receipts, user_id)
+    if int(pending or 0) >= RECEIPT_MAX_PENDING:
+        await msg.reply_text(get_text("receipt_too_many_pending", lang, n=RECEIPT_MAX_PENDING), parse_mode="HTML")
+        return RECEIPT_WAIT
+
+    unique_id = _media_unique_id(msg)
     receipt_id = await db.run_db(
         db.save_payment_receipt, user_id, media_type, file_id, caption,
         username, full_name, lang, plan_days, amount_uzs=plan_amount,
+        file_unique_id=unique_id,
     )
 
     if not receipt_id:
@@ -226,6 +248,7 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # (ism + @username), ID, tanlangan tarif + summa va vaqt ko'rsatiladi.
     tarif_sum = _fmt_uzs(CARD_TARIFFS[plan_key]["amount"])
     sana = _fmt_receipt_time()
+    duplicates = await db.run_db(db.find_duplicate_receipts, unique_id, receipt_id) if unique_id else []
     for admin_id in ADMIN_IDS_SET:
         if admin_id == user_id:
             continue
@@ -237,6 +260,10 @@ async def receipt_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 tarif_sum=tarif_sum,
                 sana=sana,
             )
+            if duplicates:
+                dup = duplicates[0]
+                cap += "\n" + get_text("receipt_admin_duplicate_line", admin_lang or "uz", id=dup["id"],
+                                        user_id=dup["user_id"], status=html_escape(dup["status"]))
             markup = _get_admin_receipt_keyboard(receipt_id, admin_lang or "uz")
             if media_type == "photo":
                 await context.bot.send_photo(

@@ -259,6 +259,8 @@ TRANSLATIONS = {
         "receipt_admin_user_id_line": "🆔 ID: {user_id}",
         "receipt_admin_tarif_line": "🎫 Tanlangan tarif: {tarif} ({summa} so'm)",
         "receipt_admin_time_line": "🕐 Vaqti: {sana}",
+        "receipt_admin_duplicate_line": "⚠️ <b>Bu chek rasmi avval ham yuborilgan</b> (chek #{id}, foydalanuvchi <code>{user_id}</code>, holat: {status}). Tasdiqlashdan oldin tekshiring.",
+        "receipt_too_many_pending": "⏳ <b>Sizning {n} ta chekingiz hali ko'rib chiqilmoqda.</b>\n\nIltimos, admin javobini kuting — yangi chek yubormang.",
         "receipt_admin_ask": "📝 Chekni tekshirib, pastdagi tugmalardan birini bosing:",
         "receipt_btn_approve": "✅ Tasdiqlash",
         "receipt_btn_reject": "❌ Rad etish",
@@ -2033,6 +2035,7 @@ TRANSLATIONS = {
             "• To'liq analitika"
         ),
         "sub_pay_err_payload": "Noto'g'ri to'lov payload'i.",
+        "stars_refund_user": "↩️ <b>To'lov qaytarildi.</b>\n\nStars to'lovingiz qaytarilgani uchun PRO muddatidan {days} kun ayrildi. Savollar bo'lsa, ⚙️ Sozlamalar → ❓ Yordam orqali yozing.",
         "sub_pay_err_user": "To'lov foydalanuvchiga mos emas.",
         "sub_pay_err_user_id": "Noto'g'ri foydalanuvchi ID.",
         "sub_pay_err_plan": "Noto'g'ri tarif.",
@@ -2177,6 +2180,7 @@ TRANSLATIONS = {
     "pc_bad_callback": "Noto'g'ri callback data.",
     "pc_bad_user_id": "User ID xatosi.",
     "pc_db_error": "Xatolik yuz berdi.",
+    "pc_already_decided": "Bu foydalanuvchiga PRO bugun allaqachon berilgan (boshqa admin yoki takroriy bosish).",
     # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding ──
     "err_ux_ai_busy": "AI hozir band. 20 soniyadan keyin qayta urinib ko‘ring.",
     "err_ux_telegram_flood": "Telegram tezlik limitini berdi. Xabaringiz navbatga qo‘yildi.",
@@ -2436,6 +2440,8 @@ TRANSLATIONS = {
         "receipt_admin_user_id_line": "🆔 ID: {user_id}",
         "receipt_admin_tarif_line": "🎫 Выбранный тариф: {tarif} ({summa} сум)",
         "receipt_admin_time_line": "🕐 Время: {sana}",
+        "receipt_admin_duplicate_line": "⚠️ <b>Это фото чека уже присылали</b> (чек #{id}, пользователь <code>{user_id}</code>, статус: {status}). Проверьте перед подтверждением.",
+        "receipt_too_many_pending": "⏳ <b>Ваши чеки ({n} шт.) ещё на проверке.</b>\n\nПожалуйста, дождитесь ответа администратора — не отправляйте новый чек.",
         "receipt_admin_ask": "📝 Проверьте чек и нажмите одну из кнопок ниже:",
         "receipt_btn_approve": "✅ Подтвердить",
         "receipt_btn_reject": "❌ Отклонить",
@@ -4203,6 +4209,7 @@ TRANSLATIONS = {
             "• Полная аналитика"
         ),
         "sub_pay_err_payload": "Неверный payload платежа.",
+        "stars_refund_user": "↩️ <b>Платёж возвращён.</b>\n\nВ связи с возвратом Stars из срока PRO вычтено {days} дн. Если есть вопросы, напишите через ⚙️ Настройки → ❓ Помощь.",
         "sub_pay_err_user": "Платёж не соответствует пользователю.",
         "sub_pay_err_user_id": "Неверный ID пользователя.",
         "sub_pay_err_plan": "Неверный тариф.",
@@ -4344,6 +4351,7 @@ TRANSLATIONS = {
     "pc_bad_callback": "Некорректные данные callback.",
     "pc_bad_user_id": "Ошибка ID пользователя.",
     "pc_db_error": "Произошла ошибка.",
+    "pc_already_decided": "Этому пользователю PRO уже выдано сегодня (другой админ или повторное нажатие).",
         "an_type_album": "Альбом",
     # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding (RU) ──
     "err_ux_ai_busy": "AI сейчас занят. Попробуйте снова через 20 секунд.",

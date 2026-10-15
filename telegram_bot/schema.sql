@@ -389,6 +389,8 @@ CREATE TABLE IF NOT EXISTS payment_receipts (
 );
 CREATE INDEX IF NOT EXISTS idx_payment_receipts_status
     ON payment_receipts (status, created_at);
+-- Takroriy chek rasmini aniqlash (AUDIT-007): Telegram file_unique_id (file_id har yuborishda o'zgaradi). Rad etmaydi — faqat adminni ogohlantiradi.
+ALTER TABLE payment_receipts ADD COLUMN IF NOT EXISTS file_unique_id TEXT;
 
 -- 💳 Karta to'lov buyurtmalari — chek user_data emas order_id ga bog'lanadi.
 CREATE TABLE IF NOT EXISTS payment_orders (

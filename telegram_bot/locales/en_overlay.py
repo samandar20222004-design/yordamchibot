@@ -536,6 +536,8 @@ EN_OVERLAY = {
     "receipt_admin_user_id_line": "🆔 ID: {user_id}",
     "receipt_admin_tarif_line": "🎫 Selected plan: {tarif} ({summa} so'm)",
     "receipt_admin_time_line": "🕐 Time: {sana}",
+    "receipt_admin_duplicate_line": "⚠️ <b>This receipt image was submitted before</b> (receipt #{id}, user <code>{user_id}</code>, status: {status}). Check before approving.",
+    "receipt_too_many_pending": "⏳ <b>Your {n} receipts are still under review.</b>\n\nPlease wait for the admin's reply — do not send a new receipt.",
     "receipt_btn_approve": "✅ Approve",
     "receipt_btn_reject": "❌ Reject",
     # 🔒 Kanalga obuna (majburiy) ekrani
@@ -1114,6 +1116,7 @@ EN_OVERLAY = {
     "vs_heard": "🎤 <b>Heard:</b> <i>{text}</i>",
     "vs_not_understood": "🤔 <b>I couldn't work out the time.</b>\n\nHeard: <i>{text}</i>\n\nPlease say or type it again, e.g. <i>tomorrow at 18:00</i>. Your attempt was not counted.",
     "vs_free_used_note": "ℹ️ Free voice scheduling is available once. PRO: up to {n} per day.",
+    "stars_refund_user": "↩️ <b>Payment refunded.</b>\n\nBecause your Stars payment was refunded, {days} days were deducted from your PRO period. If you have questions, write via ⚙️ Settings → ❓ Help.",
     "np_time_future": (
         "⚠️ <b>This time has already passed.</b>\n\n"
         "Please enter a time in the FUTURE.\n"
@@ -2123,6 +2126,7 @@ EN_OVERLAY = {
     "pc_bad_callback": "Invalid callback data.",
     "pc_bad_user_id": "Invalid user ID.",
     "pc_db_error": "Something went wrong.",
+    "pc_already_decided": "PRO was already granted to this user today (another admin or a repeated tap).",
     # ── 🛡 PHASE 9 — Error UX & Instant-Value Onboarding (EN) ──
     "err_ux_ai_busy": "AI is currently busy. Please try again in 20 seconds.",
     "err_ux_telegram_flood": "Telegram rate limit reached. Your message has been queued.",

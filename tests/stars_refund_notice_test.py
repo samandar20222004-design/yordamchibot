@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Telegram Stars `refunded_payment` hodisasi: log + adminlarga ogohlantirish (DB'siz) — audit P-4 / AUDIT-006 variant 1.
+"""Telegram Stars `refunded_payment` hodisasi: adminlarga ogohlantirish, natija matni va xatolarga chidamlilik (DB'siz, repository soxta).
 
-Oldin bunday handler yo'q edi: foydalanuvchi pulini qaytarib olib PRO'ni saqlab qolsa, hech kim bilmasdi.
-Bu BIZNES QARORI EMAS: PRO huquqi AVTOMATIK O'ZGARTIRILMAYDI (refund siyosati egasi qarori), faqat kuzatuv.
+Refund'ning o'zi (to'lov `refunded`, PRO'dan kunlar ayrilishi, idempotentlik) — `tests/stars_refund_apply_test.py` (real PG).
 """
 from __future__ import annotations
 
@@ -36,10 +35,10 @@ import handlers.subscription as sub  # noqa: E402
 from translations.admin_panel import admin_t  # noqa: E402
 
 for lang in ("uz", "ru", "en"):
-    txt = admin_t("stars_refund_admin", lang, user_id=1, charge_id="x", amount=5, currency="XTR")
+    txt = admin_t("stars_refund_admin", lang, user_id=1, charge_id="x", amount=5, currency="XTR", outcome="o")
     check(f"[{lang}] admin matni mavjud va to'ldirilgan", txt != "stars_refund_admin" and "{" not in txt, txt[:80])
 check("uz/ru/en admin matnlari farq qiladi",
-      len({admin_t("stars_refund_admin", code, user_id=1, charge_id="x", amount=5, currency="XTR") for code in ("uz", "ru", "en")}) == 3)
+      len({admin_t("stars_refund_admin", code, user_id=1, charge_id="x", amount=5, currency="XTR", outcome=admin_t("stars_refund_outcome_error", code)) for code in ("uz", "ru", "en")}) == 3)
 
 
 class Bot:
@@ -78,7 +77,9 @@ async def spy_run_db(fn, *a, **k):
     db_calls.append(getattr(fn, "__name__", str(fn)))
     if getattr(fn, "__name__", "") == "get_user_language":
         return "uz"
-    raise AssertionError("refund handler DB'ga YOZMASLIGI kerak: " + str(fn))
+    if getattr(fn, "__name__", "") == "refund_stars_payment":
+        return {"result": "unknown_charge", "user_id": None, "days": 0}  # repository testi alohida (real PG)
+    raise AssertionError("kutilmagan DB chaqiruvi: " + str(fn))
 
 
 try:
@@ -91,9 +92,9 @@ try:
     text = bot.sent[0][1] if bot.sent else ""
     check("xabarda foydalanuvchi, charge id (HTML-escape) va summa bor",
           "777" in text and "CHG-&lt;1&gt;" in text and "CHG-<1>" not in text and "250" in text and "XTR" in text, text[:300])
-    check("xabar PRO avtomatik o'zgarmaganini aytadi (siyosat egasida)", "PRO" in text)
+    check("xabarda natija bor (to'lov bazada topilmadi -> PRO'ni qo'lda tekshiring)", "PRO" in text and "{" not in text, text[:300])
     check("WARNING log yozildi", any(lvl >= logging.WARNING and "refund" in msg.lower() for lvl, msg in records), str(records)[:200])
-    check("handler DB'ga yozmadi (faqat til o'qildi)", set(db_calls) <= {"get_user_language"}, str(db_calls))
+    check("handler faqat refund_stars_payment va til o'qishini chaqirdi", set(db_calls) <= {"get_user_language", "refund_stars_payment"} and "refund_stars_payment" in db_calls, str(db_calls))
 
     # bitta admin botni bloklagan: ikkinchisiga baribir yetib boradi, istisno chiqmaydi
     bot2 = Bot(fail_for={111})

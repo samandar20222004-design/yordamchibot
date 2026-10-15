@@ -1151,10 +1151,8 @@ def refunded_payment_filter():
 
 
 async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Stars to'lovi qaytarilganda (``Message.refunded_payment``): log + adminlarga ogohlantirish.
-
-    Refund SIYOSATI egasi qarori (AUDIT-006) — shuning uchun PRO huquqi va ``payments`` HECH QAYERDA o'zgartirilmaydi,
-    faqat kuzatuv. Hech qachon istisno tashlamaydi.
+    """Stars to'lovi qaytarilganda (``Message.refunded_payment``): to'lov ``refunded`` bo'ladi, shu to'lovning kunlari PRO'dan
+    ayriladi (idempotent, muddatsiz tarifga tegilmaydi), foydalanuvchiga va adminlarga xabar ketadi. Hech qachon istisno tashlamaydi.
     """
     message = getattr(update, "message", None)
     refund = getattr(message, "refunded_payment", None)
@@ -1165,9 +1163,16 @@ async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAUL
     charge_id = str(getattr(refund, "telegram_payment_charge_id", "") or "-")
     amount = getattr(refund, "total_amount", "?")
     currency = str(getattr(refund, "currency", "") or "")
+    try:
+        outcome = await db.run_db(db.refund_stars_payment, charge_id)
+    except Exception as exc:  # noqa: BLE001 — DB xatosi handler'ni qulatmasin; adminga baribir xabar ketadi
+        log_silent_failure("handlers.subscription:stars_refund_apply", exc, user_id=user_id)
+        outcome = {"result": "error", "user_id": user_id, "days": 0}
+    result = str((outcome or {}).get("result") or "error")
+    days = int((outcome or {}).get("days") or 0)
     logger.warning(
-        "Stars to'lovi QAYTARILDI (refund): user=%s charge_id=%s summa=%s %s — PRO avtomatik o'zgartirilmadi",
-        user_id, charge_id, amount, currency,
+        "Stars to'lovi QAYTARILDI (refund): user=%s charge_id=%s summa=%s %s natija=%s kun=%s",
+        user_id, charge_id, amount, currency, result, days,
     )
     bot = getattr(context, "bot", None)
     for admin_id in ADMIN_IDS_SET:
@@ -1176,14 +1181,22 @@ async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAUL
                 admin_lang = await db.run_db(db.get_user_language, admin_id)
             except Exception:  # noqa: BLE001 — til aniqlanmasa uz
                 admin_lang = "uz"
+            lang = admin_lang or "uz"
+            outcome_text = admin_t(f"stars_refund_outcome_{result}", lang, days=days)
             text = admin_t(
-                "stars_refund_admin", admin_lang or "uz",
+                "stars_refund_admin", lang,
                 user_id=user_id, charge_id=html_escape(charge_id),
-                amount=amount, currency=html_escape(currency),
+                amount=amount, currency=html_escape(currency), outcome=outcome_text,
             )
             await bot.send_message(chat_id=admin_id, text=text, parse_mode="HTML")
         except Exception as exc:  # noqa: BLE001 — bitta admin xatosi boshqasini to'xtatmasin
             log_silent_failure("handlers.subscription:stars_refund_alert", exc, user_id=admin_id)
+    if result == "revoked" and user_id:
+        try:
+            lang = await db.run_db(db.get_user_language, user_id) or "uz"
+            await bot.send_message(chat_id=user_id, text=get_text("stars_refund_user", lang, days=days), parse_mode="HTML")
+        except Exception as exc:  # noqa: BLE001
+            log_silent_failure("handlers.subscription:stars_refund_user_notice", exc, user_id=user_id)
 
 
 async def _report_stars_activation_failure(context, user_id, charge_id, days, reason) -> None:

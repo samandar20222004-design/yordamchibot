@@ -2499,11 +2499,14 @@ from repositories.payments_repository import (  # noqa: E402, F401
     PAYMENT_METHOD_UZCARD_HUMO, PAYMENT_STATUSES, PAYMENT_STATUS_SUCCEEDED,
     RECEIPT_STATUS_PENDING, _normalize_payment_method,
     _payment_receipt_row_to_dict, approve_payment_receipt,
-    attach_receipt_to_order, create_payment_order, get_payment_order,
+    attach_receipt_to_order, claim_photo_check_grant, count_user_pending_receipts,
+    create_payment_order, release_photo_check_grant,
+    find_duplicate_receipts, get_payment_order,
     get_payment_receipt, get_payments_health_counts,
     get_pending_receipts_count, get_user_payment_history,
     list_payment_receipts, list_pending_payment_receipts, log_stars_payment,
-    process_stars_payment, reject_payment_receipt, save_payment_receipt
+    process_stars_payment, refund_stars_payment, reject_payment_receipt,
+    save_payment_receipt
 )
 # --- 🔐 AUDIT — xavfsizlik ro'llari, audit loglari, qo'llab-quvvatlash
 from repositories.audit_repository import (  # noqa: E402, F401

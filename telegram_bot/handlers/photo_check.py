@@ -270,9 +270,14 @@ async def handle_admin_check_photo_callback(update: Update, context: ContextType
         user_lang = admin_lang
 
     if action == "a":
-        # Activate PRO for user (30 days)
+        # Activate PRO for user (30 days) — bir kunda bir foydalanuvchiga BIR marta (ikki admin/qayta bosish +30 kunni takrorlamasin)
+        if not await db.run_db(db.claim_photo_check_grant, target_user_id):
+            await query.answer(_pc_text("pc_already_decided", admin_lang), show_alert=True)
+            return
         success = await db.run_db(db.set_user_plan, target_user_id, "pro", days=30,
                                   admin_id=query.from_user.id)
+        if not success:
+            await db.run_db(db.release_photo_check_grant, target_user_id)
         if success:
             # Notify user
             try:
