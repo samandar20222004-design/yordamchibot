@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
-"""Mini App — shablonlar (`/templates`) va tozalagich (`POST /tools/clean`) (real PostgreSQL, faqat sinov bazasi).
+"""Mini App — shablonlar (`/templates`) (real PostgreSQL, faqat sinov bazasi).
 
 * shablon: ro'yxat faqat o'zinikini ko'rsatadi, yaratish/takror/limit (20), o'chirish (IDOR: begona id -> 404), kirish validatsiyasi;
-* tozalagich: oxirgi begona havola/reklama qatori olinadi, matn o'zgarmaydi, saqlangan imzo qo'shiladi, hech narsa yozilmaydi.
 """
 from __future__ import annotations
 
@@ -22,7 +21,7 @@ if URL:
 
 from miniapp_testkit import FAKE_TOKEN, NOW, Counter, make_init_data  # noqa: E402
 
-T = Counter("MINI APP — shablonlar va tozalagich (real PostgreSQL)")
+T = Counter("MINI APP — shablonlar (real PostgreSQL)")
 A, B = 9_200_000_021, 9_200_000_022
 
 
@@ -137,24 +136,6 @@ def main() -> int:
         st, b = call("DELETE", f"/api/v1/templates/{tid}", A)
         T.check("egasi o'chiradi (200), keyin yana qo'shsa bo'ladi", st == 200 and b["deleted"] is True
                 and call("POST", "/api/v1/templates", A, {"name": "yangi", "text": "yangi"})[0] == 201)
-
-        print("\n== 4. Tozalagich ==")
-        st, b = call("POST", "/api/v1/tools/clean", A, {"text": "Asosiy matn\nReklama: t.me/spam\nObuna bo'ling @spam"})
-        T.check("begona qatorlar olindi, asosiy matn qoldi, imzo yo'q", st == 200 and b["text"] == "Asosiy matn" and b["removed_lines"] == 2
-                and b["has_signature"] is False and b["signature_added"] is False and b["changed"] is True, str(b))
-        q("UPDATE users SET post_signature_html = %s WHERE user_id = %s", ('<a href="https://t.me/mening">Mening kanalim</a>', A))
-        st, b = call("POST", "/api/v1/tools/clean", A, {"text": "<b>Muhim</b> xabar\nManba: t.me/boshqa"})
-        T.check("format saqlandi + imzo qo'shildi", st == 200 and b["text"].startswith("<b>Muhim</b> xabar")
-                and 'href="https://t.me/mening"' in b["text"] and b["signature_added"] and b["has_signature"], str(b))
-        st, b2 = call("POST", "/api/v1/tools/clean", A, {"text": b["text"]})
-        T.check("qayta tozalash natijani o'zgartirmaydi (idempotent, imzo bitta)", st == 200 and b2["text"].count("Mening kanalim") == 1 and b2["text"] == b["text"] and b2["changed"] is False, str(b2))
-        st, b = call("POST", "/api/v1/tools/clean", B, {"text": "Matn\nt.me/spam"})
-        T.check("B uchun A imzosi qo'shilmaydi", st == 200 and "mening" not in b["text"].lower() and b["has_signature"] is False, str(b))
-        st, b = call("POST", "/api/v1/tools/clean", A, {"text": ""})
-        T.check("bo'sh matn -> 422", st == 422)
-        st, b = call("POST", "/api/v1/tools/clean", A, {"text": "x", "signature": "<b>o'zim</b>"})
-        T.check("mijoz imzo yubora olmaydi (ortiqcha maydon -> 422)", st == 422)
-        T.check("tozalash bazaga yozmadi (imzo o'zgarmagan)", q("SELECT post_signature_html FROM users WHERE user_id=%s", (A,))[0][0].startswith('<a href="https://t.me/mening"'))
     finally:
         cleanup()
         conn.close()

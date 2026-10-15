@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, CleanResult, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseCalendar, parseClean, parseDeleted, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
+  parseCalendar, parseDeleted, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -11,7 +11,7 @@ const KNOWN_CODES: readonly string[] = [
   'service_unavailable', 'auth_unavailable',
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
-  'ai_unavailable', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
+  'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
 ]
 
 export class ApiClientError extends Error {
@@ -77,12 +77,13 @@ export function createApiClient(opts: ClientOptions) {
       const headers: Record<string, string> = { Authorization: `tma ${initData}`, Accept: 'application/json' }
       const lang = opts.language?.()
       if (lang) headers['Accept-Language'] = lang
-      if (payload !== undefined) headers['Content-Type'] = 'application/json'
+      const isForm = typeof FormData !== 'undefined' && payload instanceof FormData
+      if (payload !== undefined && !isForm) headers['Content-Type'] = 'application/json'
       let res: Response
       try {
         res = await fetchImpl(`${base}${path}`, {
           method, headers, signal: controller.signal, cache: 'no-store',
-          ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+          ...(payload === undefined ? {} : { body: isForm ? (payload as FormData) : JSON.stringify(payload) }),
         })
       } catch (e) {
         if (signal?.aborted) throw e // chaqiruvchi o'zi bekor qildi
@@ -168,6 +169,13 @@ export function createApiClient(opts: ClientOptions) {
         return null
       }
     },
+    /** Qurilmadan rasm/video/GIF yuklaydi (multipart); server Telegram file_id oladi va qoralamaga yozadi. */
+    uploadMedia: (file: File, fields: { text?: string; button_text?: string; button_url?: string } = {}): Promise<Draft | null> => {
+      const form = new FormData()
+      for (const [k, v] of Object.entries(fields)) if (v !== undefined) form.append(k, v)
+      form.append('file', file, file.name)
+      return send('POST', '/draft/media', form, parseDraft, config.uploadTimeoutMs)
+    },
     createPost: (input: CreatePostInput): Promise<PostResult> =>
       send('POST', '/posts', input, parsePostResult),
     /** Erkin tildagi rejalash iborasini tuzilma taklifiga o'giradi (hech narsa yozilmaydi). */
@@ -184,8 +192,6 @@ export function createApiClient(opts: ClientOptions) {
       send('POST', '/templates', { name, text }, parseTemplateSaved),
     deleteTemplate: (id: number): Promise<{ id: number }> =>
       send('DELETE', `/templates/${encodeURIComponent(String(id))}`, undefined, parseTemplateDeleted),
-    /** Matn oxiridagi begona havola/reklama qatorlarini olib, saqlangan imzoni qo'shadi (hech narsa yozilmaydi). */
-    cleanText: (text: string): Promise<CleanResult> => send('POST', '/tools/clean', { text }, parseClean),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>
       send('POST', '/ai/generate', { text, style }, parseAi, config.aiTimeoutMs),
   }

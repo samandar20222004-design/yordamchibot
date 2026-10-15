@@ -44,43 +44,6 @@ async function openPost() {
 beforeEach(() => { vi.useRealTimers(); setTelegram() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (window as unknown as { Telegram?: unknown }).Telegram })
 
-describe('Tozalagich', () => {
-  it('matn tozalanadi, xabar chiqadi va «Qaytarish» asl matnni tiklaydi', async () => {
-    const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/tools/clean')
-      ? jsonResponse({ text: 'Asosiy\n\nImzo', removed_lines: 2, signature_added: true, has_signature: true, changed: true }) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
-    fireEvent.change(text, { target: { value: 'Asosiy\nReklama: t.me/x' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Tozalash' }))
-    await waitFor(() => expect(text.value).toBe('Asosiy\n\nImzo'))
-    expect(JSON.parse(String(calls(f, 'POST', '/tools/clean')[0][1]?.body))).toEqual({ text: 'Asosiy\nReklama: t.me/x' })
-    expect(await screen.findByText(/Begona qatorlar olindi: 2/)).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Qaytarish' }))
-    expect(text.value).toBe('Asosiy\nReklama: t.me/x')
-    expect(screen.queryByRole('button', { name: 'Qaytarish' })).toBeNull()
-  })
-
-  it('o\'zgarish bo\'lmasa matn tegilmaydi; bo\'sh matnda tugma o\'chiq', async () => {
-    mockApi((url, init) => init.method === 'POST' && url.endsWith('/tools/clean')
-      ? jsonResponse({ text: 'Toza', removed_lines: 0, signature_added: false, has_signature: true, changed: false }) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
-    expect((screen.getByRole('button', { name: 'Tozalash' }) as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.change(text, { target: { value: 'Toza' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Tozalash' }))
-    expect(await screen.findByText('Tozalashga hojat yo\'q.')).toBeTruthy()
-    expect(text.value).toBe('Toza')
-    expect(screen.queryByRole('button', { name: 'Qaytarish' })).toBeNull()
-  })
-
-  it('server xatosi: matn o\'zgarmaydi, xato xabari ko\'rinadi', async () => {
-    mockApi((url, init) => init.method === 'POST' && url.endsWith('/tools/clean') ? jsonResponse(errorBody('save_failed'), 503) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
-    fireEvent.change(text, { target: { value: 'Matn' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Tozalash' }))
-    expect(await screen.findByText(/Saqlab bo'lmadi/)).toBeTruthy()
-    expect(text.value).toBe('Matn')
-  })
-})
-
 describe('Shablonlar', () => {
   const open = async () => {
     const text = (await openPost()) as HTMLTextAreaElement

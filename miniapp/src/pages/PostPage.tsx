@@ -75,8 +75,8 @@ export function PostPage() {
   const [discard, setDiscard] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [aiOpen, setAiOpen] = useState<boolean | null>(null)
-  const [cleaning, setCleaning] = useState(false)
-  const [cleanBackup, setCleanBackup] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -267,26 +267,35 @@ export function PostPage() {
     }
   }
 
-  /** Matn oxiridagi begona havola/reklamani olib, saqlangan imzoni qo'shadi; natija «Qaytarish» bilan bekor qilinadi. */
-  const cleanUp = async () => {
-    const source = text
-    if (!source.trim() || cleaning) return
-    setCleaning(true)
+  /** Qurilmadan rasm/video: mijozda tur va hajm tekshiriladi (server baribir baytlardan tekshiradi), matn/tugma birga saqlanadi. */
+  const pickMedia = async (file: File | undefined) => {
+    if (fileRef.current) fileRef.current.value = ''
+    if (!file || uploading) return
+    const isVideo = file.type === 'video/mp4' || file.type === 'video/quicktime'
+    const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
+    if (!isVideo && !isImage) { notify(t('media.errType'), 'error'); return }
+    if (file.size > (isVideo ? config.maxUploadVideoBytes : config.maxUploadPhotoBytes)) { notify(t('media.errSize'), 'error'); return }
+    if (text.length > CAPTION_MAX) { setFieldError({ field: 'text', key: 'post.errCaption' }); notify(t('media.errCaption'), 'error'); return }
+    if (btnOpen && (btnText.trim() !== '' || btnUrl.trim() !== '')
+      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl))) {
+      setFieldError({ field: 'button', key: 'post.errButton' }); return
+    }
+    setUploading(true)
     try {
-      const out = await client.cleanText(source)
-      if (!out.changed) {
-        notify(out.has_signature ? t('clean.nothing') : `${t('clean.nothing')} ${t('clean.noSig')}`)
-        return
-      }
-      setText(out.text)
-      setCleanBackup(source)
-      setFieldError(null)
-      const parts = [out.removed_lines > 0 ? t('clean.done', { n: out.removed_lines }) : '', out.signature_added ? t('clean.sig') : '']
-      notify(parts.filter(Boolean).join(' '))
+      await client.uploadMedia(file, {
+        text: text.trim(),
+        button_text: hasButton ? btnText.trim() : '',
+        button_url: hasButton ? btnUrl.trim() : '',
+      })
+      draft.reload()
+      notify(t('media.added'))
     } catch (e) {
-      notify(t(errorMessageKey(toClientError(e).code)), 'error')
+      const err = toClientError(e)
+      const key = err.code === 'unsupported_media_type' ? 'media.errType' : err.code === 'payload_too_large' ? 'media.errSize'
+        : err.code === 'caption_too_long' ? 'media.errCaption' : errorMessageKey(err.code)
+      notify(t(key), 'error')
     } finally {
-      setCleaning(false)
+      setUploading(false)
     }
   }
 
@@ -406,15 +415,17 @@ export function PostPage() {
           )}
           <textarea id="text" ref={textRef} className="input editor" rows={media ? 5 : 8} value={text} maxLength={textMax}
             placeholder={t('post.textPlaceholder')} aria-invalid={fieldError?.field === 'text' || undefined}
-            onChange={(e) => { setText(e.target.value); setFieldError(null); setCleanBackup(null) }}
+            onChange={(e) => { setText(e.target.value); setFieldError(null) }}
             onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
             onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
-          <div className="editor-tools">
-            <Button variant="secondary" icon="sparkle" busy={cleaning} disabled={!text.trim()} onClick={() => void cleanUp()}
-              title={t('clean.hint')}>{t('clean.btn')}</Button>
-            {cleanBackup !== null && (
-              <Button variant="ghost" onClick={() => { setText(cleanBackup); setCleanBackup(null) }}>{t('clean.undo')}</Button>
-            )}
+          <div className="media-row">
+            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
+              onChange={(e) => void pickMedia(e.target.files?.[0])} />
+            <Button variant="secondary" icon="image" busy={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? t('media.uploading') : media ? t('media.replace') : t('media.add')}
+            </Button>
+            <p className="muted small">{t('media.hint')}</p>
           </div>
           <p className="muted" aria-live="off">
             {t('post.counter', { n: text.length, max: textMax })}
@@ -490,7 +501,7 @@ export function PostPage() {
         </div>
       </form>
 
-      <TemplatesCard text={text} onApply={(tpl) => { setText(tpl); setFieldError(null); setCleanBackup(null) }} />
+      <TemplatesCard text={text} onApply={(tpl) => { setText(tpl); setFieldError(null) }} />
 
       <details className="card ai-card" open={aiIsOpen} onToggle={(e) => setAiOpen((e.currentTarget as HTMLDetailsElement).open)}>
         <summary><h2 id="ai">{t('post.ai.title')}</h2></summary>

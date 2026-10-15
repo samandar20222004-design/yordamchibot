@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, CleanResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -314,15 +314,4 @@ export function parseTemplateSaved(v: unknown): { id: number; created: boolean }
 
 export function parseTemplateDeleted(v: unknown): { id: number } {
   return { id: int(rec(v, 'template').id, 'template.id') }
-}
-
-export function parseClean(v: unknown): CleanResult {
-  const o = rec(v, 'clean')
-  return {
-    text: str(o.text, 'clean.text'),
-    removed_lines: int(o.removed_lines, 'clean.removed_lines'),
-    signature_added: bool(o.signature_added, 'clean.signature_added'),
-    has_signature: bool(o.has_signature, 'clean.has_signature'),
-    changed: bool(o.changed, 'clean.changed'),
-  }
 }

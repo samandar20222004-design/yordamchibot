@@ -236,8 +236,8 @@ def test_all_routes_require_auth():
                 ("GET", "/api/v1/me"), ("GET", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/scheduled-posts"),
                 ("GET", "/api/v1/scheduled-posts/calendar"), ("GET", "/api/v1/templates"),
                 ("PATCH", "/api/v1/me/settings"), ("PATCH", "/api/v1/posts/{post_id}"),
-                ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/posts"), ("POST", "/api/v1/schedule/parse"),
-                ("POST", "/api/v1/templates"), ("POST", "/api/v1/tools/clean")]
+                ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/draft/media"), ("POST", "/api/v1/posts"), ("POST", "/api/v1/schedule/parse"),
+                ("POST", "/api/v1/templates")]
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
     for method, canonical in routes:
@@ -252,7 +252,7 @@ def test_all_routes_require_auth():
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,
-                         "/api/v1/templates": False, "/api/v1/tools/clean": False}, str(ai_flags))
+                         "/api/v1/templates": False, "/api/v1/draft/media": False}, str(ai_flags))
     methods = {r.method for r in api.router.routes()}
     T.check("faqat ruxsat etilgan usullar ulangan (PUT yo'q)", methods <= {"GET", "HEAD", "POST", "PATCH", "DELETE"}, str(methods))
     T.check("DB'ga auth'siz tegilmadi", CountingRunner.calls == 0)

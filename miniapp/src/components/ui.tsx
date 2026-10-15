@@ -74,6 +74,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   ai_limit_reached: 'err.ai_limit_reached',
   ai_unavailable: 'err.ai_unavailable',
   templates_limit_reached: 'err.templates_limit_reached',
+  upload_failed: 'err.upload_failed',
   save_failed: 'err.save_failed',
   draft_not_found: 'err.draft_not_found',
   media_unavailable: 'err.media_unavailable',

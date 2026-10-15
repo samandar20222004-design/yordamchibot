@@ -1543,23 +1543,3 @@ def quick_clean(text: str, entities=None, signature_html: str = "",
     return QuickCleanResult(html=html, length=length, removed_lines=removed,
                             signature_added=added)
 
-
-def clean_editor_html(html: str, signature_html: str = "") -> QuickCleanResult:
-    """Tahrirlagichdagi HTML-matnni tozalaydi (Mini App): oxiridagi begona qatorlar olinadi, imzo qo'shiladi.
-
-    ``quick_clean`` bilan bir xil qoidalar; farqi — kirish Telegram entity'lari emas, HTML.
-    """
-    segment = html_to_segment(html)
-    body, removed = strip_tail_junk(segment)
-    body = _trim_segment(body)
-    body_html = segment_to_html(body)
-    sig_segment = html_to_segment(signature_html) if signature_html else Segment("")
-    sig_text = sig_segment.text.strip()
-    added = bool(sig_text) and not body.text.rstrip().endswith(sig_text)
-    if added:
-        out = f"{body_html}\n\n{signature_html}" if body.text else signature_html
-        length = _utf16(body.text) + (2 if body.text else 0) + _utf16(sig_segment.text)
-    else:
-        out = body_html
-        length = _utf16(body.text)
-    return QuickCleanResult(html=out, length=length, removed_lines=removed, signature_added=added)

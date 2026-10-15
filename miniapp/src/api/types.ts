@@ -114,7 +114,7 @@ export type ErrorCode =
   | 'internal_error' | 'service_unavailable' | 'auth_unavailable'
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
-  | 'ai_unavailable' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long'
+  | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -188,12 +188,4 @@ export interface Template {
 export interface TemplateList {
   items: Template[]
   limit: number
-}
-
-export interface CleanResult {
-  text: string
-  removed_lines: number
-  signature_added: boolean
-  has_signature: boolean
-  changed: boolean
 }

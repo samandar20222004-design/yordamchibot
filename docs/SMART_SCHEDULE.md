@@ -50,7 +50,12 @@ Takrorlanish vaqti Toshkent bo'yicha; qurilma boshqa zonada bo'lsa interfeys bun
 - **📋 Shablonlar** — botdagi shablonlar bilan BIR XIL ro'yxat (`post_templates`, 20 tagacha). `GET/POST /api/v1/templates`, `DELETE /templates/{id}`;
   faqat egasi (begona id -> 404), aynan bir xil takror yaratilmaydi, limit -> `templates_limit_reached`. Kartada: saqlash, «Qo'llash»
   (muharrirda matn bo'lsa almashtirish tasdiqlanadi), o'chirish (tasdiq bilan). Ro'yxat faqat karta ochilganda yuklanadi.
-- **🧹 Tozalash** — `POST /api/v1/tools/clean`: matn oxiridagi begona havola/reklama qatorlarini olib, botda (`/cleaner`) saqlangan imzoni qo'shadi
-  (formatlash saqlanadi, takror tozalash natijani o'zgartirmaydi). Mijoz imzo yubora olmaydi; hech narsa yozilmaydi; «Qaytarish» tugmasi asl matnni tiklaydi.
-- Imzoni sozlash hozircha faqat botda. To'lov, kanal ulash/o'chirish, RSS, Autopilot, rasm/ovozdan post — botda qoladi (to'lov va kanal huquqini
+- Imzo va tozalagich (`/cleaner`) Mini App'ga ATAYLAB qo'shilmagan (egasi qarori) — faqat botda. To'lov, kanal ulash/o'chirish, RSS, Autopilot, rasm/ovozdan post — botda qoladi (to'lov va kanal huquqini
   tekshirish Telegram ichida xavfsizroq).
+
+## Mini App: media yuklash (qurilmadan)
+Muharrirda «Rasm/video qo'shish»: JPG/PNG/WEBP (10 MB gacha), GIF, MP4 (30 MB gacha). `POST /api/v1/draft/media` (multipart): tur BAYTLARDAN aniqlanadi,
+hajm oqim bo'yicha cheklanadi, fayl foydalanuvchining O'Z chatiga jimgina yuborilib (Telegram `file_id` olish uchun) darhol o'chiriladi; `file_id` mijozga
+qaytmaydi. Natija joriy qoralamaga yoziladi (reaksiya/avto-o'chirish/kanal saqlanadi, matn sarlavhaga aylanadi, 1024 belgi), keyin odatdagi `use_draft` oqimi.
+Chegara: yuklash limiti (`MINIAPP_RATE_AI_*`), bir vaqtda 2 ta yuborish, 60 s timeout. Hosting/proxy so'rov hajmi kamida 31 MB bo'lishi kerak.
+Telegram xatosi (masalan, bot bloklangan) -> `upload_failed`, qoralama o'zgarmaydi. Albom, hujjat va audio — hozircha botda.

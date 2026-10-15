@@ -34,6 +34,9 @@ MAX_POST_CHARS = 4096          # Telegram matn limiti (utf-16 birligida ham teks
 MAX_CAPTION_CHARS = 1024       # Telegram: rasm/video/... ostidagi matn (scheduler ham shu bilan kesadi: TELEGRAM_CAPTION_LIMIT)
 MAX_BUTTON_TEXT = 64           # inline tugma yorlig'i (bot: handlers.post_enhancer.BTN_TEXT_MAX)
 MAX_BUTTON_URL = 2000          # inline tugma havolasi (bot validatori utils.helpers.validate_button_url: <=2048)
+MAX_UPLOAD_PHOTO = 10 * 1024 * 1024   # Telegram sendPhoto chegarasi
+MAX_UPLOAD_VIDEO = 30 * 1024 * 1024   # hosting/proxy xotirasini ehtiyot qilib (Telegram: 50 MB)
+MAX_UPLOAD_FIELD = 16384
 MAX_TEMPLATES = 20             # repositories.posts_repository.POST_TEMPLATES_LIMIT
 MAX_TEMPLATE_NAME = 64
 MAX_AI_INPUT_CHARS = 3500      # generate_magic_post kirish chegarasi
@@ -131,6 +134,19 @@ def sniff_image(data) -> str | None:
     return None
 
 
+def sniff_upload(data) -> tuple[str, str] | None:
+    """Fayl TURI faqat baytlardan aniqlanadi (mijozning Content-Type'iga ishonilmaydi): ``(post_type, mime)``."""
+    image = sniff_image(data)
+    if image:
+        return "photo", image
+    head = bytes(data[:12])
+    if head[:6] in (b"GIF87a", b"GIF89a"):
+        return "animation", "image/gif"
+    if head[4:8] == b"ftyp":  # MP4 / MOV (Telegram video)
+        return "video", "video/mp4"
+    return None
+
+
 class MediaFetcher:
     """``file_id`` -> bayt (PTB Bot ``get_file``). Bitta ``Bot`` (bitta HTTP client) qayta ishlatiladi va
     ilova to'xtaganda :meth:`aclose` bilan yopiladi (har so'rovga yangi client ochilib oqib ketmaydi)."""
@@ -154,6 +170,9 @@ class MediaFetcher:
                     await bot.initialize()  # shutdown() faqat initialize'dan keyin client'ni yopadi
                     self._bot = bot
         return self._bot
+
+    async def get_bot(self):
+        return await self._get_bot()
 
     async def __call__(self, file_id: str) -> bytes:
         bot = await self._get_bot()
@@ -243,6 +262,7 @@ class PostWriter:
         self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._gate = asyncio.Semaphore(settings.max_inflight_db)
         self._ai_gate = asyncio.Semaphore(settings.ai_concurrency)
+        self._upload_gate = asyncio.Semaphore(2)  # katta fayllar xotirada: bir vaqtda ko'pi bilan 2 ta yuborish
         self._locks: dict[int, asyncio.Lock] = {}
         self._posts = posts_repo
         self._users = users_repo
@@ -396,6 +416,112 @@ class PostWriter:
             raise ApiError("media_unavailable")
         return bytes(data), mime
 
+    # ------------------------------------------------------------- media yuklash
+    async def upload_media(self, user_id: int, request) -> dict:
+        """Qurilmadan rasm/video/GIF yuklash -> Telegram ``file_id`` -> joriy qoralama (matn/tugma saqlanadi).
+
+        Fayl foydalanuvchining O'Z chatiga jimgina yuboriladi (``file_id`` olish uchun) va darhol o'chiriladi.
+        Tur baytlardan aniqlanadi; hajm oqim bo'yicha cheklanadi (xotira to'lmaydi).
+        """
+        ctype = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "multipart/form-data":
+            raise ApiError("unsupported_media_type")
+        declared = request.content_length
+        if declared is not None and declared > MAX_UPLOAD_VIDEO + 65536:
+            raise ApiError("payload_too_large")
+        fields: dict[str, str] = {}
+        data = bytearray()
+        got_file = False
+        try:
+            reader = await request.multipart()
+            async for part in reader:
+                if part.name == "file" and not got_file:
+                    got_file = True
+                    while True:
+                        chunk = await part.read_chunk(65536)
+                        if not chunk:
+                            break
+                        data.extend(chunk)
+                        if len(data) > MAX_UPLOAD_VIDEO:
+                            raise ApiError("payload_too_large")
+                elif part.name in ("text", "button_text", "button_url") and part.name not in fields:
+                    raw = await part.read(decode=False)
+                    if len(raw) > MAX_UPLOAD_FIELD:
+                        raise ApiError("payload_too_large")
+                    fields[part.name] = bytes(raw).decode("utf-8")
+                else:
+                    raise ApiError("bad_request")
+        except ApiError:
+            raise
+        except (ValueError, UnicodeDecodeError, AssertionError):
+            raise ApiError("bad_request") from None
+        if not got_file or not data:
+            raise ApiError("invalid_input", field="file")
+        kind = sniff_upload(data)
+        if kind is None:
+            raise ApiError("unsupported_media_type")
+        post_type, _mime = kind
+        if post_type == "photo" and len(data) > MAX_UPLOAD_PHOTO:
+            raise ApiError("payload_too_large")
+        text = fields.get("text", "").strip()
+        if _CTRL_RE.search(text):
+            raise ApiError("invalid_input", field="text")
+        if text:
+            check_caption(text)
+        btn_text, btn_url = parse_button(fields.get("button_text") or None, fields.get("button_url") or None)
+
+        await self._service.authorize(user_id)
+        async with self._user_lock(user_id):
+            file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
+            del data
+            existing = await self._service.draft_raw(user_id) or {}
+            payload = {
+                "post_type": post_type,
+                "content": text if "text" in fields else (existing.get("content") or ""),
+                "file_id": file_id,
+                "btn_text": btn_text if "button_text" in fields else existing.get("btn_text"),
+                "btn_url": btn_url if "button_url" in fields else existing.get("btn_url"),
+                "enable_reactions": bool(existing.get("enable_reactions")),
+                "reaction_emojis": existing.get("reaction_emojis"),
+                "delete_after_hours": int(existing.get("delete_after_hours") or 0),
+                "channel_id": existing.get("channel_id"),
+            }
+            from . import drafts
+
+            await self._blocking(drafts.save_draft, user_id, payload)
+        return await self._service.draft(user_id)
+
+    async def _send_for_file_id(self, user_id: int, post_type: str, data: bytes) -> str:
+        if self._media_fetch is None:
+            self._media_fetch = default_media_fetch(self._settings.bot_token)
+        getter = getattr(self._media_fetch, "get_bot", None)
+        if getter is None:
+            raise ApiError("upload_failed")
+        try:
+            async with self._upload_gate:
+                bot = await getter()
+                if post_type == "photo":
+                    msg = await bot.send_photo(chat_id=user_id, photo=data, disable_notification=True)
+                    file_id = msg.photo[-1].file_id
+                elif post_type == "video":
+                    msg = await bot.send_video(chat_id=user_id, video=data, disable_notification=True, supports_streaming=True)
+                    file_id = msg.video.file_id
+                else:
+                    msg = await bot.send_animation(chat_id=user_id, animation=data, disable_notification=True)
+                    file_id = msg.animation.file_id
+        except ApiError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — bot bloklangan, fayl yaroqsiz, tarmoq
+            logger.warning("miniapp upload: Telegram'ga yuborilmadi (%s)", type(exc).__name__)
+            raise ApiError("upload_failed", retry_after=5) from None
+        try:  # foydalanuvchi chatida iz qolmasin
+            await bot.delete_message(chat_id=user_id, message_id=msg.message_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("miniapp upload: vaqtinchalik xabar o'chirilmadi (%s)", type(exc).__name__)
+        if not isinstance(file_id, str) or not file_id:
+            raise ApiError("upload_failed", retry_after=5)
+        return file_id
+
     def _find_duplicate(self, user_id: int, channel_id: str, text: str, file_id=None):
         with self._db_cursor() as cur:
             cur.execute(
@@ -503,20 +629,6 @@ class PostWriter:
         if not ok:
             raise ApiError("not_found")
         return {"id": template_id, "deleted": True}
-
-    # ---------------------------------------------------------------- tozalagich
-    async def clean_text(self, user_id: int, body: dict) -> dict:
-        """Matn oxiridagi begona havola/reklama qatorlarini olib, saqlangan imzoni qo'shadi (hech narsa yozilmaydi)."""
-        _only_keys(body, ("text",))
-        text = parse_text(body.get("text"), "text", max_chars=MAX_POST_CHARS)
-        await self._service.authorize(user_id)
-        signature = await self._blocking(self._users_repo().get_user_post_signature_html, user_id)
-        from services.post_cleaner import clean_editor_html
-
-        result = clean_editor_html(text, signature or "")
-        return {"text": result.html, "removed_lines": result.removed_lines,
-                "signature_added": result.signature_added, "has_signature": bool(signature),
-                "changed": result.html.strip() != text.strip()}
 
     # ------------------------------------------------------------------- sozlamalar
     async def set_language(self, user_id: int, body: dict) -> dict:
