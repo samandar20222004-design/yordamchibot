@@ -154,6 +154,20 @@ def main() -> int:
         st, d = run(get(f"/api/v1/channels/{CH_B}/analytics", B))
         T.check("kanal egasi B o'z kanalini ko'radi (777)", st == 200 and d["members"]["current"] == 777, str(d)[:200])
 
+        print("\n== 3b. GET /channels: kanal bo'yicha reja soni va obunachilar ==")
+        cur.execute("INSERT INTO channel_member_counts (channel_id, snapshot_date, member_count) VALUES (%s,%s,5)",
+                    (CH_EMPTY, today - timedelta(days=30)))   # eski snapshot -> 'joriy' deb ko'rsatilmasligi kerak
+        st, d = run(get("/api/v1/channels"))
+        by = {c["id"]: c for c in d.get("items", [])}
+        T.check("200 va faqat o'z kanallari (B ning kanali yo'q)", st == 200 and set(by) == {CH_A, CH_EMPTY}, str(d))
+        T.check("CH_A: rejada 2 ta post, obunachilar 1150 (bugungi snapshot), sana bor",
+                by[CH_A]["pending_posts"] == 2 and by[CH_A]["members"] == 1150 and by[CH_A]["members_as_of"] == today.isoformat(), str(by[CH_A]))
+        T.check("CH_EMPTY: post 0 (haqiqiy 0), eskirgan (30 kunlik) snapshot -> members=None, 0 EMAS",
+                by[CH_EMPTY]["pending_posts"] == 0 and by[CH_EMPTY]["members"] is None and by[CH_EMPTY]["members_as_of"] is None, str(by[CH_EMPTY]))
+        T.check("B ning 777 raqami va posti A javobida yo'q", "777" not in json.dumps(d) and "B-SECRET" not in json.dumps(d))
+        st, d = run(get("/api/v1/channels", B))
+        T.check("B o'z kanalini 777 bilan ko'radi", st == 200 and d["items"][0]["members"] == 777 and d["items"][0]["pending_posts"] == 0, str(d))
+
         print("\n== 4. O'qish yozmaydi ==")
         cur.execute("SELECT COUNT(*) FROM channel_member_counts WHERE channel_id = %s", (CH_A,))
         T.check("snapshot soni o'zgarmadi (5)", cur.fetchone()[0] == 5)

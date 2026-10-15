@@ -35,6 +35,11 @@ export interface Me {
 export interface Channel {
   id: string
   title: string | null
+  /** Rejadagi (kutilayotgan) postlar soni. */
+  pending_posts?: number
+  /** Oxirgi (eskirmagan) obunachi snapshot'i; yo'q bo'lsa `null` (0 emas). */
+  members?: number | null
+  members_as_of?: string | null
 }
 
 export type Confidence = 'none' | 'low' | 'medium' | 'high'

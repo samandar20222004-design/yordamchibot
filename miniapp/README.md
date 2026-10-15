@@ -46,7 +46,7 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 |---|---|
 | `GET /health` | auth'siz: `{"status":"ok","api_version":1}` |
 | `GET /me` | `user`, `plan`, `usage`, `posts{pending,sent,failed,cancelled}` (DB hisobi), `next_post_at`, `bot.username` |
-| `GET /channels` | faqat foydalanuvchining faol kanallari: `items[{id,title}]`, `total` |
+| `GET /channels` | faqat foydalanuvchining faol kanallari: `items[{id,title,pending_posts,members,members_as_of}]`, `total`; `members` faqat 8 kundan eski bo'lmagan snapshot bo'lsa, aks holda `null` (0 emas) |
 | `GET /scheduled-posts?status=pending\|history&limit=&offset=` | faqat o'zining postlari; `history` = yuborilgan/xato/bekor; har elementda `status` |
 | `GET /scheduled-posts/calendar?from=&to=` | faqat egasining KUTILAYOTGAN postlari, `[from, to)` (ISO, zonasi shart; zonasiz/yaroqsiz/`to<=from`/45 kundan katta → 400); eng ko'pi 500, kesilsa `truncated: true`; `no-store` |
 | `GET /channels/{channel_id}/analytics` | faqat kanal egasi (begona/yo'q kanal → 404 `not_found`); a'zolar tarixi (kunlik snapshot, 7/30 kunlik o'zgarish, ishonch darajasi, extrapolyatsiyasiz), postlar soni, ko'rishlar (faqat manbasi ma'lum) |

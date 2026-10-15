@@ -86,7 +86,13 @@ export function parseMe(v: unknown): Me {
 
 function parseChannel(v: unknown): Channel {
   const c = rec(v, 'channel')
-  return { id: str(c.id, 'channel.id'), title: strOrNull(c.title, 'channel.title') }
+  return {
+    id: str(c.id, 'channel.id'),
+    title: strOrNull(c.title, 'channel.title'),
+    ...(c.pending_posts === undefined ? {} : { pending_posts: int(c.pending_posts, 'channel.pending_posts') }),
+    ...(c.members === undefined ? {} : { members: intOrNull(c.members, 'channel.members') }),
+    ...(c.members_as_of === undefined ? {} : { members_as_of: strOrNull(c.members_as_of, 'channel.members_as_of') }),
+  }
 }
 
 function intOrNull(v: unknown, what: string): number | null {

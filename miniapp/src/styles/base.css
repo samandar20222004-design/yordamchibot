@@ -191,3 +191,4 @@ fieldset.segmented legend { padding: 0; margin-bottom: var(--s2); }
 .cal-count { font-size: 0.7rem; min-width: 1.2em; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-accent); line-height: 1.4; }
 .cal-day[aria-selected='true'] .cal-count { background: var(--on-accent); color: var(--accent); }
 .item-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
+.item-main { display: grid; gap: 2px; min-width: 0; }

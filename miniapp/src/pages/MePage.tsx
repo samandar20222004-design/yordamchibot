@@ -96,7 +96,15 @@ export function MePage() {
           <ul className="list">
             {channels.data.items.map((c) => (
               <li key={c.id} className="item item-row">
-                <span>{c.title || c.id}</span>
+                <span className="item-main">
+                  <span>{c.title || c.id}</span>
+                  <span className="muted small">
+                    {c.pending_posts !== undefined && t('me.chPending', { n: c.pending_posts })}
+                    {c.pending_posts !== undefined && c.members != null && ' · '}
+                    {c.members != null && t('me.chMembers', { n: c.members.toLocaleString() })}
+                    {c.members != null && c.members_as_of ? ` (${formatDate(c.members_as_of)})` : ''}
+                  </span>
+                </span>
                 <Button onClick={() => setStatsFor({ id: c.id, title: c.title || c.id })}>{t('stats.open')}</Button>
               </li>
             ))}

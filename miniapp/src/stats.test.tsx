@@ -116,4 +116,18 @@ describe('Kanal tahlili sahifasi', () => {
     fireEvent.click(screen.getByRole('button', { name: /Orqaga/ }))
     expect(await screen.findAllByRole('button', { name: 'Tahlil' })).toHaveLength(2)
   })
+
+  it('Kanallarim: har kanalda rejadagi soni va obunachilar; snapshot yo\'q kanalda obunachi qatori YO\'Q (0 emas)', async () => {
+    mockApi(() => jsonResponse(FULL), [
+      { id: '-1001', title: 'Kanal A', pending_posts: 3, members: 12345, members_as_of: '2026-10-14' },
+      { id: '-1002', title: 'Kanal B', pending_posts: 0, members: null, members_as_of: null },
+    ] as never)
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(nav(/^Men/))
+    expect(await screen.findByText(/Rejada: 3/)).toBeTruthy()
+    expect(screen.getByText(/Obunachi: 12[,.\s\u00a0\u202f]?345/)).toBeTruthy()
+    expect(screen.getByText(/Rejada: 0/)).toBeTruthy()
+    expect(screen.getAllByText(/Obunachi:/)).toHaveLength(1)
+  })
 })
