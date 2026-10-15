@@ -114,8 +114,9 @@ def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
     url = button_url.strip()
     if not text or len(text) > MAX_BUTTON_TEXT or _CTRL_RE.search(text):
         raise ApiError("invalid_input", field="button_text")
-    from utils.security import validate_button_url
+    from utils.security import normalize_link, validate_button_url
 
+    url = normalize_link(url)  # @kanal, t.me/kanal, sayt.uz -> https://...
     if not url or len(url) > MAX_BUTTON_URL or _CTRL_RE.search(url) or not validate_button_url(url):
         raise ApiError("invalid_input", field="button_url")
     return text, url

@@ -657,6 +657,21 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return SUBSCRIPTION_VIEW
 
 
+async def send_subscription_card(message, context, user_id: int, lang: str) -> None:
+    """PRO/ULTRA obuna kartasini yangi xabar sifatida yuboradi (``sub_open`` tugmasi va Mini App deep-link ``go_plans``)."""
+    plan_info = await db.run_db(db.get_user_plan, user_id)
+    card = _build_subscription_card(plan_info, lang)
+    plan = plan_info.get("plan_type", "free")
+    try:
+        await message.reply_text(
+            card,
+            reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
+            parse_mode="HTML",
+        )
+    except Exception as _silent_exc:
+        log_silent_failure("handlers.subscription:send_subscription_card", _silent_exc)
+
+
 async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Obuna sahifasi tugmalari."""
     query = update.callback_query
@@ -703,17 +718,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == "sub_open":
         # Tarif limiti / reklama tugmasi orqali '⭐️ PRO tarifga o'tish' —
         # obuna kartasini ko'rsatadi.
-        plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, lang)
-        plan = plan_info.get("plan_type", "free")
-        try:
-            await query.message.reply_text(
-                card,
-                reply_markup=_get_subscription_keyboard(plan, get_lang(context)),
-                parse_mode="HTML",
-            )
-        except Exception as _silent_exc:
-            log_silent_failure("handlers.subscription:subscription_callback:667", _silent_exc)
+        await send_subscription_card(query.message, context, user_id, lang)
         return SUBSCRIPTION_VIEW
 
     if data == "sub_history":

@@ -433,3 +433,12 @@ img.avatar-photo { object-fit: cover; background: var(--border); }
 .chip-save { background: color-mix(in srgb, #22c55e 18%, var(--surface)); color: #15803d; font-weight: 700; }
 .plan-best { background: #7c3aed; color: #fff; }
 .plan-current { background: var(--accent); color: var(--on-accent); }
+
+/* WYSIWYG muharrir */
+.editor.rich { position: relative; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; cursor: text; -webkit-user-select: text; user-select: text; }
+.editor.rich:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.editor.rich.is-empty::before { content: attr(data-placeholder); color: var(--hint); pointer-events: none; position: absolute; }
+.editor.rich code, .editor.rich pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--accent-soft); border-radius: 4px; padding: 0 4px; }
+.editor.rich a { color: var(--link); text-decoration: underline; }
+.editor.rich tg-spoiler { background: var(--accent-soft); border-bottom: 1px dashed var(--hint); border-radius: 3px; }
+.tool.is-on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }

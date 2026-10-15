@@ -4,10 +4,10 @@
 Savollar va haqiqiy koddan javoblar:
   * Mini App Post/PRO tugmasi /newpost yoki PRO oqimini OCHA OLADIMI?  -> YO'Q: `https://t.me/<bot>`
     faqat chatni ochadi; buyruqni foydalanuvchi o'zi yuboradi (matn shunga mos).
-  * `/start <payload>` deep-link handlerda yo'naltiriladimi?            -> YO'Q: faqat `ref_<id>`;
-    boshqa payload /start tomonidan e'tiborsiz qoldiriladi -> Mini App `?start=` ishlatmaydi.
+  * `/start <payload>` deep-link: `ref_<id>` VA qat'iy ruxsat ro'yxati `go_plans|go_settings|go_help`
+    (Mini App «Sotib olish» / «Botga o'tish»); boshqa payload e'tiborsiz. Mini App faqat `go_<bo'lim>` quradi.
   * Matnda aytilgan yo'l haqiqatmi? /settings -> «💎 PRO va Tariflar» -> `sub_open`.
-Bot deep-link yo'naltirishni qo'shsa bu test ataylab yiqiladi: Mini App (telegram.ts, matnlar) va README yangilansin.
+Ruxsat ro'yxati kengaysa bu test ataylab yiqiladi: Mini App (telegram.ts) va bot (MINIAPP_GO_TARGETS) birga yangilansin.
 """
 from __future__ import annotations
 
@@ -38,10 +38,12 @@ def test_frontend_links():
     print("\n== 1. Frontend havolalari ==")
     text = {p: strip_comments(p.read_text(encoding="utf8")) for p in frontend_sources()}
     T.check("frontend manbalari topildi", len(text) > 10)
-    bad = [p.name for p, t in text.items() if re.search(r"[?&]start(app)?=|tg://|t\.me/[^`'\"$]*\?", t)]
-    T.check("hech bir fayl `?start=`/`startapp`/`tg://` havola yasamaydi", not bad, str(bad))
+    bad = [p.name for p, t in text.items() if p.name != "telegram.ts" and re.search(r"[?&]start(app)?=|tg://|t\.me/[^`'\"$]*\?", t)]
+    T.check("telegram.ts'dan boshqa hech bir fayl `?start=`/`startapp`/`tg://` havola yasamaydi", not bad, str(bad))
     tg = text[SRC / "telegram.ts"]
-    T.check("openBot faqat `https://t.me/${username}` quradi", "`https://t.me/${username}`" in tg)
+    T.check("openBot `https://t.me/${username}` quradi", "`https://t.me/${username}`" in tg)
+    T.check("openBot faqat ruxsat ro'yxatidagi bo'lim uchun `?start=go_<bo'lim>` qo'shadi",
+            "BOT_SECTIONS.includes(section)" in tg and "?start=go_${section}" in tg and "tg://" not in tg)
     ui = text[SRC / "components" / "ui.tsx"]
     T.check("openBot tugmasi username'ni tekshiradi (isValidBotUsername)", "isValidBotUsername" in ui)
     pages = "\n".join(t for p, t in text.items() if "pages" in p.parts)
@@ -63,12 +65,13 @@ def test_start_payload_behaviour():
 
     start_mod = importlib.import_module("handlers.start")  # `handlers.start` nomi paketda funksiya bilan soyalanadi
 
-    src = inspect.getsource(start_mod.start) + inspect.getsource(start_mod._start_flow)  # start() = animatsiya o'rami, mantiq _start_flow da
+    src = inspect.getsource(start_mod.start)
     T.check("start() handleri `ref_` ni tanlaydi", 'startswith("ref_")' in src)
     routed = [w for w in ("newpost", "start_new_post", "sub_open", "pro_plans", "subscription_callback") if w in src]
     T.check("start() ichida payload orqali /newpost yoki PRO ga yo'naltirish YO'Q", not routed, str(routed))
-    T.check("start() payload'ni literal bilan solishtirmaydi (faqat `ref_` prefiksi)",
-            not re.search(r"\barg\s*(==|in\b|!=)", src) and src.count("arg.startswith(") == 1)
+    T.check("start() `ref_` prefiksini va `go_` ruxsat ro'yxatini (MINIAPP_GO_TARGETS) tanlaydi",
+            src.count("arg.startswith(") == 1 and "arg in MINIAPP_GO_TARGETS" in src and not re.search(r"\barg\s*(==|!=)", src))
+    T.check("go_ ruxsat ro'yxati faqat plans/settings/help", sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_help", "go_plans", "go_settings"])
 
 
 def test_real_flows():

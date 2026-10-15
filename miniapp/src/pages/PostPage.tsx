@@ -18,18 +18,14 @@ import { toClientError } from '../hooks/useResource'
 import { defaultScheduleValue, isFutureEnough, isoToLocalInput, isUnlimited, localInputToIso, toLocalInputValue } from './format'
 import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, tashkentParts, type RepeatChoice } from './recurrence'
 import { compressImage } from './imageCompress'
-import { FORMATS, isSafeLink, linkOpen, toggleFormat, wrapSelection } from './richtext'
+import { RichTextField } from '../components/RichTextField'
+import { isValidLinkInput, normalizeLink } from './richtext'
 
 type Mode = 'schedule' | 'now'
 type FieldKey = 'channel' | 'text' | 'when' | 'button'
 
 /** Telegram: rasm/video ostidagi matn (caption) chegarasi (config bilan backend'ga mos). */
 const CAPTION_MAX = config.maxCaptionChars
-
-const FORMAT_KEYS: Record<string, MessageKey> = {
-  bold: 'post.fmt.bold', italic: 'post.fmt.italic', underline: 'post.fmt.underline',
-  strike: 'post.fmt.strike', code: 'post.fmt.code', spoiler: 'post.fmt.spoiler',
-}
 
 /** Tez vaqt tanlovlari: har biri "hozir"dan hisoblanadi (kelajakda bo'lmasa o'chiriladi). */
 export function quickTimes(now: Date): { id: '30m' | '1h' | 'today' | 'tomorrow'; value: string }[] {
@@ -71,8 +67,6 @@ export function PostPage() {
   const [btnOpen, setBtnOpen] = useState(false)
   const [btnText, setBtnText] = useState('')
   const [btnUrl, setBtnUrl] = useState('')
-  const [linkOpenRow, setLinkOpenRow] = useState(false)
-  const [linkUrl, setLinkUrl] = useState('')
   const [discard, setDiscard] = useState(false)
   const [discarding, setDiscarding] = useState(false)
   const [aiOpen, setAiOpen] = useState<boolean | null>(null)
@@ -80,8 +74,6 @@ export function PostPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
-  const textRef = useRef<HTMLTextAreaElement>(null)
-  const selection = useRef<{ start: number; end: number }>({ start: 0, end: 0 })
 
   const current = draft.data?.draft ?? null
   const draftKey = current ? `${current.updated_at ?? ''}|${current.text.length}|${current.channel_id ?? ''}` : null
@@ -153,29 +145,6 @@ export function PostPage() {
   const aiIsOpen = aiOpen ?? !useDraft
   const nowDate = new Date()
 
-  const apply = (edit: { value: string; selStart: number; selEnd: number }) => {
-    setText(edit.value)
-    setFieldError(null)
-    requestAnimationFrame(() => {
-      const el = textRef.current
-      if (!el) return
-      el.focus()
-      el.setSelectionRange(edit.selStart, edit.selEnd)
-      selection.current = { start: edit.selStart, end: edit.selEnd }
-    })
-  }
-  const format = (open: string, close: string) => {
-    const { start, end } = selection.current
-    apply(toggleFormat(text, start, end, open, close, t('post.fmt.placeholder')))
-  }
-  const applyLink = () => {
-    if (!isSafeLink(linkUrl)) return
-    const { start, end } = selection.current
-    apply(wrapSelection(text, start, end, linkOpen(linkUrl), '</a>'))
-    setLinkOpenRow(false)
-    setLinkUrl('')
-  }
-
   const validate = (): boolean => {
     const trimmed = text.trim()
     if (!selected) { setFieldError({ field: 'channel', key: 'post.errChannel' }); return false }
@@ -184,7 +153,7 @@ export function PostPage() {
       return false
     }
     if (hasButton) {
-      if (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl)) {
+      if (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isValidLinkInput(btnUrl)) {
         setFieldError({ field: 'button', key: 'post.errButton' })
         return false
       }
@@ -206,7 +175,7 @@ export function PostPage() {
       const payload: CreatePostInput = mode === 'now'
         ? { channel_id: selected, text: text.trim(), send_now: true }
         : { channel_id: selected, text: text.trim(), scheduled_at: scheduledIso, ...(recurrence ? { recurrence } : {}) }
-      if (hasButton) { payload.button_text = btnText.trim(); payload.button_url = btnUrl.trim() }
+      if (hasButton) { payload.button_text = btnText.trim(); payload.button_url = normalizeLink(btnUrl) }
       if (useDraft) payload.use_draft = true
       const result = await client.createPost(payload)
       notify(result.created ? t(mode === 'now' ? 'post.createdNow' : recurrence ? 'post.createdRepeat' : 'post.created') : t('post.duplicate'))
@@ -287,7 +256,7 @@ export function PostPage() {
     if (file.size > (isVideo ? config.maxUploadVideoBytes : config.maxUploadPhotoBytes)) { notify(t('media.errSize'), 'error'); return }
     if (text.length > CAPTION_MAX) { setFieldError({ field: 'text', key: 'post.errCaption' }); notify(t('media.errCaption'), 'error'); return }
     if (btnOpen && (btnText.trim() !== '' || btnUrl.trim() !== '')
-      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl))) {
+      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isValidLinkInput(btnUrl))) {
       setFieldError({ field: 'button', key: 'post.errButton' }); return
     }
     setUploading(true)
@@ -297,7 +266,7 @@ export function PostPage() {
       await client.uploadMedia(file, {
         text: text.trim(),
         button_text: hasButton ? btnText.trim() : '',
-        button_url: hasButton ? btnUrl.trim() : '',
+        button_url: hasButton ? normalizeLink(btnUrl) : '',
       })
       draft.reload()
       notify(t('media.added'))
@@ -421,33 +390,9 @@ export function PostPage() {
             <p className="muted small">{t('media.hint')}</p>
           </div>
 
-          <label className="field" htmlFor="text">{t('post.text')}</label>
-          <div className="toolbar" role="toolbar" aria-label={t('post.fmt.label')}>
-            {FORMATS.map((f) => (
-              <button key={f.id} type="button" className={`tool tool-${f.id}`} aria-label={t(FORMAT_KEYS[f.id])}
-                title={t(FORMAT_KEYS[f.id])} onMouseDown={(e) => e.preventDefault()} onClick={() => format(f.open, f.close)}>
-                {f.label}
-              </button>
-            ))}
-            <button type="button" className="tool" aria-label={t('post.fmt.link')} title={t('post.fmt.link')}
-              aria-expanded={linkOpenRow} onMouseDown={(e) => e.preventDefault()} onClick={() => setLinkOpenRow((v) => !v)}>
-              🔗
-            </button>
-          </div>
-          {linkOpenRow && (
-            <div className="link-row">
-              <input className="input" type="url" inputMode="url" value={linkUrl} placeholder={t('post.fmt.linkUrl')}
-                aria-label={t('post.fmt.linkUrl')} aria-invalid={(linkUrl !== '' && !isSafeLink(linkUrl)) || undefined}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyLink() } }} />
-              <Button variant="secondary" disabled={!isSafeLink(linkUrl)} onClick={applyLink}>{t('post.fmt.linkApply')}</Button>
-            </div>
-          )}
-          <textarea id="text" ref={textRef} className="input editor" rows={media ? 5 : 8} value={text} maxLength={textMax}
-            placeholder={t('post.textPlaceholder')} aria-invalid={fieldError?.field === 'text' || undefined}
-            onChange={(e) => { setText(e.target.value); setFieldError(null) }}
-            onSelect={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }}
-            onBlur={(e) => { const el = e.currentTarget; selection.current = { start: el.selectionStart, end: el.selectionEnd } }} />
+          <div className="field" id="text-label">{t('post.text')}</div>
+          <RichTextField id="text" value={text} maxLength={textMax} rows={media ? 5 : 8} invalid={fieldError?.field === 'text'}
+            onChange={(v) => { setText(v); setFieldError(null) }} />
           <p className="muted" aria-live="off">
             {t('post.counter', { n: text.length, max: textMax })}
             {media && <> · {t('post.captionLimit', { max: CAPTION_MAX })}</>}

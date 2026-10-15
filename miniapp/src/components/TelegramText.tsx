@@ -26,6 +26,7 @@ function render(nodes: Node[], keyPrefix = ''): ReactNode[] {
       case 'pre': return <pre key={key}>{kids}</pre>
       case 'a': return <a key={key} href={n.href} target="_blank" rel="noopener noreferrer nofollow">{kids}</a>
       case 'spoiler': return <Spoiler key={key}>{kids}</Spoiler>
+      case 'emoji': return <span key={key} className="tg-emoji">{kids}</span>
     }
   })
 }

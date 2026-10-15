@@ -1,3 +1,7 @@
+import { fireEvent } from '@testing-library/react'
+import { readEditor } from '../components/RichTextField'
+import { renderModel, setSelectionOffsets } from '../pages/richDom'
+import { parseModel } from '../pages/richModel'
 import type { Me, ScheduledPage } from '../api/types'
 
 export const ME: Me = {
@@ -42,4 +46,17 @@ export function jsonResponse(body: unknown, status = 200, headers: Record<string
 
 export function errorBody(code: string, requestId = 'req123', retryAfter: number | null = null, field: string | null = null) {
   return { error: { code, message: 'server message', request_id: requestId, retry_after: retryAfter, field } }
+}
+
+/** Muharrir (contenteditable) testlari: Telegram HTML yozish/o'qish. */
+export function setEditor(el: HTMLElement, html: string): void {
+  renderModel(el, parseModel(html))
+  fireEvent.input(el)
+}
+export const editorValue = (el: HTMLElement): string => readEditor(el)
+
+/** Muharrirdagi [a, b) matn oralig'ini tanlaydi. */
+export function selectText(el: HTMLElement, a: number, b: number): void {
+  setSelectionOffsets(el, a, b)
+  fireEvent(document, new Event('selectionchange'))
 }

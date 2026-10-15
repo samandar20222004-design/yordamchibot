@@ -93,7 +93,7 @@ export function MePage() {
 
       <h3 className="sec-label">{t('me.secApp')}</h3>
       <section className="set-group" aria-label={t('me.secApp')}>
-        {openBotAvailable(botUsername) && <Row icon="bot" tone="violet" label={t('me.rowBot')} onClick={() => openBot(botUsername)} />}
+        {openBotAvailable(botUsername) && <Row icon="bot" tone="violet" label={t('me.rowBot')} onClick={() => openBot(botUsername, 'settings')} />}
         <Row icon="close" tone="gray" label={t('me.appClose')} onClick={closeApp} />
       </section>
       <p className="muted small">{t('me.appBotHint')}</p>

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor } from './test/helpers'
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response> | undefined
 
@@ -39,7 +39,7 @@ async function openPost() {
   render(<App />)
   await screen.findByText('Salom, Alice!')
   fireEvent.click(nav(/^Post/))
-  const text = (await screen.findByLabelText('Post matni', { selector: 'textarea' })) as HTMLTextAreaElement
+  const text = (await screen.findByLabelText('Post matni')) as HTMLElement
   return { text, input: screen.getByLabelText('Rasm yoki video') as HTMLInputElement }
 }
 const pick = (input: HTMLInputElement, file: File) => fireEvent.change(input, { target: { files: [file] } })
@@ -52,7 +52,7 @@ describe('Media yuklash', () => {
   it('rasm multipart bilan yuboriladi (matn birga), Authorization bor, Content-Type qo\'lda berilmaydi', async () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/draft/media') ? jsonResponse(DRAFT) : undefined)
     const { text, input } = await openPost()
-    fireEvent.change(text, { target: { value: '  Sarlavha  ' } })
+    setEditor(text, '  Sarlavha  ')
     pick(input, png())
     expect(await screen.findByText('Fayl qo\'shildi.')).toBeTruthy()
     const [call] = uploads(f)
@@ -79,7 +79,7 @@ describe('Media yuklash', () => {
   it('sarlavha 1024 dan uzun bo\'lsa yuklanmaydi', async () => {
     const f = mockApi()
     const { text, input } = await openPost()
-    fireEvent.change(text, { target: { value: 'x'.repeat(1100) } })
+    setEditor(text, 'x'.repeat(1100))
     pick(input, png())
     expect(await screen.findByText(/1024 belgidan oshmasligi kerak/)).toBeTruthy()
     expect(uploads(f)).toHaveLength(0)

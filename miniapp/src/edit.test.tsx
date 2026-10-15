@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor, editorValue, selectText } from './test/helpers'
 
 function setTelegram() {
   ;(window as unknown as { Telegram: unknown }).Telegram = {
@@ -72,7 +72,7 @@ describe('To\'liq tahrirlash oynasi', () => {
   it('matn, format paneli, tugma, rasm va vaqt bir joyda; o\'zgarish bo\'lmasa so\'rov yo\'q', async () => {
     const f = mockApi()
     const dialog = await openEdit(0)
-    expect((await within(dialog).findByLabelText('Post matni') as HTMLTextAreaElement).value).toBe('Matn <b>qalin</b>')
+    expect(editorValue(await within(dialog).findByLabelText('Post matni'))).toBe('Matn <b>qalin</b>')
     expect(within(dialog).getByRole('toolbar')).toBeTruthy()
     expect((within(dialog).getByLabelText('Tugma matni') as HTMLInputElement).value).toBe('Ochish')
     expect((within(dialog).getByLabelText('Tugma havolasi (https://…)') as HTMLInputElement).value).toBe('https://example.org/go')
@@ -86,8 +86,8 @@ describe('To\'liq tahrirlash oynasi', () => {
   it('faqat o\'zgargan maydonlar yuboriladi (matn + tugmani olib tashlash)', async () => {
     const f = mockApi()
     const dialog = await openEdit(0)
-    const text = await within(dialog).findByLabelText('Post matni') as HTMLTextAreaElement
-    fireEvent.change(text, { target: { value: 'Yangi matn' } })
+    const text = await within(dialog).findByLabelText('Post matni') as HTMLElement
+    setEditor(text, 'Yangi matn')
     fireEvent.change(within(dialog).getByLabelText('Tugma matni'), { target: { value: '' } })
     fireEvent.change(within(dialog).getByLabelText('Tugma havolasi (https://…)'), { target: { value: '' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
@@ -95,14 +95,18 @@ describe('To\'liq tahrirlash oynasi', () => {
     expect(body(calls(f, 'PATCH', /\/posts\/1$/)[0]!)).toEqual({ text: 'Yangi matn', button_text: '', button_url: '' })
   })
 
-  it('format tugmasi bo\'sh teg qoldirmaydi: andoza matn teg ichida', async () => {
+  it('format tugmasi bo\'sh teg qoldirmaydi: bo\'sh matnda hech narsa o\'zgarmaydi', async () => {
     mockApi()
     const dialog = await openEdit(0)
-    const text = await within(dialog).findByLabelText('Post matni') as HTMLTextAreaElement
-    fireEvent.change(text, { target: { value: '' } })
+    const text = await within(dialog).findByLabelText('Post matni') as HTMLElement
+    setEditor(text, '')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Tagi chizilgan' }))
-    await waitFor(() => expect(text.value).toContain('<u>matn</u>'))
-    expect(text.value).not.toContain('<u></u>')
+    expect(editorValue(text)).toBe('')
+    setEditor(text, 'abc def')
+    selectText(text, 4, 7)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Tagi chizilgan' }))
+    await waitFor(() => expect(editorValue(text)).toBe('abc <u>def</u>'))
+    expect(editorValue(text)).not.toContain('<u></u>')
   })
 
   it('yaroqsiz tugma (havolasiz matn) yuborilmaydi', async () => {

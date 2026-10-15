@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor, editorValue } from './test/helpers'
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response> | undefined
 
@@ -44,7 +44,7 @@ async function openPost() {
   render(<App />)
   await screen.findByText('Salom, Alice!')
   fireEvent.click(nav(/^Post/))
-  return screen.findByLabelText('Post matni', { selector: 'textarea' })
+  return screen.findByLabelText('Post matni')
 }
 
 const created = (over: Record<string, unknown> = {}) => jsonResponse({
@@ -57,7 +57,7 @@ describe('Post yaratish', () => {
   it('forma kanallar bilan chiqadi, kanal tanlanmaguncha yuborilmaydi', async () => {
     const f = mockApi()
     const text = await openPost()
-    fireEvent.change(text, { target: { value: 'Salom' } })
+    setEditor(text, 'Salom')
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect((await screen.findAllByText('Kanalni tanlang.')).length).toBeGreaterThan(0)
     expect(calls(f, 'POST', '/posts')).toHaveLength(0)
@@ -77,7 +77,7 @@ describe('Post yaratish', () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/posts') ? created() : undefined)
     const text = await openPost()
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1002' } })
-    fireEvent.change(text, { target: { value: '  Yangi post <b>x</b>  ' } })
+    setEditor(text, '  Yangi post <b>x</b>  ')
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText('Post rejalashtirildi. U «Reja» bo\'limida.')).toBeTruthy()
     const [call] = calls(f, 'POST', '/posts')
@@ -98,7 +98,7 @@ describe('Post yaratish', () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/posts') ? pending : undefined)
     const text = await openPost()
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-    fireEvent.change(text, { target: { value: 'Bir marta' } })
+    setEditor(text, 'Bir marta')
     const form = text.closest('form') as HTMLFormElement
     fireEvent.submit(form)
     fireEvent.submit(form)
@@ -116,7 +116,7 @@ describe('Post yaratish', () => {
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText(/Matnni kiriting/)).toBeTruthy()
-    fireEvent.change(text, { target: { value: 'Matn' } })
+    setEditor(text, 'Matn')
     fireEvent.change(screen.getByLabelText('Sana va vaqt'), { target: { value: '2020-01-01T10:00' } })
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText(/Kelajakdagi vaqtni tanlang/)).toBeTruthy()
@@ -126,13 +126,13 @@ describe('Post yaratish', () => {
   it('server xatosi (navbat limiti): xabar ko\'rsatiladi, matn saqlanadi, avtomatik qayta urinish yo\'q', async () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/posts')
       ? jsonResponse(errorBody('queue_limit_reached', 'rq1'), 403) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
+    const text = (await openPost()) as HTMLElement
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-    fireEvent.change(text, { target: { value: 'Saqlanib qolsin' } })
+    setEditor(text, 'Saqlanib qolsin')
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     const alert = await screen.findByText(/Navbat limiti to'ldi/)
     expect(alert.textContent).toContain('rq1')
-    expect(text.value).toBe('Saqlanib qolsin')
+    expect(editorValue(text)).toBe('Saqlanib qolsin')
     expect(calls(f, 'POST', '/posts')).toHaveLength(1)
   })
 
@@ -144,7 +144,7 @@ describe('Post yaratish', () => {
     })
     const text = await openPost()
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-    fireEvent.change(text, { target: { value: 'Matn' } })
+    setEditor(text, 'Matn')
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText(/Internetga ulanib bo'lmadi/)).toBeTruthy()
     await waitFor(() => expect(calls(f, 'GET', '/scheduled-posts').length).toBeGreaterThan(0))
@@ -155,7 +155,7 @@ describe('Post yaratish', () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/posts') ? created({ delivery: 'immediate' }) : undefined)
     const text = await openPost()
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-    fireEvent.change(text, { target: { value: 'Hozir' } })
+    setEditor(text, 'Hozir')
     fireEvent.click(screen.getByRole('button', { name: 'Hozir yuborish' }))
     fireEvent.click(screen.getByRole('button', { name: 'Postni yuborish' }))
     const dialog = await screen.findByRole('dialog')
@@ -175,28 +175,28 @@ describe('AI yordamchi', () => {
   it('g\'oyadan matn yaratadi va matn maydoniga qo\'yadi (tahrirlash mumkin)', async () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/ai/generate')
       ? jsonResponse({ text: 'AI yozgan post', style: 'sales' }) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
+    const text = (await openPost()) as HTMLElement
     fireEvent.change(screen.getByLabelText('G\'oya yoki qisqa matn'), { target: { value: 'yangi mahsulot' } })
     fireEvent.change(screen.getByLabelText('Uslub'), { target: { value: 'sales' } })
     fireEvent.click(screen.getByRole('button', { name: 'AI bilan yozish' }))
-    await waitFor(() => expect(text.value).toBe('AI yozgan post'))
+    await waitFor(() => expect(editorValue(text)).toBe('AI yozgan post'))
     expect(body(calls(f, 'POST', '/ai/generate')[0])).toEqual({ text: 'yangi mahsulot', style: 'sales' })
-    fireEvent.change(text, { target: { value: 'AI yozgan post (tahrirlandi)' } })
-    expect(text.value).toContain('tahrirlandi')
+    setEditor(text, 'AI yozgan post (tahrirlandi)')
+    expect(editorValue(text)).toContain('tahrirlandi')
   })
 
   it('limit tugagan: tushunarli xabar, matn o\'zgarmaydi; g\'oya bo\'sh bo\'lsa so\'rov yo\'q', async () => {
     const f = mockApi((url, init) => init.method === 'POST' && url.endsWith('/ai/generate')
       ? jsonResponse(errorBody('ai_limit_reached'), 403) : undefined)
-    const text = (await openPost()) as HTMLTextAreaElement
-    fireEvent.change(text, { target: { value: 'Mening matnim' } })
+    const text = (await openPost()) as HTMLElement
+    setEditor(text, 'Mening matnim')
     fireEvent.click(screen.getByRole('button', { name: 'AI bilan yozish' }))
     expect(await screen.findByText(/G'oyani kiriting/)).toBeTruthy()
     expect(calls(f, 'POST', '/ai/generate')).toHaveLength(0)
     fireEvent.change(screen.getByLabelText('G\'oya yoki qisqa matn'), { target: { value: 'g\'oya' } })
     fireEvent.click(screen.getByRole('button', { name: 'AI bilan yozish' }))
     expect(await screen.findByText(/kunlik limit yoki kredit tugadi/)).toBeTruthy()
-    expect(text.value).toBe('Mening matnim')
+    expect(editorValue(text)).toBe('Mening matnim')
   })
 })
 
@@ -238,10 +238,10 @@ describe('Reja: tahrirlash, bekor qilish, tarix', () => {
       ? jsonResponse({ post: { ...POST_ROW, text: 'Yangi matn' } }) : undefined)
     await openSchedule()
     fireEvent.click(screen.getAllByRole('button', { name: 'Tahrirlash' })[0])
-    const area = (await screen.findByLabelText('Post matni')) as HTMLTextAreaElement
-    expect(area.value).toBe('To\'liq matn: birinchi post')
+    const area = (await screen.findByLabelText('Post matni')) as HTMLElement
+    expect(editorValue(area)).toBe('To\'liq matn: birinchi post')
     expect(calls(f, 'GET', '/posts/1')).toHaveLength(1)
-    fireEvent.change(area, { target: { value: 'Yangi matn' } })
+    setEditor(area, 'Yangi matn')
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText('O\'zgarishlar saqlandi.')).toBeTruthy()
     expect(body(calls(f, 'PATCH', '/posts/1')[0])).toEqual({ text: 'Yangi matn' })

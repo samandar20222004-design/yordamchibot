@@ -55,17 +55,35 @@ export function isSafeLink(url: string): boolean {
   return /^(https?:\/\/|tg:\/\/)[^\s<>"']+$/i.test(url.trim())
 }
 
+const BARE_DOMAIN = /^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}(?::\d{2,5})?(?:[/?#]\S*)?$/
+const TG_USERNAME = /^[A-Za-z][A-Za-z0-9_]{3,31}$/
+
+/** `@kanal`, `t.me/kanal`, `sayt.uz` -> to'liq https havola (server `normalize_link` bilan bir xil qoida). Tanib bo'lmasa o'zgarmaydi. */
+export function normalizeLink(input: string): string {
+  const link = input.trim()
+  if (!link || /\s/.test(link)) return link
+  if (/^(https?:\/\/|tg:\/\/)/i.test(link)) return link
+  if (link.startsWith('@')) return TG_USERNAME.test(link.slice(1)) ? `https://t.me/${link.slice(1)}` : link
+  if (link.includes(':') && !BARE_DOMAIN.test(link)) return link
+  return BARE_DOMAIN.test(link) ? `https://${link}` : link
+}
+
+/** Foydalanuvchi yozgan havola (normallashtirilgandan keyin) yaroqlimi. */
+export function isValidLinkInput(input: string): boolean {
+  return isSafeLink(normalizeLink(input))
+}
+
 export function linkOpen(url: string): string {
-  return `<a href="${url.trim().replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">`
+  return `<a href="${normalizeLink(url).replace(/&/g, '&amp;').replace(/"/g, '&quot;')}">`
 }
 
 export type Node =
   | { kind: 'text'; text: string }
-  | { kind: 'tag'; tag: 'b' | 'i' | 'u' | 's' | 'code' | 'pre' | 'a' | 'spoiler'; href?: string; children: Node[] }
+  | { kind: 'tag'; tag: 'b' | 'i' | 'u' | 's' | 'code' | 'pre' | 'a' | 'spoiler' | 'emoji'; href?: string; emojiId?: string; children: Node[] }
 
 const TAG_MAP: Record<string, Extract<Node, { kind: 'tag' }>['tag']> = {
   b: 'b', strong: 'b', i: 'i', em: 'i', u: 'u', ins: 'u', s: 's', strike: 's', del: 's',
-  code: 'code', pre: 'pre', a: 'a', 'tg-spoiler': 'spoiler',
+  code: 'code', pre: 'pre', a: 'a', 'tg-spoiler': 'spoiler', 'tg-emoji': 'emoji',
 }
 
 const ENTITIES: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'" }
@@ -101,7 +119,13 @@ export function parseTelegramHtml(input: string): Node[] {
         href = h ? decodeEntities(h[1]) : undefined
         if (!href || !isSafeLink(href)) { pushText(m[0]); continue }
       }
-      const node: Extract<Node, { kind: 'tag' }> = { kind: 'tag', tag: mapped, href, children: [] }
+      let emojiId: string | undefined
+      if (mapped === 'emoji') {
+        const e = /emoji-id\s*=\s*"(\d{1,32})"/i.exec(m[3] ?? '')
+        emojiId = e ? e[1] : undefined
+        if (!emojiId) { pushText(m[0]); continue }
+      }
+      const node: Extract<Node, { kind: 'tag' }> = { kind: 'tag', tag: mapped, href, emojiId, children: [] }
       current().push(node)
       stack.push({ tag: name, node })
     } else {

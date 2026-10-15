@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor, editorValue, selectText } from './test/helpers'
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response> | undefined
 
@@ -52,8 +52,8 @@ describe('Botdan kelgan qoralama', () => {
   it('ilova qoralama bilan ochilganda to\'g\'ridan-to\'g\'ri tahrirlagichga tushadi va maydonlar to\'ladi', async () => {
     mockApi()
     render(<App />)
-    const text = await screen.findByLabelText('Post matni', { selector: 'textarea' }) as HTMLTextAreaElement
-    expect(text.value).toBe('<b>Bot matni</b> kanal uchun')
+    const text = await screen.findByLabelText('Post matni') as HTMLElement
+    expect(editorValue(text)).toBe('<b>Bot matni</b> kanal uchun')
     expect(screen.getByText('Botdan kelgan post')).toBeTruthy()
     await waitFor(() => expect((screen.getByLabelText('Kanal') as HTMLSelectElement).value).toBe('-1002'))
     expect((screen.getByLabelText('Tugma matni') as HTMLInputElement).value).toBe('Ochish')
@@ -66,7 +66,7 @@ describe('Botdan kelgan qoralama', () => {
   it('rasm qoralamasi Authorization bilan so\'raladi', async () => {
     const f = mockApi()
     render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).endsWith('/draft/media'))).toBe(true))
     const call = f.mock.calls.find((c) => String(c[0]).endsWith('/draft/media')) as unknown[]
     expect(((call[1] as RequestInit).headers as Record<string, string>).Authorization).toBe('tma auth_date=1&hash=a')
@@ -75,7 +75,7 @@ describe('Botdan kelgan qoralama', () => {
   it('rejalashtirish: use_draft va tugma yuboriladi, keyin qoralama qayta so\'raladi', async () => {
     const f = mockApi(DRAFT, (url, init) => init.method === 'POST' && url.endsWith('/posts') ? created() : undefined)
     render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     await waitFor(() => expect((screen.getByLabelText('Kanal') as HTMLSelectElement).value).toBe('-1002'))
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText('Post rejalashtirildi. U «Reja» bo\'limida.')).toBeTruthy()
@@ -94,8 +94,8 @@ describe('Botdan kelgan qoralama', () => {
     const f = mockApi({ ...DRAFT, text: '', button_text: null, button_url: null },
       (url, init) => init.method === 'POST' && url.endsWith('/posts') ? created() : undefined)
     render(<App />)
-    const text = await screen.findByLabelText('Post matni', { selector: 'textarea' }) as HTMLTextAreaElement
-    expect(text.value).toBe('')
+    const text = await screen.findByLabelText('Post matni') as HTMLElement
+    expect(editorValue(text)).toBe('')
     await waitFor(() => expect((screen.getByLabelText('Kanal') as HTMLSelectElement).value).toBe('-1002'))
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     await screen.findByText('Post rejalashtirildi. U «Reja» bo\'limida.')
@@ -108,9 +108,9 @@ describe('Botdan kelgan qoralama', () => {
   it('media sarlavhasi 1024 belgidan oshsa so\'rov yuborilmaydi', async () => {
     const f = mockApi()
     render(<App />)
-    const text = await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    const text = await screen.findByLabelText('Post matni')
     await waitFor(() => expect((screen.getByLabelText('Kanal') as HTMLSelectElement).value).toBe('-1002'))
-    fireEvent.change(text, { target: { value: 'a'.repeat(1025) } })
+    setEditor(text, 'a'.repeat(1025))
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText(/Media sarlavhasi 1024/)).toBeTruthy()
     expect(calls(f, 'POST', '/posts')).toHaveLength(0)
@@ -119,7 +119,7 @@ describe('Botdan kelgan qoralama', () => {
   it('qoralamani o\'chirish: tasdiq so\'raladi, DELETE /draft yuboriladi', async () => {
     const f = mockApi()
     render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     fireEvent.click(screen.getByRole('button', { name: 'Qoralamani o\'chirish' }))
     expect(calls(f, 'DELETE', '/draft')).toHaveLength(0) // tasdiqsiz o'chmaydi
     fireEvent.click(await screen.findByRole('button', { name: 'Ha, o\'chirish' }))
@@ -131,7 +131,7 @@ describe('Botdan kelgan qoralama', () => {
   it('qoralama muddati tugagan (draft_not_found): xato ko\'rsatiladi', async () => {
     mockApi(DRAFT, (url, init) => init.method === 'POST' && url.endsWith('/posts') ? jsonResponse(errorBody('draft_not_found'), 404) : undefined)
     render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     await waitFor(() => expect((screen.getByLabelText('Kanal') as HTMLSelectElement).value).toBe('-1002'))
     fireEvent.click(screen.getByRole('button', { name: 'Postni rejalashtirish' }))
     expect(await screen.findByText(/Qoralama topilmadi yoki muddati tugagan/)).toBeTruthy()
@@ -145,11 +145,11 @@ describe('Botdan kelgan qoralama', () => {
     cleanup()
     mockApi()
     render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     fireEvent.click(nav(/^Bosh/))
     expect(await screen.findByText('Botdan kelgan post tayyor')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Davom ettirish' }))
-    expect(await screen.findByLabelText('Post matni', { selector: 'textarea' })).toBeTruthy()
+    expect(await screen.findByLabelText('Post matni')).toBeTruthy()
   })
 
   it('/draft xatosi (eski server): ilova ishlayveradi, qoralama ko\'rsatilmaydi', async () => {
@@ -165,30 +165,53 @@ describe('Tahrirlagich: format, tugma, tez vaqt', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(nav(/^Post/))
-    return await screen.findByLabelText('Post matni', { selector: 'textarea' }) as HTMLTextAreaElement
+    return await screen.findByLabelText('Post matni') as HTMLElement
   }
 
-  it('Qalin tugmasi tanlangan matnni <b> bilan o\'raydi', async () => {
+  it('Qalin tugmasi tanlangan matnni qalin qiladi; qayta bossa olib tashlaydi', async () => {
     const text = await open()
-    fireEvent.change(text, { target: { value: 'Salom dunyo' } })
-    text.setSelectionRange(6, 11)
-    fireEvent.select(text)
+    setEditor(text, 'Salom dunyo')
+    selectText(text, 6, 11)
     fireEvent.click(screen.getByRole('button', { name: 'Qalin' }))
-    await waitFor(() => expect(text.value).toBe('Salom <b>dunyo</b>'))
+    await waitFor(() => expect(editorValue(text)).toBe('Salom <b>dunyo</b>'))
+    expect(screen.getByRole('button', { name: 'Qalin' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: 'Qalin' }))
+    await waitFor(() => expect(editorValue(text)).toBe('Salom dunyo'))
+  })
+
+  it('bir necha format ketma-ket: teg qoldig\'i va ikki marta o\'rash YO\'Q (skrinshotdagi xato)', async () => {
+    const text = await open()
+    setEditor(text, 'vddd')
+    for (const name of ['Qalin', 'Kursiv', 'Tagi chizilgan', 'Chizilgan', 'Kod']) {
+      selectText(text, 0, 4)
+      fireEvent.click(screen.getByRole('button', { name }))
+    }
+    // Kod ichida boshqa format bo'lmaydi (Telegram qoidasi); boshqa ketma-ketlikda hammasi bir marta o'raladi
+    expect(editorValue(text)).toBe('<code>vddd</code>')
+    setEditor(text, 'vddd')
+    for (const name of ['Qalin', 'Kursiv', 'Tagi chizilgan', 'Chizilgan']) {
+      selectText(text, 0, 4)
+      fireEvent.click(screen.getByRole('button', { name }))
+    }
+    expect(editorValue(text)).toBe('<b><i><u><s>vddd</s></u></i></b>')
+    selectText(text, 1, 3)
+    fireEvent.click(screen.getByRole('button', { name: 'Kursiv' }))
+    expect(editorValue(text)).toBe('<b><i><u><s>v</s></u></i><u><s>dd</s></u><i><u><s>d</s></u></i></b>')
+    expect(editorValue(text)).not.toContain('<b></b>')
+    expect(editorValue(text)).not.toMatch(/<(\w+)><\/\1>/)
   })
 
   it('havola: xavfli manzil qabul qilinmaydi, to\'g\'ri manzil <a href> qo\'shadi', async () => {
     const text = await open()
-    fireEvent.change(text, { target: { value: 'link' } })
-    text.setSelectionRange(0, 4)
-    fireEvent.select(text)
+    setEditor(text, 'link')
+    selectText(text, 0, 4)
     fireEvent.click(screen.getByRole('button', { name: 'Havola' }))
     const url = screen.getByLabelText('Havola manzili (https://…)')
     fireEvent.change(url, { target: { value: 'javascript:alert(1)' } })
     expect((screen.getByRole('button', { name: 'Qo\'yish' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.change(url, { target: { value: 'https://example.org/a?x=1&y=2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Qo\'yish' }))
-    await waitFor(() => expect(text.value).toBe('<a href="https://example.org/a?x=1&amp;y=2">link</a>'))
+    await waitFor(() => expect(editorValue(text)).toBe('<a href="https://example.org/a?x=1&amp;y=2">link</a>'))
   })
 
   it('tugma: noto\'g\'ri havola bilan so\'rov yuborilmaydi', async () => {
@@ -196,9 +219,9 @@ describe('Tahrirlagich: format, tugma, tez vaqt', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     fireEvent.click(nav(/^Post/))
-    const text = await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    const text = await screen.findByLabelText('Post matni')
     fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-    fireEvent.change(text, { target: { value: 'Matn' } })
+    setEditor(text, 'Matn')
     fireEvent.click(screen.getByRole('button', { name: 'Tugma qo\'shish' }))
     fireEvent.change(screen.getByLabelText('Tugma matni'), { target: { value: 'Ochish' } })
     fireEvent.change(screen.getByLabelText('Tugma havolasi (https://…)'), { target: { value: 'javascript:alert(1)' } })
@@ -225,7 +248,7 @@ describe('Qoralamadagi video/GIF oldindan ko\'rish', () => {
     mockApi({ ...DRAFT, post_type: 'video', media: { type: 'video', previewable: true, count: null } }, (url) =>
       url.endsWith('/draft/media') ? new Response(new Uint8Array([0, 0, 0, 24]), { status: 200, headers: { 'Content-Type': 'video/mp4' } }) : undefined)
     const { container } = render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     await waitFor(() => expect(container.querySelector('video.bubble-media')).not.toBeNull())
     const video = container.querySelector('video.bubble-media') as HTMLVideoElement
     expect(video.getAttribute('src')).toBe('blob:test-media')
@@ -239,7 +262,7 @@ describe('Qoralamadagi video/GIF oldindan ko\'rish', () => {
     mockApi(DRAFT, (url) =>
       url.endsWith('/draft/media') ? new Response('<html>', { status: 200, headers: { 'Content-Type': 'text/html' } }) : undefined)
     const { container } = render(<App />)
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
     await waitFor(() => expect(container.querySelector('.bubble-media-ph')).not.toBeNull())
     expect(container.querySelector('video.bubble-media, img.bubble-media')).toBeNull()
   })

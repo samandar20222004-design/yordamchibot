@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor, editorValue } from './test/helpers'
 
 type Handler = (url: string, init: RequestInit) => Response | Promise<Response> | undefined
 
@@ -38,7 +38,7 @@ async function openPost() {
   render(<App />)
   await screen.findByText('Salom, Alice!')
   fireEvent.click(nav(/^Post/))
-  return screen.findByLabelText('Post matni', { selector: 'textarea' })
+  return screen.findByLabelText('Post matni')
 }
 
 beforeEach(() => { vi.useRealTimers(); setTelegram() })
@@ -46,7 +46,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); delete (window as unknown as
 
 describe('Shablonlar', () => {
   const open = async () => {
-    const text = (await openPost()) as HTMLTextAreaElement
+    const text = (await openPost()) as HTMLElement
     fireEvent.click(screen.getByRole('heading', { name: /Shablonlar/ }))
     return text
   }
@@ -71,20 +71,20 @@ describe('Shablonlar', () => {
     mockApi((url, init) => (init.method ?? 'GET') === 'GET' && url.endsWith('/templates') ? jsonResponse({ items: [TPL], limit: 20 }) : undefined)
     const text = await open()
     fireEvent.click(await screen.findByRole('button', { name: 'Qo\'llash' }))
-    expect(text.value).toBe(TPL.text)
+    expect(editorValue(text)).toBe(TPL.text)
   })
 
   it('matn bor bo\'lsa almashtirish tasdiqlanadi (bekor qilsa matn saqlanadi)', async () => {
     mockApi((url, init) => (init.method ?? 'GET') === 'GET' && url.endsWith('/templates') ? jsonResponse({ items: [TPL], limit: 20 }) : undefined)
     const text = await open()
-    fireEvent.change(text, { target: { value: 'Mening matnim' } })
+    setEditor(text, 'Mening matnim')
     fireEvent.click(await screen.findByRole('button', { name: 'Qo\'llash' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Orqaga' }))
-    expect(text.value).toBe('Mening matnim')
+    expect(editorValue(text)).toBe('Mening matnim')
     fireEvent.click(screen.getByRole('button', { name: 'Qo\'llash' }))
     fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Almashtirish' }))
-    expect(text.value).toBe(TPL.text)
+    expect(editorValue(text)).toBe(TPL.text)
   })
 
   it('saqlash: matn va nom yuboriladi, ro\'yxat yangilanadi; nomsiz/matnsiz so\'rov yuborilmaydi', async () => {
@@ -103,7 +103,7 @@ describe('Shablonlar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText('Avval matn yozing — shu matn shablon bo\'ladi.')).toBeTruthy()
     expect(calls(f, 'POST', '/templates')).toHaveLength(0)
-    fireEvent.change(text, { target: { value: '  Tayyor matn  ' } })
+    setEditor(text, '  Tayyor matn  ')
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText('Salomlashuv', { selector: 'strong' })).toBeTruthy()
     expect(JSON.parse(String(calls(f, 'POST', '/templates')[0][1]?.body))).toEqual({ name: 'Salomlashuv', text: 'Tayyor matn' })
@@ -132,7 +132,7 @@ describe('Shablonlar', () => {
     })
     const text = await open()
     await screen.findByText(/Hali shablon yo'q/)
-    fireEvent.change(text, { target: { value: 'Matn' } })
+    setEditor(text, 'Matn')
     fireEvent.change(screen.getByLabelText('Shablon nomi'), { target: { value: 'N' } })
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText(/Shablonlar limiti to'ldi/)).toBeTruthy()

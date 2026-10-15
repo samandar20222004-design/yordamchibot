@@ -59,7 +59,7 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
           {lines.map((l) => <li key={l}><Icon name="check" size={18} /> <span>{l}</span></li>)}
         </ul>
         {id !== 'free' && !isCurrent && openBotAvailable(botUsername) && (
-          <Button variant="primary" block icon="bot" onClick={() => openBot(botUsername)}>{t('plans.buy')}</Button>
+          <Button variant="primary" block icon="bot" onClick={() => openBot(botUsername, 'plans')}>{t('plans.buy')}</Button>
         )}
         {isCurrent && id !== 'free' && me.plan.expires_at && <p className="muted small">{t('me.expires', { date: formatDate(me.plan.expires_at) })}</p>}
       </article>

@@ -16,7 +16,7 @@ import { CalendarView } from './CalendarView'
 import { groupByDay, isFutureEnough, isoToLocalInput, localInputToIso } from './format'
 import { compressImage } from './imageCompress'
 import { describeRecurrence, suggestSecondTime } from './recurrence'
-import { isSafeLink } from './richtext'
+import { isValidLinkInput, normalizeLink } from './richtext'
 
 const SENT = new Set(['posted', 'published', 'completed'])
 export function statusKey(status: string): MessageKey {
@@ -154,7 +154,7 @@ function EditDialog({ post, onClose, onSaved }: {
     if (recChanged && time2 !== null && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time2) || time2 === time1)) { setInvalid('time'); return }
     const btnChanged = btnText.trim() !== o.btnText || btnUrl.trim() !== o.btnUrl
     if (btnChanged && (btnText.trim() !== '' || btnUrl.trim() !== '')
-      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isSafeLink(btnUrl))) { setInvalid('button'); return }
+      && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isValidLinkInput(btnUrl))) { setInvalid('button'); return }
     if (!textChanged && !timeChanged && !recChanged && !btnChanged) { onClose(); return }
     inFlight.current = true
     setBusy(true)
@@ -165,7 +165,7 @@ function EditDialog({ post, onClose, onSaved }: {
         ...(textChanged ? { text: trimmed } : {}),
         ...(timeChanged ? { scheduled_at: localInputToIso(when) ?? '' } : {}),
         ...(recChanged ? { recurrence_time: time1, ...(dailyKind && time2 ? { recurrence_time2: time2 } : {}) } : {}),
-        ...(btnChanged ? { button_text: btnText.trim(), button_url: btnUrl.trim() } : {}),
+        ...(btnChanged ? { button_text: btnText.trim(), button_url: normalizeLink(btnUrl) } : {}),
       })
       notify(t('schedule.saved'))
       onSaved()

@@ -32,7 +32,6 @@ from utils.handler_timeout import run_background_task
 
 from utils.silent_errors import log_silent_failure
 
-from services.start_splash import remove_splash, send_splash
 
 logger = logging.getLogger(__name__)
 
@@ -298,21 +297,16 @@ async def _warm_user_stats(user_id: int) -> None:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
-    splash = await send_splash(update.message)  # markazda animatsiyali yuklash (ixtiyoriy)
-    try:
-        return await _start_flow(update, context)
-    finally:
-        await remove_splash(splash)
-
-
-async def _start_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     detected = detect_language(getattr(user, "language_code", None))
 
     referrer_id = None
+    go_target = None
     if context.args and len(context.args) > 0:
         arg = context.args[0]
-        if arg.startswith("ref_"):
+        if arg in MINIAPP_GO_TARGETS:  # Mini App tugmalari: qat'iy ruxsat ro'yxati (boshqa payload e'tiborsiz)
+            go_target = MINIAPP_GO_TARGETS[arg]
+        elif arg.startswith("ref_"):
             try:
                 referrer_id = int(arg.replace("ref_", ""))
             except ValueError:
@@ -443,7 +437,28 @@ async def _start_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _warm_user_stats(user.id),
         name=f"start:warm-stats:{user.id}",
     )
+    if go_target:
+        await _open_go_target(update, context, go_target, lang)
     return ConversationHandler.END
+
+
+# Mini App -> bot: `https://t.me/<bot>?start=go_<bo'lim>`. FAQAT shu ro'yxat; boshqa payload e'tiborsiz.
+MINIAPP_GO_TARGETS = {"go_plans": "plans", "go_settings": "settings", "go_help": "help"}
+
+
+async def _open_go_target(update: Update, context: ContextTypes.DEFAULT_TYPE, target: str, lang: str) -> None:
+    """Salomlashishdan keyin Mini App so'ragan bo'limni ochadi. Xato /start ni buzmaydi."""
+    try:
+        if target == "plans":
+            from handlers.subscription import send_subscription_card
+
+            await send_subscription_card(update.message, context, update.effective_user.id, lang)
+        elif target == "settings":
+            await user_cabinet_menu(update, context)
+        elif target == "help":
+            await help_command(update, context)
+    except Exception:  # noqa: BLE001
+        logger.warning("Mini App deep-link bo'limi ochilmadi (%s)", target, exc_info=True)
 
 
 def _main_menu_markup(update: Update, context, lang: str):
