@@ -27,6 +27,7 @@ import database as db
 from services.delivery import delivery_service
 from services import lifecycle_service as lifecycle
 from services import event_tracker
+from services.recurrence import RECURRING_TYPES, next_extended_occurrence
 from services.cleanup_service import cleanup_old_records
 from keyboards.inline import (
     normalize_custom_reaction_emojis,
@@ -218,7 +219,7 @@ def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, ext
         "delivery_done": False,
         "sent_at": now_tashkent().isoformat(),
     }
-    if recurrence_type in ("daily", "weekly"):
+    if recurrence_type in RECURRING_TYPES:
         try:
             now = now_tashkent()
             end_at = _as_tashkent(end_date) if end_date else None
@@ -649,6 +650,14 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
             days_ahead = 7
         next_dt = _replace_tashkent(now, recurrence_time.hour, recurrence_time.minute)
         return _shift_tashkent(next_dt, days=days_ahead)
+    elif recurrence_type in ("interval", "weekdays"):
+        # Mini App / AI rejalash: har N kunda, tanlangan hafta kunlari (services/recurrence.py).
+        if recurrence_day is None:
+            return None
+        try:
+            return next_extended_occurrence(recurrence_type, recurrence_day, recurrence_time, now)
+        except (TypeError, ValueError):
+            return None
     return None
 
 

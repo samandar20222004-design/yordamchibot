@@ -25,6 +25,7 @@ from keyboards.inline import (
 )
 from utils import ai_agent
 from services import event_tracker
+from services.subscription_service import MAX_ADMIN_GRANT_DAYS
 from locales.translations import clear_fsm_data, get_lang, get_text
 # admin panelning BARCHA matnlari yagona i18n lug'atidan
 # (translations/admin_panel.py — uz/ru/en 100% paritet) olinadi.
@@ -1065,6 +1066,13 @@ async def admin_inline_text_handler(update: Update, context: ContextTypes.DEFAUL
         if days <= 0:
             await update.message.reply_text(
                 admin_t("days_positive", lang),
+                reply_markup=get_admin_back_keyboard(),
+                parse_mode="HTML",
+            )
+            return ADMIN_GRANT_PRO
+        if days > MAX_ADMIN_GRANT_DAYS:
+            await update.message.reply_text(
+                admin_t("days_too_large", lang, max=MAX_ADMIN_GRANT_DAYS),
                 reply_markup=get_admin_back_keyboard(),
                 parse_mode="HTML",
             )

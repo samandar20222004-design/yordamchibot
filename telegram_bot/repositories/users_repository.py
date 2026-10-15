@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 import logging
 
 
-from config import DATABASE_URL, PLAN_LIMITS as CONFIG_PLAN_LIMITS  # noqa: F401
+from config import DATABASE_URL, FREE_QUEUE_MAX_POSTS, PLAN_LIMITS as CONFIG_PLAN_LIMITS, PRO_QUEUE_MAX_POSTS  # noqa: F401
 
 from database import DB_STATS_CACHE_TTL, DB_USER_CACHE_TTL, _MISS, tashkent_tz
 from repositories.runtime import (  # noqa: F401
@@ -1094,9 +1094,8 @@ PLAN_LIMITS = {
 }
 
 
-# Navbatda turishi mumkin bo'lgan postlar soni (free uchun).
-# PRO/Enterprise — cheksiz (999).
-FREE_QUEUE_MAX_POSTS = 5
+# Navbatda turishi mumkin bo'lgan postlar soni: free — config.FREE_QUEUE_MAX_POSTS (5),
+# PRO/Enterprise — config.PRO_QUEUE_MAX_POSTS (999 = cheksiz). Qiymatlar config'dan (env bilan o'zgaradi).
 
 
 def _ensure_limit_reset(cur, user_id: int):
@@ -1166,7 +1165,7 @@ def check_channel_limit(user_id: int) -> tuple[bool, int, int]:
             return (count < max_ch, count, max_ch)
     except Exception as e:
         logger.error(f"check_channel_limit xatosi: {e}")
-        return (True, 0, 2)
+        return (True, 0, PLAN_LIMITS["free"]["max_channels"])
 
 
 def downgrade_expired_subscriptions() -> int:
@@ -1817,12 +1816,15 @@ def check_queue_limit(user_id: int) -> tuple[bool, int, int]:
             cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (user_id,))
             row = cur.fetchone()
             plan = (row[0] if row else "free") or "free"
+            # Muddati o'tgan PRO sweep tushirguncha cheksiz navbat olmasin (kanal/AI limiti va Mini App bilan bir xil).
+            # O'qish kursori (fast_read, avtokommit): lazy downgrade UPDATE alohida COMMIT talab qilmaydi.
+            plan = _effective_plan(cur, plan, user_id)
             cur.execute(
                 "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'",
                 (user_id,),
             )
             count = cur.fetchone()[0]
-            max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else 999
+            max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else PRO_QUEUE_MAX_POSTS
             return (count < max_q, count, max_q)
     except Exception as e:
         logger.error(f"check_queue_limit xatosi: {e}")

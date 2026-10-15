@@ -9,7 +9,7 @@ from config import (
     ADMIN_IDS_SET, BOT_USERNAME,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
     PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_1Y_UZS,
-    STARS_PLANS, SUBSCRIPTION_PLANS,
+    FREE_QUEUE_MAX_POSTS, PRO_QUEUE_MAX_POSTS, STARS_PLANS, SUBSCRIPTION_PLANS, plan_discount_percent,
 )
 import database as db
 from keyboards.default import get_main_keyboard
@@ -30,6 +30,8 @@ from locales.translations import (
 )
 from utils.helpers import html_escape
 from translations.admin_panel import admin_t
+from services.promo_attempts import promo_limiter
+from services.subscription_service import MAX_ADMIN_GRANT_DAYS
 # RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
 from services.rbac_service import (
     PERM_MANAGE_PROMOS,
@@ -429,6 +431,13 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
         "ru": f"📢 Лимит каналов: <b>{ch_str}</b>",
         "en": f"📢 Channel limit: <b>{ch_str}</b>",
     }.get(lang)
+    max_q = FREE_QUEUE_MAX_POSTS if plan == "free" else PRO_QUEUE_MAX_POSTS
+    q_str = str(max_q) if max_q < 999 else unlimited
+    queue_l = {
+        "uz": f"🗂 Navbat (rejalangan postlar): <b>{q_str}</b>",
+        "ru": f"🗂 Очередь постов: <b>{q_str}</b>",
+        "en": f"🗂 Scheduled posts queue: <b>{q_str}</b>",
+    }.get(lang)
     ai_l = {
         "uz": f"🤖 Kunlik AI so'rovlar: <b>{ai_used} / {ai_str}</b>",
         "ru": f"🤖 ИИ-запросы за день: <b>{ai_used} / {ai_str}</b>",
@@ -440,6 +449,7 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
         "━━━━━━━━━━━━━━━━━",
         expires_l,
         ch_l,
+        queue_l,
         ai_l,
         "━━━━━━━━━━━━━━━━━",
     ]
@@ -485,21 +495,22 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
             STARS_PLANS["stars_3m"]["usd"],
             STARS_PLANS["stars_1y"]["usd"],
         )
+        disc_y = plan_discount_percent(sY, s1, 12)
         price_lines = {
             "ru": [
                 f"• 1 месяц — ⭐️ {s1} Stars (~${u1})",
                 f"• 3 месяца — ⭐️ {s3} Stars (~${u3})",
-                f"• 1 год — ⭐️ {sY} Stars (~${uY} / -40%)",
+                f"• 1 год — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
             ],
             "en": [
                 f"• 1 month — ⭐️ {s1} Stars (~${u1})",
                 f"• 3 months — ⭐️ {s3} Stars (~${u3})",
-                f"• 1 year — ⭐️ {sY} Stars (~${uY} / -40%)",
+                f"• 1 year — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
             ],
         }.get(lang, [
             f"• 1 oy — ⭐️ {s1} Stars (~${u1})",
             f"• 3 oy — ⭐️ {s3} Stars (~${u3})",
-            f"• 1 yil — ⭐️ {sY} Stars (~${uY} / -40%)",
+            f"• 1 yil — ⭐️ {sY} Stars (~${uY} / -{disc_y}%)",
         ])
         lines.extend([
             "",
@@ -519,11 +530,11 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
     keyboard = []
     if plan == "free":
         keyboard.append([
-            InlineKeyboardButton(get_text("sub_pay_1m", lang), callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton(get_text("sub_pay_3m", lang), callback_data="sub_pay:stars_3m"),
+            InlineKeyboardButton(get_text("sub_pay_1m", lang, stars=STARS_PLANS["stars_1m"]["stars"]), callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton(get_text("sub_pay_3m", lang, stars=STARS_PLANS["stars_3m"]["stars"]), callback_data="sub_pay:stars_3m"),
         ])
         keyboard.append([
-            InlineKeyboardButton(get_text("sub_pay_1y", lang), callback_data="sub_pay:stars_1y"),
+            InlineKeyboardButton(get_text("sub_pay_1y", lang, stars=STARS_PLANS["stars_1y"]["stars"]), callback_data="sub_pay:stars_1y"),
         ])
         keyboard.append([
             InlineKeyboardButton(get_text("btn_card_payment", lang), callback_data="sub_card_pay"),
@@ -632,10 +643,10 @@ def _get_stars_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """Stars to'lov tanlash keyboard."""
     keyboard = [
         [
-            InlineKeyboardButton(get_text("sub_pay_1m_full", lang), callback_data="sub_pay:stars_1m"),
-            InlineKeyboardButton(get_text("sub_pay_3m_full", lang), callback_data="sub_pay:stars_3m"),
+            InlineKeyboardButton(get_text("sub_pay_1m_full", lang, stars=STARS_PLANS["stars_1m"]["stars"]), callback_data="sub_pay:stars_1m"),
+            InlineKeyboardButton(get_text("sub_pay_3m_full", lang, stars=STARS_PLANS["stars_3m"]["stars"]), callback_data="sub_pay:stars_3m"),
         ],
-        [InlineKeyboardButton(get_text("sub_pay_1y_full", lang), callback_data="sub_pay:stars_1y")],
+        [InlineKeyboardButton(get_text("sub_pay_1y_full", lang, stars=STARS_PLANS["stars_1y"]["stars"]), callback_data="sub_pay:stars_1y")],
         [InlineKeyboardButton(get_text("sub_btn_promo", lang), callback_data="sub_promo")],
         [InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")],
     ]
@@ -903,11 +914,21 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return SUBSCRIPTION_VIEW
 
+    # Kod taxmin qilishga qarshi: ko'p xatodan keyin DB'ga tegmasdan rad etamiz.
+    wait = promo_limiter.retry_after(user_id)
+    if wait:
+        await update.message.reply_text(
+            get_text("sub_promo_blocked", lang, minutes=max(1, -(-wait // 60))),
+            parse_mode="HTML",
+        )
+        return PROMO_INPUT
+
     success, msg = await db.run_db(db.redeem_promo_code, user_id, text)
     msg_localized = html_escape(localize_db_message(msg, lang))
     back_label = get_text("btn_main_menu", lang)
 
     if success:
+        promo_limiter.reset(user_id)
         await update.message.reply_text(
             get_text("sub_promo_success", lang, msg=msg_localized),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -915,6 +936,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return ConversationHandler.END
     else:
+        promo_limiter.record_failure(user_id)
         await update.message.reply_text(
             get_text("sub_promo_fail", lang, msg=msg_localized, back=back_label),
             parse_mode="HTML",
@@ -951,6 +973,9 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if days <= 0:
         await update.message.reply_text("❌ Kunlar soni 0 dan katta bo'lishi kerak.")
+        return
+    if days > MAX_ADMIN_GRANT_DAYS:
+        await update.message.reply_text(admin_t("days_too_large", get_lang(context), max=MAX_ADMIN_GRANT_DAYS))
         return
 
     success = await db.run_db(db.set_user_plan, target_id, "pro", days,

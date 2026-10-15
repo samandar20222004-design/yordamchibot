@@ -810,6 +810,20 @@ def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_tim
         return get_text("pend_schedule_weekly", lang,
                         day=weekday_label(recurrence_day, lang),
                         time=format_time(recurrence_time, lang))
+    elif recurrence_type == 'interval' and recurrence_day:
+        return get_text("pend_schedule_interval", lang, n=int(recurrence_day),
+                        time=format_time(recurrence_time, lang))
+    elif recurrence_type == 'weekdays' and recurrence_day:
+        from services.recurrence import ALL_DAYS_MASK, WEEKEND_MASK, WORKDAYS_MASK, mask_to_weekdays
+        mask = int(recurrence_day) & ALL_DAYS_MASK
+        if mask == WEEKEND_MASK:
+            days = get_text("rec_weekends", lang)
+        elif mask == WORKDAYS_MASK:
+            days = get_text("rec_workdays", lang)
+        else:
+            days = ", ".join(weekday_label(d, lang) for d in mask_to_weekdays(mask))
+        return get_text("pend_schedule_weekdays", lang, days=days,
+                        time=format_time(recurrence_time, lang))
 
     if s_time:
         return get_text("pend_schedule_once", lang,

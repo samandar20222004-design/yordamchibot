@@ -28,6 +28,9 @@ from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 
+# Admin qo'lda PRO berganda kunlar yuqori chegarasi (~10 yil): xato kiritish (masalan, qo'shimcha nol) muddatni buzmasin.
+MAX_ADMIN_GRANT_DAYS = 3650
+
 
 @contextmanager
 def transaction(commit: bool = True):
@@ -238,7 +241,7 @@ class SubscriptionService:
         ``activate`` dan farqi: ``admin_id`` beriladi va harakat
         ``admin_audit_logs`` jadvaliga atomik yoziladi.
         """
-        if not isinstance(days, int) or days <= 0:
+        if not isinstance(days, int) or days <= 0 or days > MAX_ADMIN_GRANT_DAYS:
             return False
         result = SubscriptionService.activate(user_id, "pro", days,
                                              admin_id=admin_id)

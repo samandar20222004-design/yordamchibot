@@ -215,9 +215,9 @@ TRANSLATIONS = {
             "⭐️ Telegram Stars — bir zumda to'lov va PRO avtomatik yoqiladi.\n"
             "🪙 Crypto (USDT) va 💳 xalqaro kartalar (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 oy — 75★",
-        "intl_tariff_3m": "⭐️ 3 oy — 175★",
-        "intl_tariff_1y": "⭐️ 1 yil — 550★",
+        "intl_tariff_1m": "⭐️ 1 oy — {stars}★",
+        "intl_tariff_3m": "⭐️ 3 oy — {stars}★",
+        "intl_tariff_1y": "⭐️ 1 yil — {stars}★",
         "intl_payment_selected": (
             "🎫 Tanlangan tarif: <b>{tarif}</b>\n"
             "⭐️ Narx: <b>{stars} Stars</b> (~${usd})"
@@ -1224,6 +1224,10 @@ TRANSLATIONS = {
         "pend_update_fail": "❌ O'zgartirib bo'lmadi.",
         "pend_schedule_daily": "🔁 <b>Har kuni</b>, soat <b>{time}</b> da",
         "pend_schedule_weekly": "📅 <b>Har {day}</b>, soat <b>{time}</b> da",
+        "pend_schedule_interval": "🔁 <b>Har {n} kunda</b>, soat <b>{time}</b> da",
+        "pend_schedule_weekdays": "📅 <b>{days}</b> kunlari, soat <b>{time}</b> da",
+        "rec_weekends": "dam olish",
+        "rec_workdays": "ish",
         "pend_schedule_once": "⏰ Vaqti: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Vaqti: Noma'lum",
 
@@ -1958,12 +1962,12 @@ TRANSLATIONS = {
         ),
 
         # --- Obuna / to'lov (subscription) ---
-        "sub_pay_1m": "⭐️ 1 oy (75 Stars)",
-        "sub_pay_3m": "⭐️ 3 oy (175★)",
-        "sub_pay_1y": "⭐️ 1 yil (550★)",
-        "sub_pay_1m_full": "⭐️ 1 oy (75★)",
-        "sub_pay_3m_full": "⭐️ 3 oy (175★)",
-        "sub_pay_1y_full": "⭐️ 1 yil (550★)",
+        "sub_pay_1m": "⭐️ 1 oy ({stars}★)",
+        "sub_pay_3m": "⭐️ 3 oy ({stars}★)",
+        "sub_pay_1y": "⭐️ 1 yil ({stars}★)",
+        "sub_pay_1m_full": "⭐️ 1 oy ({stars}★)",
+        "sub_pay_3m_full": "⭐️ 3 oy ({stars}★)",
+        "sub_pay_1y_full": "⭐️ 1 yil ({stars}★)",
         "sub_btn_promo": "🎁 Promo-kod",
         "sub_btn_send_receipt_admin": "✉️ Adminga chek",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 oy)",
@@ -1980,6 +1984,7 @@ TRANSLATIONS = {
         ),
         "sub_promo_success": "✅ <b>{msg}</b>\n\nYangi tarif imkoniyatlaringiz faollashtirildi!",
         "sub_promo_fail": "❌ <b>{msg}</b>\n\nQaytadan urinib ko'ring yoki '{back}' tugmasini bosing.",
+        "sub_promo_blocked": "⏳ <b>Juda ko'p noto'g'ri urinish.</b>\n\n{minutes} daqiqadan keyin qayta urinib ko'ring.",
         "sub_pro_granted": (
             "🎉 <b>Tabriklaymiz!</b>\n\n"
             "Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
@@ -2375,9 +2380,9 @@ TRANSLATIONS = {
             "⭐️ Telegram Stars — мгновенная оплата, PRO включается сразу.\n"
             "🪙 Крипта (USDT) и 💳 международные карты (Visa / Mastercard)."
         ),
-        "intl_tariff_1m": "⭐️ 1 мес — 75★",
-        "intl_tariff_3m": "⭐️ 3 мес — 175★",
-        "intl_tariff_1y": "⭐️ 1 год — 550★",
+        "intl_tariff_1m": "⭐️ 1 мес — {stars}★",
+        "intl_tariff_3m": "⭐️ 3 мес — {stars}★",
+        "intl_tariff_1y": "⭐️ 1 год — {stars}★",
         "intl_payment_selected": (
             "🎫 Выбранный тариф: <b>{tarif}</b>\n"
             "⭐️ Цена: <b>{stars} Stars</b> (~${usd})"
@@ -3373,6 +3378,10 @@ TRANSLATIONS = {
         "pend_update_fail": "❌ Не удалось изменить.",
         "pend_schedule_daily": "🔁 <b>Ежедневно</b>, в <b>{time}</b>",
         "pend_schedule_weekly": "📅 <b>Каждый {day}</b>, в <b>{time}</b>",
+        "pend_schedule_interval": "🔁 <b>Каждые {n} дн.</b>, в <b>{time}</b>",
+        "pend_schedule_weekdays": "📅 <b>{days}</b>, в <b>{time}</b>",
+        "rec_weekends": "По выходным",
+        "rec_workdays": "По будням",
         "pend_schedule_once": "⏰ Время: <b>{time}</b>",
         "pend_schedule_unknown": "⏰ Время: не указано",
 
@@ -4111,12 +4120,12 @@ TRANSLATIONS = {
         ),
 
         # --- Подписка / оплата (subscription) ---
-        "sub_pay_1m": "⭐️ 1 мес (75★)",
-        "sub_pay_3m": "⭐️ 3 мес (175★)",
-        "sub_pay_1y": "⭐️ 1 год (550★)",
-        "sub_pay_1m_full": "⭐️ 1 мес (75★)",
-        "sub_pay_3m_full": "⭐️ 3 мес (175★)",
-        "sub_pay_1y_full": "⭐️ 1 год (550★)",
+        "sub_pay_1m": "⭐️ 1 мес ({stars}★)",
+        "sub_pay_3m": "⭐️ 3 мес ({stars}★)",
+        "sub_pay_1y": "⭐️ 1 год ({stars}★)",
+        "sub_pay_1m_full": "⭐️ 1 мес ({stars}★)",
+        "sub_pay_3m_full": "⭐️ 3 мес ({stars}★)",
+        "sub_pay_1y_full": "⭐️ 1 год ({stars}★)",
         "sub_btn_promo": "🎁 Ввести промокод",
         "sub_btn_send_receipt_admin": "✉️ Чек админу",
         "sub_inv_title_1m": "⭐️ PostAssist PRO (1 месяц)",
@@ -4133,6 +4142,7 @@ TRANSLATIONS = {
         ),
         "sub_promo_success": "✅ <b>{msg}</b>\n\nНовые возможности тарифа активированы!",
         "sub_promo_fail": "❌ <b>{msg}</b>\n\nПопробуйте ещё раз или нажмите кнопку «{back}».",
+        "sub_promo_blocked": "⏳ <b>Слишком много неверных попыток.</b>\n\nПопробуйте снова через {minutes} мин.",
         "sub_pro_granted": (
             "🎉 <b>Поздравляем!</b>\n\n"
             "Вам предоставлен <b>PRO-тариф на {days} дн.</b>!\n"

@@ -44,15 +44,14 @@ def _is_admin(user_id: int, stored_role) -> bool:
 
 def plan_limits() -> dict:
     import config
-    from repositories.users_repository import FREE_QUEUE_MAX_POSTS
 
     return {
         "free": {"max_channels": int(config.FREE_MAX_CHANNELS),
                  "daily_ai_requests": int(config.FREE_DAILY_AI),
-                 "queued_posts": int(FREE_QUEUE_MAX_POSTS)},
+                 "queued_posts": int(config.FREE_QUEUE_MAX_POSTS)},
         "pro": {"max_channels": int(config.PRO_MAX_CHANNELS),
                 "daily_ai_requests": int(config.PRO_DAILY_AI),
-                "queued_posts": 999},
+                "queued_posts": int(config.PRO_QUEUE_MAX_POSTS)},
     }
 
 

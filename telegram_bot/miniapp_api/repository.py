@@ -180,7 +180,8 @@ SENT_STATUSES = ("posted", "published", "completed")
 _POST_SELECT = """
         SELECT sp.id, sp.channel_id, c.channel_title, sp.post_type,
                LEFT(COALESCE(sp.content, ''), %s), (sp.file_id IS NOT NULL),
-               sp.scheduled_time, sp.user_post_number, sp.recurrence_type, sp.status
+               sp.scheduled_time, sp.user_post_number, sp.recurrence_type, sp.status,
+               sp.recurrence_day, sp.recurrence_time
           FROM scheduled_posts sp
           LEFT JOIN channels c
                  ON c.channel_id = sp.channel_id AND c.user_id = sp.user_id
@@ -191,7 +192,8 @@ def _post_dict(r) -> dict:
     return {"id": r[0], "channel_id": str(r[1]), "channel_title": r[2],
             "post_type": r[3], "preview": r[4], "has_media": bool(r[5]),
             "scheduled_time": r[6], "number": r[7], "recurrence": r[8],
-            "status": r[9]}
+            "status": r[9], "recurrence_day": r[10],
+            "recurrence_time": r[11].strftime("%H:%M") if r[11] is not None else None}
 
 
 def count_posts(cur, user_id: int, history: bool) -> int:

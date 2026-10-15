@@ -467,9 +467,9 @@ EN_OVERLAY = {
         "⭐️ Telegram Stars — instant payment, PRO turns on automatically.\n"
         "🪙 Crypto (USDT) and 💳 international cards (Visa / Mastercard)."
     ),
-    "intl_tariff_1m": "⭐️ 1 mo — 75★",
-    "intl_tariff_3m": "⭐️ 3 mo — 175★",
-    "intl_tariff_1y": "⭐️ 1 yr — 550★",
+    "intl_tariff_1m": "⭐️ 1 mo — {stars}★",
+    "intl_tariff_3m": "⭐️ 3 mo — {stars}★",
+    "intl_tariff_1y": "⭐️ 1 yr — {stars}★",
     "intl_payment_selected": (
         "🎫 Selected plan: <b>{tarif}</b>\n"
         "⭐️ Price: <b>{stars} Stars</b> (~${usd})"
@@ -1456,6 +1456,10 @@ EN_OVERLAY = {
     "pend_update_fail": "❌ Could not change.",
     "pend_schedule_daily": "🔁 <b>Daily</b> at <b>{time}</b>",
     "pend_schedule_weekly": "📅 <b>Every {day}</b> at <b>{time}</b>",
+    "pend_schedule_interval": "🔁 <b>Every {n} days</b> at <b>{time}</b>",
+    "pend_schedule_weekdays": "📅 <b>{days}</b> at <b>{time}</b>",
+    "rec_weekends": "Weekends",
+    "rec_workdays": "Weekdays",
     "pend_schedule_once": "⏰ Time: <b>{time}</b>",
     "pend_schedule_unknown": "⏰ Time: unknown",
 
@@ -1908,12 +1912,12 @@ EN_OVERLAY = {
     # ============================================================
     # FULL EN COVERAGE — batch M: subscription / analytics
     # ============================================================
-    "sub_pay_1m": "⭐️ 1 mo (75★)",
-    "sub_pay_3m": "⭐️ 3 mo (175★)",
-    "sub_pay_1y": "⭐️ 1 yr (550★)",
-    "sub_pay_1m_full": "⭐️ 1 mo (75★)",
-    "sub_pay_3m_full": "⭐️ 3 mo (175★)",
-    "sub_pay_1y_full": "⭐️ 1 yr (550★)",
+    "sub_pay_1m": "⭐️ 1 mo ({stars}★)",
+    "sub_pay_3m": "⭐️ 3 mo ({stars}★)",
+    "sub_pay_1y": "⭐️ 1 yr ({stars}★)",
+    "sub_pay_1m_full": "⭐️ 1 mo ({stars}★)",
+    "sub_pay_3m_full": "⭐️ 3 mo ({stars}★)",
+    "sub_pay_1y_full": "⭐️ 1 yr ({stars}★)",
     "sub_btn_promo": "🎁 Promo code",
     "sub_btn_send_receipt_admin": "✉️ Send receipt",
     "sub_inv_title_1m": "⭐️ PostAssist PRO (1 month)",
@@ -1930,6 +1934,7 @@ EN_OVERLAY = {
     ),
     "sub_promo_success": "✅ <b>{msg}</b>\n\nYour new plan features are activated!",
     "sub_promo_fail": "❌ <b>{msg}</b>\n\nTry again or press “{back}”.",
+    "sub_promo_blocked": "⏳ <b>Too many wrong attempts.</b>\n\nTry again in {minutes} min.",
     "sub_pro_granted": (
         "🎉 <b>Congratulations!</b>\n\n"
         "You have been granted a <b>{days}-day PRO plan</b>!\n"

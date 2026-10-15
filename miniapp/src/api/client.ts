@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseCalendar, parseDeleted, parseDraft, parsePostResult, parseScheduled,
+  parseCalendar, parseDeleted, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -170,6 +170,9 @@ export function createApiClient(opts: ClientOptions) {
     },
     createPost: (input: CreatePostInput): Promise<PostResult> =>
       send('POST', '/posts', input, parsePostResult),
+    /** Erkin tildagi rejalash iborasini tuzilma taklifiga o'giradi (hech narsa yozilmaydi). */
+    parseSchedule: (text: string, defaultTime?: string): Promise<ScheduleParseResult> =>
+      send('POST', '/schedule/parse', { text, ...(defaultTime ? { default_time: defaultTime } : {}) }, parseScheduleParse),
     updatePost: (id: number, input: { text?: string; scheduled_at?: string }): Promise<ScheduledPost> =>
       send('PATCH', `/posts/${encodeURIComponent(String(id))}`, input, parsePostEnvelope),
     cancelPost: (id: number): Promise<{ id: number }> =>

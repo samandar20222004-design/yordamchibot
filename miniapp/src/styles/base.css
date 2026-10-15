@@ -192,3 +192,22 @@ fieldset.segmented legend { padding: 0; margin-bottom: var(--s2); }
 .cal-day[aria-selected='true'] .cal-count { background: var(--on-accent); color: var(--accent); }
 .item-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); }
 .item-main { display: grid; gap: 2px; min-width: 0; }
+
+/* Aqlli rejalash va takrorlash */
+.smart { display: grid; gap: var(--s2); padding: var(--s3); border: 1px dashed var(--border); border-radius: var(--r-md); background: var(--bg); }
+.smart h3 { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: 1rem; }
+.smart-row { display: flex; gap: var(--s2); align-items: stretch; }
+.smart-row .input { flex: 1 1 auto; min-width: 0; }
+.proposal { display: grid; gap: var(--s1); padding: var(--s3); border: 1px solid var(--accent); border-radius: var(--r-md); background: var(--surface); }
+.proposal-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.proposal-main { font-size: 1.125rem; font-weight: 700; margin: 0; }
+.proposal-actions { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s1); }
+.repeat { display: grid; gap: var(--s2); margin-top: var(--s2); }
+.repeat-interval { display: flex; align-items: center; gap: var(--s2); }
+.repeat-interval .input { width: 5.5rem; }
+.weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s1); }
+.weekdays > button { min-height: var(--tap); border-radius: var(--r-md); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-weight: 600; padding: 0; }
+.weekdays > button[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+@media (max-width: 380px) { .smart-row { flex-direction: column; } }
+.smart-row .btn { flex: 0 0 auto; white-space: nowrap; }
+@media (max-width: 360px) { .segmented > button { padding: 0 var(--s1); font-size: 0.875rem; overflow-wrap: normal; } }

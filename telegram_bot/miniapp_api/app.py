@@ -209,6 +209,13 @@ async def ai_generate_handler(request: web.Request):
     return web.json_response(data)
 
 
+@_ai
+async def schedule_parse_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    data = await request.app[_K_WRITER].parse_schedule(request["user_id"], body)
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
 # -------------------------------------------------------------- middleware
 @web.middleware
 async def api_middleware(request: web.Request, handler):
@@ -339,6 +346,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_delete("/posts/{post_id}", post_delete_handler)
     api.router.add_patch("/me/settings", settings_update_handler)
     api.router.add_post("/ai/generate", ai_generate_handler)
+    api.router.add_post("/schedule/parse", schedule_parse_handler)
     return api
 
 

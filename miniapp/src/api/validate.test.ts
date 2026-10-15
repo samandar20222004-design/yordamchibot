@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ME, PAGE } from '../test/helpers'
-import { parseChannels, parseErrorBody, parseMe, parseScheduled } from './validate'
+import { parseChannels, parseErrorBody, parseMe, parseScheduleParse, parseScheduled } from './validate'
 
 describe('validatorlar', () => {
   it('to\'g\'ri /me', () => expect(parseMe(ME).plan.limits.max_channels).toBe(3))
@@ -32,5 +32,27 @@ describe('validatorlar', () => {
     expect(parseErrorBody({ error: { code: 'x', message: 'm', request_id: 'r', retry_after: 3 } })?.retryAfter).toBe(3)
     expect(parseErrorBody({ nope: 1 })).toBeNull()
     expect(parseErrorBody(null)).toBeNull()
+  })
+
+  it('parseScheduleParse: taklif, takrorlanish va rad etish shakllari', () => {
+    const ok = parseScheduleParse({ ok: true, source: 'rules', proposal: { scheduled_at: '2026-10-17T07:00:00Z', recurrence: { type: 'weekdays', day: 96, time: '12:00' } } })
+    expect(ok).toMatchObject({ ok: true, source: 'rules', proposal: { recurrence: { type: 'weekdays', day: 96, time: '12:00' } } })
+    expect(parseScheduleParse({ ok: true, source: 'ai', proposal: { scheduled_at: '2026-10-17T07:00:00Z', recurrence: null } })).toMatchObject({ source: 'ai' })
+    expect(parseScheduleParse({ ok: false, reason: 'no_time' })).toEqual({ ok: false, reason: 'no_time' })
+  })
+  it('parseScheduleParse: yaroqsiz javob xato beradi (taxmin qilinmaydi)', () => {
+    const base = { ok: true, source: 'rules', proposal: { scheduled_at: '2026-10-17T07:00:00Z', recurrence: null } }
+    expect(() => parseScheduleParse({ ...base, source: 'x' })).toThrow()
+    expect(() => parseScheduleParse({ ...base, proposal: { scheduled_at: 'kecha', recurrence: null } })).toThrow()
+    expect(() => parseScheduleParse({ ...base, proposal: { ...base.proposal, recurrence: { type: 'monthly', day: 1, time: '12:00' } } })).toThrow()
+    expect(() => parseScheduleParse({ ...base, proposal: { ...base.proposal, recurrence: { type: 'daily', day: null, time: '25:00' } } })).toThrow()
+    expect(() => parseScheduleParse({ ok: 'yes' })).toThrow()
+    expect(() => parseScheduleParse(null)).toThrow()
+  })
+  it('parsePost: takrorlanish tafsiloti ixtiyoriy, lekin bo\'lsa tekshiriladi', () => {
+    const p = { ...PAGE.items[0], recurrence: 'interval', recurrence_day: 2, recurrence_time: '12:00' }
+    expect(parseScheduled({ ...PAGE, items: [p] }).items[0]).toMatchObject({ recurrence_day: 2, recurrence_time: '12:00' })
+    expect(() => parseScheduled({ ...PAGE, items: [{ ...p, recurrence_day: 'x' }] })).toThrow()
+    expect(parseScheduled({ ...PAGE, items: [PAGE.items[0]] }).items[0]).not.toHaveProperty('recurrence_day')
   })
 })

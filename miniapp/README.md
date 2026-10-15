@@ -50,6 +50,7 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `GET /scheduled-posts?status=pending\|history&limit=&offset=` | faqat o'zining postlari; `history` = yuborilgan/xato/bekor; har elementda `status` |
 | `GET /scheduled-posts/calendar?from=&to=` | faqat egasining KUTILAYOTGAN postlari, `[from, to)` (ISO, zonasi shart; zonasiz/yaroqsiz/`to<=from`/45 kundan katta → 400); eng ko'pi 500, kesilsa `truncated: true`; `no-store` |
 | `GET /channels/{channel_id}/analytics` | faqat kanal egasi (begona/yo'q kanal → 404 `not_found`); a'zolar tarixi (kunlik snapshot, 7/30 kunlik o'zgarish, ishonch darajasi, extrapolyatsiyasiz), postlar soni, ko'rishlar (faqat manbasi ma'lum) |
+| `POST /schedule/parse` | erkin tildagi vaqt iborasi -> taklif (qoidalar, kerak bo'lsa AI zaxirasi); hech narsa yozilmaydi; batafsil `docs/SMART_SCHEDULE.md` |
 | `GET /posts/{id}` | bitta post (egasi bo'yicha, boshqaniki -> 404) + tahrirlash uchun to'liq `text` |
 | `POST /posts` | `{channel_id, text, scheduled_at (ISO, zonali) \| send_now:true}` -> `201 {post, created, delivery}`; takroriy (30 s ichida bir xil kanal+matn) -> `200 created:false` |
 | `PATCH /posts/{id}` | `{text?, scheduled_at?}` faqat `pending` (takrorlanuvchida vaqt o'zgarmaydi) -> `200 {post}`, aks holda `409 not_editable` |

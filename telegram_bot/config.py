@@ -193,6 +193,24 @@ FREE_MAX_CHANNELS = _int_env("FREE_MAX_CHANNELS", 3)
 FREE_DAILY_AI = _int_env("FREE_DAILY_AI", 5)
 PRO_MAX_CHANNELS = _int_env("PRO_MAX_CHANNELS", 999)
 PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
+# Navbatdagi (kutilayotgan) postlar soni: bot, Mini App va tarif kartasi SHU qiymatlarni o'qiydi (999 = cheksiz).
+FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 5)
+PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 999)
+
+
+def plan_discount_percent(total_price, monthly_price, months) -> int:
+    """Uzoq tarifning 1 oylik narxga nisbatan HAQIQIY tejami (butun foiz, 0 dan kam emas).
+
+    Chegirma matnda qattiq yozilmaydi: narxlar env bilan o'zgarsa, e'lon qilingan foiz ham to'g'ri qoladi.
+    """
+    try:
+        total, monthly, n = float(total_price), float(monthly_price), int(months)
+    except (TypeError, ValueError):
+        return 0
+    if total <= 0 or monthly <= 0 or n <= 0:
+        return 0
+    return max(0, int(round((1 - total / (monthly * n)) * 100)))
+
 
 # 💵 UNIT ECONOMICS (USD → UZS kursi) ---
 # AI xarajati dollar hisobida yig'iladi (``ai_usage_events.estimated_cost``);
@@ -363,7 +381,7 @@ STARS_PLANS = {
         "usd": USD_1Y,
         "uzs": PAYMENT_PRICE_1Y_UZS,
         "label": f"⭐️ 1 yillik ({STARS_1Y} Stars)",
-        "description": f"~${USD_1Y} / -40% chegirma",
+        "description": f"~${USD_1Y} / -{plan_discount_percent(STARS_1Y, STARS_1M, 12)}% chegirma",
     },
 }
 

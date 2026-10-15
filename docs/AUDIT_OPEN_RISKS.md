@@ -120,6 +120,13 @@ dublikat-himoya faqat ism/username hash.
 birinchi to'lovdan keyin ochish; (3) qabul qiluvchi uchun yosh/kunlik qabul cap'i; (4) referral mukofotini birinchi amalga bog'lash
 (qisman bor: `register_first_action`). Xavf: (2)–(4) o'sish/konversiyani pasaytiradi — iqtisodiy qaror.
 
+### Channel DNA yangilanishi (qaror kerak)
+`attach_dna_to_context` saqlangan `channel_dna` profilini YOSHIGA qaramay promptga ulaydi; profil faqat `get_channel_dna*` chaqirilganda
+(autopilot/content loop) qayta hisoblanadi, alohida yangilash ishi yo'q. Faqat-generatsiya ishlatadigan kanalda profil eskirishi mumkin.
+Variantlar: (a) `updated_at` > N kun bo'lsa standart ohangga qaytish (kam ma'lumotli/uyg'oq kanalda sifatni tushiradi); (b) haftalik,
+faqat yangi postli kanallar uchun yengil yangilash ishi (DB yuki, yangi job); (c) profilga `schema_version` qo'shish. Hozir o'zgartirilmadi:
+oldin yosh chegarasi va yangilash siyosatini egasi belgilashi kerak.
+
 ### Vaqt zonalari
 Kunlik AI kvota reseti `CURRENT_DATE` (DB sessiya zonasi, odatda UTC → Toshkent 05:00), bonus/streak esa Asia/Tashkent
 kuni bilan. Qaysi chegara "to'g'ri" ekani biznes qarori; DB sessiya zonasi kodda o'rnatilmaydi.
@@ -129,9 +136,9 @@ kuni bilan. Qaysi chegara "to'g'ri" ekani biznes qarori; DB sessiya zonasi kodda
   Media/ovoz xabarlari middleware'da cheklanmaydi (handler/AI limiti tomonida).
 - `set_channel_tone`/`get_channel_posts_history`/`get_post_by_id` egasiz getter/setter — himoya handler RBAC'ida.
 - `handlers/admin.py` sponsor/reklama tugmalarida aniq `PERM_*` tekshiruvi yo'q (faqat admin + callback tekshiruvi).
-- Promo-kod brute-force uchun maxsus urinish limiti yo'q (global rate limiter ishlaydi); admin grant kunlariga yuqori chegara yo'q.
+- ~~Promo-kod brute-force limiti yo'q; admin grant kunlariga chegara yo'q~~ — TUZATILDI: foydalanuvchi bo'yicha 10 daqiqada 5 ta xato promo urinishdan keyin DB'ga tegmasdan rad (`services/promo_attempts.py`, jarayon xotirasida: ko'p instance'da har biri o'zini sanaydi — qo'shimcha to'siq, asosiy himoya umumiy rate limiter); admin PRO berish `MAX_ADMIN_GRANT_DAYS=3650` (`/grant_pro`, admin paneli, `grant_admin_bonus`). Testlar: `promo_attempt_limit_test`, `admin_grant_days_cap_test`.
 - NULL muddatli (muddatsiz) `pro` foydalanuvchi to'lov qilsa muddati chekli bo'lib qoladi (himoya faqat enterprise uchun).
-- `process_stars_payment` `sub_` bo'lmagan payload'ni validatsiyasiz qabul qiladi (hozirgi yagona chaqiruvchi validatsiya qiladi — latent).
+- `process_stars_payment` `sub_` bo'lmagan payload'ni validatsiyasiz qabul qiladi (hozirgi yagona chaqiruvchi validatsiya qiladi — latent). ATAYLAB o'zgartirilmadi: ko'p testlar va karta yo'li erkin payload bilan chaqiradi, to'lov shartnomasini o'zgartirish egasi qarori.
 - Dependency pin: `python-telegram-bot>=`, `sentry-sdk>=`, `sniffio>=` pinlanmagan. Pin uchun production image'dagi aniq
   versiyalar (`pip freeze`) kerak; ko'r-ko'rona yangilanmadi.
 
