@@ -154,7 +154,10 @@ def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -
 
     rows.append([InlineKeyboardButton(get_text("queue_btn_slots", lang), callback_data="qslots:show")])
     rows.append([InlineKeyboardButton(get_text("queue_btn_close", lang), callback_data="qclose")])
-    return InlineKeyboardMarkup(rows)
+    from miniapp_api.menu import with_miniapp_row
+
+    # Mini App yoqilgan bo'lsa: kalendar/rejalash ko'rinishi (Yopish'dan oldin)
+    return with_miniapp_row(InlineKeyboardMarkup(rows), lang, "schedule", before_last=True)
 
 
 def _get_post_detail_keyboard(post_id: int, lang: str = "uz") -> InlineKeyboardMarkup:

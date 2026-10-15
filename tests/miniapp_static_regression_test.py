@@ -78,6 +78,8 @@ def test_static():
         T.check("index.html no-cache", h.get("Cache-Control") == "no-cache")
         st, body, h = run(fetch(app, "GET", "/app"))
         T.check("/app -> /app/ ga yo'naltirish", st == 308 and h.get("Location") == "/app/")
+        st, body, h = run(fetch(app, "GET", "/app/?tab=schedule"))
+        T.check("/app/?tab=schedule (botdagi tugma) -> index.html", st == 200 and b"MINIAPP-INDEX" in body)
         st, body, h = run(fetch(app, "GET", "/app/index.html"))
         T.check("/app/index.html", st == 200 and b"MINIAPP-INDEX" in body)
         st, body, h = run(fetch(app, "GET", "/app/assets/app.js"))

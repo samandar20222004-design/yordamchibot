@@ -880,6 +880,9 @@ TRANSLATIONS = {
         "np_confirm_ok_btn": "✅ Rejalashtirish",
         "np_confirm_queue_btn": "⏳ Navbatga",
         "np_confirm_miniapp_btn": "📱 Mini App'da",
+        "btn_miniapp_open": "📱 Mini App",
+        "miniapp_app_msg": "📱 Mini App — qulay muharrir, kalendar va tahlil. Quyidagi tugmani bosing:",
+        "miniapp_unavailable": "📱 Mini App hozircha yoqilmagan.",
         "np_confirm_edit_btn": "✏️ Tahrirlash",
         "np_confirm_cancel_btn": "❌ Bekor qilish",
 
@@ -3063,6 +3066,9 @@ TRANSLATIONS = {
         "np_confirm_ok_btn": "✅ Запланировать",
         "np_confirm_queue_btn": "⏳ В очередь",
         "np_confirm_miniapp_btn": "📱 В Mini App",
+        "btn_miniapp_open": "📱 Mini App",
+        "miniapp_app_msg": "📱 Mini App — удобный редактор, календарь и аналитика. Нажмите кнопку ниже:",
+        "miniapp_unavailable": "📱 Mini App пока не включено.",
         "np_confirm_edit_btn": "✏️ Редактировать",
         "np_confirm_cancel_btn": "❌ Отмена",
 

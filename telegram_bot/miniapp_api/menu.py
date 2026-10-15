@@ -59,3 +59,52 @@ def miniapp_webapp_url(env=None):
         return None
     url = (env.get("MINIAPP_URL") or "").strip()
     return url if url and valid_miniapp_url(url) else None
+
+
+MINIAPP_TABS = ("home", "post", "schedule", "me")
+
+
+def miniapp_tab_url(tab: str | None = None, env=None):
+    """Mini App manzili + ``?tab=`` (Mini App shu bo'limni to'g'ridan-to'g'ri ochadi). O'chiq bo'lsa ``None``.
+
+    Telegram ``web_app`` manzilidagi QUERY'ni saqlaydi (``#`` qismi esa ishga tushirish parametrlari uchun band).
+    """
+    url = miniapp_webapp_url(env)
+    if not url:
+        return None
+    if tab in MINIAPP_TABS:
+        parts = urlsplit(url)
+        query = "&".join(q for q in (parts.query, f"tab={tab}") if q)
+        url = parts._replace(query=query).geturl()
+    return url
+
+
+def miniapp_button(lang: str, tab: str | None = None, key: str = "btn_miniapp_open"):
+    """Inline ``web_app`` tugmasi yoki ``None`` (Mini App o'chiq / manzil yaroqsiz)."""
+    url = miniapp_tab_url(tab)
+    if not url:
+        return None
+    from telegram import InlineKeyboardButton, WebAppInfo
+
+    from locales.translations import get_text
+
+    return InlineKeyboardButton(get_text(key, lang), web_app=WebAppInfo(url=url))
+
+
+def with_miniapp_row(markup, lang: str, tab: str | None = None, before_last: bool = False):
+    """Mavjud ``InlineKeyboardMarkup`` ga «📱 Mini App» qatorini qo'shadi (o'chiq bo'lsa o'zgarishsiz qaytaradi).
+
+    ``before_last`` — qator oxirgi (odatda «Orqaga/Yopish») qatordan oldin turadi.
+    """
+    try:
+        button = miniapp_button(lang, tab)
+        if button is None or markup is None:
+            return markup
+        from telegram import InlineKeyboardMarkup
+
+        rows = [list(r) for r in markup.inline_keyboard]
+        rows.insert(len(rows) - 1 if before_last and rows else len(rows), [button])
+        return InlineKeyboardMarkup(rows)
+    except Exception:  # noqa: BLE001 — qo'shimcha tugma hech qachon asosiy ekranni buzmasin
+        logger.debug("Mini App tugmasi qo'shilmadi", exc_info=True)
+        return markup

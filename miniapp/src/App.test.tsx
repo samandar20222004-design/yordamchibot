@@ -34,6 +34,19 @@ beforeEach(() => { vi.useRealTimers() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); setTelegram(null) })
 
 describe('App', () => {
+  it('Botdagi tugma ?tab= bilan ochsa shu bo\'lim ochiladi; noma\'lum qiymat e\'tiborsiz', async () => {
+    setTelegram('query_id=1')
+    mockApi(okRoutes)
+    window.history.replaceState({}, '', '/app/?tab=me')
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Men' })
+    cleanup()
+    window.history.replaceState({}, '', '/app/?tab=evil')
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    window.history.replaceState({}, '', '/app/')
+  })
+
   it('/me kelguncha logo animatsiyali yuklash ekrani, keyin ilova', async () => {
     setTelegram('query_id=1')
     let release: (r: Response) => void = () => {}

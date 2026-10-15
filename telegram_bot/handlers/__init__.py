@@ -85,7 +85,7 @@ from keyboards.inline import get_subscription_check_keyboard
 
 # 1. START & ASOSIY MODUL
 from handlers.start import (
-    start, user_cabinet_menu, user_profile_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
+    start, app_command, user_cabinet_menu, user_profile_menu, user_invite_menu, daily_bonus_handler, start_transfer_credits, transfer_target_received, transfer_amount_received,
     help_command, help_menu_callback, cancel_handler, subscription_check_callback, check_user_subscribed,
     cabinet_callback, extras_menu, extras_close_callback,
     # 👥 Do'stlarni taklif — [📲 Do'stlarga ulashish] (switch_inline_query)
@@ -2258,6 +2258,7 @@ def _register_global_commands(app):
     # 👤 Profil / Sozlamalar — klaviatura matnini qo'lda yozish o'rniga
     # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
     app.add_handler(CommandHandler("settings", user_cabinet_menu))
+    app.add_handler(CommandHandler(["app", "miniapp"], app_command))
     app.add_handler(CommandHandler("help", help_command))
     # 🧹 ☰ «MENU» TUGMASI — /cleaner: Post tozalagich va ✍️ Imzo ekrani
     # BIR QADAMDA ochiladi (Sozlamalar → ✍️ Post sozlamalari → ⚙️ Ko'proq →

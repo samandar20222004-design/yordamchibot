@@ -1201,6 +1201,9 @@ EN_OVERLAY = {
     "np_confirm_ok_btn": "✅ Schedule",
     "np_confirm_queue_btn": "⏳ Add to queue",
     "np_confirm_miniapp_btn": "📱 In Mini App",
+    "btn_miniapp_open": "📱 Mini App",
+    "miniapp_app_msg": "📱 Mini App — a handy editor, calendar and analytics. Tap the button below:",
+    "miniapp_unavailable": "📱 Mini App is not enabled yet.",
     "np_confirm_edit_btn": "✏️ Edit",
     "np_album_received": (
         "🖼 <b>Album received:</b> {count} media items — "

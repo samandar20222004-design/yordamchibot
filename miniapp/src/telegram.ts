@@ -49,6 +49,16 @@ export function getUserPhotoUrl(): string | null {
   return typeof url === 'string' && /^https:\/\/[^\s"'<>]+$/.test(url) && url.length <= 512 ? url : null
 }
 
+/** Botdagi «📱 Mini App» tugmalari `?tab=` bilan ochadi: faqat ma'lum bo'limlar (boshqa qiymat e'tiborsiz). */
+export function getInitialTab(): 'home' | 'post' | 'schedule' | 'me' | null {
+  try {
+    const tab = new URLSearchParams(window.location.search).get('tab')
+    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'me' ? tab : null
+  } catch {
+    return null
+  }
+}
+
 export function getColorScheme(): 'light' | 'dark' {
   const scheme = webApp()?.colorScheme
   if (scheme === 'light' || scheme === 'dark') return scheme

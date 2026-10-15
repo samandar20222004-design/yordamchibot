@@ -1298,3 +1298,19 @@ async def cabinet_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
             await query.message.reply_text(text, reply_markup=get_cabinet_back_keyboard(lang), parse_mode="HTML")
         return
+
+
+async def app_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/app (/miniapp) — Mini App'ni ochuvchi tugma; Mini App yoqilmagan bo'lsa tushunarli javob."""
+    user = update.effective_user
+    if user is None or update.message is None:
+        return
+    lang = await ensure_user_lang(context, user.id)
+    from miniapp_api.menu import miniapp_button
+
+    button = miniapp_button(lang, "home")
+    if button is None:
+        await update.message.reply_text(get_text("miniapp_unavailable", lang))
+        return
+    await update.message.reply_text(get_text("miniapp_app_msg", lang),
+                                    reply_markup=InlineKeyboardMarkup([[button]]))

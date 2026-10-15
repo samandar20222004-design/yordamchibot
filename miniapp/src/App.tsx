@@ -11,7 +11,7 @@ import { HomePage } from './pages/HomePage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
-import { getInitData, getLanguageHint, initTelegram, isInTelegram } from './telegram'
+import { getInitData, getInitialTab, getLanguageHint, initTelegram, isInTelegram } from './telegram'
 
 function NotInTelegram() {
   const { t } = useI18n()
@@ -23,7 +23,7 @@ function NotInTelegram() {
 }
 
 function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) => void }) {
-  const [tab, setTab] = useState<Tab>('home')
+  const [tab, setTab] = useState<Tab>(() => getInitialTab() ?? 'home')
   const [toast, setToast] = useState<{ text: string; kind: 'success' | 'error'; id: number } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const notify = useCallback((text: string, kind: 'success' | 'error' = 'success') => {
@@ -45,7 +45,7 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
   }, [profileLang, onLang])
 
   // Botdan qoralama bilan kelgan foydalanuvchi to'g'ridan-to'g'ri tahrirlagichga tushadi (bir marta).
-  const autoOpened = useRef(false)
+  const autoOpened = useRef(getInitialTab() !== null) // aniq ?tab= bo'lsa, qoralama o'rniga shu bo'lim ochiladi
   const hasDraft = Boolean(draft.data?.draft)
   useEffect(() => {
     if (hasDraft && !autoOpened.current) {
