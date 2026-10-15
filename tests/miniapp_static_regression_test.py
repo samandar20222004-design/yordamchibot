@@ -177,11 +177,17 @@ def test_real_build():
     kinds = {}
     for ref in refs:
         st, body, h = run(fetch(app, "GET", ref))
-        kinds[ref.rsplit(".", 1)[-1]] = (st, h.get("Content-Type", ""), h.get("Cache-Control", ""))
         T.check(f"{ref}: 200 va bo'sh emas", st == 200 and len(body) > 100)
+        if ref.startswith("/app/assets/"):  # faqat hash'li build assetlari immutable bo'lishi shart
+            kinds[ref.rsplit(".", 1)[-1]] = (st, h.get("Content-Type", ""), h.get("Cache-Control", ""))
     T.check("JS to'g'ri content-type bilan", "javascript" in kinds.get("js", (0, ""))[1])
     T.check("CSS to'g'ri content-type bilan", "text/css" in kinds.get("css", (0, ""))[1])
     T.check("hash'li assetlar immutable", all("immutable" in v[2] for v in kinds.values()))
+    # Yuklash ekrani logosi: hash'siz statik fayl — rasm sifatida beriladi, immutable EMAS (almashtirilsa yangilansin).
+    st, body, h = run(fetch(app, "GET", "/app/logo-192.png"))
+    T.check("yuklash ekrani logosi /app/logo-192.png: 200 + image/png", st == 200 and "image/png" in h.get("Content-Type", "") and body[:4] == b"\x89PNG")
+    T.check("logo immutable emas (qisqa kesh)", "immutable" not in h.get("Cache-Control", "") and "max-age" in h.get("Cache-Control", ""))
+    T.check("index.html yuklash ekrani (splash) logosi bilan", "splash" in html and "/app/logo-192.png" in html)
     T.check("Telegram WebApp SDK <script> bor (CSP script-src bilan mos)", "https://telegram.org/js/telegram-web-app.js" in html)
     st, body, h = run(fetch(app, "GET", "/app/some/deep/link"))
     T.check("SPA chuqur havola index.html beradi", st == 200 and b'id="root"' in body)

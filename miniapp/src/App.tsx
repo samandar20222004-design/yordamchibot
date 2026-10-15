@@ -3,7 +3,7 @@ import { AppDataContext, type AppData } from './AppData'
 import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
 import { Toast } from './components/Dialog'
-import { EmptyState } from './components/ui'
+import { EmptyState, Splash } from './components/ui'
 import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
 import { useScheduleFeed } from './hooks/useScheduleFeed'
@@ -58,6 +58,9 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
     () => ({ client, me, channels, draft, feed, go: setTab, botUsername, notify, setLang: onLang }),
     [client, me, channels, draft, feed, botUsername, notify, onLang],
   )
+
+  // Birinchi /me kelguncha (xato bo'lmasa) logo animatsiyasi; xato bo'lsa sahifalar o'z xato holatini ko'rsatadi.
+  if (me.data === null && !me.error) return <Splash />
 
   return (
     <AppDataContext.Provider value={value}>

@@ -28,6 +28,7 @@ os.environ.setdefault("ADMIN_ID", "123456789")
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 
 import database as db  # noqa: E402
+from config import STARS_1M  # noqa: E402
 
 
 _local_server = []
@@ -127,7 +128,7 @@ def test_one_payment_replayed_five_times_grants_once(p0_db):
     try:
         def pay(_):
             return p0_db.process_stars_payment(
-                user_id, 75, "XTR", f"sub_stars_1m_{user_id}", charge,
+                user_id, STARS_1M, "XTR", f"sub_stars_1m_{user_id}", charge,
                 "pro", 30,
             )
 

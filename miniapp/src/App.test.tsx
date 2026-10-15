@@ -34,6 +34,25 @@ beforeEach(() => { vi.useRealTimers() })
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); setTelegram(null) })
 
 describe('App', () => {
+  it('/me kelguncha logo animatsiyali yuklash ekrani, keyin ilova', async () => {
+    setTelegram('query_id=1')
+    let release: (r: Response) => void = () => {}
+    mockApi((url) => {
+      if (url.includes('/me')) return new Promise<Response>((res) => { release = res })
+      if (url.includes('/channels')) return jsonResponse({ items: [], total: 0 })
+      if (url.includes('/scheduled-posts')) return jsonResponse(PAGE)
+      return jsonResponse(errorBody('not_found'), 404)
+    })
+    const { container } = render(<App />)
+    const splash = container.querySelector('.splash')
+    expect(splash).not.toBeNull()
+    expect(splash?.querySelector('img')?.getAttribute('src')).toMatch(/logo-192\.png$/)
+    expect(container.querySelector('.shell')).toBeNull()
+    release(jsonResponse(ME))
+    await waitFor(() => expect(container.querySelector('.shell')).not.toBeNull())
+    expect(container.querySelector('.splash')).toBeNull()
+  })
+
   it('Telegram tashqarisida: tushunarli ekran, so\'rov yuborilmaydi', () => {
     setTelegram(null)
     const f = mockApi(okRoutes)

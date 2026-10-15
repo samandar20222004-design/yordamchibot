@@ -41,6 +41,20 @@ export function LoadingBlock({ rows = 3 }: { rows?: number }) {
   )
 }
 
+export function Splash() {
+  const { t } = useI18n()
+  return (
+    <div className="splash" role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">{t('common.loading')}</span>
+      <div className="splash-logo">
+        <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" width={96} height={96} decoding="async" />
+      </div>
+      <div className="splash-name" aria-hidden="true">PostAssist</div>
+      <div className="splash-dots" aria-hidden="true"><i /><i /><i /></div>
+    </div>
+  )
+}
+
 export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
   return (
     <div className="state">
