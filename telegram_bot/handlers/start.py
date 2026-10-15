@@ -32,6 +32,8 @@ from utils.handler_timeout import run_background_task
 
 from utils.silent_errors import log_silent_failure
 
+from services.start_splash import remove_splash, send_splash
+
 logger = logging.getLogger(__name__)
 
 
@@ -296,6 +298,14 @@ async def _warm_user_stats(user_id: int) -> None:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
+    splash = await send_splash(update.message)  # markazda animatsiyali yuklash (ixtiyoriy)
+    try:
+        return await _start_flow(update, context)
+    finally:
+        await remove_splash(splash)
+
+
+async def _start_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     detected = detect_language(getattr(user, "language_code", None))
 

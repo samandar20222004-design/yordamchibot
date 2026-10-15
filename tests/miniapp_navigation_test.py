@@ -63,7 +63,7 @@ def test_start_payload_behaviour():
 
     start_mod = importlib.import_module("handlers.start")  # `handlers.start` nomi paketda funksiya bilan soyalanadi
 
-    src = inspect.getsource(start_mod.start)
+    src = inspect.getsource(start_mod.start) + inspect.getsource(start_mod._start_flow)  # start() = animatsiya o'rami, mantiq _start_flow da
     T.check("start() handleri `ref_` ni tanlaydi", 'startswith("ref_")' in src)
     routed = [w for w in ("newpost", "start_new_post", "sub_open", "pro_plans", "subscription_callback") if w in src]
     T.check("start() ichida payload orqali /newpost yoki PRO ga yo'naltirish YO'Q", not routed, str(routed))
