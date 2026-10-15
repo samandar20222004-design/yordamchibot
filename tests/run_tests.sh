@@ -257,12 +257,6 @@ fail() { EXIT_CODE=1; FAILED_TESTS+=("$1"); }
 # bu xatti-harakatni tests/production_safety_and_validator_test.py o'zi
 # ENVIRONMENT=production qilib tekshiradi.
 export ENVIRONMENT=test
-# BETA DARVOZASI: kodning standarti endi YOPIQ (closed beta). Mavjud
-# onboarding/menyu oqimlari testlari ochiq rejim bazasida ishlaydi; beta
-# darvozasining o'zi esa tests/beta_gate_test.py da alohida sinaladi (standart
-# = yopiq, env=false = ochiq, runtime on/off) — u o'z env'ini aniq boshqaradi.
-export BETA_INVITE_ONLY=false
-
 echo "=============================================================="
 echo " PostAssist V2 — TO'LIQ TEST O'TKAZISH (bash tests/run_tests.sh)"
 echo "=============================================================="
@@ -1555,20 +1549,8 @@ echo "===== 💰 SPRINT 4 — UNIT ECONOMICS (AI XARAJAT / PRO RENTABELLIK) ====
 "$PY" tests/unit_economics_test.py || fail "tests/unit_economics_test.py"
 
 echo
-echo "===== 🚪 SPRINT 4 — YOPIQ BETA DARVOZASI (CLOSED BETA ACCESS) ====="
-# (1) BETA_INVITE_ONLY / BETA_MAX_USERS env sozlamalari (fail-safe: ochiq);
-# (2) Qaror mantiqi: open_mode / existing_user / admin_access / invite_code /
-#     admin_approved / pending_approval / invalid_code / code_exhausted /
-#     beta_full — ESKI foydalanuvchilar uzluksiz ishlaydi;
-# (3) Kodlar (yaratish, limit, o'chirish, normalizatsiya) va navbat
-#     (approve/reject, urinishlar, o'rinlar hisobi);
-# (4) Persistence: JSON holat, xotira ombori va real PostgreSQL
-#     (system_settings → beta_gate_state);
-# (5) /start integratsiyasi: haqiqiy handler — kod bilan kiritish, kodsiz
-#     navbat, `ref_<id>` + kod birgalikda;
-# (6) /beta admin buyrug'i: holat/kod/navbat/tasdiq/runtime on-off-reset;
-# (7) Hujjat: yagona .env.example'da yangi kalitlar.
-"$PY" tests/beta_gate_test.py || fail "tests/beta_gate_test.py"
+echo "===== OMMAVIY KIRISH — /start VA MINI APP ====="
+"$PY" tests/public_access_test.py || fail "tests/public_access_test.py"
 
 echo
 echo "===== ⏱ SPRINT 4 — ONBOARDING TELEMETRIYASI (TTFP + D1/D7) ====="
@@ -1623,7 +1605,7 @@ echo "===== 📱 MINI APP (API poydevori: auth, proksi, limiter, ownership, stat
 #   miniapp_auth_test.py             — initData HMAC, takroriy kalit, auth_date, token (fail-closed), log maxfiyligi;
 #   miniapp_initdata_smoke_test.py   — scripts/miniapp_initdata_smoke.py: natija mantiqi va maxfiylik (chiqishda sir yo'q);
 #   miniapp_proxy_ratelimit_test.py  — X-Forwarded-* soxtalashtirish, qat'iy limiter (Redis xatosi -> 503);
-#   miniapp_api_test.py              — endpointlar, beta/ruxsat, ownership, DB xatosi -> 503, timeout/semafor;
+#   miniapp_api_test.py              — endpointlar, ruxsat, ownership, DB xatosi -> 503, timeout/semafor;
 #   miniapp_static_regression_test.py— /app/* SPA, path traversal, /health* va /payments/payme regressiyasi;
 #   miniapp_db_real_test.py          — REAL PostgreSQL (MINIAPP_TEST_DATABASE_URL yo'q bo'lsa SKIP/BLOCKED);
 #   miniapp_navigation_test.py       — Post/PRO -> bot navigatsiya kontrakti, /start payload xavfi;

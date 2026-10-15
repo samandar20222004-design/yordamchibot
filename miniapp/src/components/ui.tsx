@@ -59,7 +59,6 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   auth_expired: 'err.auth_expired',
   auth_unavailable: 'err.auth_unavailable',
   not_registered: 'err.not_registered',
-  beta_access_required: 'err.beta_access_required',
   rate_limited: 'err.rate_limited',
   service_unavailable: 'err.service_unavailable',
   https_required: 'err.https_required',
@@ -82,7 +81,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   method_not_allowed: 'err.method_not_allowed',
 }
 /** Qayta urinish foyda bermaydigan kodlar: ilovani qayta ochish yoki botda amal kerak. */
-const FATAL = new Set(['unauthorized', 'auth_expired', 'https_required', 'not_registered', 'beta_access_required'])
+const FATAL = new Set(['unauthorized', 'auth_expired', 'https_required', 'not_registered'])
 
 export function errorMessageKey(code: string): MessageKey {
   return ERROR_KEYS[code] ?? 'err.generic'
@@ -93,7 +92,7 @@ export function ErrorState({ error, onRetry, botUsername }: {
 }) {
   const { t } = useI18n()
   const fatal = FATAL.has(error.code)
-  const needsBot = error.code === 'not_registered' || error.code === 'beta_access_required'
+  const needsBot = error.code === 'not_registered'
   return (
     <div className="state state-error" role="alert">
       <h2>{t(errorMessageKey(error.code))}</h2>

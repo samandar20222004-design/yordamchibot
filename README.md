@@ -29,9 +29,6 @@ Minimal sozlamalar: `BOT_TOKEN`, `DATABASE_URL`, `ADMIN_IDS` va kamida bitta AI
 kaliti (`GEMINI_API_KEY`, `GROQ_API_KEY` yoki `OPENROUTER_API_KEY`).
 Jadvallar birinchi ishga tushishda `schema.sql` dan avtomatik yaratiladi.
 
-> ⚠️ `BETA_INVITE_ONLY` sukut bo'yicha **yoqilgan**: yangi foydalanuvchilar faqat
-> taklif kodi bilan kira oladi. Hamma uchun ochish: `BETA_INVITE_ONLY=false`.
-
 ---
 
 ## Papkalar

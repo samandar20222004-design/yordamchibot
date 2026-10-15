@@ -407,10 +407,6 @@ def _run_start(is_new: bool, lang: str, user_id: int):
     async def fake_ad(uid):
         return ""
 
-    async def fake_beta_gate(*args, **kwargs):
-        return {"allowed": True, "reason": "open_mode", "code": None,
-                "seats_left": None, "invite_only": False, "attempts": 0}
-
     class _Msg:
         def __init__(self):
             self.replies = []
@@ -429,17 +425,14 @@ def _run_start(is_new: bool, lang: str, user_id: int):
     upd = SimpleNamespace(message=msg, effective_user=user, effective_message=msg)
     ctx = SimpleNamespace(bot=_Bot(), user_data={}, chat_data={}, args=[])
 
-    orig = (db_mod.run_db, st_mod.check_user_subscribed, st_mod.get_smart_reply_ad_async,
-            st_mod._beta_gate_decision)
+    orig = (db_mod.run_db, st_mod.check_user_subscribed, st_mod.get_smart_reply_ad_async)
     db_mod.run_db = fake_run_db
     st_mod.check_user_subscribed = fake_check
     st_mod.get_smart_reply_ad_async = fake_ad
-    st_mod._beta_gate_decision = fake_beta_gate
     try:
         asyncio.run(st_mod.start(upd, ctx))
     finally:
-        (db_mod.run_db, st_mod.check_user_subscribed, st_mod.get_smart_reply_ad_async,
-         st_mod._beta_gate_decision) = orig
+        (db_mod.run_db, st_mod.check_user_subscribed, st_mod.get_smart_reply_ad_async) = orig
     assert msg.replies, "start() javob bermadi"
     return msg.replies[0]
 

@@ -86,8 +86,7 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 
 ## Bilish kerak
 
-- `BETA_INVITE_ONLY` sukut bo'yicha `true` — yangi foydalanuvchilar taklif kodisiz
-  kira olmaydi. Production'da qiymatni egasi belgilaydi.
+- `/start` yangi foydalanuvchilarni taklif kodi yoki admin tasdig'isiz ro'yxatdan o'tkazadi.
 - Bepul tarifda kanal postining OXIRIGA `\n\n🤖 @BOT_USERNAME` qo'shiladi (`utils/helpers.py`:
   `apply_post_watermark`; limit kesishidan KEYIN `compose_post_text(footer=...)`). PRO/admin — toza.
 - Hostingga va production bazaga kirish yo'q; tezlik o'lchovlari faqat lokal.

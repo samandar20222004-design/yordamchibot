@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mini App — API endpointlari, ruxsat (beta), ownership, xatolar, DB ijrochisi.
+"""Mini App — API endpointlari, ruxsat, ownership, xatolar, DB ijrochisi.
 
 Muhit: aiohttp TestClient + SOXTA kursor (in-memory model). Haqiqiy PostgreSQL
 YO'Q: SQL matni/parametrlari kontrakti tekshiriladi (egalik sharti SQL'da, xato
@@ -32,7 +32,7 @@ from miniapp_api.access import evaluate_access  # noqa: E402
 from miniapp_api.db import ReadOnlyRunner  # noqa: E402
 from miniapp_api.errors import ApiError, catalog_codes, message_for  # noqa: E402
 from miniapp_api.ratelimit import StrictLimiter  # noqa: E402
-from miniapp_api.service import MiniAppService, _config_invite_only, _is_admin  # noqa: E402
+from miniapp_api.service import MiniAppService  # noqa: E402
 from miniapp_api.settings import load_settings  # noqa: E402
 
 T = Counter("MINI APP — API (soxta kursor, TestClient)")
@@ -47,7 +47,6 @@ class Model:
         self.users = {}
         self.channels = []   # (owner, channel_id, title, active, deleted)
         self.posts = []      # dict
-        self.beta_raw = None
         self.log = []
         self.fail_on = None
         self.tx_calls = 0
@@ -73,8 +72,6 @@ class Cursor:
         elif "FROM users WHERE user_id = %s" in s:
             row = m.users.get(params[0])
             self._rows = [row] if row else []
-        elif "FROM system_settings" in s:
-            self._rows = [(m.beta_raw,)] if m.beta_raw is not None else []
         elif s.startswith("SELECT COUNT(*) FROM channels"):
             self._rows = [(len([c for c in m.channels if c[0] == params[0] and c[3] and not c[4]]),)]
         elif "FROM channels c" in s and "LATERAL" in s:
@@ -133,16 +130,14 @@ class NullLimiter:
 
 
 @contextmanager
-def running(model, *, settings=None, limiter=None, invite_only=False, admin=lambda u, r: False,
-            runner=None):
+def running(model, *, settings=None, limiter=None, runner=None):
     async def _noop():
         pass
     settings = settings or settings_for()
     runner = runner or ReadOnlyRunner(statement_timeout_ms=settings.db_statement_timeout_ms,
                                       max_inflight=settings.max_inflight_db,
                                       tx_factory=tx_factory_for(model))
-    service = MiniAppService(settings, runner, invite_only_getter=lambda: invite_only,
-                             admin_check=admin)
+    service = MiniAppService(settings, runner)
     api = appmod.build_api_app(settings, runner=runner, limiter=limiter or NullLimiter(),
                                clock=lambda: NOW, service=service)
     app = web.Application()
@@ -348,69 +343,31 @@ def test_plan():
 
 
 def test_access():
-    print("\n== 6. Ruxsat: ro'yxatdan o'tmagan / pending / approved / admin ==")
+    print("\n== 6. Ruxsat: ro'yxatdan o'tmagan / o'chirilgan / barcha ro'yxatdan o'tganlar ==")
     m = world()
     m.add_user(7, deleted=True)
     m.add_user(8)
     m.add_user(9)
-    m.add_user(10)
-    state = {"enabled": None, "approved": {"8": {"source": "code"}}, "pending": {"9": {}}}
+    m.add_user(10, role="admin")
 
-    def call_me(uid, *, invite_only=True, admin=lambda u, r: False, raw=state):
-        m.beta_raw = json.dumps(raw) if raw is not None and not isinstance(raw, str) else raw
-        with running(m, invite_only=invite_only, admin=admin) as (app, _):
+    def call_me(uid):
+        with running(m) as (app, _):
             return run(call(app, "GET", "/api/v1/me", headers=hdr(uid)))
 
     st, b, _ = call_me(999)
     T.check("users'da yo'q -> 403 not_registered", st == 403 and b["error"]["code"] == "not_registered")
-    users_before = dict(m.users)
-    T.check("API foydalanuvchi YARATMADI", m.users == users_before and 999 not in m.users)
+    T.check("API foydalanuvchi YARATMADI", 999 not in m.users)
     st, b, _ = call_me(7)
-    T.check("soft-delete qilingan -> 403 not_registered", st == 403 and b["error"]["code"] == "not_registered")
-    st, b, _ = call_me(8)
-    T.check("approved -> 200", st == 200)
-    st, b, _ = call_me(9)
-    T.check("pending -> 403 beta_access_required", st == 403 and b["error"]["code"] == "beta_access_required")
-    st, b, _ = call_me(10)
-    T.check("approved/pending'da yo'q (eski foydalanuvchi) -> 200 (bot qoidasi REASON_EXISTING bilan bir xil)",
-            st == 200)
-    st, b, _ = call_me(9)
-    T.check("pending baribir RAD (eski foydalanuvchi qoidasi pending'ga tegmaydi)",
-            st == 403 and b["error"]["code"] == "beta_access_required")
-    st, b, _ = call_me(10, admin=lambda u, r: u == 10)
-    T.check("admin -> 200", st == 200)
-    st, b, _ = call_me(10, invite_only=False)
-    T.check("darvoza o'chiq (config) -> 200", st == 200)
-    st, b, _ = call_me(10, raw={"enabled": False, "approved": {}, "pending": {}})
-    T.check("holat 'enabled=false' override -> 200", st == 200)
-    st, b, _ = call_me(9, invite_only=False, raw={"enabled": True, "approved": {}, "pending": {"9": {}}})
-    T.check("holat 'enabled=true' override config'dan ustun (pending) -> 403", st == 403)
-    st, b, _ = call_me(10, raw=None)
-    T.check("beta holati yo'q (qator yo'q) = bo'sh holat -> eski foydalanuvchi 200", st == 200)
-    for label, raw in {"buzuq JSON": "{bad json", "ro'yxat": "[1,2]", "approved ro'yxat": '{"approved":[1]}',
-                       "pending satr": '{"pending":"x"}', "enabled satr": '{"enabled":"yes"}'}.items():
-        st, b, _ = call_me(8, raw=raw)
-        T.check(f"beta holati yaroqsiz ({label}) -> 503, ruxsat YO'Q",
-                st == 503 and b["error"]["code"] == "service_unavailable")
-    # beta holati o'zgarmaydi
-    m.beta_raw = json.dumps(state)
-    snap = m.beta_raw
-    call_me(9)
-    call_me(10)
-    T.check("API beta holatini O'ZGARTIRMADI (pending kengaymadi)", m.beta_raw == snap)
-    T.check("beta uchun yozuvchi SQL yo'q", not any(("INSERT" in s or "UPDATE" in s) for s, _ in m.log))
-    # to'g'ridan-to'g'ri evaluate_access
-    d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False, beta_raw=None, config_invite_only=True)
-    T.check("evaluate_access: invite_only + ro'yxatda yo'q -> eski foydalanuvchi, ruxsat", d.allowed and d.reason == "existing_user")
-    d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False,
-                        beta_raw='{"pending": {"5": {}}}', config_invite_only=True)
-    T.check("evaluate_access: invite_only + pending -> rad", not d.allowed)
-    d = evaluate_access(5, user_exists=True, deleted=False, is_admin=False, beta_raw=None, config_invite_only=False)
-    T.check("evaluate_access: darvoza o'chiq -> ruxsat", d.allowed)
-    T.check("default admin tekshiruvi: ADMIN_ID (legacy) admin", _is_admin(123456789, None) is True)
-    T.check("default admin tekshiruvi: oddiy foydalanuvchi emas", _is_admin(555, "user") is False)
-    T.check("default admin: DB roli admin", _is_admin(555, "admin") is True)
-    T.check("config invite_only bool qaytaradi", isinstance(_config_invite_only(), bool))
+    T.check("soft-delete -> 403 not_registered", st == 403 and b["error"]["code"] == "not_registered")
+    for uid in (8, 9, 10):
+        st, b, _ = call_me(uid)
+        T.check(f"ro'yxatdan o'tgan {uid} -> 200", st == 200)
+    T.check("ruxsat tekshiruvi faqat users qatorini o'qiydi",
+            not any("system_settings" in sql for sql, _ in m.log))
+    T.check("API yozmaydi", not any(("INSERT" in sql or "UPDATE" in sql) for sql, _ in m.log))
+    T.check("registered -> ruxsat", evaluate_access(user_exists=True, deleted=False).allowed)
+    T.check("deleted -> rad", not evaluate_access(user_exists=True, deleted=True).allowed)
+    T.check("missing -> rad", not evaluate_access(user_exists=False, deleted=False).allowed)
 
 
 def test_db_failures():
@@ -425,8 +382,7 @@ def test_db_failures():
     try:
         for path, needle in (("/api/v1/channels", "FROM channels c"),
                              ("/api/v1/scheduled-posts", "FROM scheduled_posts sp"),
-                             ("/api/v1/me", "FROM users WHERE user_id"),
-                             ("/api/v1/me", "FROM system_settings")):
+                             ("/api/v1/me", "FROM users WHERE user_id")):
             m.fail_on = needle
             with running(m) as (app, _):
                 st, b, h = run(call(app, "GET", path, headers=hdr(1)))

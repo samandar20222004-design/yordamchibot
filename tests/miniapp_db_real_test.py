@@ -64,7 +64,6 @@ def main() -> int:
         cur.execute("DELETE FROM scheduled_posts WHERE user_id = ANY(%s)", (list(IDS),))
         cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", (list(IDS),))
         cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", (list(IDS),))
-        cur.execute("DELETE FROM system_settings WHERE key = 'beta_gate_state'")
 
     cleanup()
     try:
@@ -93,7 +92,7 @@ def main() -> int:
         settings = load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                                   "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"})
         runner = ReadOnlyRunner(statement_timeout_ms=5000, max_inflight=4)
-        service = MiniAppService(settings, runner, invite_only_getter=lambda: False)
+        service = MiniAppService(settings, runner)
 
         class Null:
             async def hit(self, *a, **k):
@@ -142,35 +141,10 @@ def main() -> int:
         cur.execute("SELECT count(*) FROM users WHERE user_id = 9000000099")
         T.check("users jadvaliga yozilmadi", cur.fetchone()[0] == 0)
 
-        print("\n== 2. Real beta holati (system_settings) ==")
-        service_beta = MiniAppService(settings, runner, invite_only_getter=lambda: True,
-                                      admin_check=lambda u, r: False)
-        api2 = appmod.build_api_app(settings, runner=runner, limiter=Null(), clock=lambda: NOW, service=service_beta)
-        app2 = web.Application()
-        app2.add_subapp(appmod.API_PREFIX, api2)
-
-        async def get2(uid):
-            client = TestClient(TestServer(app2))
-            await client.start_server()
-            try:
-                r = await client.get("/api/v1/me", headers={"Authorization": "tma " + make_init_data(uid)})
-                return r.status, await r.json()
-            finally:
-                await client.close()
-
-        state = json.dumps({"version": 1, "enabled": None, "codes": {}, "approved": {str(A): {}},
-                            "pending": {str(B): {}}})
-        cur.execute("INSERT INTO system_settings (key, value) VALUES ('beta_gate_state', %s) "
-                    "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (state,))
-        T.check("approved -> 200", run(get2(A))[0] == 200)
-        T.check("pending -> 403", run(get2(B))[0] == 403)
-        T.check("ro'yxatda yo'q (eski foydalanuvchi, bot qoidasi) -> 200", run(get2(C))[0] == 200)
-        cur.execute("SELECT value FROM system_settings WHERE key = 'beta_gate_state'")
-        T.check("beta holati API tomonidan O'ZGARTIRILMADI", cur.fetchone()[0] == state)
-        cur.execute("UPDATE system_settings SET value = '{broken' WHERE key = 'beta_gate_state'")
-        st, err = run(get2(A))
-        T.check("beta holati JSON buzuq -> 503 (ruxsat yo'q)", st == 503 and err["error"]["code"] == "service_unavailable")
-        cur.execute("DELETE FROM system_settings WHERE key = 'beta_gate_state'")
+        print("\n== 2. Barcha ro'yxatdan o'tganlar Mini App'ga kira oladi ==")
+        for uid in (A, B, C, D):
+            T.check(f"account {uid} -> ruxsat", run(get("/api/v1/me", uid))[0] == 200)
+        T.check("soft-delete -> 403", run(get("/api/v1/me", E))[0] == 403)
 
         print("\n== 3. statement_timeout, read-only, pool ==")
         fast = ReadOnlyRunner(statement_timeout_ms=300, max_inflight=2)
