@@ -13,6 +13,8 @@ export interface PreviewMedia {
   /** Rasm uchun `blob:` manzil (bo'lmasa — turi bilan belgi). */
   url: string | null
   loading: boolean
+  /** `url` video/GIF-animatsiya (MP4) bo'lsa true. */
+  video?: boolean
 }
 
 /** Telegram xabari ko'rinishidagi oldindan ko'rish (faqat o'qish uchun; hech narsa yuborilmaydi). */
@@ -32,7 +34,9 @@ export function PostPreview({ channelTitle, html, media, buttonText }: {
       <div className="bubble">
         {media && (
           media.url ? (
-            <img className="bubble-media" src={media.url} alt={mediaLabel} />
+            media.video
+              ? <video className="bubble-media" src={media.url} aria-label={mediaLabel} muted loop playsInline controls preload="metadata" />
+              : <img className="bubble-media" src={media.url} alt={mediaLabel} />
           ) : (
             <div className={`bubble-media bubble-media-ph${media.loading ? ' skeleton' : ''}`} role="img" aria-label={mediaLabel}>
               <Icon name={MEDIA_ICON[media.type] ?? 'file'} size={34} />

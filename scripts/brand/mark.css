@@ -1,0 +1,20 @@
+/* Brend belgisi animatsiyasi: robot (ko'z pirpiraydi, antenna urib turadi, tana suzadi) + Telegram belgisi (sakraydi, qog'oz samolyot uchadi). */
+.bm { display: block; width: 100%; height: 100%; overflow: visible; }
+.bm-robot, .bm-badge, .bm-antenna, .bm-eye, .bm-plane, .bm-ball { transform-box: fill-box; transform-origin: center; }
+.bm-robot { animation: bm-float 2.8s ease-in-out infinite; }
+.bm-antenna { transform-origin: 50% 100%; animation: bm-wag 2.8s ease-in-out infinite; }
+.bm-ball { animation: bm-ball 1.4s ease-in-out infinite; }
+.bm-eye { animation: bm-blink 2.8s ease-in-out infinite; }
+.bm-smile { transform-box: fill-box; transform-origin: center; animation: bm-smile 2.8s ease-in-out infinite; }
+.bm-badge { animation: bm-hop 2.8s cubic-bezier(.3, 1.6, .5, 1) infinite; }
+.bm-plane { animation: bm-fly 2.8s ease-in-out infinite; }
+@keyframes bm-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-22px); } }
+@keyframes bm-wag { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes bm-ball { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.22); } }
+@keyframes bm-blink { 0%, 40%, 48%, 100% { transform: scaleY(1); } 44% { transform: scaleY(.08); } }
+@keyframes bm-smile { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12, 1.25); } }
+@keyframes bm-hop { 0%, 100% { transform: translate(0, 0) scale(1); } 22% { transform: translate(8px, -38px) scale(1.08); } 44% { transform: translate(0, 0) scale(.96); } 56% { transform: translate(0, -10px) scale(1.02); } 70% { transform: translate(0, 0) scale(1); } }
+@keyframes bm-fly { 0%, 100% { transform: translate(0, 0) rotate(0); } 25% { transform: translate(14px, -14px) rotate(-8deg); } 50% { transform: translate(0, 0) rotate(0); } 75% { transform: translate(-6px, 6px) rotate(5deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .bm-robot, .bm-antenna, .bm-ball, .bm-eye, .bm-smile, .bm-badge, .bm-plane { animation: none; }
+}

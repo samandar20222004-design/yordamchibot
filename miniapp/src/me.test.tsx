@@ -5,9 +5,9 @@ import App from './App'
 import { Meter, initialOf } from './pages/MePage'
 import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
 
-function setTelegram() {
+function setTelegram(photo?: string) {
   ;(window as unknown as { Telegram: unknown }).Telegram = {
-    WebApp: { initData: 'auth_date=1&hash=a', colorScheme: 'light', initDataUnsafe: { user: { language_code: 'uz' } },
+    WebApp: { initData: 'auth_date=1&hash=a', colorScheme: 'light', initDataUnsafe: { user: { language_code: 'uz', ...(photo ? { photo_url: photo } : {}) } },
       ready: vi.fn(), expand: vi.fn(), close: vi.fn(), openTelegramLink: vi.fn(), onEvent: vi.fn(), offEvent: vi.fn() },
   }
 }
@@ -124,5 +124,33 @@ describe('Profil sahifasi', () => {
     const btns = within(group).getAllByRole('button')
     expect(btns).toHaveLength(3)
     expect(btns.filter((b) => b.getAttribute('aria-pressed') === 'true')).toHaveLength(1)
+  })
+})
+
+describe('Sozlamalar: profil muqovasi va bo\'limlar', () => {
+  it('Telegram profil rasmi (https) ko\'rsatiladi; bo\'limlar: tarif, til, kanallar, ilova', async () => {
+    setTelegram('https://t.me/i/userpic/320/me.jpg')
+    mockApi()
+    await openMe()
+    const img = document.querySelector('.me-cover img.avatar-photo') as HTMLImageElement | null
+    expect(img?.getAttribute('src')).toBe('https://t.me/i/userpic/320/me.jpg')
+    expect(img?.getAttribute('referrerpolicy')).toBe('no-referrer')
+    const labels = Array.from(document.querySelectorAll('.sec-label')).map((e) => e.textContent)
+    expect(labels).toEqual(['Tarif va limitlar', 'Til', 'Kanallar', 'Ilova'])
+    expect(screen.getByRole('button', { name: 'Ilovani yopish' })).toBeTruthy()
+  })
+
+  it('Rasm yuklanmasa bosh harfga qaytadi; https bo\'lmagan manzil e\'tiborsiz', async () => {
+    setTelegram('https://t.me/i/userpic/320/me.jpg')
+    mockApi()
+    await openMe()
+    const img = document.querySelector('.me-cover img.avatar-photo') as HTMLImageElement
+    fireEvent.error(img)
+    expect(document.querySelector('.me-cover img.avatar-photo')).toBeNull()
+    expect(document.querySelector('.me-cover .avatar-lg')?.textContent).toBe('A')
+    cleanup()
+    setTelegram('http://evil.example/x.jpg')
+    await openMe()
+    expect(document.querySelector('.me-cover img')).toBeNull()
   })
 })

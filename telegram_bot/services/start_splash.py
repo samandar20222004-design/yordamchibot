@@ -1,4 +1,4 @@
-"""`/start` da markazda animatsiyali yuklash ko'rsatkichi (logo GIF).
+"""`/start` da markazda animatsiyali yuklash ko'rsatkichi (logo animatsiyasi, MP4).
 
 Foydalanuvchi botga kirganda javob tayyorlanguncha animatsiya ko'rinadi, asosiy javob yuborilgach o'chadi.
 Hech qachon `/start` ni buzmaydi: har bir xato yutiladi, yuborish vaqt bilan cheklangan.
@@ -14,7 +14,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-SPLASH_PATH = Path(__file__).resolve().parent.parent / "assets" / "loading.gif"
+SPLASH_PATH = Path(__file__).resolve().parent.parent / "assets" / "loading.mp4"
 SEND_TIMEOUT_SECONDS = 1.5
 _file_id: str | None = None
 

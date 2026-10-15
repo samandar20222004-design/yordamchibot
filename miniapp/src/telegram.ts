@@ -4,7 +4,7 @@
 
 interface TgWebApp {
   initData?: string
-  initDataUnsafe?: { user?: { language_code?: string } }
+  initDataUnsafe?: { user?: { language_code?: string; photo_url?: string } }
   colorScheme?: 'light' | 'dark'
   ready?: () => void
   expand?: () => void
@@ -41,6 +41,12 @@ export function isInTelegram(): boolean {
 /** Faqat interfeys tili uchun ishora (autentifikatsiya EMAS). */
 export function getLanguageHint(): string {
   return webApp()?.initDataUnsafe?.user?.language_code ?? navigator.language ?? 'uz'
+}
+
+/** Telegram profil rasmi URL (faqat https; imzosiz ishora — faqat ko'rsatish uchun, autentifikatsiya EMAS). */
+export function getUserPhotoUrl(): string | null {
+  const url = webApp()?.initDataUnsafe?.user?.photo_url
+  return typeof url === 'string' && /^https:\/\/[^\s"'<>]+$/.test(url) && url.length <= 512 ? url : null
 }
 
 export function getColorScheme(): 'light' | 'dark' {

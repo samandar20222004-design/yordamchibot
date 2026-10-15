@@ -55,8 +55,8 @@ def run(c):
 
 
 print("== /start yuklash animatsiyasi ==")
-check("GIF fayl mavjud va GIF sarlavhali", sp.SPLASH_PATH.is_file() and sp.SPLASH_PATH.read_bytes()[:3] == b"GIF")
-check("GIF hajmi 1 MB dan kichik", sp.SPLASH_PATH.stat().st_size < 1_000_000)
+check("animatsiya fayli mavjud va MP4 (ftyp)", sp.SPLASH_PATH.is_file() and sp.SPLASH_PATH.suffix == ".mp4" and sp.SPLASH_PATH.read_bytes()[4:8] == b"ftyp")
+check("animatsiya hajmi 1 MB dan kichik", sp.SPLASH_PATH.stat().st_size < 1_000_000)
 
 m = Msg()
 sent = run(sp.send_splash(m))

@@ -164,7 +164,7 @@ export function createApiClient(opts: ClientOptions) {
           headers: { Authorization: `tma ${initData}` }, signal, cache: 'no-store' })
         if (!res.ok) return null
         const blob = await res.blob()
-        return blob.type.startsWith('image/') ? blob : null
+        return blob.type.startsWith('image/') || blob.type.startsWith('video/') ? blob : null
       } catch {
         return null
       }

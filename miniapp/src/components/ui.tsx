@@ -3,6 +3,7 @@ import { ApiClientError } from '../api/client'
 import { closeApp, isValidBotUsername, openBot } from '../telegram'
 import { useI18n, type MessageKey } from '../i18n'
 import { Icon, type IconName } from './Icon'
+import { BrandMark } from './BrandMark'
 
 export function Button({
   variant = 'secondary', busy = false, block = false, icon, children, className, ...rest
@@ -47,7 +48,7 @@ export function Splash() {
     <div className="splash" role="status" aria-busy="true" aria-live="polite">
       <span className="sr-only">{t('common.loading')}</span>
       <div className="splash-logo">
-        <img src={`${import.meta.env.BASE_URL}logo-192.png`} alt="" width={96} height={96} decoding="async" />
+        <BrandMark />
       </div>
       <div className="splash-name" aria-hidden="true">PostAssist</div>
       <div className="splash-dots" aria-hidden="true"><i /><i /><i /></div>

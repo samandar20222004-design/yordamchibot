@@ -196,7 +196,7 @@ def main() -> int:
 
         print("\n== 3. Video va GIF ==")
         st, b = upload(MP4, ctype="video/mp4")
-        T.check("MP4 -> video, previewable=False", st == 200 and b["draft"]["media"]["type"] == "video" and b["draft"]["media"]["previewable"] is False
+        T.check("MP4 -> video, previewable=True (video oldindan ko'rsatiladi)", st == 200 and b["draft"]["media"]["type"] == "video" and b["draft"]["media"]["previewable"] is True
                 and raw()["file_id"] == "VIDEO_FILE_ID", f"{st} {b}")
         st, b = upload(GIF, ctype="image/gif")
         T.check("GIF -> animation", st == 200 and raw()["post_type"] == "animation" and raw()["file_id"] == "GIF_FILE_ID")

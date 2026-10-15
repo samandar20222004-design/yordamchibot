@@ -458,7 +458,7 @@ export function PostPage() {
         </section>
 
         <PostPreview channelTitle={selectedTitle || t('post.channelPick')} html={text}
-          media={media ? { type: media.type, count: media.count, url: photo.url, loading: photo.loading } : null}
+          media={media ? { type: media.type, count: media.count, url: photo.url, loading: photo.loading, video: photo.video } : null}
           buttonText={hasButton ? btnText.trim() || null : null} />
 
         <section className="card compose-when" aria-labelledby="when-title">

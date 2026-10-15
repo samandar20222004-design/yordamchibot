@@ -120,7 +120,7 @@ def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
     return text, url
 
 
-MAX_MEDIA_BYTES = 8 * 1024 * 1024
+MAX_MEDIA_BYTES = 16 * 1024 * 1024  # oldindan ko'rish: rasm/video/GIF (Bot API getFile ham ~20 MB bilan cheklangan)
 
 
 def sniff_image(data) -> str | None:
@@ -131,6 +131,29 @@ def sniff_image(data) -> str | None:
         return "image/png"
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
         return "image/webp"
+    return None
+
+
+PREVIEW_TYPES = ("photo", "video", "animation", "document")
+
+
+def previewable_file_id(draft) -> str | None:
+    """Oldindan ko'rsatish mumkin bo'lgan media ``file_id`` si (yo'q bo'lsa ``None``)."""
+    if not draft:
+        return None
+    post_type = draft.get("post_type")
+    raw = draft.get("file_id")
+    if post_type in PREVIEW_TYPES:
+        return raw if isinstance(raw, str) and raw else None
+    if post_type == "album" and isinstance(raw, str):
+        try:
+            items = json.loads(raw)
+        except ValueError:
+            return None
+        for item in items if isinstance(items, list) else []:
+            if isinstance(item, dict) and item.get("type") in ("photo", "video", "animation") \
+                    and isinstance(item.get("file_id"), str) and item["file_id"]:
+                return item["file_id"]
     return None
 
 
@@ -397,24 +420,29 @@ class PostWriter:
         return {"deleted": bool(deleted)}
 
     async def draft_photo(self, user_id: int) -> tuple[bytes, str]:
-        """Qoralamadagi RASMni Telegram'dan olib beradi (bot tokeni serverda qoladi)."""
+        """Qoralamadagi media (rasm / video / GIF; albomda birinchi ko'rinadigan fayl) ni Telegram'dan olib beradi.
+
+        Bot tokeni serverda qoladi. Tur faqat baytlardan aniqlanadi (``sniff_upload``): rasm, GIF yoki MP4;
+        boshqasi (hujjat, audio...) ``media_unavailable``.
+        """
         draft = await self._service.draft_raw(user_id)
-        if not draft or draft.get("post_type") != "photo" or not draft.get("file_id"):
+        file_id = previewable_file_id(draft)
+        if not file_id:
             raise ApiError("media_unavailable")
         if self._media_fetch is None:
             self._media_fetch = default_media_fetch(self._settings.bot_token)
         fetch = self._media_fetch
         try:
-            data = await fetch(draft["file_id"])
+            data = await fetch(file_id)
         except ApiError:
             raise
         except Exception as exc:  # noqa: BLE001
             logger.warning("miniapp media: olib bo'lmadi (%s)", type(exc).__name__)
             raise ApiError("media_unavailable") from None
-        mime = sniff_image(data)
-        if not data or mime is None:
+        sniffed = sniff_upload(data) if data else None
+        if sniffed is None:
             raise ApiError("media_unavailable")
-        return bytes(data), mime
+        return bytes(data), sniffed[1]
 
     # ------------------------------------------------------------- media yuklash
     async def upload_media(self, user_id: int, request) -> dict:

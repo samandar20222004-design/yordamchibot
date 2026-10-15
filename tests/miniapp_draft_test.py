@@ -9,6 +9,7 @@ o'chadi, qayta ishlatib bo'lmaydi, xavfli tugma havolasi rad etiladi, rasm proks
 from __future__ import annotations
 
 import asyncio
+import json
 import dataclasses
 import os
 import sys
@@ -80,6 +81,11 @@ def main() -> int:
 
     async def fake_fetch(file_id):
         fetched.append(file_id)
+        extra = {"VIDEO_FILE_ID": b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 40,
+                 "GIF_FILE_ID": b"GIF89a" + b"\x00" * 20,
+                 "DOCIMG_FILE_ID": b"\x89PNG\r\n\x1a\n" + b"\x00" * 20}
+        if file_id in extra:
+            return extra[file_id]
         return JPEG if file_id == "PHOTO_FILE_ID" else b"not an image"
 
     settings = dataclasses.replace(
@@ -248,6 +254,26 @@ def main() -> int:
         drafts.save_draft(USER, drafts.build_payload({"post_type": "photo", "content": "", "file_id": "BAD", "selected_channel_id": CHAN}))
         st, _b, _h = await http("GET", "/api/v1/draft/media", raw=True)
         T.check("rasm bo'lmagan baytlar (sniff) -> 404, aynan o'sha ma'lumot berilmaydi", st == 404)
+        # video / GIF / rasm-hujjat / albom: oldindan ko'rish (turi baytlardan; bot tokeni serverda qoladi)
+        for ptype, fid, mime in (("video", "VIDEO_FILE_ID", "video/mp4"), ("animation", "GIF_FILE_ID", "image/gif"),
+                                 ("document", "DOCIMG_FILE_ID", "image/png")):
+            drafts.save_draft(USER, drafts.build_payload({"post_type": ptype, "content": "", "file_id": fid, "selected_channel_id": CHAN}))
+            st, d = await http("GET", "/api/v1/draft")
+            T.check(f"{ptype}: previewable=True", st == 200 and d["draft"]["media"]["previewable"] is True, str(d))
+            st, body, hdrs = await http("GET", "/api/v1/draft/media", raw=True)
+            T.check(f"{ptype}: media proksisi {mime} qaytardi", st == 200 and hdrs["Content-Type"] == mime and len(body) > 8, f"{st} {hdrs.get('Content-Type')}")
+        drafts.save_draft(USER, drafts.build_payload({"post_type": "document", "content": "", "file_id": "PDFDOC", "selected_channel_id": CHAN}))
+        st, _b, _h = await http("GET", "/api/v1/draft/media", raw=True)
+        T.check("rasm/video bo'lmagan hujjat: 404 (ichki ma'lumot berilmaydi)", st == 404)
+        album = json.dumps([{"type": "audio", "file_id": "AUD"}, {"type": "photo", "file_id": "PHOTO_FILE_ID"}])
+        drafts.save_draft(USER, drafts.build_payload({"post_type": "album", "content": "", "file_id": album, "selected_channel_id": CHAN}))
+        st, d = await http("GET", "/api/v1/draft")
+        T.check("albom: ko'rinadigan fayl bor -> previewable=True, file_id chiqmaydi", d["draft"]["media"]["previewable"] is True and "PHOTO_FILE_ID" not in str(d), str(d))
+        st, body, hdrs = await http("GET", "/api/v1/draft/media", raw=True)
+        T.check("albom: birinchi ko'rinadigan fayl (rasm) qaytdi", st == 200 and body == JPEG and hdrs["Content-Type"] == "image/jpeg")
+        drafts.save_draft(USER, drafts.build_payload({"post_type": "audio", "content": "", "file_id": "AUD", "selected_channel_id": CHAN}))
+        st, d = await http("GET", "/api/v1/draft")
+        T.check("audio: previewable=False", d["draft"]["media"]["previewable"] is False)
         # media qoralama + bo'sh matn (sarlavhasiz rasm)
         drafts.save_draft(USER, drafts.build_payload({"post_type": "photo", "content": "", "file_id": "PHOTO_FILE_ID", "selected_channel_id": CHAN}))
         st, c2 = await http("POST", "/api/v1/posts", json={"channel_id": CHAN, "text": "", "send_now": True, "use_draft": True})

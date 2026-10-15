@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppData } from '../AppData'
 import type { Lang, TierInfo } from '../api/types'
 import { Icon } from '../components/Icon'
@@ -6,7 +6,7 @@ import { Page, PageHeader } from '../components/Shell'
 import { Badge, Button, ErrorState, InlineWarning, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
 import { toClientError } from '../hooks/useResource'
 import { translate, useI18n } from '../i18n'
-import { openBot } from '../telegram'
+import { closeApp, getUserPhotoUrl, openBot } from '../telegram'
 import { isUnlimited } from './format'
 import { ChannelStatsView } from './StatsPage'
 
@@ -16,6 +16,7 @@ export function MePage() {
   const { t, formatDate } = useI18n()
   const [langBusy, setLangBusy] = useState(false)
   const langInFlight = useRef(false)
+  const photo = getUserPhotoUrl()
 
   const changeLang = async (lang: Lang) => {
     if (langInFlight.current || lang === me.data?.user.language) return
@@ -52,21 +53,23 @@ export function MePage() {
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title={t('me.title')} onRefresh={refresh} refreshing={me.refreshing || channels.refreshing} />
 
-      <section className="card me-hero" aria-labelledby="profile">
-        <Avatar text={displayName} />
-        <div className="me-id">
-          <h2 id="profile" className="me-name">{displayName}</h2>
-          <p className="muted small">{user.username ? `@${user.username} · ` : ''}{t('me.id')} {user.id}</p>
+      <section className="me-cover" aria-labelledby="profile">
+        <div className="me-cover-bg" aria-hidden="true" />
+        <Avatar text={displayName} photo={photo} large />
+        <h2 id="profile" className="me-name">{displayName}</h2>
+        <p className="muted small me-sub">{user.username ? `@${user.username} · ` : ''}{t('me.id')} {user.id}</p>
+        <div className="me-chips">
+          <Badge pro={plan.is_pro}>{planName}</Badge>
+          {plan.is_pro && plan.expires_at && <span className="chip">{t('me.expires', { date: formatDate(plan.expires_at) })}</span>}
         </div>
-        <Badge pro={plan.is_pro}>{planName}</Badge>
       </section>
 
+      <h3 className="sec-label">{t('me.secPlan')}</h3>
       <section className="card" aria-labelledby="plan">
         <div className="card-row">
           <h2 id="plan">{t('me.usage')}</h2>
           <span className="muted small">{plan.is_pro ? t('me.proActive') : t('me.plan')}</span>
         </div>
-        {plan.is_pro && plan.expires_at && <p className="muted small">{t('me.expires', { date: formatDate(plan.expires_at) })}</p>}
         <div className="meters">
           <Meter label={t('me.limitChannels')} used={usage.channels} max={plan.limits.max_channels} />
           <Meter label={t('me.limitAi')} used={usage.ai_requests_today} max={plan.limits.daily_ai_requests} />
@@ -86,22 +89,24 @@ export function MePage() {
         )}
       </section>
 
-      <section className="card" aria-labelledby="settings">
-        <h2 id="settings">{t('me.settings')}</h2>
-        <div className="segmented" role="group" aria-label={t('me.languageChange')}>
+      <h3 className="sec-label">{t('me.secLang')}</h3>
+      <section className="card card-flush" aria-labelledby="settings">
+        <h2 id="settings" className="sr-only">{t('me.languageChange')}</h2>
+        <div className="lang-list" role="group" aria-label={t('me.languageChange')}>
           {(['uz', 'ru', 'en'] as const).map((l) => (
-            <button key={l} type="button" aria-pressed={user.language === l} disabled={langBusy}
-              onClick={() => void changeLang(l)}>{t(`lang.${l}`)}</button>
+            <button key={l} type="button" className="lang-row" aria-pressed={user.language === l} disabled={langBusy}
+              onClick={() => void changeLang(l)}>
+              <span className="lang-name">{t(`lang.${l}`)}</span>
+              {user.language === l && <Icon name="check" size={20} />}
+            </button>
           ))}
         </div>
-        <p className="muted small">{t('me.languageHint')}</p>
+        <p className="muted small card-note">{t('me.languageHint')}</p>
       </section>
 
+      <h3 className="sec-label">{t('me.channels')}</h3>
       <section className="card" aria-labelledby="channels">
-        <div className="card-row">
-          <h2 id="channels">{t('me.channels')}</h2>
-          {channels.data && <span className="muted small">{channels.data.items.length}</span>}
-        </div>
+        <h2 id="channels" className="sr-only">{t('me.channels')}</h2>
         {channels.loading && <LoadingBlock rows={2} />}
         {!channels.data && channels.error && <ErrorState error={channels.error} onRetry={channels.reload} botUsername={botUsername} />}
         {channels.data && channels.data.items.length === 0 && <p className="muted">{t('me.channelsEmpty')}</p>}
@@ -127,6 +132,15 @@ export function MePage() {
             })}
           </ul>
         )}
+      </section>
+
+      <h3 className="sec-label">{t('me.secApp')}</h3>
+      <section className="card" aria-label={t('me.secApp')}>
+        <p className="muted small">{t('me.appBotHint')}</p>
+        <div className="actions">
+          {upgrades.length === 0 && openBotAvailable(botUsername) && <Button icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>}
+          <Button onClick={closeApp}>{t('me.appClose')}</Button>
+        </div>
       </section>
     </Page>
   )
@@ -160,8 +174,16 @@ function TierCard({ name, info }: { name: string; info: TierInfo }) {
   )
 }
 
-function Avatar({ text, small = false }: { text: string; small?: boolean }) {
-  return <span className={`avatar${small ? ' avatar-sm' : ''}`} aria-hidden="true">{initialOf(text)}</span>
+/** Telegram profil rasmi (bo'lsa) yoki bosh harf; rasm yuklanmasa harfga qaytadi. */
+function Avatar({ text, small = false, large = false, photo = null }: { text: string; small?: boolean; large?: boolean; photo?: string | null }) {
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [photo])
+  const cls = `avatar${small ? ' avatar-sm' : ''}${large ? ' avatar-lg' : ''}`
+  if (photo && !broken) {
+    return <img className={`${cls} avatar-photo`} src={photo} alt="" width={large ? 88 : 48} height={large ? 88 : 48}
+      referrerPolicy="no-referrer" decoding="async" onError={() => setBroken(true)} />
+  }
+  return <span className={cls} aria-hidden="true">{initialOf(text)}</span>
 }
 
 /** Foydalanish ko'rsatkichi: ishlatilgan / limit + chiziq (cheksiz limitda chiziq yo'q, "∞"). */
