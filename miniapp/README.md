@@ -67,7 +67,7 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti
 (`check_queue_limit`, admin istisno). Egalik HAR DOIM SQL ichida (`user_id = %s`); begona post/kanal -> 404 (mavjudligi sezdirilmaydi).
-Limitlar: yozuv `MINIAPP_RATE_WRITE_LIMIT` (30/min), AI `MINIAPP_RATE_AI_LIMIT` (4/min) — Redis limiter orqali, xatoda 503 (fail-closed).
+Limitlar: yozuv `MINIAPP_RATE_WRITE_LIMIT` (30/min), AI `MINIAPP_RATE_AI_LIMIT` (4/min), fayl yuklash `MINIAPP_RATE_UPLOAD_LIMIT` (20/min; yuklash HTTP chegarasi `MINIAPP_UPLOAD_TIMEOUT_SECONDS`=240 s) — Redis limiter orqali, xatoda 503 (fail-closed).
 
 Xato formati: `{"error":{"code","message","request_id","retry_after","field"}}` (message uz/ru/en; `field` — faqat maydon NOMI).
 Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_registered`, `not_found`,

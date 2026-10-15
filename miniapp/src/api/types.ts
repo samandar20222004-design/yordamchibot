@@ -102,6 +102,8 @@ export interface ScheduledPost {
   post_type: string
   preview: string
   has_media: boolean
+  /** Faqat bitta postni olishda: media elementlari (albom bo'lsa ko'p). */
+  media_items?: MediaItem[]
   scheduled_time: string | null
   number: number | null
   recurrence: string | null
@@ -139,7 +141,7 @@ export type ErrorCode =
   | 'internal_error' | 'service_unavailable' | 'auth_unavailable'
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
-  | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long'
+  | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -156,10 +158,17 @@ export interface AiResult {
 export type PostFilter = 'pending' | 'history'
 
 /** Botdan kelgan qoralama (media `file_id` mijozga berilmaydi — faqat tur). */
+export interface MediaItem {
+  type: string
+  previewable: boolean
+}
+
 export interface DraftMedia {
   type: string
   previewable: boolean
   count: number | null
+  /** Albomdagi (yoki yakka) media elementlari — `file_id`siz. */
+  items?: MediaItem[]
 }
 
 export interface Draft {

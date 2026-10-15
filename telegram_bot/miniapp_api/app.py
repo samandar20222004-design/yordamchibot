@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from aiohttp import web
 
 from .auth import AuthError, parse_authorization, validate_init_data
+from . import media_items
 from .db import ReadOnlyRunner
 from .errors import ApiError, error_response, pick_lang
 from .proxy import resolve_client
@@ -170,7 +171,7 @@ async def draft_handler(request: web.Request):
 
 
 async def draft_media_handler(request: web.Request):
-    data, mime = await request.app[_K_WRITER].draft_photo(request["user_id"])
+    data, mime = await request.app[_K_WRITER].draft_photo(request["user_id"], media_items.parse_index(request.query.get("i")))
     return web.Response(body=data, content_type=mime, headers={
         "Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "default-src 'none'"})
@@ -178,7 +179,13 @@ async def draft_media_handler(request: web.Request):
 
 @_upload
 async def draft_media_upload_handler(request: web.Request):
-    data = await request.app[_K_WRITER].upload_media(request["user_id"], request)
+    data = await request.app[_K_WRITER].upload_media(request["user_id"], request, add=request.query.get("add") == "1")
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def draft_media_delete_handler(request: web.Request):
+    data = await request.app[_K_WRITER].delete_draft_media(request["user_id"], media_items.parse_index(request.query.get("i")))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
@@ -189,7 +196,8 @@ async def draft_delete_handler(request: web.Request):
 
 
 async def post_media_handler(request: web.Request):
-    data, mime = await request.app[_K_WRITER].post_media(request["user_id"], _post_id(request))
+    data, mime = await request.app[_K_WRITER].post_media(
+        request["user_id"], _post_id(request), media_items.parse_index(request.query.get("i")))
     return web.Response(body=data, content_type=mime, headers={
         "Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "default-src 'none'"})
@@ -197,13 +205,16 @@ async def post_media_handler(request: web.Request):
 
 @_upload
 async def post_media_upload_handler(request: web.Request):
-    data = await request.app[_K_WRITER].upload_post_media(request["user_id"], _post_id(request), request)
+    data = await request.app[_K_WRITER].upload_post_media(
+        request["user_id"], _post_id(request), request, add=request.query.get("add") == "1")
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
 @_write
 async def post_media_delete_handler(request: web.Request):
-    data = await request.app[_K_WRITER].delete_post_media(request["user_id"], _post_id(request))
+    index = request.query.get("i")
+    data = await request.app[_K_WRITER].delete_post_media(
+        request["user_id"], _post_id(request), None if index in (None, "") else media_items.parse_index(index))
     return web.json_response(data)
 
 
@@ -356,9 +367,9 @@ async def _guarded(request: web.Request, handler):
         await limiter.hit("write", str(verified.user_id), limit=settings.rate_write_limit,
                           window=settings.rate_write_window)
     if getattr(route_handler, "miniapp_upload", False):
-        await limiter.hit("upload", str(verified.user_id), limit=settings.rate_ai_limit,
-                          window=settings.rate_ai_window)
-        timeout = max(timeout, 60.0)
+        await limiter.hit("upload", str(verified.user_id), limit=settings.rate_upload_limit,
+                          window=settings.rate_upload_window)
+        timeout = max(timeout, settings.upload_timeout_seconds)  # 50 MB video sekin tarmoqda 60 s ga sig'maydi
     if getattr(route_handler, "miniapp_ai", False):
         await limiter.hit("ai", str(verified.user_id), limit=settings.rate_ai_limit,
                           window=settings.rate_ai_window)
@@ -398,6 +409,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/draft", draft_handler)
     api.router.add_get("/draft/media", draft_media_handler)
     api.router.add_post("/draft/media", draft_media_upload_handler)
+    api.router.add_delete("/draft/media", draft_media_delete_handler)
     api.router.add_delete("/draft", draft_delete_handler)
     api.router.add_post("/posts", post_create_handler)
     api.router.add_patch("/posts/{post_id}", post_update_handler)

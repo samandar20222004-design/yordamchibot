@@ -173,6 +173,14 @@ export function parseChannels(v: unknown): ChannelList {
   return { items: arr(o.items, 'items').map(parseChannel), total: int(o.total, 'total') }
 }
 
+function mediaItems(v: unknown, path: string): { type: string; previewable: boolean }[] {
+  if (!Array.isArray(v) || v.length > 10) throw new ShapeError(path)
+  return v.map((x, i) => {
+    const o = rec(x, `${path}[${i}]`)
+    return { type: str(o.type, `${path}.type`), previewable: bool(o.previewable, `${path}.previewable`) }
+  })
+}
+
 export function parsePost(v: unknown): ScheduledPost {
   const p = rec(v, 'post')
   return {
@@ -185,6 +193,7 @@ export function parsePost(v: unknown): ScheduledPost {
     post_type: str(p.post_type, 'post.post_type'),
     preview: str(p.preview, 'post.preview'),
     has_media: bool(p.has_media, 'post.has_media'),
+    ...(p.media_items === undefined ? {} : { media_items: mediaItems(p.media_items, 'post.media_items') }),
     scheduled_time: strOrNull(p.scheduled_time, 'post.scheduled_time'),
     number: p.number === null || p.number === undefined ? null : int(p.number, 'post.number'),
     recurrence: strOrNull(p.recurrence, 'post.recurrence'),
@@ -307,6 +316,7 @@ export function parseDraft(v: unknown): Draft | null {
       type: str(m.type, 'draft.media.type'),
       previewable: bool(m.previewable, 'draft.media.previewable'),
       count: m.count === null || m.count === undefined ? null : int(m.count, 'draft.media.count'),
+      ...(m.items === undefined ? {} : { items: mediaItems(m.items, 'draft.media.items') }),
     }
   }
   return {

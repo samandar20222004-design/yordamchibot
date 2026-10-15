@@ -333,10 +333,11 @@ def test_ten_item_group_single_post():
           str(bot.texts())[:160])
     warn = [s for s in bot.sent
             if get_text("np_album_warning", "uz") in (s.get("text") or "")]
-    check("tanlov klaviaturasi (2 tugma) tasdiq xabarida",
-          warn and warn[0]["reply_markup"] is not None
-          and len(warn[0]["reply_markup"].inline_keyboard) == 2,
-          str(warn)[:160])
+    kb_rows = warn[0]["reply_markup"].inline_keyboard if warn and warn[0]["reply_markup"] is not None else []
+    cb = [b.callback_data for row in kb_rows for b in row]
+    check("tanlov klaviaturasi tasdiq xabarida: 2 tanlov + «Yana qo'shish» + «Faylni o'chir»",
+          cb == ["album_choice:first_photo", "album_choice:full_album", "album_choice:add_more", "album_choice:remove_last"],
+          str(cb))
     check("faqat BITTA albom xabari yuborildi",
           sum(1 for t in bot.texts()
               if get_text("np_album_received", "uz").split("{")[0] in t) == 1,

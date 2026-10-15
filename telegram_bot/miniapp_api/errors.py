@@ -112,6 +112,16 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Не удалось показать медиа.",
         "en": "The media could not be shown.",
     }),
+    "album_full": (422, {
+        "uz": "Albomga ko'pi bilan 10 ta media qo'shish mumkin (Telegram chegarasi). Avval bittasini olib tashlang.",
+        "ru": "В альбом можно добавить не более 10 медиа (лимит Telegram). Сначала удалите одно.",
+        "en": "An album holds at most 10 media (Telegram limit). Remove one first.",
+    }),
+    "album_mixed": (422, {
+        "uz": "Rasm va videoni bitta albomda birlashtirish mumkin; GIF, hujjat va audio esa faqat alohida.",
+        "ru": "В одном альбоме можно сочетать фото и видео; GIF, документы и аудио — только отдельно.",
+        "en": "Photos and videos can share an album; GIFs, documents and audio can only be sent on their own.",
+    }),
     "not_editable": (409, {
         "uz": "Bu postni o'zgartirib bo'lmaydi: u allaqachon yuborilgan yoki bekor qilingan.",
         "ru": "Этот пост нельзя изменить: он уже отправлен или отменён.",

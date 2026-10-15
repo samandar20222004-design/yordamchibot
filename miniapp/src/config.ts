@@ -7,11 +7,15 @@ export const config = {
   requestTimeoutMs: 10_000,
   /** AI generatsiya uchun (server chegarasi 30 s). */
   aiTimeoutMs: 35_000,
-  /** Fayl yuklash (server chegarasi 60 s). */
-  uploadTimeoutMs: 65_000,
+  /** Fayl yuklash (server chegarasi 240 s). */
+  uploadTimeoutMs: 90_000,
+  /** Katta fayl uchun yuklash vaqti fayl hajmiga qarab oshadi (server chegarasi 240 s). */
+  uploadMaxTimeoutMs: 270_000,
   /** Yuklash chegaralari (backend: writes.MAX_UPLOAD_PHOTO / MAX_UPLOAD_VIDEO). */
   maxUploadPhotoBytes: 10 * 1024 * 1024,
-  maxUploadVideoBytes: 30 * 1024 * 1024,
+  maxUploadVideoBytes: 50 * 1024 * 1024,
+  /** Albom: Telegram bitta postga ko'pi bilan 10 ta media (rasm/video). */
+  maxAlbumItems: 10,
   /** Matn chegaralari (server bilan bir xil: backend writes.py). */
   maxPostChars: 4096,
   maxAiInputChars: 3500,

@@ -11,7 +11,7 @@ function setTelegram() {
   }
 }
 
-const ONCE = { ...PAGE.items[0], id: 1, has_media: true, post_type: 'photo', text: 'Matn <b>qalin</b>', button_text: 'Ochish', button_url: 'https://example.org/go' }
+const ONCE = { ...PAGE.items[0], id: 1, has_media: true, post_type: 'photo', media_items: [{ type: 'photo', previewable: true }], text: 'Matn <b>qalin</b>', button_text: 'Ochish', button_url: 'https://example.org/go' }
 const DAILY2 = { ...PAGE.items[1], id: 2, has_media: false, post_type: 'text', recurrence: 'twice', recurrence_time: '09:00', recurrence_time2: '18:00', recurrence_day: 1080, text: 'Kunlik' }
 const LIST = { ...PAGE, items: [{ ...PAGE.items[0], has_media: true, post_type: 'photo' }, { ...DAILY2, preview: 'Kunlik', text: undefined }], total: 2 }
 
@@ -22,12 +22,16 @@ function mockApi(onRequest: (url: string, init: RequestInit) => Response | undef
     const custom = onRequest(url, init)
     if (custom) return custom
     const method = init.method ?? 'GET'
-    if (method === 'GET' && /\/posts\/\d+\/media$/.test(url)) return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
+    if (method === 'GET' && /\/posts\/\d+\/media(\?i=\d+)?$/.test(url)) return new Response(new Uint8Array([0xff, 0xd8, 0xff]), { status: 200, headers: { 'Content-Type': 'image/jpeg' } })
     if (method === 'GET' && /\/posts\/2$/.test(url)) return jsonResponse({ post: DAILY2 })
     if (method === 'GET' && /\/posts\/1$/.test(url)) return jsonResponse({ post: current })
     if (method === 'PATCH') return jsonResponse({ post: { ...current, ...JSON.parse(String(init.body)) } })
-    if (method === 'POST' && /\/posts\/1\/media$/.test(url)) { current = { ...current, post_type: 'video' }; return jsonResponse({ post: current }) }
-    if (method === 'DELETE' && /\/posts\/1\/media$/.test(url)) { current = { ...current, has_media: false, post_type: 'text' }; return jsonResponse({ post: current }) }
+    if (method === 'POST' && /\/posts\/1\/media(\?add=1)?$/.test(url)) { const two = url.includes('add=1'); current = { ...current, post_type: two ? 'album' : 'video', media_items: two ? [{ type: 'photo', previewable: true }, { type: 'video', previewable: true }] : [{ type: 'video', previewable: true }] }; return jsonResponse({ post: current }) }
+    if (method === 'DELETE' && /\/posts\/1\/media(\?i=\d+)?$/.test(url)) {
+      const items = ((current.media_items as unknown[]) ?? []).slice(1)
+      current = { ...current, has_media: items.length > 0, post_type: items.length ? 'photo' : 'text', media_items: items }
+      return jsonResponse({ post: current })
+    }
     if (method === 'GET' && url.includes('/me')) return jsonResponse(ME)
     if (method === 'GET' && url.includes('/channels')) return jsonResponse({ items: [{ id: '-1001', title: 'Kanal A' }], total: 1 })
     if (method === 'GET' && url.endsWith('/draft')) return jsonResponse({ draft: null })
@@ -64,7 +68,7 @@ describe('Reja ro\'yxati: post rasmi', () => {
     await screen.findAllByRole('button', { name: 'Tahrirlash' })
     await waitFor(() => expect(document.querySelector('.thumb img')).not.toBeNull())
     expect(document.querySelectorAll('.thumb').length).toBe(1)
-    expect(calls(f, 'GET', /\/posts\/1\/media$/).length).toBe(1)
+    expect(calls(f, 'GET', /\/posts\/1\/media$/).length).toBe(1) // ro'yxatda indekssiz (birinchi media)
   })
 })
 
@@ -76,7 +80,8 @@ describe('To\'liq tahrirlash oynasi', () => {
     expect(within(dialog).getByRole('toolbar')).toBeTruthy()
     expect((within(dialog).getByLabelText('Tugma matni') as HTMLInputElement).value).toBe('Ochish')
     expect((within(dialog).getByLabelText('Tugma havolasi (https://…)') as HTMLInputElement).value).toBe('https://example.org/go')
-    expect(within(dialog).getByRole('button', { name: 'Almashtirish' })).toBeTruthy()
+    expect(within(dialog).getByText('1 / 10 ta')).toBeTruthy()
+    expect(within(dialog).getByRole('button', { name: '1-mediani olib tashlash' })).toBeTruthy()
     expect(within(dialog).getByLabelText('Sana va vaqt')).toBeTruthy()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -119,19 +124,34 @@ describe('To\'liq tahrirlash oynasi', () => {
     expect(calls(f, 'PATCH', /\/posts\//)).toHaveLength(0)
   })
 
-  it('rasmni olib tashlash va fayl bilan almashtirish (ro\'yxat fonda yangilanadi, oyna ochiq)', async () => {
+  it('albomga fayl qo\'shish va bittasini olib tashlash (ro\'yxat fonda yangilanadi, oyna ochiq)', async () => {
     const f = mockApi()
     const dialog = await openEdit(0)
     await within(dialog).findByLabelText('Post matni')
     const input = dialog.querySelector('input[type=file]') as HTMLInputElement
     const file = new File([new Uint8Array(50)], 'a.mp4', { type: 'video/mp4' })
     fireEvent.change(input, { target: { files: [file] } })
-    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media$/)).toHaveLength(1))
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
+    expect(await within(screen.getByRole('dialog')).findByText('2 / 10 ta')).toBeTruthy()
     expect(screen.getByRole('dialog')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rasmni olib tashlash' }))
-    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media$/)).toHaveLength(1))
-    await waitFor(() => expect(screen.queryByRole('button', { name: 'Rasmni olib tashlash' })).toBeNull())
-    expect(screen.getByText(/Postda rasm yoki video yo'q/)).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '1-mediani olib tashlash' }))
+    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media\?i=0$/)).toHaveLength(1))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '1-mediani olib tashlash' }))
+    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media\?i=0$/)).toHaveLength(2))
+    await waitFor(() => expect(screen.queryByRole('button', { name: '1-mediani olib tashlash' })).toBeNull())
+    expect(screen.getByText('Galereyadan rasm yoki videolarni tanlang (10 tagacha)')).toBeTruthy()
+  })
+
+  it('mediasiz postga birinchi fayl «almashtirish» yo\'li bilan, keyingilari albomga qo\'shiladi', async () => {
+    const f = mockApi((url, init) => init.method === 'GET' && /\/posts\/1$/.test(url)
+      ? jsonResponse({ post: { ...ONCE, has_media: false, post_type: 'text', media_items: [] } }) : undefined)
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    const input = dialog.querySelector('input[type=file]') as HTMLInputElement
+    const mk = (n: string) => new File([new Uint8Array(50)], n, { type: 'video/mp4' })
+    fireEvent.change(input, { target: { files: [mk('a.mp4'), mk('b.mp4')] } })
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media$/)).toHaveLength(1))
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
   })
 
   it('noma\'lum fayl turi serverga yuborilmaydi', async () => {

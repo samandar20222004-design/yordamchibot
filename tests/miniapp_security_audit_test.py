@@ -231,7 +231,7 @@ def test_all_routes_require_auth():
     app, api = api_app(lim, load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                                            "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"}))
     routes = sorted({(r.method, r.resource.canonical) for r in api.router.routes() if r.method != "HEAD"})
-    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("DELETE", "/api/v1/posts/{post_id}/media"), ("DELETE", "/api/v1/templates/{template_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
+    expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/draft/media"), ("DELETE", "/api/v1/posts/{post_id}"), ("DELETE", "/api/v1/posts/{post_id}/media"), ("DELETE", "/api/v1/templates/{template_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
                 ("GET", "/api/v1/draft"), ("GET", "/api/v1/draft/media"), ("GET", "/api/v1/health"),
                 ("GET", "/api/v1/me"), ("GET", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/posts/{post_id}/media"), ("GET", "/api/v1/scheduled-posts"),
                 ("GET", "/api/v1/scheduled-posts/calendar"), ("GET", "/api/v1/templates"),
@@ -248,7 +248,7 @@ def test_all_routes_require_auth():
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 12, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 13, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,

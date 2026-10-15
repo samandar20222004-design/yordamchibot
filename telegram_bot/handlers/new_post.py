@@ -78,6 +78,8 @@ _ALBUM_MEDIA_TYPES = ("photo", "video", "document", "audio", "animation")
 #: (ketma-ket yuborilgan fayllarni birlashtirish oynasi uchun).
 _UD_SEQ_TS = "_media_seq_ts"
 _UD_SEQ_GROUP = "_media_seq_group"
+#: «➕ Yana qo'shish» bosilgach yangi fayllar albomga vaqt oynasisiz qo'shiladi (tanlov qilinguncha).
+_UD_ADD_MORE = "_album_add_more"
 
 # "⏩ O'tkazib yuborish" — pastki reply-klaviaturadagi skip tugmalari.
 # Eski/asosiy yorliqlar (⏭ ...), legacy "Tugmasiz davom etish" va qo'shimcha
@@ -487,6 +489,7 @@ def _clear_media_sequence(context) -> None:
         return
     ud.pop(_UD_SEQ_TS, None)
     ud.pop(_UD_SEQ_GROUP, None)
+    ud.pop(_UD_ADD_MORE, None)
 
 
 def _draft_media_items(context) -> list:
@@ -517,6 +520,9 @@ def _recent_draft_items(context, window: float = None) -> list:
     ud = getattr(context, "user_data", None)
     if not ud:
         return []
+    if ud.get(_UD_ADD_MORE):
+        # «➕ Yana qo'shish» bosilgan: vaqt oynasi cheklanmaydi (foydalanuvchi o'zi tanlov qildi).
+        return _draft_media_items(context)
     try:
         ts = float(ud.get(_UD_SEQ_TS) or 0.0)
     except (TypeError, ValueError):
@@ -653,6 +659,9 @@ async def _album_collector(key, bot, chat_id, lang, user_data):
     final = _finalize_album_buffer(key)
     if not final:
         return
+    _ud_done = buf.get("user_data")
+    if _ud_done is not None:
+        _ud_done.pop(_UD_ADD_MORE, None)  # «Yana qo'shish» oynasi yopildi: keyingi qo'shish uchun tugmani qayta bosish kerak
     # Foydalanuvchiga keyingi qadam xabari:
     #  • ALBOM (bir nechta fayl): qabul tasdig'i ("N ta media — bitta post")
     #    + sendMediaGroup cheklovi haqida ogohlantirish + 2 ta tanlov;
@@ -887,6 +896,10 @@ def _album_choice_keyboard(lang="uz") -> InlineKeyboardMarkup:
                               callback_data="album_choice:first_photo")],
         [InlineKeyboardButton(get_text("np_album_choice_full", lang),
                               callback_data="album_choice:full_album")],
+        [InlineKeyboardButton(get_text("btn_album_add_more", lang),
+                              callback_data="album_choice:add_more"),
+         InlineKeyboardButton(get_text("btn_album_undo", lang),
+                              callback_data="album_choice:remove_last")],
     ])
 
 
@@ -1772,6 +1785,44 @@ async def album_choice_callback(update: Update, context: ContextTypes.DEFAULT_TY
     action = data.split(":", 1)[1] if ":" in data else ""
     items = _album_items_of(context)
     is_album = _is_multi_album(context)
+
+    if action == "add_more" and is_album and len(items) < _ALBUM_MAX_ITEMS:
+        # Yana fayl qo'shish: keyingi media(lar) shu albomga qo'shiladi (10 tagacha), so'ng tanlov qayta chiqadi.
+        ud[_UD_ADD_MORE] = True
+        _mark_media_sequence(context)
+        await query.message.reply_text(get_text("np_album_add_more_prompt", lang), parse_mode="HTML")
+        return GET_CONTENT
+
+    if action == "add_more" and is_album:
+        await _notify_album_limit(query.message, context, lang, count=len(items))
+        return GET_CONTENT
+
+    if action == "remove_last" and is_album and len(items) >= 2:
+        ud.pop(_UD_ADD_MORE, None)
+        kept = [dict(i) for i in items[:-1] if isinstance(i, dict)]
+        if len(kept) <= 1:
+            # Bitta fayl qoldi — albom yakka mediaga aylanadi (tugma/reaksiya endi mumkin).
+            ud.update(_album_items_to_post(kept))
+            ud.pop("_album_count", None)
+            ud.pop("_album_warning_stage", None)
+            _clear_media_sequence(context)
+            try:
+                await query.edit_message_reply_markup(reply_markup=None)
+            except Exception as _silent_exc:
+                log_silent_failure("handlers.new_post:album_choice_callback:remove_last", _silent_exc)
+            await query.message.reply_text(get_text("np_album_first_photo_done", lang), parse_mode="HTML")
+            return await _ask_button_prompt(query.message, lang)
+        ud["file_id"] = json.dumps(kept, ensure_ascii=False)
+        ud["post_type"] = "album"
+        ud["_album_count"] = len(kept)
+        _mark_media_sequence(context)
+        try:
+            await query.edit_message_text(
+                _album_received_text(len(kept), lang) + "\n\n" + get_text("np_album_undone", lang, count=len(kept)),
+                reply_markup=_album_choice_keyboard(lang), parse_mode="HTML")
+        except Exception as _silent_exc:
+            log_silent_failure("handlers.new_post:album_choice_callback:remove_last", _silent_exc)
+        return GET_CONTENT
 
     if action == "first_photo" and is_album and items and isinstance(items[0], dict):
         stage = ud.pop("_album_warning_stage", "button") or "button"

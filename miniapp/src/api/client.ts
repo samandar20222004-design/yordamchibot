@@ -11,8 +11,13 @@ const KNOWN_CODES: readonly string[] = [
   'service_unavailable', 'auth_unavailable',
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
-  'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long',
+  'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
 ]
+
+/** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
+export function uploadTimeout(file: { size: number }): number {
+  return Math.min(config.uploadMaxTimeoutMs, config.uploadTimeoutMs + Math.round(file.size / (200 * 1024)) * 1000)
+}
 
 export class ApiClientError extends Error {
   readonly code: ErrorCode
@@ -156,11 +161,11 @@ export function createApiClient(opts: ClientOptions) {
     draft: (signal?: AbortSignal): Promise<Draft | null> => get('/draft', parseDraft, signal),
     deleteDraft: (): Promise<{ deleted: boolean }> => send('DELETE', '/draft', undefined, parseDeleted),
     /** Qoralamadagi rasm (blob). Auth sarlavhasi kerak, shuning uchun <img src> emas, fetch. Xatoda `null`. */
-    draftMedia: async (signal?: AbortSignal): Promise<Blob | null> => {
+    draftMedia: async (signal?: AbortSignal, index?: number): Promise<Blob | null> => {
       const initData = opts.getInitData()
       if (!initData) return null
       try {
-        const res = await fetchImpl(`${base}/draft/media`, {
+        const res = await fetchImpl(`${base}/draft/media${index === undefined ? '' : `?i=${index}`}`, {
           headers: { Authorization: `tma ${initData}` }, signal, cache: 'no-store' })
         if (!res.ok) return null
         const blob = await res.blob()
@@ -170,12 +175,15 @@ export function createApiClient(opts: ClientOptions) {
       }
     },
     /** Qurilmadan rasm/video/GIF yuklaydi (multipart); server Telegram file_id oladi va qoralamaga yozadi. */
-    uploadMedia: (file: File, fields: { text?: string; button_text?: string; button_url?: string } = {}): Promise<Draft | null> => {
+    uploadMedia: (file: File, fields: { text?: string; button_text?: string; button_url?: string } = {}, add = false): Promise<Draft | null> => {
       const form = new FormData()
       for (const [k, v] of Object.entries(fields)) if (v !== undefined) form.append(k, v)
       form.append('file', file, file.name)
-      return send('POST', '/draft/media', form, parseDraft, config.uploadTimeoutMs)
+      return send('POST', `/draft/media${add ? '?add=1' : ''}`, form, parseDraft, uploadTimeout(file))
     },
+    /** Qoralamadagi `index`-chi mediani olib tashlaydi (albom qisqaradi). */
+    deleteDraftMedia: (index: number): Promise<Draft | null> =>
+      send('DELETE', `/draft/media?i=${index}`, undefined, parseDraft),
     createPost: (input: CreatePostInput): Promise<PostResult> =>
       send('POST', '/posts', input, parsePostResult),
     /** Erkin tildagi rejalash iborasini tuzilma taklifiga o'giradi (hech narsa yozilmaydi). */
@@ -184,11 +192,11 @@ export function createApiClient(opts: ClientOptions) {
     updatePost: (id: number, input: UpdatePostInput): Promise<ScheduledPost> =>
       send('PATCH', `/posts/${encodeURIComponent(String(id))}`, input, parsePostEnvelope),
     /** Rejalangan postning rasmi/videosi (blob; faqat egasi). Xatoda `null`. */
-    postMedia: async (id: number, signal?: AbortSignal): Promise<Blob | null> => {
+    postMedia: async (id: number, signal?: AbortSignal, index?: number): Promise<Blob | null> => {
       const initData = opts.getInitData()
       if (!initData) return null
       try {
-        const res = await fetchImpl(`${base}/posts/${encodeURIComponent(String(id))}/media`, {
+        const res = await fetchImpl(`${base}/posts/${encodeURIComponent(String(id))}/media${index === undefined ? '' : `?i=${index}`}`, {
           headers: { Authorization: `tma ${initData}` }, signal })
         if (!res.ok) return null
         const blob = await res.blob()
@@ -201,11 +209,17 @@ export function createApiClient(opts: ClientOptions) {
     replacePostMedia: (id: number, file: File): Promise<ScheduledPost> => {
       const form = new FormData()
       form.append('file', file, file.name)
-      return send('POST', `/posts/${encodeURIComponent(String(id))}/media`, form, parsePostEnvelope, config.uploadTimeoutMs)
+      return send('POST', `/posts/${encodeURIComponent(String(id))}/media`, form, parsePostEnvelope, uploadTimeout(file))
     },
-    /** Rasm/videoni olib tashlaydi (post matnli bo'lib qoladi). */
-    deletePostMedia: (id: number): Promise<ScheduledPost> =>
-      send('DELETE', `/posts/${encodeURIComponent(String(id))}/media`, undefined, parsePostEnvelope),
+    /** Albomga yana bir fayl qo'shadi (10 tagacha). */
+    addPostMedia: (id: number, file: File): Promise<ScheduledPost> => {
+      const form = new FormData()
+      form.append('file', file, file.name)
+      return send('POST', `/posts/${encodeURIComponent(String(id))}/media?add=1`, form, parsePostEnvelope, uploadTimeout(file))
+    },
+    /** Rasm/videoni olib tashlaydi: `index` berilsa albomdan shu element, bo'lmasa hammasi (post matnli bo'lib qoladi). */
+    deletePostMedia: (id: number, index?: number): Promise<ScheduledPost> =>
+      send('DELETE', `/posts/${encodeURIComponent(String(id))}/media${index === undefined ? '' : `?i=${index}`}`, undefined, parsePostEnvelope),
     cancelPost: (id: number): Promise<{ id: number }> =>
       send('DELETE', `/posts/${encodeURIComponent(String(id))}`, undefined, parseCancelled),
     setLanguage: (language: Lang): Promise<{ language: Lang }> =>

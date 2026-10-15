@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
 
+from . import media_items
 from .errors import ApiError
 from .service import MiniAppService, iso_utc
 from .settings import MiniAppSettings
@@ -36,7 +37,7 @@ MAX_CAPTION_CHARS = 1024       # Telegram: rasm/video/... ostidagi matn (schedul
 MAX_BUTTON_TEXT = 64           # inline tugma yorlig'i (bot: handlers.post_enhancer.BTN_TEXT_MAX)
 MAX_BUTTON_URL = 2000          # inline tugma havolasi (bot validatori utils.helpers.validate_button_url: <=2048)
 MAX_UPLOAD_PHOTO = 10 * 1024 * 1024   # Telegram sendPhoto chegarasi
-MAX_UPLOAD_VIDEO = 30 * 1024 * 1024   # hosting/proxy xotirasini ehtiyot qilib (Telegram: 50 MB)
+MAX_UPLOAD_VIDEO = 50 * 1024 * 1024   # Telegram Bot API yuklash chegarasi (bir vaqtda ko'pi bilan 2 ta yuboriladi)
 MAX_UPLOAD_FIELD = 16384
 MAX_TEMPLATES = 20             # repositories.posts_repository.POST_TEMPLATES_LIMIT
 MAX_TEMPLATE_NAME = 64
@@ -138,27 +139,14 @@ def sniff_image(data) -> str | None:
     return None
 
 
-PREVIEW_TYPES = ("photo", "video", "animation", "document")
+PREVIEW_TYPES = media_items.PREVIEW_TYPES
 
 
-def previewable_file_id(draft) -> str | None:
-    """Oldindan ko'rsatish mumkin bo'lgan media ``file_id`` si (yo'q bo'lsa ``None``)."""
+def previewable_file_id(draft, index: int | None = None) -> str | None:
+    """Oldindan ko'rsatish mumkin bo'lgan media ``file_id`` si (``index`` — albomdagi o'rni; yo'q bo'lsa ``None``)."""
     if not draft:
         return None
-    post_type = draft.get("post_type")
-    raw = draft.get("file_id")
-    if post_type in PREVIEW_TYPES:
-        return raw if isinstance(raw, str) and raw else None
-    if post_type == "album" and isinstance(raw, str):
-        try:
-            items = json.loads(raw)
-        except ValueError:
-            return None
-        for item in items if isinstance(items, list) else []:
-            if isinstance(item, dict) and item.get("type") in ("photo", "video", "animation") \
-                    and isinstance(item.get("file_id"), str) and item["file_id"]:
-                return item["file_id"]
-    return None
+    return media_items.file_id_at(draft.get("post_type"), draft.get("file_id"), index)
 
 
 def sniff_upload(data) -> tuple[str, str] | None:
@@ -474,28 +462,28 @@ class PostWriter:
                 self._media_cache_bytes -= len(old)
         return item
 
-    async def draft_photo(self, user_id: int) -> tuple[bytes, str]:
+    async def draft_photo(self, user_id: int, index: int | None = None) -> tuple[bytes, str]:
         """Qoralamadagi media (rasm / video / GIF; albomda birinchi ko'rinadigan fayl) ni Telegram'dan olib beradi.
 
         Bot tokeni serverda qoladi. Tur faqat baytlardan aniqlanadi (``sniff_upload``): rasm, GIF yoki MP4;
         boshqasi (hujjat, audio...) ``media_unavailable``.
         """
         draft = await self._service.draft_raw(user_id)
-        file_id = previewable_file_id(draft)
+        file_id = previewable_file_id(draft, index)
         if not file_id:
             raise ApiError("media_unavailable")
         return await self._fetch_media(file_id)
 
-    async def post_media(self, user_id: int, post_id: int) -> tuple[bytes, str]:
+    async def post_media(self, user_id: int, post_id: int, index: int | None = None) -> tuple[bytes, str]:
         """Rejalangan postning rasmi/videosi (faqat egasi). Ro'yxatda kichik ko'rinish uchun ham shu ishlatiladi."""
         ref = await self._service.post_media_ref(user_id, post_id)
-        file_id = previewable_file_id(ref)
+        file_id = previewable_file_id(ref, index)
         if not file_id:
             raise ApiError("media_unavailable")
         return await self._fetch_media(file_id)
 
     # ------------------------------------------------------------- media yuklash
-    async def upload_media(self, user_id: int, request) -> dict:
+    async def upload_media(self, user_id: int, request, add: bool = False) -> dict:
         """Qurilmadan rasm/video/GIF yuklash -> Telegram ``file_id`` -> joriy qoralama (matn/tugma saqlanadi).
 
         Fayl foydalanuvchining O'Z chatiga jimgina yuboriladi (``file_id`` olish uchun) va darhol o'chiriladi.
@@ -511,9 +499,14 @@ class PostWriter:
 
         await self._service.authorize(user_id)
         async with self._user_lock(user_id):
+            existing = await self._service.draft_raw(user_id) or {}
+            if add:  # albomga qo'shish: Telegram'ga yuklashdan OLDIN sig'im/tur tekshiriladi
+                media_items.add_item(existing.get("post_type"), existing.get("file_id"), post_type, "-")
             file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
             del data
             existing = await self._service.draft_raw(user_id) or {}
+            if add:
+                post_type, file_id = media_items.add_item(existing.get("post_type"), existing.get("file_id"), post_type, file_id)
             payload = {
                 "post_type": post_type,
                 "content": text if "text" in fields else (existing.get("content") or ""),
@@ -528,6 +521,24 @@ class PostWriter:
             from . import drafts
 
             await self._blocking(drafts.save_draft, user_id, payload)
+        return await self._service.draft(user_id)
+
+    async def delete_draft_media(self, user_id: int, index: int | None) -> dict:
+        """Qoralamadagi ``index``-chi mediani olib tashlaydi (albom qisqaradi; media qolmasa va matn bo'sh bo'lsa qoralama o'chadi)."""
+        if index is None:
+            raise ApiError("bad_request")
+        await self._service.authorize(user_id)
+        from . import drafts
+
+        async with self._user_lock(user_id):
+            existing = await self._service.draft_raw(user_id)
+            if not existing:
+                raise ApiError("draft_not_found")
+            post_type, file_id = media_items.remove_item(existing.get("post_type"), existing.get("file_id"), index)
+            if post_type == "text" and not (existing.get("content") or "").strip():
+                await self._blocking(self._drop_draft, user_id)
+                return {"draft": None}
+            await self._blocking(drafts.save_draft, user_id, {**existing, "post_type": post_type, "file_id": file_id})
         return await self._service.draft(user_id)
 
     async def _read_upload(self, request) -> tuple[dict, bytearray, str]:
@@ -736,7 +747,7 @@ class PostWriter:
             _invalidate_user(user_id)
         return changed
 
-    async def upload_post_media(self, user_id: int, post_id: int, request) -> dict:
+    async def upload_post_media(self, user_id: int, post_id: int, request, add: bool = False) -> dict:
         """Rejalangan postning rasm/videosini qurilmadagi yangi fayl bilan ALMASHTIRADI (matn sarlavha bo'lib qoladi)."""
         fields, data, post_type = await self._read_upload(request)
         if set(fields) - set():  # bu yo'lda faqat fayl qabul qilinadi (matn PATCH orqali)
@@ -752,15 +763,21 @@ class PostWriter:
         if existing.get("text"):
             check_caption(existing["text"])
         async with self._user_lock(user_id):
+            if add:
+                ref = await self._service.post_media_ref(user_id, post_id)
+                media_items.add_item(ref.get("post_type"), ref.get("file_id"), post_type, "-")
             file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
             del data
+            if add:
+                ref = await self._service.post_media_ref(user_id, post_id)
+                post_type, file_id = media_items.add_item(ref.get("post_type"), ref.get("file_id"), post_type, file_id)
             ok = await self._blocking(self._set_media, user_id, post_id, post_type, file_id)
             if not ok:
                 raise ApiError("not_editable")
         self._media_cache.clear()
         return {"post": await self._service.post(user_id, post_id)}
 
-    async def delete_post_media(self, user_id: int, post_id: int) -> dict:
+    async def delete_post_media(self, user_id: int, post_id: int, index: int | None = None) -> dict:
         """Rasm/videoni olib tashlaydi (post oddiy matnli postga aylanadi; matn bo'sh bo'lsa mumkin emas)."""
         await self._service.authorize(user_id)
         posts = self._posts_repo()
@@ -773,7 +790,11 @@ class PostWriter:
         if not (existing.get("text") or "").strip():
             raise ApiError("invalid_input", field="text")
         async with self._user_lock(user_id):
-            ok = await self._blocking(self._set_media, user_id, post_id, "text", None)
+            new_type, new_file = "text", None
+            if index is not None:  # albomdan bitta elementni olib tashlash
+                ref = await self._service.post_media_ref(user_id, post_id)
+                new_type, new_file = media_items.remove_item(ref.get("post_type"), ref.get("file_id"), index)
+            ok = await self._blocking(self._set_media, user_id, post_id, new_type, new_file)
             if not ok:
                 raise ApiError("not_editable")
         return {"post": await self._service.post(user_id, post_id)}

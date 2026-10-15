@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppData } from '../AppData'
 import type { ApiClientError } from '../api/client'
-import type { PostFilter, ScheduledPost } from '../api/types'
+import type { MediaItem, PostFilter, ScheduledPost } from '../api/types'
 import { ConfirmDialog, Dialog } from '../components/Dialog'
+import { MediaGrid, type LocalUpload } from '../components/MediaGrid'
 import { PostThumb } from '../components/PostThumb'
 import { RichTextField } from '../components/RichTextField'
 import { Page, PageHeader } from '../components/Shell'
@@ -15,6 +16,7 @@ import { openBot } from '../telegram'
 import { CalendarView } from './CalendarView'
 import { groupByDay, isFutureEnough, isoToLocalInput, localInputToIso } from './format'
 import { compressImage } from './imageCompress'
+import { MEDIA_ACCEPT, prepareFiles } from './mediaUpload'
 import { describeRecurrence, suggestSecondTime } from './recurrence'
 import { isValidLinkInput, normalizeLink } from './richtext'
 
@@ -80,8 +82,9 @@ function EditDialog({ post, onClose, onSaved }: {
   const [mediaBusy, setMediaBusy] = useState(false)
   const [mediaVersion, setMediaVersion] = useState(0)
   const [hasMedia, setHasMedia] = useState(post.has_media)
-  const [postType, setPostType] = useState(post.post_type)
-  const fileRef = useRef<HTMLInputElement | null>(null)
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>(post.media_items ?? (post.has_media ? [{ type: post.post_type, previewable: true }] : []))
+  const [locals, setLocals] = useState<LocalUpload[]>([])
+  const [progress, setProgress] = useState<string | null>(null)
   const inFlight = useRef(false)
   const recurrence = post.recurrence ?? ''
   const recurring = !!recurrence && recurrence !== 'none'
@@ -98,6 +101,7 @@ function EditDialog({ post, onClose, onSaved }: {
         if (ctl.signal.aborted) return
         const body = p.text ?? p.preview
         setFull(p)
+        if (p.media_items) setMediaItems(p.media_items)
         setText(body)
         setBtnText(p.button_text ?? '')
         setBtnUrl(p.button_url ?? '')
@@ -114,7 +118,7 @@ function EditDialog({ post, onClose, onSaved }: {
     try {
       const updated = await run()
       setHasMedia(updated.has_media)
-      setPostType(updated.post_type)
+      setMediaItems(updated.media_items ?? (updated.has_media ? [{ type: updated.post_type, previewable: true }] : []))
       setMediaVersion((v) => v + 1)
       notify(t(doneKey))
       onSaved(false) // ro'yxat fonda yangilanadi, oyna ochiq qoladi
@@ -128,16 +132,30 @@ function EditDialog({ post, onClose, onSaved }: {
       setMediaBusy(false)
     }
   }
-  const pickFile = async (picked: File | undefined) => {
-    if (fileRef.current) fileRef.current.value = ''
-    if (!picked || mediaBusy) return
-    const isVideo = picked.type === 'video/mp4' || picked.type === 'video/quicktime'
-    const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(picked.type)
-    if (!isVideo && !isImage) { notify(t('media.errType'), 'error'); return }
-    if (picked.size > (isVideo ? config.maxUploadVideoBytes : config.maxUploadPhotoBytes)) { notify(t('media.errSize'), 'error'); return }
+  const addFiles = async (picked: File[]) => {
+    if (mediaBusy || picked.length === 0) return
+    const prepared = prepareFiles(picked, mediaItems, config.maxAlbumItems)
+    if (prepared.errors.includes('type')) notify(t('media.errType'), 'error')
+    else if (prepared.errors.includes('size')) notify(t('media.errSize'), 'error')
+    else if (prepared.errors.includes('mixed')) notify(t('media.errMixed'), 'error')
+    if (prepared.skippedFull > 0) notify(t('media.errAlbumFull', { n: prepared.skippedFull, max: config.maxAlbumItems }), 'error')
+    if (prepared.accepted.length === 0) return
     if (text.length > config.maxCaptionChars) { notify(t('media.errCaption'), 'error'); return }
-    const file = isImage ? await compressImage(picked) : picked
-    await mediaAction(() => client.replacePostMedia(post.id, file), 'edit.mediaSaved')
+    let done = 0
+    for (const original of prepared.accepted) {
+      setProgress(t('media.progress', { i: done + 1, n: prepared.accepted.length }))
+      const file = await compressImage(original)
+      const id = `${Date.now()}-${done}`
+      if (typeof URL.createObjectURL === 'function') setLocals((prev) => [...prev, { id, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }])
+      try {
+        // Bo'sh postga birinchi fayl "almashtirish" bilan, keyingilari albomga qo'shiladi.
+        await mediaAction(() => (mediaItems.length === 0 && done === 0 ? client.replacePostMedia(post.id, file) : client.addPostMedia(post.id, file)), 'edit.mediaSaved')
+        done += 1
+      } finally {
+        setLocals((prev) => { const gone = prev.find((l) => l.id === id); if (gone) URL.revokeObjectURL(gone.url); return prev.filter((l) => l.id !== id) })
+      }
+    }
+    setProgress(null)
   }
 
   const save = async () => {
@@ -184,25 +202,13 @@ function EditDialog({ post, onClose, onSaved }: {
       {loadError ? <FormError error={loadError} /> : full === null ? <p className="muted">{t('schedule.loadingText')}</p> : (
         <>
           <h3 className="edit-sec">{t('media.title')}</h3>
-          <div className="edit-media">
-            {hasMedia
-              ? <PostThumb postId={post.id} hasMedia type={postType} label={t('schedule.media')} version={String(mediaVersion)} size="lg" />
-              : <p className="muted small">{t('edit.noMedia')}</p>}
-            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
-              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime" onChange={(e) => void pickFile(e.target.files?.[0])} />
-            <div className="edit-media-actions">
-              <Button variant="secondary" icon="image" busy={mediaBusy} onClick={() => fileRef.current?.click()}>
-                {hasMedia ? t('media.replace') : t('media.add')}
-              </Button>
-              {hasMedia && (
-                <Button variant="ghost" icon="trash" disabled={mediaBusy} onClick={() => void mediaAction(() => client.deletePostMedia(post.id), 'edit.mediaRemoved')}>
-                  {t('edit.removeMedia')}
-                </Button>
-              )}
-            </div>
-          </div>
+          <MediaGrid items={mediaItems} version={String(mediaVersion)} load={(i, signal) => client.postMedia(post.id, signal, i)}
+            busy={mediaBusy} uploading={mediaBusy} locals={locals} max={config.maxAlbumItems} accept={MEDIA_ACCEPT} progress={progress}
+            onAdd={(files) => void addFiles(files)}
+            onRemove={(i) => void mediaAction(() => client.deletePostMedia(post.id, i), 'edit.mediaRemoved')} />
+          {mediaItems.length >= 2 && (btnText.trim() !== '' || btnUrl.trim() !== '') && <p className="muted small" role="note">{t('post.albumButtonNote')}</p>}
 
-          <h3 className="edit-sec"><label htmlFor="edit-text">{t('post.text')}</label></h3>
+          <h3 className="edit-sec">{t('post.text')}</h3>
           <RichTextField id="edit-text" value={text} onChange={(v) => { setText(v); setInvalid(null) }} maxLength={textMax} rows={8} invalid={invalid === 'text'} />
           <p className="muted">{t('post.counter', { n: text.length, max: textMax })}</p>
           {invalid === 'text' && <p className="field-error" role="alert">{t(hasMedia ? 'post.errCaption' : 'post.errText', { max: textMax })}</p>}

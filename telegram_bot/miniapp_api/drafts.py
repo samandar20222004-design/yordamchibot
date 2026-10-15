@@ -13,6 +13,8 @@ from __future__ import annotations
 import json
 import re
 
+from . import media_items
+
 DRAFT_TTL_HOURS = 48
 MAX_TEXT = 4096
 MAX_FILE_ID = 20000          # album (JSON ro'yxat) uchun ham yetarli
@@ -144,6 +146,7 @@ def public_view(draft: dict, iso) -> dict:
         "reactions": bool(p.get("enable_reactions")),
         "delete_after_hours": int(p.get("delete_after_hours") or 0),
         "media": None if post_type == "text" else {
-            "type": post_type, "previewable": _previewable(p), "count": count},
+            "type": post_type, "previewable": _previewable(p), "count": count,
+            "items": media_items.public_items(post_type, p.get("file_id"))},
         "updated_at": iso(draft["updated_at"]),
     }

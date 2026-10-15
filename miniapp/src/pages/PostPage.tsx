@@ -18,6 +18,8 @@ import { toClientError } from '../hooks/useResource'
 import { defaultScheduleValue, isFutureEnough, isoToLocalInput, isUnlimited, localInputToIso, toLocalInputValue } from './format'
 import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, tashkentParts, type RepeatChoice } from './recurrence'
 import { compressImage } from './imageCompress'
+import { MEDIA_ACCEPT, prepareFiles } from './mediaUpload'
+import { MediaGrid, type LocalUpload } from '../components/MediaGrid'
 import { RichTextField } from '../components/RichTextField'
 import { isValidLinkInput, normalizeLink } from './richtext'
 
@@ -71,7 +73,8 @@ export function PostPage() {
   const [discarding, setDiscarding] = useState(false)
   const [aiOpen, setAiOpen] = useState<boolean | null>(null)
   const [uploading, setUploading] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [progress, setProgress] = useState<string | null>(null)
+  const [locals, setLocals] = useState<LocalUpload[]>([])
   const inFlight = useRef(false)
   const aiInFlight = useRef(false)
 
@@ -103,15 +106,8 @@ export function PostPage() {
   }, [draftKey, draftChannel, hasDraftChannel])
 
   const media = current?.media ?? null
-  const [local, setLocal] = useState<{ url: string; video: boolean } | null>(null)
-  const showLocalPreview = (f: File) => {
-    if (typeof URL.createObjectURL !== 'function') return
-    setLocal((prev) => { if (prev) URL.revokeObjectURL(prev.url); return { url: URL.createObjectURL(f), video: f.type.startsWith('video/') } })
-  }
-  useEffect(() => () => { if (local) URL.revokeObjectURL(local.url) }, [local])
+  const mediaItems = media?.items ?? (media ? [{ type: media.type, previewable: media.previewable }] : [])
   const photo = useDraftPhoto(client, Boolean(media?.previewable), current?.updated_at ?? null)
-  const previewUrl = local?.url ?? photo.url
-  const previewIsVideo = local ? local.video : photo.video
   const textMax = media ? CAPTION_MAX : config.maxPostChars
 
   if (me.loading || channels.loading) return <Page><PageHeader title={t('post.title')} /><LoadingBlock rows={4} /></Page>
@@ -245,36 +241,61 @@ export function PostPage() {
     }
   }
 
-  /** Qurilmadan rasm/video: mijozda tur va hajm tekshiriladi (server baribir baytlardan tekshiradi), matn/tugma birga saqlanadi. */
-  const pickMedia = async (picked: File | undefined) => {
-    if (fileRef.current) fileRef.current.value = ''
-    if (!picked || uploading) return
-    let file = picked
-    const isVideo = file.type === 'video/mp4' || file.type === 'video/quicktime'
-    const isImage = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)
-    if (!isVideo && !isImage) { notify(t('media.errType'), 'error'); return }
-    if (file.size > (isVideo ? config.maxUploadVideoBytes : config.maxUploadPhotoBytes)) { notify(t('media.errSize'), 'error'); return }
+  /** Qurilmadan rasm/video (bir nechta): albomga ketma-ket qo'shiladi; matn/tugma har safar qoralama bilan sinxronlanadi. */
+  const addFiles = async (picked: File[]) => {
+    if (uploading || picked.length === 0) return
+    const prepared = prepareFiles(picked, mediaItems, config.maxAlbumItems)
+    if (prepared.errors.includes('type')) notify(t('media.errType'), 'error')
+    else if (prepared.errors.includes('size')) notify(t('media.errSize'), 'error')
+    else if (prepared.errors.includes('mixed')) notify(t('media.errMixed'), 'error')
+    if (prepared.skippedFull > 0) notify(t('media.errAlbumFull', { n: prepared.skippedFull, max: config.maxAlbumItems }), 'error')
+    if (prepared.accepted.length === 0) return
     if (text.length > CAPTION_MAX) { setFieldError({ field: 'text', key: 'post.errCaption' }); notify(t('media.errCaption'), 'error'); return }
     if (btnOpen && (btnText.trim() !== '' || btnUrl.trim() !== '')
       && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isValidLinkInput(btnUrl))) {
       setFieldError({ field: 'button', key: 'post.errButton' }); return
     }
     setUploading(true)
+    let done = 0
     try {
-      if (isImage) file = await compressImage(file) // telefonda yengillashtirish: yuklash tez, server yuklanmaydi
-      showLocalPreview(file)
-      await client.uploadMedia(file, {
-        text: text.trim(),
-        button_text: hasButton ? btnText.trim() : '',
-        button_url: hasButton ? normalizeLink(btnUrl) : '',
-      })
-      draft.reload()
+      for (const original of prepared.accepted) {
+        setProgress(t('media.progress', { i: done + 1, n: prepared.accepted.length }))
+        const file = await compressImage(original) // telefonda yengillashtirish: yuklash tez, server yuklanmaydi
+        const id = `${Date.now()}-${done}`
+        if (typeof URL.createObjectURL === 'function') setLocals((prev) => [...prev, { id, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }])
+        try {
+          await client.uploadMedia(file, {
+            text: text.trim(),
+            button_text: hasButton ? btnText.trim() : '',
+            button_url: hasButton ? normalizeLink(btnUrl) : '',
+          }, true)
+          await draft.reload()
+          done += 1
+        } finally {
+          setLocals((prev) => { const gone = prev.find((l) => l.id === id); if (gone) URL.revokeObjectURL(gone.url); return prev.filter((l) => l.id !== id) })
+        }
+      }
       notify(t('media.added'))
     } catch (e) {
       const err = toClientError(e)
       const key = err.code === 'unsupported_media_type' ? 'media.errType' : err.code === 'payload_too_large' ? 'media.errSize'
         : err.code === 'caption_too_long' ? 'media.errCaption' : errorMessageKey(err.code)
       notify(t(key), 'error')
+      void draft.reload()
+    } finally {
+      setUploading(false)
+      setProgress(null)
+    }
+  }
+
+  const removeMedia = async (index: number) => {
+    if (uploading) return
+    setUploading(true)
+    try {
+      await client.deleteDraftMedia(index)
+      await draft.reload()
+    } catch (e) {
+      notify(t(errorMessageKey(toClientError(e).code)), 'error')
     } finally {
       setUploading(false)
     }
@@ -372,23 +393,9 @@ export function PostPage() {
           </select>
           {fieldError?.field === 'channel' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
 
-          <div className="media-box">
-            <input ref={fileRef} type="file" className="sr-only" tabIndex={-1} aria-label={t('media.title')}
-              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime"
-              onChange={(e) => void pickMedia(e.target.files?.[0])} />
-            <button type="button" className={`media-tile${previewUrl ? ' has-preview' : ''}`} disabled={uploading}
-              onClick={() => fileRef.current?.click()} aria-label={media ? t('media.replace') : t('media.add')}>
-              {previewUrl && (previewIsVideo
-                ? <video className="media-tile-img" src={previewUrl} muted playsInline preload="metadata" />
-                : <img className="media-tile-img" src={previewUrl} alt="" />)}
-              <span className="media-tile-label">
-                <Icon name="image" size={previewUrl ? 18 : 28} />
-                <strong>{uploading ? t('media.uploading') : previewUrl || media ? t('media.replace') : t('media.pick')}</strong>
-                {!previewUrl && !media && <span className="muted small">{t('media.lite')}</span>}
-              </span>
-            </button>
-            <p className="muted small">{t('media.hint')}</p>
-          </div>
+          <MediaGrid items={mediaItems} version={current?.updated_at ?? ''} load={(i, signal) => client.draftMedia(signal, i)}
+            busy={false} uploading={uploading} locals={locals} max={config.maxAlbumItems} accept={MEDIA_ACCEPT} progress={progress}
+            onAdd={(files) => void addFiles(files)} onRemove={(i) => void removeMedia(i)} />
 
           <div className="field" id="text-label">{t('post.text')}</div>
           <RichTextField id="text" value={text} maxLength={textMax} rows={media ? 5 : 8} invalid={fieldError?.field === 'text'}
@@ -419,6 +426,7 @@ export function PostPage() {
                 aria-invalid={fieldError?.field === 'button' || undefined}
                 onChange={(e) => { setBtnUrl(e.target.value); setFieldError(null) }} />
               {fieldError?.field === 'button' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
+          {btnOpen && mediaItems.length >= 2 && <p className="muted small" role="note">{t('post.albumButtonNote')}</p>}
             </>
           )}
         </section>
