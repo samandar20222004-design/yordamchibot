@@ -454,12 +454,7 @@ from handlers.queue import (
 # 13. 🩺 TIZIM HOLATI MONITORINGI
 from handlers.health import health_command
 
-# 13b. 🚪💰 SPRINT 4 — YOPIQ BETA DARVOZASI + UNIT ECONOMICS.
-# ``/beta`` — beta rejimi, taklif kodlari va tasdiqlash (faqat admin);
-# ``/economics`` — AI xarajati va PRO tarif rentabelligi (faqat admin).
-# Ikkala modul ham faqat admin buyruqlari bilan ishlaydi (qo'shimcha
-# conversation/FSM yo'q — mavjud oqimlar o'zgarmaydi).
-from handlers.beta_access import beta_admin_command
+# 13b. 💰 UNIT ECONOMICS (admin buyrug'i).
 from handlers.economics import economics_command
 
 import database as db
@@ -2294,9 +2289,6 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("delrole", admin_del_role_command))
     # 🖼 /ai — AI Studio'ni ochadi; shundan keyin rasm yuborilsa Vision ishlaydi
     app.add_handler(CommandHandler("ai", lambda u, c: guard_entry(u, c, ai_studio_menu_entry)))
-    # yopiq beta darvozasi (faqat admin): rejim, kodlar,
-    # navbatdagi so'rovlarni tasdiqlash/rad etish.
-    app.add_handler(CommandHandler("beta", beta_admin_command))
     # unit economics: AI xarajati, o'rtacha sarf va PRO marjasi.
     app.add_handler(CommandHandler("economics", economics_command))
 

@@ -67,8 +67,7 @@ export function isValidBotUsername(username: string | null | undefined): usernam
 /**
  * Botni Telegram ichida ochadi: FAQAT `https://t.me/<username>` (chatni ochadi, xolos).
  * `?start=<payload>` ATAYLAB ishlatilmaydi: bot `/start` handleri faqat `ref_<id>` ni tanlaydi va qolgan
- * har qanday payload'ni beta TAKLIF KODI deb qaraydi (handlers/beta_access.py:extract_invite_code),
- * ya'ni noma'lum payload yangi/kutilayotgan foydalanuvchini "noto'g'ri kod" sifatida qayd etishi mumkin.
+ * boshqa payloadlarni e'tiborsiz qoldiradi; /newpost va PRO oqimlari havoladan ochilmaydi.
  * Shuning uchun /newpost va PRO oqimlari havola orqali EMAS, foydalanuvchi buyruq yuborishi bilan ochiladi.
  */
 export function openBot(username: string | null | undefined): boolean {

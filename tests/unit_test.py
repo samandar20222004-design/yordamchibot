@@ -8799,10 +8799,6 @@ def test_onboarding_start_integration():
     async def fake_ad(uid):
         return ""
 
-    async def fake_beta_gate(*args, **kwargs):
-        return {"allowed": True, "reason": "open_mode", "code": None,
-                "seats_left": None, "invite_only": False, "attempts": 0}
-
     def run_start():
         upd = _OnbUpdate(4242, lang=state["lang"])
         ctx = _OnbCtx(state["lang"], {"lang": state["lang"]})
@@ -8812,11 +8808,9 @@ def test_onboarding_start_integration():
     orig_db = db_mod.run_db
     orig_check = st_mod.check_user_subscribed
     orig_ad = st_mod.get_smart_reply_ad_async
-    orig_beta_gate = st_mod._beta_gate_decision
     db_mod.run_db = fake_run_db
     st_mod.check_user_subscribed = fake_check
     st_mod.get_smart_reply_ad_async = fake_ad
-    st_mod._beta_gate_decision = fake_beta_gate
     ob.invalidate_simple_menu()
     try:
         # a) Yangi foydalanuvchi → onboarding matni + SODDA klaviatura + yo'riqnoma
@@ -8913,7 +8907,6 @@ def test_onboarding_start_integration():
         db_mod.run_db = orig_db
         st_mod.check_user_subscribed = orig_check
         st_mod.get_smart_reply_ad_async = orig_ad
-        st_mod._beta_gate_decision = orig_beta_gate
         ob.invalidate_simple_menu()
 
 

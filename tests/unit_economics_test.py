@@ -340,7 +340,7 @@ def test_economics_command_and_text():
             names.update(h.commands)
     check("/economics ro'yxatdan o'tgan (haqiqiy Application)", "economics" in names,
           sorted(names))
-    check("/beta ham ro'yxatdan o'tgan", "beta" in names, sorted(names))
+    check("/beta tasdiqlash buyrug'i olib tashlangan", "beta" not in names, sorted(names))
 
     # (c) faqat admin: oddiy foydalanuvchiga javob YO'Q.
     class _Msg:

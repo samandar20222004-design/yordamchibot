@@ -221,19 +221,6 @@ def plan_discount_percent(total_price, monthly_price, months) -> int:
 # o'qiladi (kodda qattiq yozilgan kurs yo'q). Standart: 12 600 so'm/$.
 USD_UZS_RATE = _int_env("USD_UZS_RATE", 12600)
 
-# 🚪 YOPIQ BETA DARVOZASI (closed beta access) ---
-# BETA_INVITE_ONLY=true  → yangi foydalanuvchi faqat taklif kodi yoki admin
-#                          tasdig'i bilan kiradi (mavjud foydalanuvchilar
-#                          uzluksiz ishlayveradi);
-# BETA_INVITE_ONLY=false → ochiq rejim (faqat aniq "false" qo'yilganda; noto'g'ri
-#                          qiymat ham "ochiq" deb o'qiladi — beta rejimi
-#                          tasodifan yoqilib qolmasin).
-# STANDART (env berilmasa): true — CLOSED BETA. Ommaviy ochilish faqat
-# admin tomonidan BETA_INVITE_ONLY=false qilinganda amalga oshadi.
-# BETA_MAX_USERS — beta o'rinlari soni (30–50 kanal egasi uchun; 0 = cheksiz).
-BETA_INVITE_ONLY = _env_flag("BETA_INVITE_ONLY", True)
-BETA_MAX_USERS = _int_env("BETA_MAX_USERS", 50)
-
 # Update handler va fon vazifalari uchun timeout chegaralari ---
 # UPDATE_HANDLER_TIMEOUT_SECONDS — bitta Telegram update handlerining
 # bajarilishiga berilgan QAT'IY maksimal vaqt (soniya). Og'ir AI/tahlil

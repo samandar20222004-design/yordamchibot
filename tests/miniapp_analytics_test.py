@@ -62,7 +62,6 @@ def main() -> int:
         cur.execute("DELETE FROM scheduled_posts WHERE user_id = ANY(%s)", ([A, B],))
         cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", ([A, B],))
         cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", ([A, B],))
-        cur.execute("DELETE FROM system_settings WHERE key = 'beta_gate_state'")
 
     cleanup()
     try:
@@ -96,7 +95,7 @@ def main() -> int:
         settings = load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
                                   "MINIAPP_PROXY_ASSERT_EDGE_ONLY": "1", "MINIAPP_REQUIRE_HTTPS": "0"})
         runner = ReadOnlyRunner(statement_timeout_ms=5000, max_inflight=4)
-        service = MiniAppService(settings, runner, invite_only_getter=lambda: False)
+        service = MiniAppService(settings, runner)
 
         class Null:
             async def hit(self, *a, **k):
