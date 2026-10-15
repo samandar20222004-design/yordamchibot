@@ -345,6 +345,11 @@ def _scheduled_when_text(context, lang: str, post_time_tz) -> str:
     if recurrence_type == "daily" and recurrence_time_str:
         return get_text("np_scheduled_when_daily", lang,
                         time=format_time(recurrence_time_str, lang))
+    if recurrence_type == "twice" and recurrence_time_str and recurrence_day is not None:
+        from services.recurrence import minutes_to_time
+
+        return get_text("np_scheduled_when_twice", lang, time=format_time(recurrence_time_str, lang),
+                        time2=format_time(minutes_to_time(recurrence_day), lang))
     if recurrence_type == "weekly" and recurrence_time_str:
         return get_text("np_scheduled_when_weekly", lang,
                         day=weekday_label(recurrence_day, lang),

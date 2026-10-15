@@ -26,6 +26,30 @@ export function wrapSelection(value: string, start: number, end: number, open: s
   return { value: next, selStart: a + open.length, selEnd: b + open.length }
 }
 
+/**
+ * Format tugmasi (B/I/U/S/kod/spoyler): tanlov bor bo'lsa o'raydi, allaqachon shu teg bilan o'ralgan bo'lsa OLIB TASHLAYDI;
+ * tanlov bo'lmasa bo'sh teg QOLDIRMAYDI — `placeholder` matni teg ichiga qo'yilib tanlab qo'yiladi (ustidan yoziladi).
+ */
+export function toggleFormat(value: string, start: number, end: number, open: string, close: string, placeholder: string): Edit {
+  const a = Math.max(0, Math.min(start, end, value.length))
+  const b = Math.max(0, Math.min(Math.max(start, end), value.length))
+  const around = value.slice(a - open.length, a) === open && value.slice(b, b + close.length) === close && a >= open.length
+  if (around) {
+    const next = value.slice(0, a - open.length) + value.slice(a, b) + value.slice(b + close.length)
+    return { value: next, selStart: a - open.length, selEnd: b - open.length }
+  }
+  const inner = value.slice(a, b)
+  if (a < b && inner.startsWith(open) && inner.endsWith(close) && inner.length >= open.length + close.length) {
+    const text = inner.slice(open.length, inner.length - close.length)
+    return { value: value.slice(0, a) + text + value.slice(b), selStart: a, selEnd: a + text.length }
+  }
+  if (a === b) {
+    const next = value.slice(0, a) + open + placeholder + close + value.slice(b)
+    return { value: next, selStart: a + open.length, selEnd: a + open.length + placeholder.length }
+  }
+  return wrapSelection(value, a, b, open, close)
+}
+
 /** Faqat http(s)/tg havolalar (xavfli protokollar rad etiladi). */
 export function isSafeLink(url: string): boolean {
   return /^(https?:\/\/|tg:\/\/)[^\s<>"']+$/i.test(url.trim())

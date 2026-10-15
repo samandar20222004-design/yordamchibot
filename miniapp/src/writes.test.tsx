@@ -258,7 +258,8 @@ describe('Reja: tahrirlash, bekor qilish, tarix', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Tahrirlash' })[1])
     await screen.findByLabelText('Post matni')
     expect(screen.queryByLabelText('Sana va vaqt')).toBeNull()
-    expect(screen.getByText(/Takrorlanuvchi postning vaqtini botda/)).toBeTruthy()
+    expect(screen.getByLabelText(/Chiqish vaqti/)).toBeTruthy()
+    expect(screen.getByText(/Takrorlanish turini/)).toBeTruthy()
   })
 
   it('tarix: status=history so\'raladi, holat nishoni ko\'rinadi, amallar tugmasi yo\'q', async () => {

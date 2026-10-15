@@ -146,6 +146,31 @@ for i in range(1500):
         print("   ISTISNO:", repr(s), type(exc).__name__, exc)
 check("fuzz: 1500 tasodifiy kirish — istisno yo'q, natija doim kelajakda", bad == 0, str(bad))
 
+# --- kuniga ikki vaqt (ertalab va kechqurun) ---
+def two(label, text, t1, t2, start_hm=None):
+    r = parse_schedule_text(text, NOW)
+    rc = r.get("recurrence") if r.get("ok") else None
+    good = bool(rc) and rc["type"] == "twice" and rc["time"] == t1 and rc["day"] == t2.hour * 60 + t2.minute
+    check(f"ikki vaqt: {label}", good, f"{text!r} -> {r}")
+    if good and start_hm:
+        check(f"ikki vaqt: boshlanish {label}", (r["start"].hour, r["start"].minute) == start_hm and r["start"] > NOW, str(r["start"]))
+
+
+two("uz aniq vaqtlar", "har kuni ertalab 9 va kechqurun 18:30 da", time(9, 0), time(18, 30), (18, 30))
+two("uz 9:00 va 18:00", "har kuni 9:00 va 18:00", time(9, 0), time(18, 0), (18, 0))
+two("uz kuniga ikki marta", "kuniga ikki marta 8 va 20", time(8, 0), time(20, 0), (20, 0))
+two("uz faqat kun qismi (taklif 09:00/19:00)", "har kuni ertalab va kechqurun", time(9, 0), time(19, 0))
+two("uz tartib teskari", "har kuni kechqurun 7 va ertalab 8", time(8, 0), time(19, 0))
+two("ru", "каждый день в 9:00 и в 19:00", time(9, 0), time(19, 0))
+two("en am/pm", "every day at 9am and 6pm", time(9, 0), time(18, 0))
+two("en twice a day", "twice a day 08:00 and 20:00", time(8, 0), time(20, 0))
+r = parse_schedule_text("har kuni 12:00", NOW)
+check("bitta vaqt: oddiy daily (regressiya)", r["ok"] and r["recurrence"]["type"] == "daily", str(r))
+check("bir xil ikki vaqt: no_time", parse_schedule_text("har kuni 9 va 9", NOW).get("ok") is False)
+check("uch vaqt: rad (faqat ikkita)", parse_schedule_text("har kuni 8 va 12 va 20", NOW).get("ok") is False)
+r = parse_schedule_text("har kuni 9:00 va 18:00", NOW.replace(hour=20))
+check("ikkala vaqt o'tgan: ertangi birinchi (09:00)", r["ok"] and (r["start"].day, r["start"].hour) == (16, 9), str(r))
+
 # --- validate_proposal (AI zaxirasi chiqishini tekshiradi) ---
 ok = validate_proposal(at(20, 12), {"type": "interval", "day": 2, "time": "12:00"}, NOW)
 check("AI taklifi: to'g'ri interval qabul", ok["ok"] and ok["recurrence"]["type"] == "interval", str(ok))

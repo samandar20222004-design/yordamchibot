@@ -17,6 +17,7 @@ Printsiplar:
 from __future__ import annotations
 
 import asyncio
+from collections import OrderedDict
 import json
 import logging
 import re
@@ -120,6 +121,8 @@ def parse_button(button_text, button_url) -> tuple[str | None, str | None]:
     return text, url
 
 
+MEDIA_CACHE_MAX_BYTES = 24 * 1024 * 1024   # jarayon xotirasidagi ro'yxat rasmlari keshi (LRU)
+MEDIA_CACHE_ITEM_MAX = 4 * 1024 * 1024     # katta video keshga tushmaydi
 MAX_MEDIA_BYTES = 16 * 1024 * 1024  # oldindan ko'rish: rasm/video/GIF (Bot API getFile ham ~20 MB bilan cheklangan)
 
 
@@ -252,24 +255,45 @@ def parse_recurrence_input(value, when_utc: datetime):
     """
     if value is None:
         return None
-    if not isinstance(value, dict) or set(value) - {"type", "day", "time"}:
+    if not isinstance(value, dict) or set(value) - {"type", "day", "time", "time2"}:
         raise ApiError("invalid_input", field="recurrence")
-    from services.recurrence import TASHKENT, normalize_recurrence
+    from services.recurrence import TASHKENT, _as_time, minutes_to_time, normalize_recurrence, time_to_minutes
 
+    rday_in = value.get("day")
+    if value.get("type") == "twice":  # kuniga ikki vaqt: ikkinchi vaqt "HH:MM" (time2) ko'rinishida keladi
+        try:
+            rday_in = time_to_minutes(_as_time(value.get("time2")))
+        except ValueError:
+            raise ApiError("invalid_input", field="recurrence") from None
     try:
-        rtype, rday, rtime = normalize_recurrence(value.get("type"), value.get("day"), value.get("time"))
+        rtype, rday, rtime = normalize_recurrence(value.get("type"), rday_in, value.get("time"))
     except ValueError:
         raise ApiError("invalid_input", field="recurrence") from None
     if rtype == "none":
         return None
     local = when_utc.astimezone(TASHKENT)
-    if (local.hour, local.minute) != (rtime.hour, rtime.minute):
+    slots = {(rtime.hour, rtime.minute)}
+    if rtype == "twice":
+        second = minutes_to_time(rday)
+        slots.add((second.hour, second.minute))
+    if (local.hour, local.minute) not in slots:
         raise ApiError("invalid_input", field="recurrence")
     if rtype == "weekly" and local.weekday() != rday:
         raise ApiError("invalid_input", field="recurrence")
     if rtype == "weekdays" and not (rday >> local.weekday()) & 1:
         raise ApiError("invalid_input", field="recurrence")
     return rtype, rday, rtime
+
+
+def _recurrence_public(rec: dict) -> dict:
+    """Taklifdagi takrorlanish -> mijoz shakli. ``twice`` (kuniga ikki vaqt): ikkinchi vaqt ``time2`` (HH:MM)."""
+    out = {"type": rec["type"], "day": rec["day"], "time": rec["time"].strftime("%H:%M")}
+    if rec["type"] == "twice":
+        from services.recurrence import minutes_to_time
+
+        out["day"] = None
+        out["time2"] = minutes_to_time(rec["day"]).strftime("%H:%M")
+    return out
 
 
 SCHEDULE_PARSE_MAX_CHARS = 300
@@ -291,6 +315,8 @@ class PostWriter:
         self._users = users_repo
         self._ai = ai
         self._media_fetch = media_fetch
+        self._media_cache: OrderedDict = OrderedDict()
+        self._media_cache_bytes = 0
 
     # ------------------------------------------------------------ yordamchilar
     def _posts_repo(self):
@@ -419,16 +445,12 @@ class PostWriter:
         deleted = await self._blocking(self._drop_draft, user_id)
         return {"deleted": bool(deleted)}
 
-    async def draft_photo(self, user_id: int) -> tuple[bytes, str]:
-        """Qoralamadagi media (rasm / video / GIF; albomda birinchi ko'rinadigan fayl) ni Telegram'dan olib beradi.
-
-        Bot tokeni serverda qoladi. Tur faqat baytlardan aniqlanadi (``sniff_upload``): rasm, GIF yoki MP4;
-        boshqasi (hujjat, audio...) ``media_unavailable``.
-        """
-        draft = await self._service.draft_raw(user_id)
-        file_id = previewable_file_id(draft)
-        if not file_id:
-            raise ApiError("media_unavailable")
+    async def _fetch_media(self, file_id: str) -> tuple[bytes, str]:
+        """``file_id`` -> (bayt, mime): Telegram'dan olinadi, tur baytlardan aniqlanadi; kichik LRU kesh (ro'yxat rasmlari)."""
+        cached = self._media_cache.get(file_id)
+        if cached is not None:
+            self._media_cache.move_to_end(file_id)
+            return cached
         if self._media_fetch is None:
             self._media_fetch = default_media_fetch(self._settings.bot_token)
         fetch = self._media_fetch
@@ -442,7 +464,34 @@ class PostWriter:
         sniffed = sniff_upload(data) if data else None
         if sniffed is None:
             raise ApiError("media_unavailable")
-        return bytes(data), sniffed[1]
+        item = (bytes(data), sniffed[1])
+        if len(item[0]) <= MEDIA_CACHE_ITEM_MAX:
+            self._media_cache[file_id] = item
+            self._media_cache_bytes += len(item[0])
+            while self._media_cache_bytes > MEDIA_CACHE_MAX_BYTES and self._media_cache:
+                _k, (old, _m) = self._media_cache.popitem(last=False)
+                self._media_cache_bytes -= len(old)
+        return item
+
+    async def draft_photo(self, user_id: int) -> tuple[bytes, str]:
+        """Qoralamadagi media (rasm / video / GIF; albomda birinchi ko'rinadigan fayl) ni Telegram'dan olib beradi.
+
+        Bot tokeni serverda qoladi. Tur faqat baytlardan aniqlanadi (``sniff_upload``): rasm, GIF yoki MP4;
+        boshqasi (hujjat, audio...) ``media_unavailable``.
+        """
+        draft = await self._service.draft_raw(user_id)
+        file_id = previewable_file_id(draft)
+        if not file_id:
+            raise ApiError("media_unavailable")
+        return await self._fetch_media(file_id)
+
+    async def post_media(self, user_id: int, post_id: int) -> tuple[bytes, str]:
+        """Rejalangan postning rasmi/videosi (faqat egasi). Ro'yxatda kichik ko'rinish uchun ham shu ishlatiladi."""
+        ref = await self._service.post_media_ref(user_id, post_id)
+        file_id = previewable_file_id(ref)
+        if not file_id:
+            raise ApiError("media_unavailable")
+        return await self._fetch_media(file_id)
 
     # ------------------------------------------------------------- media yuklash
     async def upload_media(self, user_id: int, request) -> dict:
@@ -451,6 +500,37 @@ class PostWriter:
         Fayl foydalanuvchining O'Z chatiga jimgina yuboriladi (``file_id`` olish uchun) va darhol o'chiriladi.
         Tur baytlardan aniqlanadi; hajm oqim bo'yicha cheklanadi (xotira to'lmaydi).
         """
+        fields, data, post_type = await self._read_upload(request)
+        text = fields.get("text", "").strip()
+        if _CTRL_RE.search(text):
+            raise ApiError("invalid_input", field="text")
+        if text:
+            check_caption(text)
+        btn_text, btn_url = parse_button(fields.get("button_text") or None, fields.get("button_url") or None)
+
+        await self._service.authorize(user_id)
+        async with self._user_lock(user_id):
+            file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
+            del data
+            existing = await self._service.draft_raw(user_id) or {}
+            payload = {
+                "post_type": post_type,
+                "content": text if "text" in fields else (existing.get("content") or ""),
+                "file_id": file_id,
+                "btn_text": btn_text if "button_text" in fields else existing.get("btn_text"),
+                "btn_url": btn_url if "button_url" in fields else existing.get("btn_url"),
+                "enable_reactions": bool(existing.get("enable_reactions")),
+                "reaction_emojis": existing.get("reaction_emojis"),
+                "delete_after_hours": int(existing.get("delete_after_hours") or 0),
+                "channel_id": existing.get("channel_id"),
+            }
+            from . import drafts
+
+            await self._blocking(drafts.save_draft, user_id, payload)
+        return await self._service.draft(user_id)
+
+    async def _read_upload(self, request) -> tuple[dict, bytearray, str]:
+        """multipart so'rovdan (fayl + ixtiyoriy matn/tugma maydonlari) -> (maydonlar, baytlar, post_type). Hajm oqim bo'yicha cheklanadi."""
         ctype = (request.headers.get("Content-Type") or "").split(";")[0].strip().lower()
         if ctype != "multipart/form-data":
             raise ApiError("unsupported_media_type")
@@ -491,33 +571,8 @@ class PostWriter:
         post_type, _mime = kind
         if post_type == "photo" and len(data) > MAX_UPLOAD_PHOTO:
             raise ApiError("payload_too_large")
-        text = fields.get("text", "").strip()
-        if _CTRL_RE.search(text):
-            raise ApiError("invalid_input", field="text")
-        if text:
-            check_caption(text)
-        btn_text, btn_url = parse_button(fields.get("button_text") or None, fields.get("button_url") or None)
+        return fields, data, post_type
 
-        await self._service.authorize(user_id)
-        async with self._user_lock(user_id):
-            file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
-            del data
-            existing = await self._service.draft_raw(user_id) or {}
-            payload = {
-                "post_type": post_type,
-                "content": text if "text" in fields else (existing.get("content") or ""),
-                "file_id": file_id,
-                "btn_text": btn_text if "button_text" in fields else existing.get("btn_text"),
-                "btn_url": btn_url if "button_url" in fields else existing.get("btn_url"),
-                "enable_reactions": bool(existing.get("enable_reactions")),
-                "reaction_emojis": existing.get("reaction_emojis"),
-                "delete_after_hours": int(existing.get("delete_after_hours") or 0),
-                "channel_id": existing.get("channel_id"),
-            }
-            from . import drafts
-
-            await self._blocking(drafts.save_draft, user_id, payload)
-        return await self._service.draft(user_id)
 
     async def _send_for_file_id(self, user_id: int, post_type: str, data: bytes) -> str:
         if self._media_fetch is None:
@@ -568,12 +623,38 @@ class PostWriter:
         return db_cursor(commit=commit)
 
     async def update_post(self, user_id: int, post_id: int, body: dict) -> dict:
-        _only_keys(body, ("text", "scheduled_at"))
+        """Rejalangan postni tahrirlash: matn, vaqt, tugma (va takrorlanuvchi postda kun vaqtlari).
+
+        Bir martalik post: ``scheduled_at``. Takrorlanuvchi: ``recurrence_time`` (+ ``recurrence_time2`` — kuniga ikki vaqt);
+        keyingi chiqish yangi vaqtdan hisoblanadi. Tugma: ``button_text`` + ``button_url`` (ikkalasi ham bo'sh = olib tashlash).
+        """
+        _only_keys(body, ("text", "scheduled_at", "button_text", "button_url", "recurrence_time", "recurrence_time2"))
         if not body:
             raise ApiError("invalid_input")
         text = parse_text(body["text"], "text", max_chars=MAX_POST_CHARS) if "text" in body else None
         now = self._clock()
         when = parse_when(body["scheduled_at"], now) if "scheduled_at" in body else None
+        button = None
+        if "button_text" in body or "button_url" in body:
+            b_text = body.get("button_text")
+            b_url = body.get("button_url")
+            if (b_text in (None, "")) and (b_url in (None, "")):
+                button = ("", "")  # olib tashlash
+            else:
+                button = parse_button(b_text or None, b_url or None)
+        new_time = None
+        if "recurrence_time" in body:
+            from services.recurrence import _as_time
+
+            try:
+                new_time = _as_time(body["recurrence_time"])
+                new_time2 = _as_time(body["recurrence_time2"]) if body.get("recurrence_time2") else None
+            except ValueError:
+                raise ApiError("invalid_input", field="recurrence_time") from None
+        else:
+            new_time2 = None
+            if "recurrence_time2" in body:
+                raise ApiError("invalid_input", field="recurrence_time2")
 
         await self._service.authorize(user_id)
         posts = self._posts_repo()
@@ -591,12 +672,124 @@ class PostWriter:
                 ok = await self._blocking(self._reschedule_pending, user_id, post_id, when)
                 if not ok:
                     raise ApiError("not_editable")
+            if new_time is not None:
+                ok = await self._blocking(self._reschedule_recurring, user_id, post_id, new_time, new_time2, now)
+                if not ok:
+                    raise ApiError("invalid_input", field="recurrence_time")
             if text is not None:
                 ok = await self._blocking(
                     lambda: posts.update_post_content(post_id, user_id, content=text))
                 if not ok:
                     raise ApiError("not_editable")
+            if button is not None:
+                ok = await self._blocking(self._set_button, user_id, post_id, button[0], button[1])
+                if not ok:
+                    raise ApiError("not_editable")
         return {"post": await self._service.post(user_id, post_id)}
+
+    def _set_button(self, user_id: int, post_id: int, btn_text: str | None, btn_url: str | None) -> bool:
+        with self._db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE scheduled_posts SET inline_button_text = %s, inline_button_url = %s "
+                "WHERE id = %s AND user_id = %s AND status = 'pending'",
+                (btn_text or None, btn_url or None, post_id, user_id),
+            )
+            changed = cur.rowcount > 0
+        if changed:
+            from repositories.runtime import _invalidate_user
+
+            _invalidate_user(user_id)
+        return changed
+
+    def _reschedule_recurring(self, user_id: int, post_id: int, new_time, new_time2, now: datetime) -> bool:
+        """Takrorlanuvchi postning kun vaqtini (va ``twice`` da ikkinchi vaqtni) o'zgartiradi; keyingi chiqish qayta hisoblanadi."""
+        from services.recurrence import (TASHKENT, first_occurrence, normalize_recurrence, time_to_minutes)
+
+        with self._db_cursor(commit=True) as cur:
+            cur.execute(
+                "SELECT COALESCE(recurrence_type, 'none'), recurrence_day FROM scheduled_posts "
+                "WHERE id = %s AND user_id = %s AND status = 'pending' FOR UPDATE", (post_id, user_id))
+            row = cur.fetchone()
+            if not row or row[0] == "none":
+                return False
+            rtype, rday = row[0], row[1]
+            try:
+                if rtype in ("daily", "twice") and new_time2 is not None and new_time2 != new_time:
+                    rtype, rday = "twice", time_to_minutes(new_time2)
+                elif rtype == "twice" and new_time2 is None:
+                    rtype, rday = "daily", None  # ikkinchi vaqt olib tashlandi
+                rtype, rday, rtime = normalize_recurrence(rtype, rday, new_time)
+            except ValueError:
+                return False
+            start = first_occurrence(rtype, rday, rtime, now.astimezone(TASHKENT) + timedelta(minutes=1))
+            if start is None:
+                return False
+            cur.execute(
+                "UPDATE scheduled_posts SET recurrence_type = %s, recurrence_day = %s, recurrence_time = %s, "
+                "scheduled_time = %s WHERE id = %s AND user_id = %s AND status = 'pending'",
+                (rtype, rday, rtime, start, post_id, user_id))
+            changed = cur.rowcount > 0
+        if changed:
+            from repositories.runtime import _invalidate_user
+
+            _invalidate_user(user_id)
+        return changed
+
+    async def upload_post_media(self, user_id: int, post_id: int, request) -> dict:
+        """Rejalangan postning rasm/videosini qurilmadagi yangi fayl bilan ALMASHTIRADI (matn sarlavha bo'lib qoladi)."""
+        fields, data, post_type = await self._read_upload(request)
+        if set(fields) - set():  # bu yo'lda faqat fayl qabul qilinadi (matn PATCH orqali)
+            raise ApiError("bad_request")
+        await self._service.authorize(user_id)
+        posts = self._posts_repo()
+        status = await self._blocking(posts.get_post_status, post_id, user_id)
+        if not status:
+            raise ApiError("not_found")
+        if status != "pending":
+            raise ApiError("not_editable")
+        existing = await self._service.post(user_id, post_id)
+        if existing.get("text"):
+            check_caption(existing["text"])
+        async with self._user_lock(user_id):
+            file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
+            del data
+            ok = await self._blocking(self._set_media, user_id, post_id, post_type, file_id)
+            if not ok:
+                raise ApiError("not_editable")
+        self._media_cache.clear()
+        return {"post": await self._service.post(user_id, post_id)}
+
+    async def delete_post_media(self, user_id: int, post_id: int) -> dict:
+        """Rasm/videoni olib tashlaydi (post oddiy matnli postga aylanadi; matn bo'sh bo'lsa mumkin emas)."""
+        await self._service.authorize(user_id)
+        posts = self._posts_repo()
+        status = await self._blocking(posts.get_post_status, post_id, user_id)
+        if not status:
+            raise ApiError("not_found")
+        if status != "pending":
+            raise ApiError("not_editable")
+        existing = await self._service.post(user_id, post_id)
+        if not (existing.get("text") or "").strip():
+            raise ApiError("invalid_input", field="text")
+        async with self._user_lock(user_id):
+            ok = await self._blocking(self._set_media, user_id, post_id, "text", None)
+            if not ok:
+                raise ApiError("not_editable")
+        return {"post": await self._service.post(user_id, post_id)}
+
+    def _set_media(self, user_id: int, post_id: int, post_type: str, file_id: str | None) -> bool:
+        with self._db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE scheduled_posts SET post_type = %s, file_id = %s "
+                "WHERE id = %s AND user_id = %s AND status = 'pending'",
+                (post_type, file_id, post_id, user_id),
+            )
+            changed = cur.rowcount > 0
+        if changed:
+            from repositories.runtime import _invalidate_user
+
+            _invalidate_user(user_id)
+        return changed
 
     def _reschedule_pending(self, user_id: int, post_id: int, when: datetime) -> bool:
         """Vaqtni FAQAT egasining 'pending' va takrorlanmaydigan posti uchun o'zgartiradi."""
@@ -765,8 +958,7 @@ class PostWriter:
             "ok": True, "source": source,
             "proposal": {
                 "scheduled_at": iso_utc(start),
-                "recurrence": None if rec is None else {
-                    "type": rec["type"], "day": rec["day"], "time": rec["time"].strftime("%H:%M")},
+                "recurrence": None if rec is None else _recurrence_public(rec),
             },
         }
 

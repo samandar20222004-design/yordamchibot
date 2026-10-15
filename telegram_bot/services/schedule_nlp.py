@@ -27,6 +27,7 @@ from services.recurrence import (
     WORKDAYS_MASK,
     first_occurrence,
     normalize_recurrence,
+    time_to_minutes,
     weekdays_to_mask,
 )
 
@@ -57,6 +58,18 @@ _DAILY = re.compile(
     r"\bhar\s+kuni\b|\bhar\s+kun\b|\bhar\s+bir\s+kun\b|\bkundalik\b|\bkunda\s+bir\s+marta\b|\bhamma\s+kun\b"
     r"|ежедневно|кажд\w+\s+(?:день|сутки)|\bevery\s*day\b|\bdaily\b"
 )
+_TWICE_CUE = re.compile(
+    r"\bkuniga\s+(?:ikki|2)\s+(?:marta|mahal|bor)\b|\bkuniga\s+ikki\s+marotaba\b|два\s+раза\s+в\s+(?:день|сутки)|\b2\s+раза\s+в\s+день\b"
+    r"|\btwice\s+(?:a\s+day|daily|per\s+day)\b|\b(?:2|two)\s+times\s+(?:a|per)\s+day\b"
+)
+_MORNING = re.compile(r"\bertalab\w*|\btongda\b|\bтонгда\b|\bутр(?:ом|а)\b|\bmorning\b")
+_EVENING = re.compile(r"\bkechqurun\w*|\bkechga\b|\bkechasi\b|\boqshom\w*|\bвечер(?:ом|а)?\b|\bevening\b")
+_TIME_TOKEN = re.compile(
+    r"(?:(?P<mp>ertalab|tongda|утром|morning)\s+)?(?:(?P<ep>kechqurun|kechga|kechasi|oqshom|вечером|evening)\s+)?"
+    r"(?:soat\s+|в\s+|at\s+)?(?<![\d:])(?P<h>\d{1,2})(?:\s*[:.h]\s*(?P<m>\d{2}))?\s*(?P<ap>am|pm)?(?![\d:])"
+)
+MORNING_DEFAULT = time(9, 0)
+EVENING_DEFAULT = time(19, 0)
 _WEEKLY = re.compile(r"\bhar\s+hafta\b|\bhaftada\s+bir\b|еженедельно|раз\s+в\s+неделю|кажд\w+\s+недел\w+|\bevery\s+week\b|\bweekly\b|\bonce\s+a\s+week\b")
 _EVERY_OTHER = re.compile(r"\bkunora\b|через\s+день|\bevery\s+other\s+day\b|\bevery\s+second\s+day\b|\bday\s+after\s+day\b")
 _INTERVAL = (
@@ -128,8 +141,38 @@ def extract_time(t: str):
     return time(h, mi)
 
 
+def extract_two_times(t: str):
+    """Matndan IKKI vaqt (ertalab va kechqurun...): ``[time, time]`` (erta -> kech) yoki None.
+
+    Aniq raqamlar ("9 va 18:30", "ertalab 9 va kechqurun 7") ustun; faqat kun qismi so'zi ("ertalab va kechqurun")
+    bo'lsa 09:00 va 19:00 taklif qilinadi (foydalanuvchi tasdiqlash kartasida ko'radi va o'zgartira oladi).
+    """
+    slots: list[time] = []
+    for m in _TIME_TOKEN.finditer(t):
+        h = int(m.group("h"))
+        mi = int(m.group("m")) if m.group("m") else 0
+        if m.group("ap"):
+            if not 1 <= h <= 12:
+                continue
+            h = (h % 12) + (12 if m.group("ap") == "pm" else 0)
+        elif m.group("ep") and h < 12:
+            h += 12
+        if not (0 <= h <= 23 and 0 <= mi <= 59):
+            continue
+        slots.append(time(h, mi))
+    if _MORNING.search(t) and not any(s_.hour < 12 for s_ in slots):
+        slots.append(MORNING_DEFAULT)
+    if _EVENING.search(t) and not any(s_.hour >= 15 for s_ in slots):
+        slots.append(EVENING_DEFAULT)
+    slots = sorted(set(slots))
+    return slots if len(slots) == 2 else None
+
+
 def _strip_recurrence(t: str):
     """Takrorlanish iborasini topadi va matndan olib tashlaydi. -> (rec_kind, rec_payload, qolgan matn)."""
+    m = _TWICE_CUE.search(t)
+    if m:
+        return "daily", None, (t[:m.start()] + " " + t[m.end():])
     for pat in _INTERVAL:
         m = pat.search(t)
         if m:
@@ -223,7 +266,8 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
         return {"ok": True, "start": when, "recurrence": None}
 
     # --- takrorlanuvchi ---
-    tm = extract_time(rest)
+    two = extract_two_times(rest) if kind == "daily" else None
+    tm = two[0] if two else extract_time(rest)
     if tm is None and _SAME_TIME.search(rest) and default_time is not None:
         tm = default_time
     if tm is None:
@@ -237,6 +281,8 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
             rtype, rday, rtime = normalize_recurrence("weekdays", payload, tm)
         elif kind == "daily":
             rtype, rday, rtime = normalize_recurrence("daily", None, tm)
+            if two is not None:
+                rtype, rday, rtime = normalize_recurrence("twice", time_to_minutes(two[1]), two[0])
         elif kind == "weekly":
             rtype, rday, rtime = normalize_recurrence("weekly", now.weekday() if _date_offset(rest) is None else (now + timedelta(days=_date_offset(rest))).weekday(), tm)
         else:  # "days"
@@ -246,7 +292,14 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
         return {"ok": False, "reason": "unrecognized"}
 
     off = _date_offset(rest)
-    if rtype in ("daily", "interval"):
+    if rtype == "twice":
+        base = now + timedelta(days=off or 0)
+        start = first_occurrence(rtype, rday, rtime, base if off else now)
+        if start is not None and start <= now:
+            if off:
+                return {"ok": False, "reason": "past"}
+            start = first_occurrence(rtype, rday, rtime, now + timedelta(minutes=1))
+    elif rtype in ("daily", "interval"):
         # Kun so'zi ("bugun/ertaga") bo'lsa — shu kun; bo'lmasa bugun, vaqt o'tib ketgan bo'lsa ertaga.
         naive = datetime(now.year, now.month, now.day, rtime.hour, rtime.minute) + timedelta(days=off or 0)
         start = TASHKENT.localize(naive)

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -241,5 +242,31 @@ describe('Qoralamadagi video/GIF oldindan ko\'rish', () => {
     await screen.findByLabelText('Post matni', { selector: 'textarea' })
     await waitFor(() => expect(container.querySelector('.bubble-media-ph')).not.toBeNull())
     expect(container.querySelector('video.bubble-media, img.bubble-media')).toBeNull()
+  })
+})
+
+describe('Takrorlash: interval maydoni', () => {
+  it('maydonni to\'liq o\'chirib yangi raqam yozish mumkin; chegara fokus ketganda', async () => {
+    const { RepeatPicker } = await import('./components/RepeatPicker')
+    const { I18nProvider } = await import('./i18n')
+    const { DEFAULT_REPEAT } = await import('./pages/recurrence')
+    const seen: number[] = []
+    function Host() {
+      const [v, setV] = useState<import('./pages/recurrence').RepeatChoice>({ ...DEFAULT_REPEAT, kind: 'interval', interval: 2 })
+      return <RepeatPicker value={v} showTz={false} onChange={(n) => { seen.push(n.interval); setV(n) }} />
+    }
+    render(<I18nProvider lang="uz"><Host /></I18nProvider>)
+    const input = screen.getByRole('spinbutton') as HTMLInputElement
+    fireEvent.change(input, { target: { value: '' } })
+    expect(input.value).toBe('')
+    fireEvent.change(input, { target: { value: '3' } })
+    expect(input.value).toBe('3')
+    expect(seen.at(-1)).toBe(3)
+    fireEvent.change(input, { target: { value: '' } })
+    fireEvent.blur(input)
+    expect(input.value).toBe('3')
+    fireEvent.change(input, { target: { value: '99' } })
+    fireEvent.blur(input)
+    expect(input.value).toBe('30')
   })
 })

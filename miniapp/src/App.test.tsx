@@ -201,3 +201,33 @@ describe('App', () => {
     await waitFor(() => expect(document.documentElement.lang).toBe('ru')) // lang atributi useEffect orqali yangilanadi
   })
 })
+
+describe('Bosh sahifa', () => {
+  it('salomlashuv, keyingi postgacha sanoq, maslahat va tezkor harakatlar ko\'rinadi', async () => {
+    setTelegram('query_id=1')
+    mockApi((url) => {
+      if (url.includes('/me')) return jsonResponse({ ...ME, next_post_at: new Date(Date.now() + 135 * 60000).toISOString() })
+      return okRoutes(url)
+    })
+    const { container } = render(<App />)
+    await screen.findByText('Salom, Alice!')
+    expect(container.querySelector('.hero-kicker')?.textContent).toMatch(/Xayrli/)
+    expect(container.querySelector('.hero-mark svg.bm')).not.toBeNull()
+    expect(container.querySelector('.next-when')?.textContent).toMatch(/soat .* daqiqadan keyin/)
+    expect(container.querySelector('.tip-card p')?.textContent?.length).toBeGreaterThan(20)
+    expect(screen.getByRole('button', { name: 'Yangi post yozish' })).toBeTruthy()
+    expect(container.querySelectorAll('.stat-bar').length).toBe(2)
+    expect(container.querySelector('.achievement')?.textContent).toMatch(/7 ta post/)
+    fireEvent.click(screen.getByRole('button', { name: 'Yangi post yozish' }))
+    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+  })
+
+  it('post rejalanmagan bo\'lsa: bo\'sh holat va «Post rejalash» tugmasi', async () => {
+    setTelegram('query_id=1')
+    mockApi((url) => (url.includes('/me') ? jsonResponse({ ...ME, next_post_at: null }) : okRoutes(url)))
+    const { container } = render(<App />)
+    await screen.findByText('Salom, Alice!')
+    expect(container.querySelector('.next-when')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Post rejalash' })).toBeTruthy()
+  })
+})

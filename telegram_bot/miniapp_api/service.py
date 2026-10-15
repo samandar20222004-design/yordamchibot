@@ -196,6 +196,16 @@ class MiniAppService:
 
         return await self._authorized(user_id, query)
 
+    async def post_media_ref(self, user_id: int, post_id: int) -> dict:
+        """Ichki: postning ``post_type``/``file_id`` si (egasi bo'yicha; mijozga QAYTARILMAYDI)."""
+        def query(cur, _account):
+            ref = repo.get_post_media_ref(cur, user_id, post_id)
+            if ref is None:
+                raise ApiError("not_found")
+            return ref
+
+        return await self._authorized(user_id, query)
+
     async def draft(self, user_id: int) -> dict:
         """Botdan kelgan joriy qoralama (yo'q bo'lsa ``{"draft": None}``)."""
         def query(cur, _account):

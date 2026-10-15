@@ -98,8 +98,13 @@ export interface ScheduledPost {
   /** Takrorlanish tafsiloti (Toshkent vaqti): interval -> kunlar soni, weekdays -> hafta kunlari bitmaski, weekly -> 0..6. */
   recurrence_day?: number | null
   recurrence_time?: string | null
+  /** `twice` uchun ikkinchi vaqt (HH:MM). */
+  recurrence_time2?: string | null
   /** Faqat bitta postni olishda (tahrirlash uchun to'liq matn); ro'yxatda yo'q. */
   text?: string
+  /** Faqat bitta postni olishda: inline tugma. */
+  button_text?: string | null
+  button_url?: string | null
 }
 
 export interface ScheduledPage {
@@ -169,13 +174,26 @@ export interface CreatePostInput {
   recurrence?: RecurrenceInput
 }
 
-export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays'
+export interface UpdatePostInput {
+  text?: string
+  scheduled_at?: string
+  /** Ikkalasi ham bo'sh satr = tugmani olib tashlash. */
+  button_text?: string
+  button_url?: string
+  /** Takrorlanuvchi postning kun vaqti (HH:MM) va kuniga ikkinchi vaqt (HH:MM; bo'lmasa bitta vaqt). */
+  recurrence_time?: string
+  recurrence_time2?: string
+}
+
+export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays' | 'twice'
 
 /** `time` — Toshkent vaqti (HH:MM); `day`: daily -> null, weekly -> 0..6, interval -> 2..30, weekdays -> bitmask 1..127 (Du=1). */
 export interface RecurrenceInput {
   type: RecurrenceType
   day: number | null
   time: string
+  /** Faqat `twice` (kuniga ikki vaqt: ertalab va kechqurun): ikkinchi vaqt (HH:MM). */
+  time2?: string
 }
 
 export interface ScheduleProposal {

@@ -1,5 +1,5 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
   parseCalendar, parseDeleted, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
@@ -181,8 +181,31 @@ export function createApiClient(opts: ClientOptions) {
     /** Erkin tildagi rejalash iborasini tuzilma taklifiga o'giradi (hech narsa yozilmaydi). */
     parseSchedule: (text: string, defaultTime?: string): Promise<ScheduleParseResult> =>
       send('POST', '/schedule/parse', { text, ...(defaultTime ? { default_time: defaultTime } : {}) }, parseScheduleParse),
-    updatePost: (id: number, input: { text?: string; scheduled_at?: string }): Promise<ScheduledPost> =>
+    updatePost: (id: number, input: UpdatePostInput): Promise<ScheduledPost> =>
       send('PATCH', `/posts/${encodeURIComponent(String(id))}`, input, parsePostEnvelope),
+    /** Rejalangan postning rasmi/videosi (blob; faqat egasi). Xatoda `null`. */
+    postMedia: async (id: number, signal?: AbortSignal): Promise<Blob | null> => {
+      const initData = opts.getInitData()
+      if (!initData) return null
+      try {
+        const res = await fetchImpl(`${base}/posts/${encodeURIComponent(String(id))}/media`, {
+          headers: { Authorization: `tma ${initData}` }, signal })
+        if (!res.ok) return null
+        const blob = await res.blob()
+        return blob.type.startsWith('image/') || blob.type.startsWith('video/') ? blob : null
+      } catch {
+        return null
+      }
+    },
+    /** Qurilmadagi fayl bilan rasm/videoni almashtiradi (yoki matnli postga qo'shadi). */
+    replacePostMedia: (id: number, file: File): Promise<ScheduledPost> => {
+      const form = new FormData()
+      form.append('file', file, file.name)
+      return send('POST', `/posts/${encodeURIComponent(String(id))}/media`, form, parsePostEnvelope, config.uploadTimeoutMs)
+    },
+    /** Rasm/videoni olib tashlaydi (post matnli bo'lib qoladi). */
+    deletePostMedia: (id: number): Promise<ScheduledPost> =>
+      send('DELETE', `/posts/${encodeURIComponent(String(id))}/media`, undefined, parsePostEnvelope),
     cancelPost: (id: number): Promise<{ id: number }> =>
       send('DELETE', `/posts/${encodeURIComponent(String(id))}`, undefined, parseCancelled),
     setLanguage: (language: Lang): Promise<{ language: Lang }> =>

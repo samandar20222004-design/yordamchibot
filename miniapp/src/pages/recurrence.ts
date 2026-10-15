@@ -41,13 +41,24 @@ export interface RepeatChoice {
   kind: 'none' | 'daily' | 'interval' | 'weekdays'
   interval: number
   mask: number
+  /** Kuniga IKKI vaqt (faqat `daily`): ikkinchi vaqt HH:MM (ertalab va kechqurun); null = bitta vaqt. */
+  time2?: string | null
 }
 
-export const DEFAULT_REPEAT: RepeatChoice = { kind: 'none', interval: 2, mask: WEEKEND_MASK }
+export const DEFAULT_REPEAT: RepeatChoice = { kind: 'none', interval: 2, mask: WEEKEND_MASK, time2: null }
+
+/** Ikkinchi vaqt uchun mantiqiy boshlang'ich: ertalab bo'lsa 18:00, aks holda 09:00. */
+export function suggestSecondTime(first: string): string {
+  const h = Number(first.slice(0, 2))
+  return h < 12 ? '18:00' : '09:00'
+}
 
 export function buildRecurrence(choice: RepeatChoice, scheduledAt: Date): RecurrenceInput | null {
   const { time } = tashkentParts(scheduledAt)
-  if (choice.kind === 'daily') return { type: 'daily', day: null, time }
+  if (choice.kind === 'daily') {
+    if (choice.time2 && choice.time2 !== time) return { type: 'twice', day: null, time, time2: choice.time2 }
+    return { type: 'daily', day: null, time }
+  }
   if (choice.kind === 'interval') {
     const n = Math.round(choice.interval)
     if (!(n >= 1 && n <= 30)) return null
@@ -67,6 +78,7 @@ export function buildRecurrence(choice: RepeatChoice, scheduledAt: Date): Recurr
 export function choiceFromRecurrence(r: RecurrenceInput | null): RepeatChoice {
   if (!r) return DEFAULT_REPEAT
   if (r.type === 'daily') return { ...DEFAULT_REPEAT, kind: 'daily' }
+  if (r.type === 'twice') return { ...DEFAULT_REPEAT, kind: 'daily', time2: r.time2 ?? null }
   if (r.type === 'interval') return { ...DEFAULT_REPEAT, kind: 'interval', interval: r.day ?? 2 }
   if (r.type === 'weekly') return { ...DEFAULT_REPEAT, kind: 'weekdays', mask: 1 << (r.day ?? 0) }
   return { ...DEFAULT_REPEAT, kind: 'weekdays', mask: r.day ?? WEEKEND_MASK }
@@ -76,12 +88,13 @@ const WEEKDAY_KEYS = [1, 2, 3, 4, 5, 6, 7].map((n) => `cal.w${n}` as MessageKey)
 
 /** Takrorlanishning o'qiladigan tavsifi: "Har 2 kunda 18:30", "Dam olish kunlari 12:00", "Du, Ch 10:00". */
 export function describeRecurrence(
-  r: { type: string; day?: number | null; time?: string | null },
+  r: { type: string; day?: number | null; time?: string | null; time2?: string | null },
   t: (key: MessageKey, vars?: Record<string, string | number>) => string,
 ): string | null {
   const time = r.time ?? ''
   if (!time) return null // tafsilot yo'q (eski yozuv): chaqiruvchi umumiy "Takrorlanadi" belgisini ko'rsatadi
   if (r.type === 'daily') return t('rec.daily', { time })
+  if (r.type === 'twice' && r.time2) return t('rec.twice', { time, time2: r.time2 })
   if (r.type === 'interval' && r.day) return t('rec.interval', { n: r.day, time })
   if (r.type === 'weekly' && r.day != null && r.day >= 0 && r.day <= 6) return t('rec.days', { days: t(WEEKDAY_KEYS[r.day]!), time })
   if (r.type === 'weekdays' && r.day) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { translate } from '../i18n'
 import {
   ALL_MASK, WEEKEND_MASK, WORKDAYS_MASK, alignToWeekdays, buildRecurrence, choiceFromRecurrence, daysOf, describeRecurrence,
-  maskOf, tashkentParts,
+  DEFAULT_REPEAT, maskOf, suggestSecondTime, tashkentParts,
 } from './recurrence'
 
 // 2026-10-15 12:00 Toshkent = 07:00 UTC (payshanba)
@@ -85,5 +85,23 @@ describe('describeRecurrence (3 til)', () => {
     expect(describeRecurrence({ type: 'interval', day: null, time: '12:00' }, t)).toBeNull()
     expect(describeRecurrence({ type: 'monthly', day: 1, time: '12:00' }, t)).toBeNull()
     expect(describeRecurrence({ type: 'weekly', day: 9, time: '12:00' }, t)).toBeNull()
+  })
+})
+
+describe('kuniga ikki vaqt (ertalab va kechqurun)', () => {
+  const at = new Date('2026-10-15T04:00:00Z') // 09:00 Toshkent
+  it('daily + time2 -> twice; time2 scheduledAt bilan bir xil bo\'lsa oddiy daily', () => {
+    expect(buildRecurrence({ ...DEFAULT_REPEAT, kind: 'daily', time2: '18:00' }, at)).toEqual({ type: 'twice', day: null, time: '09:00', time2: '18:00' })
+    expect(buildRecurrence({ ...DEFAULT_REPEAT, kind: 'daily', time2: '09:00' }, at)).toEqual({ type: 'daily', day: null, time: '09:00' })
+    expect(buildRecurrence({ ...DEFAULT_REPEAT, kind: 'daily', time2: null }, at)).toEqual({ type: 'daily', day: null, time: '09:00' })
+  })
+  it('serverdagi twice -> UI tanlovi va tavsif', () => {
+    expect(choiceFromRecurrence({ type: 'twice', day: null, time: '09:00', time2: '18:00' })).toMatchObject({ kind: 'daily', time2: '18:00' })
+    const t = (k: string, v?: Record<string, string | number>) => `${k}|${v?.time}|${v?.time2}`
+    expect(describeRecurrence({ type: 'twice', time: '09:00', time2: '18:00' }, t as never)).toBe('rec.twice|09:00|18:00')
+  })
+  it('suggestSecondTime: ertalab -> 18:00, kech -> 09:00', () => {
+    expect(suggestSecondTime('09:00')).toBe('18:00')
+    expect(suggestSecondTime('19:30')).toBe('09:00')
   })
 })

@@ -186,7 +186,10 @@ def _post_dict(r) -> dict:
             "post_type": r[3], "preview": r[4], "has_media": bool(r[5]),
             "scheduled_time": r[6], "number": r[7], "recurrence": r[8],
             "status": r[9], "recurrence_day": r[10],
-            "recurrence_time": r[11].strftime("%H:%M") if r[11] is not None else None}
+            "recurrence_time": r[11].strftime("%H:%M") if r[11] is not None else None,
+            # kuniga ikki vaqt ("twice"): ikkinchi vaqt recurrence_day (kun boshidan daqiqa) da saqlanadi
+            "recurrence_time2": (f"{int(r[10]) // 60:02d}:{int(r[10]) % 60:02d}"
+                                 if r[8] == "twice" and r[10] is not None else None)}
 
 
 def count_posts(cur, user_id: int, history: bool) -> int:
@@ -250,11 +253,21 @@ def get_post(cur, user_id: int, post_id: int) -> dict | None:
         return None
     post = _post_dict(row)
     # Tahrirlash uchun TO'LIQ matn (ro'yxatda faqat qisqa ko'rinish): egasi sharti yana SQL ichida.
-    cur.execute("SELECT COALESCE(content, '') FROM scheduled_posts WHERE id = %s AND user_id = %s",
-                (int(post_id), user_id))
+    cur.execute("SELECT COALESCE(content, ''), inline_button_text, inline_button_url FROM scheduled_posts "
+                "WHERE id = %s AND user_id = %s", (int(post_id), user_id))
     full = cur.fetchone()
     post["text"] = full[0] if full else post["preview"]
+    post["button_text"] = full[1] if full else None
+    post["button_url"] = full[2] if full else None
     return post
+
+
+def get_post_media_ref(cur, user_id: int, post_id: int) -> dict | None:
+    """Postning media havolasi (``file_id`` mijozga CHIQMAYDI; faqat ichki proksi uchun). Boshqa foydalanuvchi posti -> None."""
+    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s",
+                (int(post_id), user_id))
+    row = cur.fetchone()
+    return {"post_type": row[0], "file_id": row[1]} if row else None
 
 
 def post_status_counts(cur, user_id: int) -> dict:
