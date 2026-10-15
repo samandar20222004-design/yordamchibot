@@ -1422,7 +1422,9 @@ async def content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     context.user_data["post_type"] = "text"
     context.user_data["file_id"] = None
-    context.user_data["content"] = msg.text or ""
+    from utils.custom_emoji import text_with_custom_emoji
+
+    context.user_data["content"] = text_with_custom_emoji(msg.text, msg.entities)  # premium emoji saqlanadi (<tg-emoji>)
     _clear_media_sequence(context)
     return await _ask_button_prompt(msg, lang)
 

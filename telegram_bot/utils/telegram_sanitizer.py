@@ -15,10 +15,10 @@ TELEGRAM_TEXT_LIMIT = 4096
 TELEGRAM_CAPTION_LIMIT = 1024
 ALLOWED_TAGS = frozenset({
     "b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "span",
-    "tg-spoiler", "a", "code", "pre", "blockquote",
+    "tg-spoiler", "a", "code", "pre", "blockquote", "tg-emoji",
 })
 _ALIASES = {"strong": "b", "em": "i", "ins": "u", "strike": "s", "del": "s"}
-_STYLE_TAGS = frozenset({"b", "i", "u", "s", "span", "tg-spoiler"})
+_STYLE_TAGS = frozenset({"b", "i", "u", "s", "span", "tg-spoiler", "tg-emoji"})
 _TAG_HINT = re.compile(r"</?([a-z][a-z0-9-]*)\b", re.I)
 _LANGUAGE = re.compile(r"language-[a-zA-Z0-9_+.-]{1,64}\Z")
 
@@ -148,6 +148,18 @@ class _Sanitizer(HTMLParser):
                 self.handle_data(raw)
                 return
             suffix = f' href="{escape(href.strip(), quote=True)}"'
+        elif tag == "tg-emoji":
+            emoji_id = attributes.get("emoji-id") or ""
+            if not re.fullmatch(r"\d{1,32}", emoji_id):
+                self.handle_data(raw)
+                return
+            from utils.custom_emoji import enabled as _custom_emoji_enabled
+
+            if not _custom_emoji_enabled():
+                # Bot Fragment username'siz custom emoji yubora olmaydi: teg tashlanadi, oddiy emoji (ichki matn) qoladi.
+                self.stack.append((name, None))
+                return
+            suffix = f' emoji-id="{emoji_id}"'
         elif tag == "blockquote" and "expandable" in attributes:
             suffix = " expandable"
         elif tag == "code" and self.stack and self.stack[-1][1] == "pre":
