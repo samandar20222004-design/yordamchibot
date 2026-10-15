@@ -709,6 +709,17 @@ def cleanup_old_data() -> dict:
                 deleted["channel_member_counts"] += cur.rowcount
         except Exception as e:
             logger.warning(f"Obunachilar snapshot'larini tozalash xatosi: {e}")
+        # Ovozli rejalash kvotasi: PRO uchun faqat oxirgi 24 soat kerak -> 3 kundan eskisi o'chiriladi. Free'ning butun-umr
+        # hisobi saqlanadi (faqat hozirgi PRO/enterprise foydalanuvchilarning eski qatorlari tozalanadi). ALOHIDA tranzaksiya.
+        try:
+            with db_cursor(commit=True) as cur:
+                cur.execute(
+                    "DELETE FROM voice_schedule_usage v WHERE v.used_at < NOW() - INTERVAL '3 days' "
+                    "AND EXISTS (SELECT 1 FROM users u WHERE u.user_id = v.user_id AND u.plan_type IN ('pro', 'enterprise'))"
+                )
+                deleted["voice_schedule_usage"] = cur.rowcount
+        except Exception as e:
+            logger.warning(f"Ovozli rejalash kvotasini tozalash xatosi: {e}")
         # Mini App qoralamalari: o'qishda 48 soatdan eskisi hisobga olinmaydi (miniapp_api.drafts.DRAFT_TTL_HOURS);
         # jadval cheksiz to'planmasligi uchun 7 kundan eskisi o'chiriladi. ALOHIDA tranzaksiya: jadval bo'lmasa
         # yuqoridagi tozalash bekor bo'lmaydi.

@@ -196,6 +196,9 @@ PRO_DAILY_AI = _int_env("PRO_DAILY_AI", 999)
 # Navbatdagi (kutilayotgan) postlar soni: bot, Mini App va tarif kartasi SHU qiymatlarni o'qiydi (999 = cheksiz).
 FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 5)
 PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 999)
+# 🎙 Ovozli rejalash: free — BUTUN UMR bo'yicha bir martalik; PRO — oxirgi 24 soatda shuncha (0 = o'chiq).
+FREE_VOICE_SCHEDULE_TOTAL = _int_env("FREE_VOICE_SCHEDULE_TOTAL", 1)
+PRO_VOICE_SCHEDULE_DAILY = _int_env("PRO_VOICE_SCHEDULE_DAILY", 20)
 
 
 def plan_discount_percent(total_price, monthly_price, months) -> int:

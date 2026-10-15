@@ -31,11 +31,12 @@ from keyboards.inline import (
     REACTION_EMOJIS,
 )
 from utils.helpers import (
-    html_escape, safe_html, parse_reactions_input,
+    html_escape, safe_html, parse_reactions_input, weekdays_text,
     keep_typing,
     parse_schedule_input, parse_daily_time_input, schedule_time_example,
     SCHEDULE_ERR_PAST,
 )
+from handlers.schedule_smart import show_proposal as smart_show_proposal, try_text as smart_try_text
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
 from services.album_gate import take_album_payload
@@ -1021,6 +1022,12 @@ def _build_preview_text(context) -> str:
         when_text = get_text("np_confirm_time_weekly", lang,
                              day=weekday_label(recurrence_day, lang),
                              time=format_time(recurrence_time_str, lang))
+    elif recurrence_type == "interval" and recurrence_time_str and recurrence_day:
+        when_text = get_text("np_confirm_time_interval", lang, n=int(recurrence_day),
+                             time=format_time(recurrence_time_str, lang))
+    elif recurrence_type == "weekdays" and recurrence_time_str and recurrence_day:
+        when_text = get_text("np_confirm_time_weekdays", lang, days=weekdays_text(recurrence_day, lang),
+                             time=format_time(recurrence_time_str, lang))
     elif post_time:
         when_text = get_text("np_confirm_time_single", lang,
                              time=format_datetime(post_time, lang))
@@ -1874,6 +1881,11 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif is_menu_text(text, "np_time_1h"):
         post_time, reason = now + timedelta(hours=1), ""
     else:
+        # Tabiiy til: "har dam olish kuni 12:00", "ikki kunda bir marta 18:30" (takrorlanuvchi) — aniqlansa darhol tasdiq kartasi.
+        # Oddiy vaqt ("18:00", "ertaga 9:00") bu yerga tushmaydi: eski parser xulqi o'zgarmagan.
+        smart = smart_try_text(text, now)
+        if smart is not None:
+            return await smart_show_proposal(update, context, smart)
         # Qo'lda kiritilgan vaqt: parser HECH QACHON exception tashlamaydi —
         # noto'g'ri format ham, noto'g'ri sonlar ham (masalan "25:99") xato
         # sababi sifatida qaytadi va foydalanuvchiga o'z tilida tushuntiriladi.

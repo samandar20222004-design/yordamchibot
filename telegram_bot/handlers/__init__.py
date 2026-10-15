@@ -105,6 +105,7 @@ from handlers.onboarding import (
 from handlers.content_menu import contextual_post_menu_callback
 
 # 2. NEW POST MODULI
+from handlers.schedule_smart import time_voice_received
 from handlers.new_post import (
     start_new_post, channel_chosen, content_received, btn_title_received,
     btn_url_received, reactions_received, auto_delete_received, time_received,
@@ -1479,7 +1480,8 @@ def _content_states(all_menu_jumps):
             MessageHandler(~filters.TEXT & ~filters.COMMAND,
                            manual_url_media_received),
         ],
-        GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received)],
+        GET_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, time_received),
+                                    MessageHandler(filters.VOICE | filters.AUDIO, time_voice_received)],
         DAILY_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, daily_time_received)],
         RECUR_DAY: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_day_chosen)],
         RECUR_TIME: all_menu_jumps + [MessageHandler(filters.TEXT & ~filters.COMMAND, recur_time_received)],

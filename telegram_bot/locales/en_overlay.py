@@ -1104,8 +1104,16 @@ EN_OVERLAY = {
         "Pick a ready button or write the exact time.\n"
         "Format: <code>DD.MM.YYYY HH:MM</code>\n"
         "Example: <code>{example}</code>\n\n"
+        "Or just say it in plain words, e.g. <i>every day at 12:00</i>, <i>every 2 days at 09:30</i>, <i>every weekend at 10:00</i>. 🎤 You can also send a voice message.\n\n"
         "🕒 <i>Tashkent time (UTC+5).</i>"
     ),
+    "vs_limit_free": "🎤 <b>Free voice scheduling used.</b>\n\nThe free plan includes voice scheduling once. PRO allows up to {n} per day. You can type the time instead.",
+    "vs_limit_pro": "🎤 <b>Voice scheduling limit reached.</b>\n\n{n} voice schedules used today. Try later or type the time.",
+    "vs_disabled": "🎤 Voice scheduling is currently turned off. Please type the time.",
+    "vs_unavailable": "🎤 Voice scheduling is temporarily unavailable. Please type the time.",
+    "vs_heard": "🎤 <b>Heard:</b> <i>{text}</i>",
+    "vs_not_understood": "🤔 <b>I couldn't work out the time.</b>\n\nHeard: <i>{text}</i>\n\nPlease say or type it again, e.g. <i>tomorrow at 18:00</i>. Your attempt was not counted.",
+    "vs_free_used_note": "ℹ️ Free voice scheduling is available once. PRO: up to {n} per day.",
     "np_time_future": (
         "⚠️ <b>This time has already passed.</b>\n\n"
         "Please enter a time in the FUTURE.\n"
@@ -1173,6 +1181,8 @@ EN_OVERLAY = {
     "np_confirm_time_single": "⏰ {time} (Tashkent time)",
     "np_confirm_time_daily": "🔁 Daily at {time}",
     "np_confirm_time_weekly": "📅 Every {day} at {time}",
+    "np_confirm_time_interval": "🔁 Every {n} days at {time}",
+    "np_confirm_time_weekdays": "📅 {days} at {time}",
     "np_confirm_content": "📋 <b>Text:</b>\n{content}",
     "np_confirm_button": "🔘 Button: <b>{text}</b>",
     "np_confirm_reactions": "👍 Reactions: {emojis}",
@@ -1235,6 +1245,8 @@ EN_OVERLAY = {
     "np_scheduled_when_single": "⏰ {time}",
     "np_scheduled_when_daily": "🔁 Daily at {time}",
     "np_scheduled_when_weekly": "📅 Every {day} at {time}",
+    "np_scheduled_when_interval": "🔁 Every {n} days at {time}",
+    "np_scheduled_when_weekdays": "📅 {days} at {time}",
     "np_scheduled_del": "\n⏳ Time in channel: <b>{hours} h</b>",
     "np_queue_added": (
         "⚡️ <b>Post queued!</b>\n\n"

@@ -11,6 +11,7 @@ majburlash funksiyalari SHU qiymatlarni o'qiydi; matnlarda qattiq yozilgan raqam
 | Kunlik AI so'rov | 5 | cheksiz (999) | `FREE_DAILY_AI`, `PRO_DAILY_AI` | `reserve_ai_request` / `check_ai_limit` (atomik); Mini App `POST /ai/generate` ham shu yo'ldan |
 | Navbat (kutilayotgan postlar) | 5 | cheksiz (999) | `FREE_QUEUE_MAX_POSTS`, `PRO_QUEUE_MAX_POSTS` | `check_queue_limit` (bot navbati, autopilot, Mini App yaratish) |
 | Kontent-reja | 7 kunlik, haftasiga 1 ta | 7 va 30 kunlik, cheklovsiz | — | `can_create_calendar` |
+| Ovozli rejalash (botda vaqtni ovoz bilan aytish) | 1 ta, butun umr bo'yicha | kuniga 20 ta (24 soat oynasi); admin cheksiz | `FREE_VOICE_SCHEDULE_TOTAL`, `PRO_VOICE_SCHEDULE_DAILY` (0 = o'chiq) | `services/voice_schedule_quota.py` (atomik bron, STT'dan OLDIN; xatoda qaytariladi; DB xatosida fail-closed) |
 
 Barcha limit tekshiruvlari obuna MUDDATINI hisobga oladi (muddati o'tgan PRO free limitiga tushadi; `_effective_plan`).
 Free postlarga kanalda `🤖 @BOT` imzosi qo'shiladi, PRO/admin toza (`apply_post_watermark`).

@@ -42,7 +42,7 @@ from keyboards.default import get_main_keyboard
 from keyboards.inline import btn_label
 from locales.translations import clear_fsm_data, get_text
 from utils.date_format import format_datetime, format_time, weekday_label
-from utils.helpers import get_auto_ad_injection_async, html_escape
+from utils.helpers import get_auto_ad_injection_async, html_escape, weekdays_text
 from utils.silent_errors import log_silent_failure
 
 # ``handlers/new_post.py`` ushbu modulni ``confirm_post_callback`` ICHIDA
@@ -348,6 +348,12 @@ def _scheduled_when_text(context, lang: str, post_time_tz) -> str:
     if recurrence_type == "weekly" and recurrence_time_str:
         return get_text("np_scheduled_when_weekly", lang,
                         day=weekday_label(recurrence_day, lang),
+                        time=format_time(recurrence_time_str, lang))
+    if recurrence_type == "interval" and recurrence_time_str and recurrence_day:
+        return get_text("np_scheduled_when_interval", lang, n=int(recurrence_day),
+                        time=format_time(recurrence_time_str, lang))
+    if recurrence_type == "weekdays" and recurrence_time_str and recurrence_day:
+        return get_text("np_scheduled_when_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                         time=format_time(recurrence_time_str, lang))
     return get_text("np_scheduled_when_single", lang,
                     time=format_datetime(post_time_tz, lang))

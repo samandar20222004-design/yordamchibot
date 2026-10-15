@@ -247,6 +247,8 @@ PAYME_TABLES = ("payme_orders", "payme_transactions")
 MINIAPP_TABLES = ("miniapp_drafts",)
 # 📊 Kanal analitikasi asosi (obunachilar kunlik snapshot'i): schema.sql, frozen EXPECTED_* dan ALOHIDA.
 ANALYTICS_TABLES = ("channel_member_counts",)
+# 🎙 Ovozli rejalash kvotasi: schema.sql, frozen EXPECTED_* dan ALOHIDA.
+VOICE_TABLES = ("voice_schedule_usage",)
 PAYME_INDEXES = ("idx_payme_orders_user", "uq_payme_tx_active_order", "idx_payme_tx_payme_time")
 
 # PHASE E names are also kept in separate lists for migration tooling and
@@ -2133,7 +2135,7 @@ def _verify_schema(cur) -> None:
     )
     tables = {row[0] for row in cur.fetchall()}
     required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES, *VOICE_TABLES)
     missing_tables = [t for t in required_tables if t not in tables]
 
     cur.execute(
@@ -2225,7 +2227,7 @@ def _schema_bootstrap_complete(cur) -> bool:
         )
         tables = {row[0] for row in cur.fetchall()}
         required_tables = (*EXPECTED_TABLES, *REQUIRED_P0_TABLES, *AI_USAGE_TABLES, *AI_BUDGET_TABLES,
-                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES)
+                       *PAYME_TABLES, *MINIAPP_TABLES, *ANALYTICS_TABLES, *VOICE_TABLES)
         if any(t not in tables for t in required_tables):
             return False
 
@@ -2517,6 +2519,9 @@ from repositories.audit_repository import (  # noqa: E402, F401
     save_ai_usage_event, set_admin_role
 )
 # --- 💰 UMUMIY AI BYUDJETI — atomik rezervatsiya
+from repositories.voice_quota_repository import (  # noqa: E402, F401
+    release_voice_schedule, reserve_voice_schedule, voice_schedule_used,
+)
 from repositories.ai_budget_repository import (  # noqa: E402, F401
     get_ai_budget_status, mark_ai_budget_unknown, release_ai_budget,
     reserve_ai_budget, settle_ai_budget
