@@ -178,6 +178,7 @@ ADMIN_PANEL_I18N = {
         "promo_days_not_number": "❌ Kunlar soni raqam bo'lishi kerak.",
         "promo_max_not_number": "❌ Maks ishlatish soni raqam bo'lishi kerak.",
         "days_positive": "❌ Kunlar soni 0 dan katta bo'lishi kerak.",
+        "days_too_large": "❌ Kunlar soni {max} dan oshmasligi kerak (xato kiritishdan himoya).",
         "promo_created": (
             "✅ <b>Promo-kod yaratildi!</b>\n\n"
             "🏷 Kod: <code>{code}</code>\n"
@@ -700,6 +701,7 @@ ADMIN_PANEL_I18N["ru"] = {
     "promo_days_not_number": "❌ Количество дней должно быть числом.",
     "promo_max_not_number": "❌ Максимальное число использований должно быть числом.",
     "days_positive": "❌ Количество дней должно быть больше 0.",
+    "days_too_large": "❌ Количество дней не должно превышать {max} (защита от ошибки ввода).",
     "promo_created": (
         "✅ <b>Промо-код создан!</b>\n\n"
         "🏷 Код: <code>{code}</code>\n"
@@ -1217,6 +1219,7 @@ ADMIN_PANEL_I18N["en"] = {
     "promo_days_not_number": "❌ The number of days must be a number.",
     "promo_max_not_number": "❌ The max uses value must be a number.",
     "days_positive": "❌ The number of days must be greater than 0.",
+    "days_too_large": "❌ The number of days must not exceed {max} (typo protection).",
     "promo_created": (
         "✅ <b>Promo code created!</b>\n\n"
         "🏷 Code: <code>{code}</code>\n"

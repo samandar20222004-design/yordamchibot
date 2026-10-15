@@ -1980,6 +1980,7 @@ TRANSLATIONS = {
         ),
         "sub_promo_success": "✅ <b>{msg}</b>\n\nYangi tarif imkoniyatlaringiz faollashtirildi!",
         "sub_promo_fail": "❌ <b>{msg}</b>\n\nQaytadan urinib ko'ring yoki '{back}' tugmasini bosing.",
+        "sub_promo_blocked": "⏳ <b>Juda ko'p noto'g'ri urinish.</b>\n\n{minutes} daqiqadan keyin qayta urinib ko'ring.",
         "sub_pro_granted": (
             "🎉 <b>Tabriklaymiz!</b>\n\n"
             "Sizga <b>{days} kunlik PRO tarif</b> berildi!\n"
@@ -4133,6 +4134,7 @@ TRANSLATIONS = {
         ),
         "sub_promo_success": "✅ <b>{msg}</b>\n\nНовые возможности тарифа активированы!",
         "sub_promo_fail": "❌ <b>{msg}</b>\n\nПопробуйте ещё раз или нажмите кнопку «{back}».",
+        "sub_promo_blocked": "⏳ <b>Слишком много неверных попыток.</b>\n\nПопробуйте снова через {minutes} мин.",
         "sub_pro_granted": (
             "🎉 <b>Поздравляем!</b>\n\n"
             "Вам предоставлен <b>PRO-тариф на {days} дн.</b>!\n"

@@ -30,6 +30,8 @@ from locales.translations import (
 )
 from utils.helpers import html_escape
 from translations.admin_panel import admin_t
+from services.promo_attempts import promo_limiter
+from services.subscription_service import MAX_ADMIN_GRANT_DAYS
 # RBAC — /grant_pro va /create_promo endi ruxsatga bog'langan.
 from services.rbac_service import (
     PERM_MANAGE_PROMOS,
@@ -903,11 +905,21 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return SUBSCRIPTION_VIEW
 
+    # Kod taxmin qilishga qarshi: ko'p xatodan keyin DB'ga tegmasdan rad etamiz.
+    wait = promo_limiter.retry_after(user_id)
+    if wait:
+        await update.message.reply_text(
+            get_text("sub_promo_blocked", lang, minutes=max(1, -(-wait // 60))),
+            parse_mode="HTML",
+        )
+        return PROMO_INPUT
+
     success, msg = await db.run_db(db.redeem_promo_code, user_id, text)
     msg_localized = html_escape(localize_db_message(msg, lang))
     back_label = get_text("btn_main_menu", lang)
 
     if success:
+        promo_limiter.reset(user_id)
         await update.message.reply_text(
             get_text("sub_promo_success", lang, msg=msg_localized),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -915,6 +927,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         return ConversationHandler.END
     else:
+        promo_limiter.record_failure(user_id)
         await update.message.reply_text(
             get_text("sub_promo_fail", lang, msg=msg_localized, back=back_label),
             parse_mode="HTML",
@@ -951,6 +964,9 @@ async def grant_pro_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if days <= 0:
         await update.message.reply_text("❌ Kunlar soni 0 dan katta bo'lishi kerak.")
+        return
+    if days > MAX_ADMIN_GRANT_DAYS:
+        await update.message.reply_text(admin_t("days_too_large", get_lang(context), max=MAX_ADMIN_GRANT_DAYS))
         return
 
     success = await db.run_db(db.set_user_plan, target_id, "pro", days,

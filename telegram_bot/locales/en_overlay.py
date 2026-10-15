@@ -1930,6 +1930,7 @@ EN_OVERLAY = {
     ),
     "sub_promo_success": "✅ <b>{msg}</b>\n\nYour new plan features are activated!",
     "sub_promo_fail": "❌ <b>{msg}</b>\n\nTry again or press “{back}”.",
+    "sub_promo_blocked": "⏳ <b>Too many wrong attempts.</b>\n\nTry again in {minutes} min.",
     "sub_pro_granted": (
         "🎉 <b>Congratulations!</b>\n\n"
         "You have been granted a <b>{days}-day PRO plan</b>!\n"
