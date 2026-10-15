@@ -794,6 +794,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS plan_type VARCHAR(20) DEFAULT 'free';
 -- Tarif yangilanishi (FREE/PRO/ULTRA): eski PRO foydalanuvchilarning ALLAQACHON to'langan muddati eski (katta) limitlar bilan
 -- tugaguncha saqlanadi. Belgi BIR MARTA qo'yiladi (system_settings kaliti), keyingi startup'larda yangi xaridorlarga tegmaydi.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_legacy_until TIMESTAMP WITH TIME ZONE;
+-- Migratsiya quyida shu ustunni o'qiydi: toza bazada u hali yaratilmagan bo'lishi mumkin.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP WITH TIME ZONE;
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'tariff_v2_legacy_marked') THEN
