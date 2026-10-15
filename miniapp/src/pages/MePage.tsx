@@ -7,9 +7,11 @@ import { toClientError } from '../hooks/useResource'
 import { translate, useI18n } from '../i18n'
 import { openBot } from '../telegram'
 import { isUnlimited } from './format'
+import { ChannelStatsView } from './StatsPage'
 
 export function MePage() {
   const { me, channels, client, botUsername, notify, setLang } = useAppData()
+  const [statsFor, setStatsFor] = useState<{ id: string; title: string } | null>(null)
   const { t, formatDate } = useI18n()
   const [langBusy, setLangBusy] = useState(false)
   const langInFlight = useRef(false)
@@ -39,6 +41,7 @@ export function MePage() {
   const { user, plan } = me.data
   const limit = (n: number) => (isUnlimited(n) ? t('common.unlimited') : String(n))
   const refresh = () => { me.reload(); channels.reload() }
+  if (statsFor) return <ChannelStatsView channelId={statsFor.id} title={statsFor.title} onBack={() => setStatsFor(null)} />
   return (
     <Page>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
@@ -92,7 +95,18 @@ export function MePage() {
         {channels.data && channels.data.items.length > 0 && (
           <ul className="list">
             {channels.data.items.map((c) => (
-              <li key={c.id} className="item"><span>{c.title || c.id}</span></li>
+              <li key={c.id} className="item item-row">
+                <span className="item-main">
+                  <span>{c.title || c.id}</span>
+                  <span className="muted small">
+                    {c.pending_posts !== undefined && t('me.chPending', { n: c.pending_posts })}
+                    {c.pending_posts !== undefined && c.members != null && ' · '}
+                    {c.members != null && t('me.chMembers', { n: c.members.toLocaleString() })}
+                    {c.members != null && c.members_as_of ? ` (${formatDate(c.members_as_of)})` : ''}
+                  </span>
+                </span>
+                <Button onClick={() => setStatsFor({ id: c.id, title: c.title || c.id })}>{t('stats.open')}</Button>
+              </li>
             ))}
           </ul>
         )}

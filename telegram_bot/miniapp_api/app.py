@@ -22,6 +22,7 @@ import os
 import re
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
 
@@ -124,6 +125,31 @@ async def scheduled_handler(request: web.Request):
     data = await request.app[_K_SERVICE].scheduled_posts(
         request["user_id"], limit, offset, history=(status == "history"))
     return web.json_response(data)
+
+
+_CALENDAR_MAX_DAYS = 45
+
+
+def _parse_instant(raw: str | None) -> datetime:
+    """ISO-8601 vaqt (zonasi bilan). Zonasiz yoki yaroqsiz qiymat -> 400 (server zonasiga taxmin qilinmaydi)."""
+    if not raw or len(raw) > 40:
+        raise ApiError("bad_request")
+    try:
+        value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        raise ApiError("bad_request") from None
+    if value.tzinfo is None:
+        raise ApiError("bad_request")
+    return value.astimezone(timezone.utc)
+
+
+async def calendar_handler(request: web.Request):
+    start = _parse_instant(request.query.get("from"))
+    end = _parse_instant(request.query.get("to"))
+    if not start < end or end - start > timedelta(days=_CALENDAR_MAX_DAYS):
+        raise ApiError("bad_request")
+    data = await request.app[_K_SERVICE].calendar(request["user_id"], start, end)
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
 async def post_detail_handler(request: web.Request):
@@ -303,6 +329,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/channels", channels_handler)
     api.router.add_get("/channels/{channel_id}/analytics", channel_analytics_handler)
     api.router.add_get("/scheduled-posts", scheduled_handler)
+    api.router.add_get("/scheduled-posts/calendar", calendar_handler)
     api.router.add_get("/posts/{post_id}", post_detail_handler)
     api.router.add_get("/draft", draft_handler)
     api.router.add_get("/draft/media", draft_media_handler)

@@ -42,14 +42,14 @@ describe('App', () => {
     expect(f).not.toHaveBeenCalled()
   })
 
-  it('Bosh: ma\'lumotlar, tarif nishoni va beshta bo\'lim', async () => {
+  it('Bosh: ma\'lumotlar, tarif nishoni va to\'rtta bo\'lim', async () => {
     setTelegram('auth_date=1&hash=a')
     mockApi(okRoutes)
     render(<App />)
     expect(await screen.findByText('Salom, Alice!')).toBeTruthy()
     expect(screen.getByText('Bepul')).toBeTruthy()
     const nav = screen.getByRole('navigation')
-    expect(nav.querySelectorAll('button')).toHaveLength(5)
+    expect(nav.querySelectorAll('button')).toHaveLength(4)
     expect(screen.getByText('1 / 5')).toBeTruthy() // AI
   })
 

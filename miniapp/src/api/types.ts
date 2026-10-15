@@ -35,6 +35,11 @@ export interface Me {
 export interface Channel {
   id: string
   title: string | null
+  /** Rejadagi (kutilayotgan) postlar soni. */
+  pending_posts?: number
+  /** Oxirgi (eskirmagan) obunachi snapshot'i; yo'q bo'lsa `null` (0 emas). */
+  members?: number | null
+  members_as_of?: string | null
 }
 
 export type Confidence = 'none' | 'low' | 'medium' | 'high'
@@ -91,6 +96,12 @@ export interface ScheduledPage {
   limit: number
   offset: number
   has_more: boolean
+}
+
+/** Kalendar oralig'idagi kutilayotgan postlar; `truncated` = server chegarasi (500) sabab ro'yxat to'liq emas. */
+export interface CalendarData {
+  items: ScheduledPost[]
+  truncated: boolean
 }
 
 /** Server xato kodlari (telegram_bot/miniapp_api/errors.py) + mijoz tomoni kodlari. */

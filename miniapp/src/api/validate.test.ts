@@ -18,6 +18,10 @@ describe('validatorlar', () => {
   it('kanallar', () => {
     expect(parseChannels({ items: [{ id: '-1', title: null }], total: 1 }).items[0].id).toBe('-1')
     expect(() => parseChannels({ items: [{ id: 5, title: 'x' }], total: 1 })).toThrow()
+    const rich = parseChannels({ items: [{ id: '-1', title: 'x', pending_posts: 2, members: null, members_as_of: null }], total: 1 }).items[0]!
+    expect(rich).toMatchObject({ pending_posts: 2, members: null })
+    expect(() => parseChannels({ items: [{ id: '-1', title: 'x', pending_posts: '2' }], total: 1 })).toThrow()
+    expect(() => parseChannels({ items: [{ id: '-1', title: 'x', members: 1.5 }], total: 1 })).toThrow()
   })
   it('rejalashtirilgan postlar', () => {
     expect(parseScheduled(PAGE).items).toHaveLength(2)

@@ -77,9 +77,10 @@ class Cursor:
             self._rows = [(m.beta_raw,)] if m.beta_raw is not None else []
         elif s.startswith("SELECT COUNT(*) FROM channels"):
             self._rows = [(len([c for c in m.channels if c[0] == params[0] and c[3] and not c[4]]),)]
-        elif "FROM channels WHERE user_id" in s:
-            rows = [(c[1], c[2]) for c in m.channels if c[0] == params[0] and c[3] and not c[4]]
-            self._rows = rows[: params[1]]
+        elif "FROM channels c" in s and "LATERAL" in s:
+            # (channel_id, title, pending_posts, member_count, snapshot_date) — haqiqiy SELECT shakli; params = (kunlar, user_id, limit)
+            rows = [(c[1], c[2], 0, None, None) for c in m.channels if c[0] == params[1] and c[3] and not c[4]]
+            self._rows = rows[: params[2]]
         elif s.startswith("SELECT COUNT(*), MIN(scheduled_time) FROM scheduled_posts"):
             mine = [p for p in m.posts if p["owner"] == params[0] and p["status"] == "pending"]
             self._rows = [(len(mine), min((p["time"] for p in mine), default=None))]
@@ -420,7 +421,7 @@ def test_db_failures():
     root.addHandler(handler)
     root.setLevel(logging.DEBUG)
     try:
-        for path, needle in (("/api/v1/channels", "FROM channels WHERE user_id"),
+        for path, needle in (("/api/v1/channels", "FROM channels c"),
                              ("/api/v1/scheduled-posts", "FROM scheduled_posts sp"),
                              ("/api/v1/me", "FROM users WHERE user_id"),
                              ("/api/v1/me", "FROM system_settings")):

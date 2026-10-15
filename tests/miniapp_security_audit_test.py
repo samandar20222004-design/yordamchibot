@@ -234,6 +234,7 @@ def test_all_routes_require_auth():
     expected = [("DELETE", "/api/v1/draft"), ("DELETE", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/channels"), ("GET", "/api/v1/channels/{channel_id}/analytics"),
                 ("GET", "/api/v1/draft"), ("GET", "/api/v1/draft/media"), ("GET", "/api/v1/health"),
                 ("GET", "/api/v1/me"), ("GET", "/api/v1/posts/{post_id}"), ("GET", "/api/v1/scheduled-posts"),
+                ("GET", "/api/v1/scheduled-posts/calendar"),
                 ("PATCH", "/api/v1/me/settings"), ("PATCH", "/api/v1/posts/{post_id}"),
                 ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/posts")]
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))

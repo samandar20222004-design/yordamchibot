@@ -135,14 +135,32 @@ def count_channels(cur, user_id: int) -> int:
     return int(cur.fetchone()[0])
 
 
+MEMBERS_FRESH_DAYS = 8  # 7 kun + Toshkent/DB sana zonasi farqi uchun 1 kun zaxira
+
+
 def list_channels(cur, user_id: int) -> list[dict]:
+    """Faol kanallar + kanal bo'yicha: rejadagi postlar soni va OXIRGI obunachi snapshot'i.
+
+    `members` faqat `MEMBERS_FRESH_DAYS` kundan eski bo'lmagan snapshot bo'lsa beriladi; aks holda `None`
+    (eskirgan raqam "joriy" deb ko'rsatilmaydi, 0 ham to'qilmaydi).
+    """
     cur.execute(
-        "SELECT channel_id, channel_title FROM channels "
-        "WHERE user_id = %s AND is_active = TRUE AND deleted_at IS NULL "
-        "ORDER BY id ASC LIMIT %s",
-        (user_id, CHANNELS_HARD_LIMIT),
+        "SELECT c.channel_id, c.channel_title, "
+        "       (SELECT COUNT(*) FROM scheduled_posts sp "
+        "         WHERE sp.user_id = c.user_id AND sp.channel_id = c.channel_id AND sp.status = 'pending'), "
+        "       m.member_count, m.snapshot_date "
+        "  FROM channels c "
+        "  LEFT JOIN LATERAL (SELECT member_count, snapshot_date FROM channel_member_counts "
+        "                      WHERE channel_id = c.channel_id AND snapshot_date >= CURRENT_DATE - %s "
+        "                      ORDER BY snapshot_date DESC LIMIT 1) m ON TRUE "
+        " WHERE c.user_id = %s AND c.is_active = TRUE AND c.deleted_at IS NULL "
+        " ORDER BY c.id ASC LIMIT %s",
+        (MEMBERS_FRESH_DAYS, user_id, CHANNELS_HARD_LIMIT),
     )
-    return [{"id": str(r[0]), "title": r[1]} for r in cur.fetchall()]
+    return [{"id": str(r[0]), "title": r[1], "pending_posts": int(r[2]),
+             "members": int(r[3]) if r[3] is not None else None,
+             "members_as_of": r[4].isoformat() if r[4] is not None else None}
+            for r in cur.fetchall()]
 
 
 def pending_summary(cur, user_id: int) -> tuple[int, object]:
@@ -203,6 +221,24 @@ def list_posts(cur, user_id: int, history: bool, limit: int, offset: int) -> lis
             " ORDER BY sp.scheduled_time ASC, sp.id ASC OFFSET %s LIMIT %s",
             (PREVIEW_CHARS, user_id, offset, limit),
         )
+    return [_post_dict(r) for r in cur.fetchall()]
+
+
+CALENDAR_LIMIT = 500
+
+
+def list_posts_between(cur, user_id: int, start, end, limit: int | None = None) -> list[dict]:
+    """Kutilayotgan postlar [start, end) oralig'ida (faqat egasiniki), vaqt bo'yicha o'sish tartibida.
+
+    `limit + 1` qator so'raladi: chaqiruvchi kesilganini (`truncated`) halol bildiradi.
+    """
+    limit = CALENDAR_LIMIT if limit is None else limit
+    cur.execute(
+        _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = 'pending'"
+        " AND sp.scheduled_time >= %s AND sp.scheduled_time < %s"
+        " ORDER BY sp.scheduled_time ASC, sp.id ASC LIMIT %s",
+        (PREVIEW_CHARS, user_id, start, end, limit + 1),
+    )
     return [_post_dict(r) for r in cur.fetchall()]
 
 

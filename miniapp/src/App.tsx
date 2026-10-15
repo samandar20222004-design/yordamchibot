@@ -11,7 +11,6 @@ import { HomePage } from './pages/HomePage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
-import { StatsPage } from './pages/StatsPage'
 import { getInitData, getLanguageHint, initTelegram, isInTelegram } from './telegram'
 
 function NotInTelegram() {
@@ -35,7 +34,7 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
   const client = useMemo(() => createApiClient({ getInitData, language: getLanguageHint }), [])
   const me = useResource((s) => client.me(s), true)
-  const channels = useResource((s) => client.channels(s), tab === 'me' || tab === 'post' || tab === 'stats')
+  const channels = useResource((s) => client.channels(s), tab === 'me' || tab === 'post')
   const draft = useResource(async (s) => ({ draft: await client.draft(s) }), true)
   const feed = useScheduleFeed(client, tab === 'schedule')
   const botUsername = me.data?.bot.username ?? null
@@ -67,7 +66,6 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
         {tab === 'home' && <HomePage />}
         {tab === 'post' && <PostPage />}
         {tab === 'schedule' && <SchedulePage />}
-        {tab === 'stats' && <StatsPage />}
         {tab === 'me' && <MePage />}
         <TabBar active={tab} onChange={setTab} />
         {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}

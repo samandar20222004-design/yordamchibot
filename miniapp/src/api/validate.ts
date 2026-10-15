@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES } from './types'
-import type { AiResult, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import type { AiResult, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, ScheduledPage, ScheduledPost, Draft } from './types'
 
 export class ShapeError extends Error {}
 
@@ -86,7 +86,13 @@ export function parseMe(v: unknown): Me {
 
 function parseChannel(v: unknown): Channel {
   const c = rec(v, 'channel')
-  return { id: str(c.id, 'channel.id'), title: strOrNull(c.title, 'channel.title') }
+  return {
+    id: str(c.id, 'channel.id'),
+    title: strOrNull(c.title, 'channel.title'),
+    ...(c.pending_posts === undefined ? {} : { pending_posts: int(c.pending_posts, 'channel.pending_posts') }),
+    ...(c.members === undefined ? {} : { members: intOrNull(c.members, 'channel.members') }),
+    ...(c.members_as_of === undefined ? {} : { members_as_of: strOrNull(c.members_as_of, 'channel.members_as_of') }),
+  }
 }
 
 function intOrNull(v: unknown, what: string): number | null {
@@ -173,6 +179,11 @@ export function parseScheduled(v: unknown): ScheduledPage {
     offset: int(o.offset, 'offset'),
     has_more: bool(o.has_more, 'has_more'),
   }
+}
+
+export function parseCalendar(v: unknown): CalendarData {
+  const o = rec(v, 'calendar')
+  return { items: arr(o.items, 'items').map(parsePost), truncated: bool(o.truncated, 'truncated') }
 }
 
 export function parsePostEnvelope(v: unknown): ScheduledPost {

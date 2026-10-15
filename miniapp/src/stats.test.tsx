@@ -45,10 +45,13 @@ function mockApi(analytics: () => Response, channels = [{ id: '-1001', title: 'K
 
 const nav = (name: RegExp) => within(screen.getByRole('navigation')).getByRole('button', { name })
 
-async function openStats() {
+/** Men -> Kanallarim -> kanal yonidagi «Tahlil» tugmasi (index = ro'yxatdagi tartib). */
+async function openStats(index = 0) {
   render(<App />)
   await screen.findByText('Salom, Alice!')
-  fireEvent.click(nav(/^Tahlil/))
+  fireEvent.click(nav(/^Men/))
+  const buttons = await screen.findAllByRole('button', { name: 'Tahlil' })
+  fireEvent.click(buttons[index]!)
 }
 
 beforeEach(() => { vi.useRealTimers(); setTelegram() })
@@ -93,18 +96,38 @@ describe('Kanal tahlili sahifasi', () => {
     expect(await screen.findByRole('alert')).toBeTruthy()
   })
 
-  it('kanal yo\'q: bo\'sh holat', async () => {
+  it('«Tahlil» pastki tabda YO\'Q (tablar bir qatorda qoladi) va kanal yo\'q bo\'lsa tugma ham yo\'q', async () => {
     mockApi(() => jsonResponse(FULL), [])
-    await openStats()
-    expect(await screen.findByText('Kanal ulanmagan')).toBeTruthy()
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    expect(within(screen.getByRole('navigation')).queryByRole('button', { name: /Tahlil/ })).toBeNull()
+    expect(within(screen.getByRole('navigation')).getAllByRole('button')).toHaveLength(4)
+    fireEvent.click(nav(/^Men/))
+    expect(await screen.findByText('Ulangan kanal yo\'q.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Tahlil' })).toBeNull()
   })
 
-  it('bir nechta kanal: tanlagich bor va tanlangan kanal so\'raladi', async () => {
+  it('bir nechta kanal: har kanal yonida tugma; tanlangan kanal so\'raladi; «Orqaga» profilga qaytaradi', async () => {
     const f = mockApi(() => jsonResponse(FULL), [{ id: '-1001', title: 'Kanal A' }, { id: '-1002', title: 'Kanal B' }])
-    await openStats()
-    const select = (await screen.findByLabelText('Kanal')) as HTMLSelectElement
-    fireEvent.change(select, { target: { value: '-1002' } })
+    await openStats(1)
     await screen.findByTestId('members-current')
     expect(f.mock.calls.some((c) => String(c[0]).includes('/channels/-1002/analytics'))).toBe(true)
+    expect(f.mock.calls.some((c) => String(c[0]).includes('/channels/-1001/analytics'))).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: /Orqaga/ }))
+    expect(await screen.findAllByRole('button', { name: 'Tahlil' })).toHaveLength(2)
+  })
+
+  it('Kanallarim: har kanalda rejadagi soni va obunachilar; snapshot yo\'q kanalda obunachi qatori YO\'Q (0 emas)', async () => {
+    mockApi(() => jsonResponse(FULL), [
+      { id: '-1001', title: 'Kanal A', pending_posts: 3, members: 12345, members_as_of: '2026-10-14' },
+      { id: '-1002', title: 'Kanal B', pending_posts: 0, members: null, members_as_of: null },
+    ] as never)
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(nav(/^Men/))
+    expect(await screen.findByText(/Rejada: 3/)).toBeTruthy()
+    expect(screen.getByText(/Obunachi: 12[,.\s\u00a0\u202f]?345/)).toBeTruthy()
+    expect(screen.getByText(/Rejada: 0/)).toBeTruthy()
+    expect(screen.getAllByText(/Obunachi:/)).toHaveLength(1)
   })
 })
