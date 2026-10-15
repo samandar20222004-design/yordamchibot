@@ -53,7 +53,7 @@ def main() -> int:
     conn = psycopg2.connect(URL)
     conn.autocommit = True
     cur = conn.cursor()
-    
+
     def cleanup():
         cur.execute("DELETE FROM scheduled_posts WHERE user_id = ANY(%s)", ([A, B],))
         cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", ([A, B],))
