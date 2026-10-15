@@ -20,6 +20,13 @@ from .settings import MiniAppSettings
 _PRO_TYPES = ("pro", "enterprise")
 
 
+def _is_admin(user_id: int, stored_role) -> bool:
+    """Keep write/AI role limits independent of the removed beta access gate."""
+    from services.rbac_service import ADMIN_ROLES, resolve_role
+
+    return resolve_role(user_id, stored_role) in ADMIN_ROLES
+
+
 def iso_utc(value) -> str | None:
     if value is None:
         return None
@@ -66,9 +73,11 @@ def _language(account: dict) -> str:
 
 
 class MiniAppService:
-    def __init__(self, settings: MiniAppSettings, runner: ReadOnlyRunner) -> None:
+    def __init__(self, settings: MiniAppSettings, runner: ReadOnlyRunner, *,
+                 admin_check=_is_admin) -> None:
         self._settings = settings
         self._runner = runner
+        self._is_admin = admin_check
 
     async def _authorized(self, user_id: int, query_fn):
         def work(cur):
