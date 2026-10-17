@@ -111,10 +111,13 @@ def _minimal_app():
     dispatch uchun zarur bo'lgan minimal holat qo'lda o'rnatiladi.
     """
     app = ApplicationBuilder().token("123456:MEDIA_GROUP_TEST_TOKEN").build()
-    app._initialized = True
-    app._user_data = defaultdict(dict)
-    app._chat_data = defaultdict(dict)
-    app._bot_data = {}
+    # Yangi PTB'da bu maydonlar __slots__ bilan yopiq (yoki allaqachon tayyor): o'rnatib bo'lmasa builder'dagi standart qoladi.
+    for name, value in (("_initialized", True), ("_user_data", defaultdict(dict)),
+                        ("_chat_data", defaultdict(dict)), ("_bot_data", {})):
+        try:
+            setattr(app, name, value)
+        except AttributeError:
+            pass
     return app
 
 
