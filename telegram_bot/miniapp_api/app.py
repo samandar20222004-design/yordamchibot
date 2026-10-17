@@ -241,7 +241,7 @@ async def post_delete_handler(request: web.Request):
 @_write
 async def settings_update_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
-    data = await request.app[_K_WRITER].set_language(request["user_id"], body)
+    data = await request.app[_K_WRITER].update_settings(request["user_id"], body)
     return web.json_response(data)
 
 

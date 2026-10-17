@@ -1,8 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseCalendar, parseDeleted, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
+  parseCalendar, parseDeleted, parseSettingsSaved, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
 const KNOWN_CODES: readonly string[] = [
@@ -222,6 +222,9 @@ export function createApiClient(opts: ClientOptions) {
       send('DELETE', `/posts/${encodeURIComponent(String(id))}/media${index === undefined ? '' : `?i=${index}`}`, undefined, parsePostEnvelope),
     cancelPost: (id: number): Promise<{ id: number }> =>
       send('DELETE', `/posts/${encodeURIComponent(String(id))}`, undefined, parseCancelled),
+    /** Bildirishnoma tanlovlarini saqlaydi (faqat o'zgargan kalitlar yuboriladi). */
+    setNotifications: (notifications: Partial<NotificationSettings>): Promise<{ notifications?: Partial<NotificationSettings> }> =>
+      send('PATCH', '/me/settings', { notifications }, parseSettingsSaved),
     setLanguage: (language: Lang): Promise<{ language: Lang }> =>
       send('PATCH', '/me/settings', { language }, parseLanguage),
     templates: (signal?: AbortSignal): Promise<TemplateList> => get('/templates', parseTemplates, signal),

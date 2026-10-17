@@ -25,6 +25,7 @@ export const ME: Me = {
     },
   },
   usage: { channels: 2, pending_posts: 3, ai_requests_today: 1, ai_credits: 5 },
+  settings: { notifications: { notify_scheduled: true, notify_news: false, notify_morning_digest: true, notify_uzbek_calendar: true } },
   posts: { pending: 3, sent: 7, failed: 1, cancelled: 2 },
   next_post_at: '2026-10-14T09:30:00Z',
   bot: { username: 'PostAssistrobot' },

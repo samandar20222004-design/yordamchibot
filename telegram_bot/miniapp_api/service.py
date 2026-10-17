@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from . import drafts
+from . import drafts, prefs
 from . import repository as repo
 from .access import evaluate_access
 from .db import ReadOnlyRunner
@@ -134,6 +134,10 @@ class MiniAppService:
             pending, next_at = repo.pending_summary(cur, user_id)
             plan = resolve_plan(account)
             posts = repo.post_status_counts(cur, user_id)
+            try:
+                notifications = prefs.read_notifications(cur, user_id)
+            except Exception:  # noqa: BLE001 — jadval yo'q/xato: standart qiymatlar (profil ochilishi to'xtamasin)
+                notifications = dict(prefs.NOTIFICATION_DEFAULTS)
             return {
                 "user": {"id": account["user_id"], "name": account["full_name"],
                          "username": account["username"],
@@ -144,6 +148,7 @@ class MiniAppService:
                           "ai_requests_today": account["ai_requests_today"],
                           "ai_credits": account["ai_credits"]},
                 "posts": posts,
+                "settings": {"notifications": notifications},
                 "next_post_at": iso_utc(next_at),
                 "bot": {"username": self._settings.bot_username or None},
             }

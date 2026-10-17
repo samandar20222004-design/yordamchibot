@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
 
-from . import media_items
+from . import media_items, prefs
 from .errors import ApiError
 from .service import MiniAppService, iso_utc
 from .settings import MiniAppSettings
@@ -884,6 +884,26 @@ class PostWriter:
         if not ok:
             raise ApiError("save_failed", retry_after=5)
         return {"language": language}
+
+    async def update_settings(self, user_id: int, body: dict) -> dict:
+        """``PATCH /me/settings``: ``language`` va/yoki ``notifications`` (``{kalit: bool}``; faqat ruxsat etilgan kalitlar)."""
+        _only_keys(body, ("language", "notifications"))
+        if not body:
+            raise ApiError("invalid_input")
+        out: dict = {}
+        if "language" in body:
+            out.update(await self.set_language(user_id, {"language": body["language"]}))
+        if "notifications" in body:
+            raw = body["notifications"]
+            if not isinstance(raw, dict) or not raw or any(k not in prefs.NOTIFICATION_KEYS or not isinstance(v, bool) for k, v in raw.items()):
+                raise ApiError("invalid_input", field="notifications")
+            await self._service.authorize(user_id)
+            repo = self._users_repo()
+            for key, value in raw.items():
+                if not await self._blocking(repo.set_user_setting, user_id, key, value):
+                    raise ApiError("save_failed", retry_after=5)
+            out["notifications"] = {k: bool(v) for k, v in raw.items()}
+        return out
 
     # --------------------------------------------------------------------- AI
     async def ai_generate(self, user_id: int, body: dict) -> dict:

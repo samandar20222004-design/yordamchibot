@@ -48,6 +48,8 @@ export interface Me {
   tiers?: { free?: TierInfo; pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
+  /** Bildirishnoma tanlovlari (eski serverda yo'q bo'lishi mumkin). */
+  settings?: { notifications: NotificationSettings }
   next_post_at: string | null
   bot: { username: string | null }
 }
@@ -162,6 +164,11 @@ export interface MediaItem {
   type: string
   previewable: boolean
 }
+
+/** Bildirishnoma sozlamalari (botdagi `user_settings` kalitlari bilan bir xil). */
+export const NOTIFICATION_KEYS = ['notify_scheduled', 'notify_news', 'notify_morning_digest', 'notify_uzbek_calendar'] as const
+export type NotificationKey = (typeof NOTIFICATION_KEYS)[number]
+export type NotificationSettings = Record<NotificationKey, boolean>
 
 export interface DraftMedia {
   type: string
