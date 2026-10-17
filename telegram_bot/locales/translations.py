@@ -912,6 +912,13 @@ TRANSLATIONS = {
         ),
         "np_album_choice_first_photo": "🖼 1-rasm + tugma",
         "np_album_choice_full": "⏩ To'liq albom",
+        "btn_album_add_more": "➕ Yana qo'shish",
+        "btn_album_undo": "↩️ Faylni o'chir",
+        "np_album_add_more_prompt": (
+            "➕ <b>Yana rasm yoki video yuboring</b> (jami 10 tagacha). "
+            "Tayyor bo'lgach, pastdagi tugmalardan birini tanlang."
+        ),
+        "np_album_undone": "↩️ Oxirgi fayl olib tashlandi. Albomda {count} ta media qoldi.",
         "np_album_first_photo_done": (
             "✅ Post bitta rasmga o'zgartirildi — endi tugma yoki reaksiya qo'sha olasiz."
         ),
@@ -3097,6 +3104,13 @@ TRANSLATIONS = {
         ),
         "np_album_choice_first_photo": "🖼 1 фото + кнопка",
         "np_album_choice_full": "⏩ Полный альбом",
+        "btn_album_add_more": "➕ Добавить ещё",
+        "btn_album_undo": "↩️ Убрать файл",
+        "np_album_add_more_prompt": (
+            "➕ <b>Отправьте ещё фото или видео</b> (всего до 10). "
+            "Когда закончите, выберите один из вариантов ниже."
+        ),
+        "np_album_undone": "↩️ Последний файл убран. В альбоме осталось медиа: {count}.",
         "np_album_first_photo_done": (
             "✅ Пост изменён до одного фото — теперь можно добавить кнопку или реакции."
         ),

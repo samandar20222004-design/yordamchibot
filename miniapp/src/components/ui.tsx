@@ -78,6 +78,8 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   draft_not_found: 'err.draft_not_found',
   media_unavailable: 'err.media_unavailable',
   caption_too_long: 'err.caption_too_long',
+  album_full: 'err.album_full',
+  album_mixed: 'err.album_mixed',
   bad_request: 'err.bad_request',
   not_found: 'err.not_found',
   method_not_allowed: 'err.method_not_allowed',

@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor } from './test/helpers'
 
 function setTelegram() {
   ;(window as unknown as { Telegram: unknown }).Telegram = {
@@ -38,9 +38,9 @@ async function openPost() {
   render(<App />)
   await screen.findByText('Salom, Alice!')
   fireEvent.click(nav(/^Post/))
-  const text = await screen.findByLabelText('Post matni', { selector: 'textarea' })
+  const text = await screen.findByLabelText('Post matni')
   fireEvent.change(screen.getByLabelText('Kanal'), { target: { value: '-1001' } })
-  fireEvent.change(text, { target: { value: 'Salom dunyo' } })
+  setEditor(text, 'Salom dunyo')
 }
 
 // 2026-10-17 (shanba) 12:00 Toshkent = 07:00 UTC — kelajakda bo'lishi uchun soat 2030 ga qo'yilgan emas: haqiqiy kelajak sanasi olinadi

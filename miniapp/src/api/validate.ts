@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
-import { AI_STYLES } from './types'
-import type { PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft } from './types'
+import { AI_STYLES, NOTIFICATION_KEYS } from './types'
+import type { PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -76,6 +76,26 @@ function parseCounts(v: unknown): PostCounts {
   }
 }
 
+function parseNotifications(v: unknown, path: string): NotificationSettings {
+  const o = rec(v, path)
+  const out = {} as NotificationSettings
+  for (const k of NOTIFICATION_KEYS) out[k] = bool(o[k], `${path}.${k}`)
+  return out
+}
+
+/** `PATCH /me/settings` javobi: faqat yangilangan qism(lar). */
+export function parseSettingsSaved(v: unknown): { language?: Lang; notifications?: Partial<NotificationSettings> } {
+  const o = rec(v, 'settings')
+  const out: { language?: Lang; notifications?: Partial<NotificationSettings> } = {}
+  if (o.language !== undefined) out.language = lang(o.language)
+  if (o.notifications !== undefined) {
+    const n = rec(o.notifications, 'settings.notifications')
+    out.notifications = {}
+    for (const k of NOTIFICATION_KEYS) if (n[k] !== undefined) out.notifications[k] = bool(n[k], `settings.notifications.${k}`)
+  }
+  return out
+}
+
 export function parseMe(v: unknown): Me {
   const o = rec(v, 'me')
   const u = rec(o.user, 'user')
@@ -99,6 +119,7 @@ export function parseMe(v: unknown): Me {
       ai_credits: int(usage.ai_credits, 'usage.ai_credits'),
     },
     posts: parseCounts(o.posts),
+    ...(o.settings === undefined ? {} : { settings: { notifications: parseNotifications(rec(o.settings, 'settings').notifications, 'settings.notifications') } }),
     next_post_at: strOrNull(o.next_post_at, 'next_post_at'),
     bot: { username: strOrNull(bot.username, 'bot.username') },
   }
@@ -173,6 +194,14 @@ export function parseChannels(v: unknown): ChannelList {
   return { items: arr(o.items, 'items').map(parseChannel), total: int(o.total, 'total') }
 }
 
+function mediaItems(v: unknown, path: string): { type: string; previewable: boolean }[] {
+  if (!Array.isArray(v) || v.length > 10) throw new ShapeError(path)
+  return v.map((x, i) => {
+    const o = rec(x, `${path}[${i}]`)
+    return { type: str(o.type, `${path}.type`), previewable: bool(o.previewable, `${path}.previewable`) }
+  })
+}
+
 export function parsePost(v: unknown): ScheduledPost {
   const p = rec(v, 'post')
   return {
@@ -185,6 +214,7 @@ export function parsePost(v: unknown): ScheduledPost {
     post_type: str(p.post_type, 'post.post_type'),
     preview: str(p.preview, 'post.preview'),
     has_media: bool(p.has_media, 'post.has_media'),
+    ...(p.media_items === undefined ? {} : { media_items: mediaItems(p.media_items, 'post.media_items') }),
     scheduled_time: strOrNull(p.scheduled_time, 'post.scheduled_time'),
     number: p.number === null || p.number === undefined ? null : int(p.number, 'post.number'),
     recurrence: strOrNull(p.recurrence, 'post.recurrence'),
@@ -307,6 +337,7 @@ export function parseDraft(v: unknown): Draft | null {
       type: str(m.type, 'draft.media.type'),
       previewable: bool(m.previewable, 'draft.media.previewable'),
       count: m.count === null || m.count === undefined ? null : int(m.count, 'draft.media.count'),
+      ...(m.items === undefined ? {} : { items: mediaItems(m.items, 'draft.media.items') }),
     }
   }
   return {

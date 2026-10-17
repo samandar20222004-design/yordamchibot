@@ -259,6 +259,11 @@ def get_post(cur, user_id: int, post_id: int) -> dict | None:
     post["text"] = full[0] if full else post["preview"]
     post["button_text"] = full[1] if full else None
     post["button_url"] = full[2] if full else None
+    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s", (int(post_id), user_id))
+    ref = cur.fetchone()
+    from . import media_items
+
+    post["media_items"] = media_items.public_items(ref[0], ref[1]) if ref else []
     return post
 
 

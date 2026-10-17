@@ -341,7 +341,7 @@ def test_album_collection_keeps_all_files_and_full_caption():
     check("albom: ogohlantirishda 2 ta tanlov tugmasi bor",
           any(s["kind"] == "message" and get_text("np_album_warning", "uz") in s["text"]
               and s.get("reply_markup") is not None
-              and len(s["reply_markup"].inline_keyboard) == 2
+              and len(s["reply_markup"].inline_keyboard) == 3  # 2 tanlov + «Yana qo'shish»/«Faylni o'chir» qatori
               for s in bot.sent), str(bot.sent)[:120])
     check("albom: ogohlantirishda eski tugma so'rovi YO'Q",
           not any(s["kind"] == "message" and get_text("np_button_ask", "uz") in (s["text"] or "")

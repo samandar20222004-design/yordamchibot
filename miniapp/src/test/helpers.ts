@@ -1,3 +1,7 @@
+import { fireEvent } from '@testing-library/react'
+import { readEditor } from '../components/RichTextField'
+import { renderModel, setSelectionOffsets } from '../pages/richDom'
+import { parseModel } from '../pages/richModel'
 import type { Me, ScheduledPage } from '../api/types'
 
 export const ME: Me = {
@@ -21,6 +25,7 @@ export const ME: Me = {
     },
   },
   usage: { channels: 2, pending_posts: 3, ai_requests_today: 1, ai_credits: 5 },
+  settings: { notifications: { notify_scheduled: true, notify_news: false, notify_morning_digest: true, notify_uzbek_calendar: true } },
   posts: { pending: 3, sent: 7, failed: 1, cancelled: 2 },
   next_post_at: '2026-10-14T09:30:00Z',
   bot: { username: 'PostAssistrobot' },
@@ -42,4 +47,17 @@ export function jsonResponse(body: unknown, status = 200, headers: Record<string
 
 export function errorBody(code: string, requestId = 'req123', retryAfter: number | null = null, field: string | null = null) {
   return { error: { code, message: 'server message', request_id: requestId, retry_after: retryAfter, field } }
+}
+
+/** Muharrir (contenteditable) testlari: Telegram HTML yozish/o'qish. */
+export function setEditor(el: HTMLElement, html: string): void {
+  renderModel(el, parseModel(html))
+  fireEvent.input(el)
+}
+export const editorValue = (el: HTMLElement): string => readEditor(el)
+
+/** Muharrirdagi [a, b) matn oralig'ini tanlaydi. */
+export function selectText(el: HTMLElement, a: number, b: number): void {
+  setSelectionOffsets(el, a, b)
+  fireEvent(document, new Event('selectionchange'))
 }

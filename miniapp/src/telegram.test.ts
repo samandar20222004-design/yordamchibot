@@ -8,7 +8,7 @@ const setTg = (v: unknown) => { (window as unknown as W).Telegram = v }
 afterEach(() => { delete (window as unknown as W).Telegram; vi.restoreAllMocks() })
 
 describe('openBot (navigatsiya kontrakti)', () => {
-  it('faqat https://t.me/<username> — start/payload parametrisiz', () => {
+  it('bo\'limsiz: faqat https://t.me/<username>; bo\'lim faqat ruxsat ro\'yxatidan (?start=go_<bo\'lim>)', () => {
     const open = vi.fn()
     setTg({ WebApp: { initData: 'x', openTelegramLink: open } })
     expect(openBot('PostAssistrobot')).toBe(true)
@@ -54,5 +54,19 @@ describe('Telegram SDK xavfsizligi', () => {
   it('initData satr bo\'lmasa e\'tiborsiz', () => {
     setTg({ WebApp: { initData: 123 } })
     expect(getInitData()).toBe('')
+  })
+})
+
+describe('openBot bo\'limlari (deep-link ruxsat ro\'yxati)', () => {
+  it('plans/settings/help -> ?start=go_<bo\'lim>; noma\'lum bo\'lim e\'tiborsiz (oddiy havola)', () => {
+    const open = vi.fn()
+    ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { openTelegramLink: open } }
+    expect(openBot('PostAssistrobot', 'plans')).toBe(true)
+    expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_plans')
+    expect(openBot('PostAssistrobot', 'settings')).toBe(true)
+    expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_settings')
+    expect(openBot('PostAssistrobot', 'admin' as never)).toBe(true)
+    expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot')
+    expect(openBot('bad name', 'plans')).toBe(false)
   })
 })

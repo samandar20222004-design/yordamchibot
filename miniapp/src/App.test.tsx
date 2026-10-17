@@ -182,11 +182,11 @@ describe('App', () => {
     expect(await screen.findByText(/PRO va Tariflar/)).toBeTruthy()
     expect(screen.queryByRole('button', { name: /^(To'lash|Sotib olish|Pay)$/ })).toBeNull() // Mini App'da to'lov yo'q: faqat botga yo'naltirish
     fireEvent.click(screen.getAllByRole('button', { name: 'Botda sotib olish' })[0]!)
-    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot')
+    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot?start=go_plans') // bot tariflar kartasini ochadi
     openTelegramLink.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
     fireEvent.click(row(/^Botga o'tish/))
-    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot')
+    expect(openTelegramLink).toHaveBeenCalledWith('https://t.me/PostAssistrobot?start=go_settings')
   })
 
   it('PRO foydalanuvchi: cheksiz limitlar va muddat', async () => {
@@ -229,7 +229,7 @@ describe('Bosh sahifa', () => {
     expect(container.querySelectorAll('.stat-bar').length).toBe(2)
     expect(container.querySelector('.achievement')?.textContent).toMatch(/7 ta post/)
     fireEvent.click(screen.getByRole('button', { name: 'Yangi post yozish' }))
-    await screen.findByLabelText('Post matni', { selector: 'textarea' })
+    await screen.findByLabelText('Post matni')
   })
 
   it('post rejalanmagan bo\'lsa: bo\'sh holat va «Post rejalash» tugmasi', async () => {

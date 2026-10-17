@@ -5,6 +5,7 @@ still escapes ALL tags: dynamic user names must never become HTML markup.
 """
 
 from utils import telegram_sanitizer as _telegram_html
+import re
 import ipaddress
 import logging
 import socket
@@ -280,6 +281,35 @@ def validate_button_url(url) -> bool:
         bool: ``True`` — havolani tugmaga qo'yish mumkin.
     """
     return url_rejection_reason(url) == ""
+
+
+_BARE_DOMAIN_RE = re.compile(r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}(?::\d{2,5})?(?:[/?#]\S*)?$")
+_TG_USERNAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{3,31}$")
+
+
+def normalize_link(value) -> str:
+    """Foydalanuvchi yozgan havolani tugma/matn uchun to'liq ko'rinishga keltiradi.
+
+    ``@kanal`` -> ``https://t.me/kanal``; ``t.me/kanal``, ``telegram.me/..``, ``www.sayt.uz``, ``sayt.uz/yo'l`` ->
+    ``https://...``. ``http(s)://`` va ``tg://`` o'zgarmaydi. Tanib bo'lmaydigan matn (probel, ``javascript:`` va h.k.)
+    O'ZGARMAS qaytadi — keyin :func:`validate_button_url` rad etadi.
+    """
+    if not isinstance(value, str):
+        return ""
+    link = value.strip()
+    if not link or any(ch.isspace() for ch in link):
+        return link
+    low = link.lower()
+    if low.startswith(("http://", "https://", "tg://")):
+        return link
+    if link.startswith("@"):
+        name = link[1:]
+        return f"https://t.me/{name}" if _TG_USERNAME_RE.match(name) else link
+    if "://" in link or ":" in link.split("/", 1)[0].split(".", 1)[0]:
+        return link  # javascript:, data:, mailto: ... — rad etiladi
+    if _BARE_DOMAIN_RE.match(link):
+        return "https://" + link
+    return link
 
 
 #: Ba'zi chaqiruvchilar "mutlaqo xavfsiz" ma'nosida shu nomni ishlatadi.

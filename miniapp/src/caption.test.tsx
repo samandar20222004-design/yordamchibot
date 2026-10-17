@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
+import { ME, PAGE, errorBody, jsonResponse, setEditor, editorValue } from './test/helpers'
 
 function setTelegram() {
   ;(window as unknown as { Telegram: unknown }).Telegram = {
@@ -38,8 +38,8 @@ async function openMediaEditor(expected = 'Rasm sarlavhasi') {
   fireEvent.click(nav(/^Reja/))
   await screen.findByText('Birinchi post matni')
   fireEvent.click(screen.getAllByRole('button', { name: 'Tahrirlash' })[1]) // 2-post: rasm
-  const area = (await screen.findByLabelText('Post matni')) as HTMLTextAreaElement
-  expect(area.value).toBe(expected)
+  const area = (await screen.findByLabelText('Post matni')) as HTMLElement
+  expect(editorValue(area)).toBe(expected)
   return area
 }
 
@@ -50,8 +50,8 @@ describe('Media postni tahrirlash: sarlavha (caption) chegarasi 1024', () => {
   it('1025 belgi: aniq xato, so\'rov yuborilmaydi; maxLength=1024', async () => {
     const f = mockApi()
     const area = await openMediaEditor()
-    expect(area.maxLength).toBe(1024)
-    fireEvent.change(area, { target: { value: 'a'.repeat(1025) } })
+    expect(area.getAttribute('data-maxlength')).toBe('1024')
+    setEditor(area, 'a'.repeat(1025))
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText(/Media sarlavhasi 1024/)).toBeTruthy()
     expect(patches(f)).toHaveLength(0)
@@ -69,7 +69,7 @@ describe('Media postni tahrirlash: sarlavha (caption) chegarasi 1024', () => {
   it('server caption_too_long qaytarsa: tushunarli xabar ko\'rsatiladi', async () => {
     const f = mockApi(jsonResponse(errorBody('caption_too_long', 'req9', null, 'text'), 422))
     const area = await openMediaEditor()
-    fireEvent.change(area, { target: { value: 'Yangi sarlavha' } })
+    setEditor(area, 'Yangi sarlavha')
     fireEvent.click(screen.getByRole('button', { name: 'Saqlash' }))
     expect(await screen.findByText(/Rasm\/video ostidagi matn 1024 belgidan oshmasligi kerak/)).toBeTruthy()
     expect(patches(f)).toHaveLength(1)

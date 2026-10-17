@@ -78,7 +78,7 @@ describe('Profil sahifasi', () => {
     expect(screen.getByText('1 / 5')).toBeTruthy()     // AI (bugun)
     expect(screen.getByText('3 / 5')).toBeTruthy()     // navbat
     const rows = Array.from(document.querySelectorAll('.set-row .set-label')).map((e) => e.textContent)
-    expect(rows).toEqual(['Tarif', 'Til', 'Kanallarim', 'Botga o\'tish', 'Ilovani yopish'])
+    expect(rows).toEqual(['Tarif', 'Til', 'Bildirishnomalar', 'Kanallarim', 'Botga o\'tish', 'Do\'stlarni taklif qilish', 'Yordam va qo\'llanma', 'Ilovani yopish'])
     expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
   })
 
@@ -177,5 +177,58 @@ describe('Sozlamalar: profil muqovasi va bo\'limlar', () => {
     setTelegram('http://evil.example/x.jpg')
     await openMe()
     expect(document.querySelector('.me-cover img')).toBeNull()
+  })
+})
+
+describe('Bildirishnomalar ekrani', () => {
+  const openNotif = async (f?: (url: string, init: RequestInit) => Response | undefined) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = String(input)
+      const custom = f?.(url, init)
+      if (custom) return custom
+      const method = init.method ?? 'GET'
+      if (method === 'GET' && url.endsWith('/draft')) return jsonResponse({ draft: null })
+      if (method === 'GET' && url.includes('/me')) return jsonResponse(ME)
+      if (method === 'GET' && url.includes('/channels')) return jsonResponse({ items: [], total: 0 })
+      if (method === 'GET' && url.includes('/scheduled-posts')) return jsonResponse(PAGE)
+      return jsonResponse(errorBody('not_found'), 404)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /^Men/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Bildirishnomalar/ }))
+    await screen.findByRole('switch', { name: /Rejalashtirilgan post eslatmalari/ })
+    return fetchMock
+  }
+
+  it('qator qiymati: nechta yoqilgan; ekranda 4 ta almashtirgich, holatlari serverdagidek', async () => {
+    mockApi()
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /^Men/ }))
+    expect(await screen.findByText('3 / 4 yoqilgan')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^Bildirishnomalar/ }))
+    const sw = await screen.findAllByRole('switch')
+    expect(sw).toHaveLength(4)
+    expect(screen.getByRole('switch', { name: /Yangiliklar va PRO/ }).getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('switch', { name: /Rejalashtirilgan post eslatmalari/ }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('almashtirilsa PATCH {notifications:{kalit:bool}} ketadi va holat o\'zgaradi', async () => {
+    const f = await openNotif((url, init) => init.method === 'PATCH' && url.endsWith('/me/settings')
+      ? jsonResponse({ notifications: JSON.parse(String(init.body)).notifications }) : undefined)
+    fireEvent.click(screen.getByRole('switch', { name: /Yangiliklar va PRO/ }))
+    expect(await screen.findByText('Saqlandi.')).toBeTruthy()
+    const patch = f.mock.calls.find((c) => c[1]?.method === 'PATCH')!
+    expect(JSON.parse(String((patch[1] as RequestInit).body))).toEqual({ notifications: { notify_news: true } })
+    expect(screen.getByRole('switch', { name: /Yangiliklar va PRO/ }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('saqlash xatosida avvalgi holatga qaytadi va xabar chiqadi', async () => {
+    await openNotif((_url, init) => init.method === 'PATCH' ? jsonResponse(errorBody('save_failed'), 503) : undefined)
+    fireEvent.click(screen.getByRole('switch', { name: /Rejalashtirilgan post eslatmalari/ }))
+    expect(await screen.findByText(/saqlab bo'lmadi|Saqlab bo'lmadi|saqlanmadi/i)).toBeTruthy()
+    expect(screen.getByRole('switch', { name: /Rejalashtirilgan post eslatmalari/ }).getAttribute('aria-checked')).toBe('true')
   })
 })

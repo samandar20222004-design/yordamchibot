@@ -80,15 +80,17 @@ export function isValidBotUsername(username: string | null | undefined): usernam
   return typeof username === 'string' && USERNAME_RE.test(username)
 }
 
+/** Botdagi bo'lim (deep-link). Bot `/start go_<bo'lim>` ni FAQAT shu ro'yxat bo'yicha tanlaydi (qat'iy ruxsat ro'yxati). */
+export type BotSection = 'plans' | 'settings' | 'help'
+const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help']
+
 /**
- * Botni Telegram ichida ochadi: FAQAT `https://t.me/<username>` (chatni ochadi, xolos).
- * `?start=<payload>` ATAYLAB ishlatilmaydi: bot `/start` handleri faqat `ref_<id>` ni tanlaydi va qolgan
- * boshqa payloadlarni e'tiborsiz qoldiradi; /newpost va PRO oqimlari havoladan ochilmaydi.
- * Shuning uchun /newpost va PRO oqimlari havola orqali EMAS, foydalanuvchi buyruq yuborishi bilan ochiladi.
+ * Botni Telegram ichida ochadi: `https://t.me/<username>`; `section` berilsa `?start=go_<bo'lim>` qo'shiladi va bot
+ * kerakli bo'limni (masalan tariflar kartasini) o'zi ochadi. Faqat ruxsat ro'yxatidagi bo'limlar; xom payload YO'Q.
  */
-export function openBot(username: string | null | undefined): boolean {
+export function openBot(username: string | null | undefined, section?: BotSection): boolean {
   if (!isValidBotUsername(username)) return false
-  const url = `https://t.me/${username}`
+  const url = section && BOT_SECTIONS.includes(section) ? `https://t.me/${username}?start=go_${section}` : `https://t.me/${username}`
   const app = webApp()
   try {
     if (app?.openTelegramLink) {

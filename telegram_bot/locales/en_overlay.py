@@ -1221,6 +1221,13 @@ EN_OVERLAY = {
     ),
     "np_album_choice_first_photo": "🖼 1 photo + button",
     "np_album_choice_full": "⏩ Full album",
+    "btn_album_add_more": "➕ Add more",
+    "btn_album_undo": "↩️ Remove file",
+    "np_album_add_more_prompt": (
+        "➕ <b>Send more photos or videos</b> (up to 10 in total). "
+        "When you are done, pick one of the options below."
+    ),
+    "np_album_undone": "↩️ The last file was removed. The album now has {count} media.",
     "np_album_first_photo_done": (
         "✅ Post changed to a single photo — now you can add a button or reactions."
     ),

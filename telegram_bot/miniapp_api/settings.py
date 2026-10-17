@@ -91,6 +91,9 @@ class MiniAppSettings:
     rate_write_window: float = 60.0
     rate_ai_limit: int = 4
     rate_ai_window: float = 60.0
+    rate_upload_limit: int = 20
+    rate_upload_window: float = 60.0
+    upload_timeout_seconds: float = 240.0
     ai_concurrency: int = 4
     ai_timeout_seconds: float = 30.0
     max_body_bytes: int = 32768
@@ -181,6 +184,9 @@ def load_settings(env: Mapping[str, str] | None = None) -> MiniAppSettings:
         rate_write_window=float(_int(env, "MINIAPP_RATE_WRITE_WINDOW", 60, lo=1, hi=3600)),
         rate_ai_limit=_int(env, "MINIAPP_RATE_AI_LIMIT", 4, lo=1, hi=1000),
         rate_ai_window=float(_int(env, "MINIAPP_RATE_AI_WINDOW", 60, lo=1, hi=3600)),
+        rate_upload_limit=_int(env, "MINIAPP_RATE_UPLOAD_LIMIT", 20, lo=1, hi=1000),
+        rate_upload_window=float(_int(env, "MINIAPP_RATE_UPLOAD_WINDOW", 60, lo=1, hi=3600)),
+        upload_timeout_seconds=float(_int(env, "MINIAPP_UPLOAD_TIMEOUT_SECONDS", 240, lo=30, hi=900)),
         ai_concurrency=_int(env, "MINIAPP_AI_CONCURRENCY", 4, lo=1, hi=32),
         ai_timeout_seconds=float(_int(env, "MINIAPP_AI_TIMEOUT_SECONDS", 30, lo=5, hi=120)),
         max_body_bytes=_int(env, "MINIAPP_MAX_BODY_BYTES", 32768, lo=1024, hi=262144),
