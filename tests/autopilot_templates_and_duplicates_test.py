@@ -301,7 +301,7 @@ class FakeStore:
             if "FROM CHANNEL_POSTS_HISTORY" in su and su.startswith("SELECT"):
                 ch_id, limit = str(params[0]), int(params[1])
                 texts = st.history.get(ch_id, [])[:limit]
-                now = datetime(2026, 9, 16, 12, 0, 0)
+                now = datetime.now() - timedelta(days=1)  # real vaqtga nisbatan (30 kunlik oyna sanaga bog'liq bo'lib qolmasin)
                 # Real SELECT ustun tartibi (9 ustun): id, channel_id, message_id, content, views, post_date,
                 # created_at, views_source, views_collected_at (oxirgi ikkitasi analitika asosida qo'shilgan).
                 self._rows = [
