@@ -241,3 +241,74 @@ describe('Bosh sahifa', () => {
     expect(screen.getByRole('button', { name: 'Post rejalash' })).toBeTruthy()
   })
 })
+
+describe('Bot bilan bog\'lanish (uzilishsiz)', () => {
+  it('Bosh: «Botdagi imkoniyatlar» har biri botning aynan shu bo\'limini ochadi', async () => {
+    const openTelegramLink = vi.fn()
+    const selectionChanged = vi.fn()
+    setTelegram('query_id=1', { openTelegramLink, HapticFeedback: { selectionChanged, impactOccurred: vi.fn() } })
+    mockApi(okRoutes)
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    const tools = within(screen.getByRole('region', { name: 'Botdagi imkoniyatlar' }))
+    const cases: Array<[RegExp, string]> = [
+      [/^Kanal qo'shish/, 'go_channels'], [/^Post tozalagich/, 'go_cleaner'],
+      [/^Do'stlarni taklif/, 'go_invite'], [/^PRO tariflar/, 'go_plans'],
+    ]
+    for (const [name, payload] of cases) {
+      fireEvent.click(tools.getByRole('button', { name }))
+      expect(openTelegramLink).toHaveBeenLastCalledWith(`https://t.me/PostAssistrobot?start=${payload}`)
+    }
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Reja/ }))
+    expect(selectionChanged).toHaveBeenCalled() // bo'lim almashganda tebranish
+  })
+
+  it('Kanal yo\'q: «Kanal qo\'shish» botdagi kanal ulash bo\'limini ochadi (Bosh va Post)', async () => {
+    const openTelegramLink = vi.fn()
+    setTelegram('query_id=1', { openTelegramLink })
+    const empty = { ...ME, usage: { ...ME.usage, channels: 0 } }
+    mockApi((url) => {
+      if (url.includes('/me')) return jsonResponse(empty)
+      if (url.includes('/channels')) return jsonResponse({ items: [], total: 0 })
+      return okRoutes(url)
+    })
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    const state = screen.getByRole('heading', { name: 'Hali kanal ulanmagan' }).parentElement!
+    fireEvent.click(within(state).getByRole('button', { name: "Kanal qo'shish" }))
+    expect(openTelegramLink).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_channels')
+    openTelegramLink.mockClear()
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Post/ }))
+    fireEvent.click(await screen.findByRole('button', { name: "Kanal qo'shish" }))
+    expect(openTelegramLink).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_channels')
+  })
+
+  it('Men: «Do\'stlarni taklif» referal ekranini, Kanallarim «Kanal qo\'shish»ni ochadi', async () => {
+    const openTelegramLink = vi.fn()
+    setTelegram('query_id=1', { openTelegramLink })
+    mockApi(okRoutes)
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Men/ }))
+    const row = (name: RegExp) => screen.getAllByRole('button', { name }).find((b) => b.classList.contains('set-row'))!
+    fireEvent.click(await waitFor(() => row(/^Do'stlarni taklif/)))
+    expect(openTelegramLink).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_invite')
+    fireEvent.click(row(/^Kanallarim/))
+    await screen.findByText('Kanal A')
+    fireEvent.click(screen.getByRole('button', { name: "Kanal qo'shish" }))
+    expect(openTelegramLink).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot?start=go_channels')
+  })
+
+  it('Reja bo\'sh: «Post yozish» Mini App muharririni ochadi (botga chiqarib yubormaydi)', async () => {
+    const openTelegramLink = vi.fn()
+    setTelegram('query_id=1', { openTelegramLink })
+    mockApi((url) => (url.includes('/scheduled-posts')
+      ? jsonResponse({ items: [], total: 0, limit: 20, offset: 0, has_more: false }) : okRoutes(url)))
+    render(<App />)
+    await screen.findByText('Salom, Alice!')
+    fireEvent.click(within(screen.getByRole('navigation')).getByRole('button', { name: /Reja/ }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Post yozish' }))
+    await screen.findByLabelText('Post matni')
+    expect(openTelegramLink).not.toHaveBeenCalled()
+  })
+})

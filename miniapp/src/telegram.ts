@@ -10,6 +10,11 @@ interface TgWebApp {
   expand?: () => void
   close?: () => void
   openTelegramLink?: (url: string) => void
+  HapticFeedback?: {
+    impactOccurred?: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft') => void
+    notificationOccurred?: (type: 'success' | 'error' | 'warning') => void
+    selectionChanged?: () => void
+  }
   onEvent?: (event: string, cb: () => void) => void
   offEvent?: (event: string, cb: () => void) => void
 }
@@ -81,8 +86,8 @@ export function isValidBotUsername(username: string | null | undefined): usernam
 }
 
 /** Botdagi bo'lim (deep-link). Bot `/start go_<bo'lim>` ni FAQAT shu ro'yxat bo'yicha tanlaydi (qat'iy ruxsat ro'yxati). */
-export type BotSection = 'plans' | 'settings' | 'help'
-const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help']
+export type BotSection = 'plans' | 'settings' | 'help' | 'channels' | 'invite' | 'cleaner'
+const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help', 'channels', 'invite', 'cleaner']
 
 /**
  * Botni Telegram ichida ochadi: `https://t.me/<username>`; `section` berilsa `?start=go_<bo'lim>` qo'shiladi va bot
@@ -92,6 +97,7 @@ export function openBot(username: string | null | undefined, section?: BotSectio
   if (!isValidBotUsername(username)) return false
   const url = section && BOT_SECTIONS.includes(section) ? `https://t.me/${username}?start=go_${section}` : `https://t.me/${username}`
   const app = webApp()
+  haptic('tap')
   try {
     if (app?.openTelegramLink) {
       app.openTelegramLink(url)
@@ -102,6 +108,18 @@ export function openBot(username: string | null | undefined, section?: BotSectio
   }
   window.open(url, '_blank', 'noopener,noreferrer')
   return true
+}
+
+/** Telegram tebranish (haptic) javobi: tugma bosilganini his qilish uchun. SDK yo'q yoki xato bersa jim. */
+export function haptic(kind: 'tap' | 'select' | 'success' | 'error' = 'tap'): void {
+  const h = webApp()?.HapticFeedback
+  try {
+    if (kind === 'select') h?.selectionChanged?.()
+    else if (kind === 'success' || kind === 'error') h?.notificationOccurred?.(kind)
+    else h?.impactOccurred?.('light')
+  } catch {
+    /* e'tiborsiz */
+  }
 }
 
 /** SDK'ni ishga tushiradi va tema/viewport o'zgarishlariga obuna bo'ladi. Qaytgan funksiya obunani bekor qiladi. */

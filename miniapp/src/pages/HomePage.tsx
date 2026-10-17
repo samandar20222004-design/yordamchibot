@@ -3,9 +3,9 @@ import { useAppData } from '../AppData'
 import { BrandMark } from '../components/BrandMark'
 import { Icon, type IconName } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
-import { Badge, Button, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
+import { Badge, Button, CountUp, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useI18n, type MessageKey } from '../i18n'
-import { openBot } from '../telegram'
+import { haptic, openBot, type BotSection } from '../telegram'
 import { isUnlimited } from './format'
 import { countdownTo, greetingKey, tipIndex, type Countdown } from './homeUtils'
 
@@ -26,6 +26,14 @@ function Bar({ used, max }: { used: number; max: number }) {
     <div className="stat-bar" aria-hidden="true"><span style={{ width: `${pct}%` }} data-level={pct >= 100 ? 'full' : pct >= 80 ? 'high' : 'ok'} /></div>
   )
 }
+
+/** Botdagi bo'limlar: har biri `?start=go_<bo'lim>` bilan botning aynan shu ekranini ochadi (uzilish yo'q). */
+const BOT_TOOLS: ReadonlyArray<{ section: BotSection; icon: IconName; tone: string; label: MessageKey; sub: MessageKey }> = [
+  { section: 'channels', icon: 'megaphone', tone: 'green', label: 'home.toolChannels', sub: 'home.toolChannelsSub' },
+  { section: 'cleaner', icon: 'sparkle', tone: 'blue', label: 'home.toolCleaner', sub: 'home.toolCleanerSub' },
+  { section: 'invite', icon: 'gift', tone: 'rose', label: 'home.toolInvite', sub: 'home.toolInviteSub' },
+  { section: 'plans', icon: 'diamond', tone: 'gold', label: 'home.toolPlans', sub: 'home.toolPlansSub' },
+]
 
 export function HomePage() {
   const { me, draft, go, botUsername } = useAppData()
@@ -55,11 +63,13 @@ export function HomePage() {
     { done: posts.sent + usage.pending_posts > 0, label: t('home.step2'), icon: 'post' },
     { done: usage.pending_posts > 0 || posts.sent > 0, label: t('home.step3'), icon: 'clock' },
   ]
-  const tiles: Array<{ icon: IconName; label: MessageKey; to: 'post' | 'schedule' | 'me'; primary?: boolean }> = [
-    { icon: 'post', label: 'home.goPost', to: 'post', primary: true },
-    { icon: 'calendar', label: 'home.goSchedule', to: 'schedule' },
-    { icon: 'user', label: 'home.goMe', to: 'me' },
+  const tiles: Array<{ icon: IconName; label: MessageKey; to: 'post' | 'schedule' | 'me'; tone: string; primary?: boolean }> = [
+    { icon: 'post', label: 'home.goPost', to: 'post', tone: 'violet', primary: true },
+    { icon: 'calendar', label: 'home.goSchedule', to: 'schedule', tone: 'blue' },
+    { icon: 'user', label: 'home.goMe', to: 'me', tone: 'gold' },
   ]
+  const canOpenBot = openBotAvailable(botUsername)
+  const goTab = (to: 'post' | 'schedule' | 'me') => { haptic('select'); go(to) }
   return (
     <Page wide>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
@@ -67,6 +77,7 @@ export function HomePage() {
 
       <section aria-labelledby="hello" className="card hero hero-wow">
         <div className="hero-glow" aria-hidden="true" />
+        <div className="hero-orbs" aria-hidden="true"><i /><i /><i /></div>
         <div className="hero-top">
           <div className="hero-text">
             <p className="hero-kicker">{t(greetingKey(now.getHours()))}</p>
@@ -79,14 +90,14 @@ export function HomePage() {
           <Badge pro={plan.is_pro}>{planName}</Badge>
           <span className="chip chip-glass">{t('home.heroChannels', { n: usage.channels })}</span>
         </div>
-        <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => go('post')}>{t('home.ctaNew')}</Button>
+        <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => goTab('post')}>{t('home.ctaNew')}</Button>
       </section>
 
       {draft.data?.draft && (
         <section className="card cta-card" aria-labelledby="draft-cta">
           <h2 id="draft-cta">{t('home.draftTitle')}</h2>
           <p className="muted">{t('home.draftBody')}</p>
-          <Button variant="primary" icon="send" block onClick={() => go('post')}>{t('home.draftOpen')}</Button>
+          <Button variant="primary" icon="send" block onClick={() => goTab('post')}>{t('home.draftOpen')}</Button>
         </section>
       )}
 
@@ -102,27 +113,30 @@ export function HomePage() {
           ) : (
             <>
               <p className="muted">{t('home.nextEmpty')}</p>
-              <Button variant="secondary" icon="plus" onClick={() => go('post')}>{t('home.nextCta')}</Button>
+              <Button variant="secondary" icon="plus" onClick={() => goTab('post')}>{t('home.nextCta')}</Button>
             </>
           )}
         </div>
       </section>
 
       <div className="stats stats-wow">
-        <div className="stat"><span className="stat-label">{t('home.channels')}</span>
-          <span className="stat-value">{usage.channels}</span></div>
-        <div className="stat"><span className="stat-label">{t('home.scheduled')}</span>
-          <span className="stat-value">{usage.pending_posts} / {limit(plan.limits.queued_posts)}</span>
+        <div className="stat tone-stat-green"><span className="stat-ico" aria-hidden="true"><Icon name="megaphone" size={18} /></span>
+          <span className="stat-label">{t('home.channels')}</span>
+          <span className="stat-value"><CountUp value={usage.channels} /></span></div>
+        <div className="stat tone-stat-blue"><span className="stat-ico" aria-hidden="true"><Icon name="calendar" size={18} /></span>
+          <span className="stat-label">{t('home.scheduled')}</span>
+          <span className="stat-value"><CountUp value={usage.pending_posts} /> / {limit(plan.limits.queued_posts)}</span>
           <Bar used={usage.pending_posts} max={plan.limits.queued_posts} /></div>
-        <div className="stat"><span className="stat-label">{t('home.sent')}</span>
-          <span className="stat-value">{posts.sent}</span></div>
-        <div className="stat"><span className="stat-label">{t('home.failed')}</span>
-          <span className="stat-value">{posts.failed}</span></div>
-        <div className="stat stat-wide"><span className="stat-label">{t('home.ai')}</span>
-          <span className="stat-value">{usage.ai_requests_today} / {limit(plan.limits.daily_ai_requests)}</span>
+        <div className="stat tone-stat-violet"><span className="stat-ico" aria-hidden="true"><Icon name="send" size={18} /></span>
+          <span className="stat-label">{t('home.sent')}</span>
+          <span className="stat-value"><CountUp value={posts.sent} /></span></div>
+        <div className="stat tone-stat-rose"><span className="stat-ico" aria-hidden="true"><Icon name="close" size={18} /></span>
+          <span className="stat-label">{t('home.failed')}</span>
+          <span className="stat-value"><CountUp value={posts.failed} /></span></div>
+        <div className="stat stat-wide tone-stat-gold"><span className="stat-ico" aria-hidden="true"><Icon name="sparkle" size={18} /></span>
+          <span className="stat-label">{t('home.ai')}</span>
+          <span className="stat-value"><CountUp value={usage.ai_requests_today} /> / {limit(plan.limits.daily_ai_requests)}</span>
           <Bar used={usage.ai_requests_today} max={plan.limits.daily_ai_requests} /></div>
-        <div className="stat stat-wide"><span className="stat-label">{t('home.next')}</span>
-          <span className="stat-value">{nextAt ? formatDateTime(nextAt) : t('home.nextNone')}</span></div>
       </div>
 
       {posts.sent > 0 && <p className="achievement" role="status">{t('home.sentCount', { n: posts.sent })}</p>}
@@ -142,8 +156,8 @@ export function HomePage() {
       )}
       {usage.channels === 0 && (
         <EmptyState title={t('home.noChannelsTitle')} body={t('home.noChannelsBody')}
-          action={openBotAvailable(botUsername)
-            ? <Button variant="primary" icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>
+          action={canOpenBot
+            ? <Button variant="primary" icon="plus" onClick={() => openBot(botUsername, 'channels')}>{t('home.addChannel')}</Button>
             : undefined} />
       )}
 
@@ -151,12 +165,28 @@ export function HomePage() {
         <h2 id="actions" className="group-title">{t('home.actions')}</h2>
         <div className="tiles">
           {tiles.map((x) => (
-            <button key={x.to} type="button" className={`tile${x.primary ? ' tile-primary' : ''}`} onClick={() => go(x.to)}>
-              <Icon name={x.icon} size={26} />{t(x.label)}
+            <button key={x.to} type="button" className={`tile${x.primary ? ' tile-primary' : ''}`} onClick={() => goTab(x.to)}>
+              <span className={`tile-ico tone-${x.tone}`} aria-hidden="true"><Icon name={x.icon} size={22} /></span>{t(x.label)}
             </button>
           ))}
         </div>
       </section>
+
+      {canOpenBot && (
+        <section aria-labelledby="bot-tools">
+          <h2 id="bot-tools" className="group-title">{t('home.botTools')}</h2>
+          <p className="muted small tools-hint">{t('home.botToolsHint')}</p>
+          <div className="bot-tools">
+            {BOT_TOOLS.map((x) => (
+              <button key={x.section} type="button" className="bot-tool" onClick={() => openBot(botUsername, x.section)}>
+                <span className={`set-icon tone-${x.tone}`} aria-hidden="true"><Icon name={x.icon} size={20} /></span>
+                <span className="bot-tool-text"><strong>{t(x.label)}</strong><span>{t(x.sub)}</span></span>
+                <span className="bot-tool-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="card tip-card" aria-labelledby="tip-title">
         <h2 id="tip-title"><Icon name="sparkle" size={18} /> {t('home.tipTitle')}</h2>

@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useI18n, type MessageKey } from '../i18n'
+import { haptic } from '../telegram'
 import { Icon, type IconName } from './Icon'
 import { Button } from './ui'
 
@@ -15,10 +16,13 @@ export const TABS: ReadonlyArray<{ id: Tab; icon: IconName; label: MessageKey }>
 
 export function TabBar({ active, onChange }: { active: Tab; onChange: (tab: Tab) => void }) {
   const { t } = useI18n()
+  const index = Math.max(0, TABS.findIndex((x) => x.id === active))
   return (
-    <nav className="tabbar" aria-label={t('nav.label')}>
+    <nav className="tabbar" aria-label={t('nav.label')} style={{ '--tab-i': index } as CSSProperties}>
+      <span className="tab-pill" aria-hidden="true" />
       {TABS.map((tab) => (
-        <button key={tab.id} type="button" className="tab" onClick={() => onChange(tab.id)}
+        <button key={tab.id} type="button" className="tab"
+          onClick={() => { if (tab.id !== active) haptic('select'); onChange(tab.id) }}
           aria-current={active === tab.id ? 'page' : undefined}>
           <Icon name={tab.icon} />
           <span>{t(tab.label)}</span>

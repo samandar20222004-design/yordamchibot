@@ -126,7 +126,7 @@ export function PostPage() {
         <PageHeader title={t('post.title')} />
         <EmptyState title={t('post.noChannelsTitle')} body={t('post.noChannelsBody')}
           action={openBotAvailable(botUsername)
-            ? <Button variant="primary" icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>
+            ? <Button variant="primary" icon="plus" onClick={() => openBot(botUsername, 'channels')}>{t('home.addChannel')}</Button>
             : undefined} />
       </Page>
     )
