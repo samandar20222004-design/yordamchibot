@@ -31,7 +31,6 @@ Bosqichma-bosqich oqim (har bir qadamda "⬅️ Orqaga" va "❌ Bekor qilish" bo
 Barcha ekranlar bitta xabar (hub) ustida inline navigatsiya bilan ishlaydi:
 yangi xabarlar spam bo'lmaydi, "Orqaga" tugmalari doim mavjud.
 """
-import asyncio
 import json
 import logging
 import re

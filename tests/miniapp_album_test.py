@@ -191,7 +191,6 @@ def main() -> int:
 
         print("\n== 2. Rejalangan post: albom qo'shish / olib tashlash ==")
         pid = mk("photo", "Albom sarlavhasi", "PH")
-        sent0 = len(bot.sent)
         st, b = call("POST", f"/api/v1/posts/{pid}/media?add=1", form=form_file(JPEG))
         row = q("SELECT post_type, file_id FROM scheduled_posts WHERE id=%s", (pid,))[0]
         T.check("rasm qo'shildi: albom (2), matn saqlandi", st == 200 and row[0] == "album" and len(json.loads(row[1])) == 2, f"{st} {row}")

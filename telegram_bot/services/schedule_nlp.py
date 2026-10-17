@@ -20,7 +20,6 @@ import re
 from datetime import datetime, time, timedelta
 
 from services.recurrence import (
-    ALL_DAYS_MASK,
     INTERVAL_MAX_DAYS,
     TASHKENT,
     WEEKEND_MASK,

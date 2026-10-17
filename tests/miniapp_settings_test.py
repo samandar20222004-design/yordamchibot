@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
-import json
 import os
 import sys
 from pathlib import Path
@@ -90,7 +89,6 @@ def main() -> int:
         T.skip("sozlamalar HTTP", "BLOCKED: MINIAPP_TEST_DATABASE_URL (sinov bazasi) berilmagan")
         return T.finish()
 
-    import aiohttp
     import psycopg2
     from aiohttp import web
     from aiohttp.test_utils import TestClient, TestServer
