@@ -110,27 +110,24 @@ EXPECTED_DESCRIPTIONS = {
     "uz": {
         "start": "🚀 Botni qayta ishga tushirish",
         "newpost": "✍️ Yangi post yaratish",
-        "cleaner": "🧹 Post tozalagich va Imzo",
         "settings": "⚙️ Sozlamalar",
         "help": "ℹ️ Yordam",
     },
     "ru": {
         "start": "🚀 Перезапустить бота",
         "newpost": "✍️ Создать пост",
-        "cleaner": "🧹 Авто-чистка и Подпись",
         "settings": "⚙️ Настройки",
         "help": "ℹ️ Помощь",
     },
     "en": {
         "start": "🚀 Restart bot",
         "newpost": "✍️ Create new post",
-        "cleaner": "🧹 Post cleaner & signature",
         "settings": "⚙️ Settings",
         "help": "ℹ️ Help",
     },
 }
 
-EXPECTED_ORDER = ("start", "newpost", "cleaner", "settings", "help")
+EXPECTED_ORDER = ("start", "newpost", "settings", "help")  # /cleaner (imzo) ☰ menyudan olib tashlangan
 #: ☰ menyuda KO'RINMASLIGI kerak bo'lgan texnik/admin buyruqlari.
 HIDDEN_FROM_MENU = ("imagepost", "profile", "channel_advice", "cancel",
                     "admin", "stats", "privacy", "audit")
@@ -145,8 +142,8 @@ def test_registry_contract():
     check("MENU_COMMAND_NAMES spetsifikatsiyadagi tartibda",
           tuple(MC.MENU_COMMAND_NAMES) == EXPECTED_ORDER,
           str(MC.MENU_COMMAND_NAMES))
-    check("MENU_COMMANDS: nom → i18n kalit (5 ta)",
-          len(MC.MENU_COMMANDS) == 5
+    check("MENU_COMMANDS: nom → i18n kalit (4 ta)",
+          len(MC.MENU_COMMANDS) == 4
           and all(isinstance(k, str) and k.startswith("menu_cmd_")
                   for _n, k in MC.MENU_COMMANDS),
           str(MC.MENU_COMMANDS))
@@ -188,7 +185,8 @@ def test_registry_contract():
     check("umumiy i18n pariteti buzilmagan (uz/ru/en)",
           translation_parity_report()["all_in_sync"] is True)
     check("get_text orqali tavsif o'sha-o'sha (kalit emas)",
-          get_text("menu_cmd_cleaner", "ru") == EXPECTED_DESCRIPTIONS["ru"]["cleaner"])
+          get_text("menu_cmd_settings", "ru") == EXPECTED_DESCRIPTIONS["ru"]["settings"])
+    check("/cleaner (imzo) ☰ menyuda YO'Q", "cleaner" not in MC.MENU_COMMAND_NAMES, str(MC.MENU_COMMAND_NAMES))
 
 
 # ===========================================================================
@@ -249,7 +247,7 @@ def test_set_my_commands_localized():
           set(by_lang) == set(LANGS), str(sorted(by_lang)))
     for lang in LANGS:
         payload = by_lang.get(lang) or []
-        check(f"[{lang}] ro'yxatda 5 ta buyruq", len(payload) == 5, str(payload))
+        check(f"[{lang}] ro'yxatda 4 ta buyruq", len(payload) == 4, str(payload))
         check(f"[{lang}] buyruqlar tartibi spetsifikatsiyadagidek",
               tuple(n for n, _d in payload) == EXPECTED_ORDER, str(payload))
         check(f"[{lang}] tavsiflar AYNAN shu tilda",
@@ -273,7 +271,7 @@ def test_set_my_commands_localized():
 
     # Ro'yxat IXCHAM — faqat asosiy amallar (texnik buyruqlar yo'q).
     advertised = {name for _lang, payload in bot.calls for name, _d in payload}
-    check("☰ menyu IXCHAM: faqat 5 ta asosiy buyruq",
+    check("☰ menyu IXCHAM: faqat 4 ta asosiy buyruq",
           advertised == set(EXPECTED_ORDER), str(sorted(advertised)))
     leaked = sorted(advertised & set(HIDDEN_FROM_MENU))
     check("texnik/admin buyruqlari ☰ menyuga chiqarilmagan",
@@ -285,9 +283,9 @@ def test_set_my_commands_localized():
           [c.command for c in commands] == list(EXPECTED_ORDER)
           and all(c.description == EXPECTED_DESCRIPTIONS["ru"][c.command]
                   for c in commands), str(commands))
-    check("localized_command_lists: 3 til, har birida 5 buyruq",
+    check("localized_command_lists: 3 til, har birida 4 buyruq",
           {k: len(v) for k, v in MC.localized_command_lists().items()}
-          == {lang: 5 for lang in LANGS})
+          == {lang: 4 for lang in LANGS})
     check("default_menu_button() — MenuButtonCommands turi",
           isinstance(MC.default_menu_button(), MenuButtonCommands))
 
@@ -438,7 +436,6 @@ def test_seamless_routing():
     expected = {
         "start": "start",
         "newpost": "start_new_post",
-        "cleaner": "cleaner_command",
         "settings": "user_cabinet_menu",
         "help": "help_command",
     }
@@ -447,9 +444,8 @@ def test_seamless_routing():
         check(f"/{command}: birinchi mos handler topildi", bool(kind), str(kind))
         check(f"/{command} → {expected[command]}",
               names == {expected[command]}, str(sorted(names)))
-    check("/cleaner — global CommandHandler (/settings va /help bilan bir qatorda)",
-          _first_target(app, "cleaner")[0] == "CommandHandler",
-          str(_first_target(app, "cleaner")[0]))
+    check("/cleaner (imzo) buyrug'i ro'yxatdan o'tmagan (bo'lim botdan olib tashlangan)",
+          not _has_command_handler(app, "cleaner"), "cleaner handler hali bor")
     check("/newpost — FSM entry point (oraliq qadamsiz yangi post oqimi)",
           _first_target(app, "newpost")[0] == "ConversationHandler(entry)",
           str(_first_target(app, "newpost")[0]))
@@ -461,7 +457,7 @@ def test_seamless_routing():
     group0 = list(app.handlers[0])
     conv_idx = next(i for i, h in enumerate(group0)
                     if isinstance(h, ConversationHandler))
-    for command in ("cleaner", "settings", "help"):
+    for command in ("settings", "help"):
         idx = next(i for i, h in enumerate(group0)
                    if isinstance(h, CommandHandler) and command in h.commands)
         check(f"/{command}: CommandHandler main_conv'dan OLDIN ro'yxatda "
@@ -479,13 +475,6 @@ def test_seamless_routing():
     for command in HIDDEN_FROM_MENU:
         check(f"/{command}: handler SAQLANGAN (menyuda ko'rinmaydi, ishlaydi)",
               _has_command_handler(app, command), command)
-
-    # ``cleaner_command`` haqiqiy modul funksiyasi (mock emas).
-    check("cleaner_command — handlers.settings haqiqiy funksiyasi",
-          getattr(STG.cleaner_command, "__name__", "") == "cleaner_command"
-          and STG.cleaner_command.__module__ == "handlers.settings")
-    check("handlers.cleaner_command ham shu funksiyaga ishora qiladi",
-          H.cleaner_command is STG.cleaner_command)
 
 
 # ===========================================================================
@@ -774,12 +763,12 @@ def test_static_contract():
           "BotCommand(" not in main_src, "takroriy nusxa -> SSOT buzilgan")
     check("main.py: ☰ tugma turi standart «commands» qilib qo'yiladi",
           "set_chat_menu_button" in main_src and "default_menu_button" in main_src)
-    check("menu_commands.py: 5 ta buyruq + 3 til SSOT sifatida e'lon qilingan",
+    check("menu_commands.py: 4 ta buyruq + 3 til SSOT sifatida e'lon qilingan",
           "MENU_COMMANDS" in menu_src and "MENU_COMMAND_LOCALES" in menu_src
           and '"uz", "ru", "en"' in menu_src)
-    check("handlers/__init__.py: /cleaner global CommandHandler sifatida ro'yxatda",
-          'CommandHandler("cleaner", cleaner_command)' in init_src)
-    check("README: /cleaner hujjatlashtirilgan", "`/cleaner`" in readme)
+    check("handlers/__init__.py: /cleaner CommandHandler ro'yxatda YO'Q",
+          'CommandHandler("cleaner"' not in init_src)
+    check("README: /cleaner hujjatda YO'Q", "`/cleaner`" not in readme)
     check("README: ☰ «Menu» tugmasi (set_my_commands) tasvirlangan",
           "set_my_commands" in readme, "")
 
@@ -795,7 +784,6 @@ def main():
     test_set_my_commands_localized()
     test_fail_soft()
     test_seamless_routing()
-    test_cleaner_command_screen()
     test_settings_and_help_commands()
     test_static_contract()
 

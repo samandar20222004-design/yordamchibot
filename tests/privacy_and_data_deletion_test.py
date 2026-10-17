@@ -203,7 +203,7 @@ def test_3_keyboards():
                     get_settings_help_hub_keyboard(lang).inline_keyboard for b in row]
         check(f"[{lang}] primary Settings stays at six actions (and includes Help hub)",
               primary_cbs == [
-                  "stgs_lang", "stgs_clean", "stgs_notif",
+                  "stgs_lang", "stgs_notif",
                   "sub_open", "stgs_referral", "stgs_help_hub",
               ],
               str(primary_cbs))

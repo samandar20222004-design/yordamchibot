@@ -339,12 +339,12 @@ def test_3_inline_duplicates_removed():
               hub_legacy == canon)
         rows = KI.get_settings_profile_keyboard(lang).inline_keyboard
         cbs = [callback for _, callback in canon]
-        check(f"[{lang}] panel: aynan 6 tugma / 3 qator × 2",
-              len(canon) == 6 and len(rows) == 3 and all(len(row) == 2 for row in rows),
+        check(f"[{lang}] panel: aynan 5 tugma / 3 qator (2+2+1)",
+              len(canon) == 5 and [len(row) for row in rows] == [2, 2, 1],
               str(rows))
         check(f"[{lang}] panel: olti asosiy yo'nalish callback tartibi",
               cbs == [
-                  "stgs_lang", "stgs_clean", "stgs_notif",
+                  "stgs_lang", "stgs_notif",
                   "sub_open", "stgs_referral", "stgs_help_hub",
               ], str(cbs))
         check(f"[{lang}] payment/privacy Help/PRO ichida qoladi",

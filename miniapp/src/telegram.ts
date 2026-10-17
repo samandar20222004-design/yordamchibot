@@ -86,12 +86,13 @@ export function isValidBotUsername(username: string | null | undefined): usernam
 }
 
 /** Botdagi bo'lim (deep-link). Bot `/start go_<bo'lim>` ni FAQAT shu ro'yxat bo'yicha tanlaydi (qat'iy ruxsat ro'yxati). */
-export type BotSection = 'plans' | 'settings' | 'help' | 'channels' | 'invite' | 'cleaner'
-const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help', 'channels', 'invite', 'cleaner']
+export type BotSection = 'plans' | 'settings' | 'help' | 'channels' | 'invite'
+const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help', 'channels', 'invite']
 
 /**
  * Botni Telegram ichida ochadi: `https://t.me/<username>`; `section` berilsa `?start=go_<bo'lim>` qo'shiladi va bot
  * kerakli bo'limni (masalan tariflar kartasini) o'zi ochadi. Faqat ruxsat ro'yxatidagi bo'limlar; xom payload YO'Q.
+ * Chat ochilgach Mini App yopiladi (aks holda sahifa botga o'tmay, ilova ustida qolardi).
  */
 export function openBot(username: string | null | undefined, section?: BotSection): boolean {
   if (!isValidBotUsername(username)) return false
@@ -101,6 +102,8 @@ export function openBot(username: string | null | undefined, section?: BotSectio
   try {
     if (app?.openTelegramLink) {
       app.openTelegramLink(url)
+      // Telegram bot chatini ochadi, lekin Mini App ustida qolib ketishi mumkin (iOS): qisqa pauzadan so'ng yopamiz — foydalanuvchi to'g'ridan-to'g'ri botda qoladi.
+      setTimeout(() => { try { app.close?.() } catch { /* e'tiborsiz */ } }, 300)
       return true
     }
   } catch {

@@ -69,10 +69,10 @@ describe('openBot bo\'limlari (deep-link ruxsat ro\'yxati)', () => {
     expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot')
     expect(openBot('bad name', 'plans')).toBe(false)
   })
-  it('channels/invite/cleaner -> botdagi aynan shu ekran (go_channels, go_invite, go_cleaner)', () => {
+  it('channels/invite -> botdagi aynan shu ekran (go_channels, go_invite)', () => {
     const open = vi.fn()
     ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { openTelegramLink: open } }
-    for (const s of ['channels', 'invite', 'cleaner'] as const) {
+    for (const s of ['channels', 'invite'] as const) {
       expect(openBot('PostAssistrobot', s)).toBe(true)
       expect(open).toHaveBeenLastCalledWith(`https://t.me/PostAssistrobot?start=go_${s}`)
     }
@@ -95,5 +95,20 @@ describe('haptic', () => {
     expect(() => haptic()).not.toThrow()
     ;(window as unknown as { Telegram: unknown }).Telegram = undefined
     expect(() => haptic('error')).not.toThrow()
+  })
+})
+
+describe('openBot: chat ochilgach Mini App yopiladi', () => {
+  it('openTelegramLink dan keyin close() chaqiriladi (foydalanuvchi botda qoladi)', () => {
+    vi.useFakeTimers()
+    const open = vi.fn()
+    const close = vi.fn()
+    ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { openTelegramLink: open, close } }
+    expect(openBot('PostAssistrobot', 'plans')).toBe(true)
+    expect(open).toHaveBeenCalledWith('https://t.me/PostAssistrobot?start=go_plans')
+    expect(close).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(400)
+    expect(close).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
   })
 })

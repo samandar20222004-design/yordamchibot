@@ -128,7 +128,7 @@ Mini App botni faqat **`https://t.me/<BOT_USERNAME>`** orqali ochadi (`openTeleg
 | Post | botga `/newpost` yuborish (`CommandHandler("newpost")`) |
 | PRO | `/settings` → «💎 PRO va Tariflar» (`sub_open` → `subscription_callback`); yorliq botdagi `ss_btn_pro_plans` bilan bir xil |
 | Botni ochish | `https://t.me/<BOT_USERNAME>`; `BOT_USERNAME` berilmasa tugma ko'rsatilmaydi |
-| Kanal qo'shish / Do'stlarni taklif / Post tozalagich | `?start=go_channels` / `go_invite` / `go_cleaner` -> bot `channels_menu` / `user_invite_menu` / `cleaner_command` |
+| Kanal qo'shish / Do'stlarni taklif | `?start=go_channels` / `go_invite` -> bot `channels_menu` / `user_invite_menu` |
 | Botda sotib olish / Botga o'tish / Yordam | `?start=go_plans` / `go_settings` / `go_help` |
 
 **`?start=` faqat qat'iy ruxsat ro'yxati bilan:** `/start` handleri `ref_<id>` va `go_<bo'lim>` (`MINIAPP_GO_TARGETS`) ni taniydi;

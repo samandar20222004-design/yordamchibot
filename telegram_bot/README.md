@@ -22,7 +22,7 @@ Serverga chiqarish — [DEPLOYMENT.md](../DEPLOYMENT.md).
 | 📢 Kanallarim | Ulangan kanallar, kanal sozlamalari, kanal uchun post/Autopilot |
 | 📅 Rejalashtirilgan | Navbatdagi postlar: ko'rish, tahrirlash, vaqtini surish, o'chirish |
 | 📊 Statistika | Postlar soni, ko'rishlar, eng yaxshi vaqt |
-| ⚙️ Sozlamalar / Ko'proq | Til, post tozalash va imzo, bildirishnomalar, PRO, bonuslar, yordam |
+| ⚙️ Sozlamalar / Ko'proq | Til, bildirishnomalar, PRO, bonuslar, yordam |
 
 Yangi foydalanuvchi birinchi kunlarda soddalashtirilgan menyuni ko'radi
 («🚀 1 daqiqada post yaratish», «🖼 Rasmdan post olish», «📢 Kanal ulash»).
@@ -31,12 +31,12 @@ Yangi foydalanuvchi birinchi kunlarda soddalashtirilgan menyuni ko'radi
 ### ⚙️ Sozlamalar
 
 ```
-[🌐 Til / Язык]        [🧹 Post tozalash va imzo]
-[🔔 Bildirishnomalar]  [💎 PRO va Tariflar]
-[🎁 Bonuslar]          [❓ Yordam]
+[🌐 Til / Язык]        [🔔 Bildirishnomalar]
+[💎 PRO va Tariflar]   [👥 Do'stlarni taklif]
+[❓ Yordam]
 ```
 
-* **🎁 Bonuslar** — ballar, ballarni o'tkazish, kunlik bonus, do'stlarni taklif.
+* **👥 Do'stlarni taklif** — referal havola va mukofotlar.
 * **❓ Yordam** — qo'llab-quvvatlashga yozish, maxfiylik siyosati, ma'lumotlarni o'chirish.
 
 ## Post yaratish
@@ -55,28 +55,6 @@ Yangi foydalanuvchi birinchi kunlarda soddalashtirilgan menyuni ko'radi
 Har bir post hozir yuborilishi yoki aniq vaqtga rejalashtirilishi mumkin.
 Rejalashtiruvchi har daqiqada vaqti kelgan postlarni yuboradi.
 
-## 🧹 Post tozalash va imzo
-
-`/cleaner` yoki ⚙️ Sozlamalar → 🧹 Post tozalash va imzo.
-
-1. **✍️ Imzoni sozlash** (bir marta): havola (`@kanal`, `https://t.me/kanal`)
-   yoki matn. Matnda havola bo'lmasa, bot unga havola ulashni taklif qiladi
-   (matnning o'zi bosiladigan havola bo'ladi). Cheklov: 10 qator, 300 so'z,
-   2000 belgi — oshsa, nima oshgani aniq ko'rsatiladi.
-2. **🧹 Boshlash** — rejim yoqiladi. Endi yuborilgan yoki forward qilingan har bir
-   post (matn, rasm, video, GIF, hujjat, audio) bir zumda:
-   * oxiridagi begona havola/reklama qatorlari olib tashlanadi
-     (`Reklama: …`, `Obuna bo'ling @…`, `t.me/…`, `Manba: …`, ajratuvchi chiziqlar);
-   * matnning qolgan qismi va formatlashi **o'zgarmaydi**;
-   * oxiriga imzo qo'shiladi.
-3. Tayyor post kanalga yuboriladi: **⚡ Darhol yuborish** yoqilgan va kanal bitta
-   bo'lsa — avtomatik, aks holda post ostidagi kanal tugmasi bilan. Yuborish
-   rejalashtiruvchini kutmasdan darhol boshlanadi.
-
-Telegram limiti: oddiy post 4096, rasm/video izohi 1024 belgi (imzo bilan).
-Oshsa, post yuborilmaydi va qancha qisqartirish kerakligi aytiladi.
-Albomlar (bir nechta fayl) hozircha qo'llab-quvvatlanmaydi.
-
 ## Buyruqlar
 
 Telegram'dagi ☰ «Menu» tugmasida ko'rinadigan buyruqlar bot ishga tushganda
@@ -87,7 +65,6 @@ Telegram'dagi ☰ «Menu» tugmasida ko'rinadigan buyruqlar bot ishga tushganda
 |---|---|
 | `/start` | Bosh menyu |
 | `/newpost` | Yangi post yaratish |
-| `/cleaner` | Post tozalagich va imzo |
 | `/settings` | Sozlamalar |
 | `/help` | Qo'llanma |
 

@@ -1074,9 +1074,9 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     Callback nomlari mavjud oqimlarga ulanadi, shu sababli eski xabarlardagi
     callback'lar ham ishlashda davom etadi.
 
-        [🌐 Til / Язык] [🧹 Post tozalash va imzo]
-        [🔔 Bildirishnomalar] [💎 PRO va Tariflar]
-        [👥 Do'stlarni taklif] [ℹ️ Yordam va Qo'llanma]
+        [🌐 Til / Язык] [🔔 Bildirishnomalar]
+        [💎 PRO va Tariflar] [👥 Do'stlarni taklif]
+        [ℹ️ Yordam va Qo'llanma]
 
     ``get_cabinet_inline_keyboard`` va ``get_settings_hub_keyboard`` bu
     funksiyaga delegatsiya qiladi — vizual tartibning bitta manbasi bor.
@@ -1089,18 +1089,16 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
         [
             InlineKeyboardButton(settings_stats_t("ss_btn_lang", lang),
                                  callback_data="stgs_lang"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_cleaner_primary", lang),
-                                 callback_data="stgs_clean"),
-        ],
-        [
             InlineKeyboardButton(settings_stats_t("ss_btn_notif", lang),
                                  callback_data="stgs_notif"),
-            InlineKeyboardButton(settings_stats_t("ss_btn_pro_plans", lang),
-                                 callback_data="sub_open"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_pro_plans", lang),
+                                 callback_data="sub_open"),
             InlineKeyboardButton(settings_stats_t("ss_rewards_referral", lang),
                                  callback_data="stgs_referral"),
+        ],
+        [
             InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
                                  callback_data="stgs_help_hub"),
         ],

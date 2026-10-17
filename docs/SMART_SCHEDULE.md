@@ -50,7 +50,7 @@ Takrorlanish vaqti Toshkent bo'yicha; qurilma boshqa zonada bo'lsa interfeys bun
 - **📋 Shablonlar** — botdagi shablonlar bilan BIR XIL ro'yxat (`post_templates`, 20 tagacha). `GET/POST /api/v1/templates`, `DELETE /templates/{id}`;
   faqat egasi (begona id -> 404), aynan bir xil takror yaratilmaydi, limit -> `templates_limit_reached`. Kartada: saqlash, «Qo'llash»
   (muharrirda matn bo'lsa almashtirish tasdiqlanadi), o'chirish (tasdiq bilan). Ro'yxat faqat karta ochilganda yuklanadi.
-- Imzo va tozalagich (`/cleaner`) Mini App'ga ATAYLAB qo'shilmagan (egasi qarori) — faqat botda. To'lov, kanal ulash/o'chirish, RSS, Autopilot, rasm/ovozdan post — botda qoladi (to'lov va kanal huquqini
+- Imzo va tozalagich Mini App'da ham, botning menyu/sozlamalarida ham yo'q (egasi qarori). To'lov, kanal ulash/o'chirish, RSS, Autopilot, rasm/ovozdan post — botda qoladi (to'lov va kanal huquqini
   tekshirish Telegram ichida xavfsizroq).
 
 ## Mini App: media yuklash (qurilmadan)

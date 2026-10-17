@@ -5,7 +5,7 @@ Savollar va haqiqiy koddan javoblar:
   * Mini App Post/PRO tugmasi /newpost yoki PRO oqimini OCHA OLADIMI?  -> YO'Q: `https://t.me/<bot>`
     faqat chatni ochadi; buyruqni foydalanuvchi o'zi yuboradi (matn shunga mos).
   * `/start <payload>` deep-link: `ref_<id>` VA qat'iy ruxsat ro'yxati
-    `go_plans|go_settings|go_help|go_channels|go_invite|go_cleaner` (Mini App «Sotib olish», «Botga o'tish»,
+    `go_plans|go_settings|go_help|go_channels|go_invite` (Mini App «Sotib olish», «Botga o'tish»,
     «Kanal qo'shish», «Do'stlarni taklif», «Post tozalagich»); boshqa payload e'tiborsiz. Mini App faqat `go_<bo'lim>` quradi.
   * Matnda aytilgan yo'l haqiqatmi? /settings -> «💎 PRO va Tariflar» -> `sub_open`.
 Ruxsat ro'yxati kengaysa bu test ataylab yiqiladi: Mini App (telegram.ts) va bot (MINIAPP_GO_TARGETS) birga yangilansin.
@@ -16,6 +16,7 @@ import inspect
 import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from miniapp_testkit import REPO, Counter  # noqa: E402
@@ -71,11 +72,11 @@ def test_start_payload_behaviour():
     T.check("start() ichida payload orqali /newpost yoki PRO ga yo'naltirish YO'Q", not routed, str(routed))
     T.check("start() `ref_` prefiksini va `go_` ruxsat ro'yxatini (MINIAPP_GO_TARGETS) tanlaydi",
             src.count("arg.startswith(") == 1 and "arg in MINIAPP_GO_TARGETS" in src and not re.search(r"\barg\s*(==|!=)", src))
-    T.check("go_ ruxsat ro'yxati faqat plans/settings/help/channels/invite/cleaner",
-            sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_channels", "go_cleaner", "go_help", "go_invite", "go_plans", "go_settings"])
+    T.check("go_ ruxsat ro'yxati faqat plans/settings/help/channels/invite",
+            sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_channels", "go_help", "go_invite", "go_plans", "go_settings"])
     go_src = inspect.getsource(start_mod._open_go_target)
     for target, handler in (("plans", "send_subscription_card"), ("settings", "user_cabinet_menu"), ("help", "help_command"),
-                            ("channels", "channels_menu"), ("invite", "user_invite_menu"), ("cleaner", "cleaner_command")):
+                            ("channels", "channels_menu"), ("invite", "user_invite_menu")):
         T.check(f"go_{target} -> botdagi haqiqiy ekran ({handler})",
                 f'target == "{target}"' in go_src and f"await {handler}(" in go_src)
     tg = (SRC / "telegram.ts").read_text(encoding="utf8")
@@ -91,7 +92,6 @@ def test_go_targets_runtime():
 
     start_mod = importlib.import_module("handlers.start")
     channels_mod = importlib.import_module("handlers.channels")
-    settings_mod = importlib.import_module("handlers.settings")
     sub_mod = importlib.import_module("handlers.subscription")
     called = []
 
@@ -101,14 +101,14 @@ def test_go_targets_runtime():
         return _f
 
     patches = [(start_mod, "user_cabinet_menu"), (start_mod, "help_command"), (start_mod, "user_invite_menu"),
-               (channels_mod, "channels_menu"), (settings_mod, "cleaner_command"), (sub_mod, "send_subscription_card")]
+               (channels_mod, "channels_menu"), (sub_mod, "send_subscription_card")]
     saved = [(m, n, getattr(m, n)) for m, n in patches]
     try:
         for m, n in patches:
             setattr(m, n, fake(n))
         upd = SimpleNamespace(message=object(), effective_user=SimpleNamespace(id=1))
         expected = {"plans": "send_subscription_card", "settings": "user_cabinet_menu", "help": "help_command",
-                    "channels": "channels_menu", "invite": "user_invite_menu", "cleaner": "cleaner_command"}
+                    "channels": "channels_menu", "invite": "user_invite_menu"}
         for target, handler in expected.items():
             called.clear()
             asyncio.run(start_mod._open_go_target(upd, SimpleNamespace(), target, "uz"))
@@ -133,7 +133,7 @@ def test_real_flows():
     T.check("`sub_` callbacklari subscription_callback'ga ulangan",
             'CallbackQueryHandler(subscription_callback, pattern=r"^sub_")' in handlers_src)
     names = menu_commands.MENU_COMMAND_NAMES
-    T.check("☰ menyuda newpost, settings, cleaner bor", all(n in names for n in ("newpost", "settings", "cleaner")))
+    T.check("☰ menyuda newpost, settings bor; /cleaner (imzo) yo'q", all(n in names for n in ("newpost", "settings")) and "cleaner" not in names)
     start_src = (BOT / "handlers" / "start.py").read_text(encoding="utf8")
     T.check("/settings (user_cabinet_menu) hub klaviaturasini yuboradi", "get_settings_hub_keyboard(lang)" in start_src.split("async def user_cabinet_menu")[1].split("async def ")[0])
     msgs = (REPO / "miniapp" / "src" / "i18n" / "messages.ts").read_text(encoding="utf8")

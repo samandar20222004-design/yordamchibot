@@ -745,7 +745,7 @@ def test_unified_content_menu():
 def test_profile_cleanup():
     print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 6 tugma (3×2) ==")
     expected_settings_cbs = [
-        "stgs_lang", "stgs_clean", "stgs_notif",
+        "stgs_lang", "stgs_notif",
         "sub_open", "stgs_referral", "stgs_help_hub",
     ]
     for lang in LANGS:
@@ -757,13 +757,13 @@ def test_profile_cleanup():
               "cab_lang" not in cbs, str(cbs))
         check(f"[{lang}] Settings grid: six callbacks in specification order",
               cbs == expected_settings_cbs, str(cbs))
-        check(f"[{lang}] Settings grid: language and cleaner are first row",
-              labels and labels[0].startswith("🌐") and labels[1].startswith("🧹"),
+        check(f"[{lang}] Settings grid: language and notifications are first row",
+              labels and labels[0].startswith("🌐") and labels[1].startswith("🔔"),
               str(labels))
-        check(f"[{lang}] Settings grid: notifications and PRO are second row",
-              labels and labels[2].startswith("🔔") and labels[3].startswith("💎"), str(labels))
-        check(f"[{lang}] Settings grid: referral and help are third row",
-              labels and labels[4].startswith("👥") and labels[5].startswith("ℹ️"), str(labels))
+        check(f"[{lang}] Settings grid: PRO and referral are second row",
+              labels and labels[2].startswith("💎") and labels[3].startswith("👥"), str(labels))
+        check(f"[{lang}] Settings grid: help is third row",
+              labels and labels[4].startswith("ℹ️") and len(labels) == 5, str(labels))
         check(f"[{lang}] profil: dublikat yo'q",
               len(labels) == len(set(labels)), str(labels))
 

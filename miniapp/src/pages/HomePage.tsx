@@ -30,7 +30,6 @@ function Bar({ used, max }: { used: number; max: number }) {
 /** Botdagi bo'limlar: har biri `?start=go_<bo'lim>` bilan botning aynan shu ekranini ochadi (uzilish yo'q). */
 const BOT_TOOLS: ReadonlyArray<{ section: BotSection; icon: IconName; tone: string; label: MessageKey; sub: MessageKey }> = [
   { section: 'channels', icon: 'megaphone', tone: 'green', label: 'home.toolChannels', sub: 'home.toolChannelsSub' },
-  { section: 'cleaner', icon: 'sparkle', tone: 'blue', label: 'home.toolCleaner', sub: 'home.toolCleanerSub' },
   { section: 'invite', icon: 'gift', tone: 'rose', label: 'home.toolInvite', sub: 'home.toolInviteSub' },
   { section: 'plans', icon: 'diamond', tone: 'gold', label: 'home.toolPlans', sub: 'home.toolPlansSub' },
 ]

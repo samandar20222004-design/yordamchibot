@@ -597,7 +597,7 @@ def test_one_time_ticket_flow():
           bool(query.edits)
           and _flat_cbs(query.screen.get("markup"))
           == [
-              "stgs_lang", "stgs_clean", "stgs_notif",
+              "stgs_lang", "stgs_notif",
               "sub_open", "stgs_referral", "stgs_help_hub",
           ],
           str(_flat_cbs(query.screen.get("markup"))))
@@ -994,7 +994,7 @@ def test_regression_and_parity():
     hub_cbs = _flat_cbs(get_settings_hub_keyboard("uz"))
     check("hub: six primary actions (3x2)",
           hub_cbs == [
-              "stgs_lang", "stgs_clean", "stgs_notif",
+              "stgs_lang", "stgs_notif",
               "sub_open", "stgs_referral", "stgs_help_hub",
           ],
           str(hub_cbs))

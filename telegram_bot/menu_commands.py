@@ -46,7 +46,6 @@ from locales.translations import (
 MENU_COMMANDS: tuple[tuple[str, str], ...] = (
     ("start", "menu_cmd_start"),
     ("newpost", "menu_cmd_newpost"),
-    ("cleaner", "menu_cmd_cleaner"),
     ("settings", "menu_cmd_settings"),
     ("help", "menu_cmd_help"),
 )

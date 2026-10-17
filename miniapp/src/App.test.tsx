@@ -252,7 +252,7 @@ describe('Bot bilan bog\'lanish (uzilishsiz)', () => {
     await screen.findByText('Salom, Alice!')
     const tools = within(screen.getByRole('region', { name: 'Botdagi imkoniyatlar' }))
     const cases: Array<[RegExp, string]> = [
-      [/^Kanal qo'shish/, 'go_channels'], [/^Post tozalagich/, 'go_cleaner'],
+      [/^Kanal qo'shish/, 'go_channels'],
       [/^Do'stlarni taklif/, 'go_invite'], [/^PRO tariflar/, 'go_plans'],
     ]
     for (const [name, payload] of cases) {

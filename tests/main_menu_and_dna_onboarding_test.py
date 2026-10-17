@@ -207,13 +207,12 @@ def test_2_settings_primary_grid():
         rows = ik_rows(kb)
         cbs = [cb for _, cb in ik_flat(kb)]
         labels = [t for t, _ in ik_flat(kb)]
-        check(f"[{lang}] 6 tugma / 3 qator × 2",
-              len(labels) == 6 and len(rows) == 3
-              and all(len(row) == 2 for row in rows), str(rows))
+        check(f"[{lang}] 5 tugma / 3 qator (2+2+1; imzo tugmasi olib tashlangan)",
+              len(labels) == 5 and [len(row) for row in rows] == [2, 2, 1], str(rows))
         check(f"[{lang}] callback tartibi SSOT bilan bir xil",
               cbs == list(CB_SETTINGS_HUB), str(cbs))
-        check(f"[{lang}] cleaner yorlig'i localized",
-              settings_stats_t("ss_btn_cleaner_primary", lang) in labels, str(labels))
+        check(f"[{lang}] imzo/tozalash tugmasi hub'da YO'Q",
+              "stgs_clean" not in cbs and settings_stats_t("ss_btn_cleaner_primary", lang) not in labels, str(labels))
         check(f"[{lang}] PRO yorlig'i = ss_btn_pro_plans",
               settings_stats_t("ss_btn_pro_plans", lang) in labels, str(labels))
         check(f"[{lang}] referral va help yorliqlari localized",
