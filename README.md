@@ -6,6 +6,7 @@ rejalashtirish, kanalga vaqtida joylash, statistika va PRO obuna.
 * **Bot imkoniyatlari (foydalanuvchi uchun):** [telegram_bot/README.md](telegram_bot/README.md)
 * **Serverga chiqarish:** [DEPLOYMENT.md](DEPLOYMENT.md)
 * **Barcha muhit o'zgaruvchilari:** [.env.example](.env.example)
+* **Dasturchi hujjatlari:** [arxitektura](docs/ARCHITECTURE.md) · [papkalar](docs/PROJECT_STRUCTURE.md) · [yangi funksiya qayerga](docs/DEVELOPMENT.md) · [Mini App API](docs/API.md) · [Mini App ⇄ bot](docs/MINIAPP.md) · [testlar](docs/TESTING.md) · [tozalash auditi](docs/CLEANUP_AUDIT.md)
 * **Payme integratsiyasi:** [docs/PAYME.md](docs/PAYME.md) · **Bayram kalendari:** [docs/CALENDAR.md](docs/CALENDAR.md)
 
 Texnologiyalar: Python 3.11, [python-telegram-bot](https://python-telegram-bot.org/) 21+,

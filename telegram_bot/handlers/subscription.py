@@ -8,7 +8,7 @@ from telegram.ext import BaseHandler, ContextTypes, ConversationHandler
 from config import (
     ADMIN_IDS_SET, BOT_USERNAME,
     CARD_NUMBER, CARD_HOLDER, PAYMENT_ADMIN_USERNAME,
-    PLAN_PRO, PLAN_ULTRA, STARS_PLANS, SUBSCRIPTION_PLANS, TARIFF_CATALOG, TARIFF_KEYS, TIER_LIMITS,
+    PLAN_PRO, PLAN_ULTRA, STARS_PLANS, TARIFF_CATALOG, TARIFF_KEYS, TIER_LIMITS,
     UNLIMITED_LIMIT, key_for_days, plan_discount_percent, tariff_keys_for, tier_of_key,
 )
 import database as db
