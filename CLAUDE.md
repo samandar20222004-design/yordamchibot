@@ -98,6 +98,8 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 - **Yuklash tezligi:** `index.html` da `#boot` yuklash ekrani (birinchi kadrdan ilova tayyor bo'lguncha BITTA animatsiya; `src/boot.ts:hideBoot`), Telegram SDK `defer`; build `scripts/compress-dist.mjs` bilan `.br`/`.gz` yaratadi (aiohttp o'zi beradi: JS ~350 KB -> ~90 KB).
 - **Profil (Men):** qatorlar Tarif / Til / Kanallarim alohida ekranlarda (`PlansScreen`: davr 1/3/6/12 oy, narx, Stars, tejam, limitlar; `LanguageScreen`; `ChannelsScreen`); `/me` `tiers.{free,pro,ultra}.periods`.
 
+- **Mini App dizayni («vau» qatlami):** `miniapp/src/styles/wow.css` (aurora fon, suzuvchi pastki panel, kirish animatsiyalari, `CountUp`, `haptic`). Mini App -> bot deep-link ruxsat ro'yxati: `go_plans|go_settings|go_help|go_channels|go_invite|go_cleaner` (`handlers/start.py:MINIAPP_GO_TARGETS` va `miniapp/src/telegram.ts:BOT_SECTIONS` AYNAN bir xil bo'lishi `tests/miniapp_navigation_test.py` da tekshiriladi). Bosh sahifada «Botdagi imkoniyatlar».
+
 - **Bot /start animatsiyasi OLIB TASHLANDI** (egasi: 1 soniya ko'rinib yo'qolardi va /start'ni sekinlashtirardi). Qaytarmang.
 
 - **Audit tuzatishlari:** AUDIT-001/002/003/004/005/009/010/011/013/014 + P3 (qarang `docs/AUDIT_OPEN_RISKS.md` — tuzatilganlar (recurring 'yuborildi'+qayta rejalash endi bitta tranzaksiya) va ATAYLAB qoldirilgan qarorlar: 006 Stars refund, 007 chek takrori, 015 global AI budget; 008 qisman (recovery'da kanal tekshiruvi, dublikat to'liq yo'qolmagan); 002: `DELIVERY_CARRY_ATTEMPTS` sukut yoqilgan). Regression testlar `run_tests.sh` oxirida (`scheduler_*`, `subscription_downgrade_race`, `stars_rejected_payment`, `team_i18n`, ...).
