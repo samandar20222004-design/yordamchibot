@@ -297,7 +297,7 @@ def test_album_choice_keyboard():
     print("== 3. Tanlov klaviaturasi (2 inline tugma) ==")
     kb = _album_choice_keyboard("uz")
     rows = _warn_markup(kb)
-    check("2 qator", len(rows) == 2, str(rows))
+    check("3 qator: 2 tanlov + «Yana qo'shish»/«Faylni o'chir»", len(rows) == 3, str(rows))
     check("1-tugma: 1-rasm + callback",
           rows and rows[0] == [("🖼 1-rasm + tugma", "album_choice:first_photo")],
           str(rows))
@@ -307,7 +307,7 @@ def test_album_choice_keyboard():
 
     kb_ru = _album_choice_keyboard("ru")
     rows_ru = _warn_markup(kb_ru)
-    check("ru: 2 qator", len(rows_ru) == 2, str(rows_ru))
+    check("ru: 3 qator", len(rows_ru) == 3, str(rows_ru))
     check("ru: callback'lar o'zgarmaydi",
           rows_ru and rows_ru[0][0][1] == "album_choice:first_photo"
           and rows_ru[1][0][1] == "album_choice:full_album", str(rows_ru))
@@ -347,7 +347,7 @@ def test_collector_shows_album_warning():
     warn = [s for s in bot.sent
             if s["kind"] == "message" and get_text("np_album_warning", "uz") in (s["text"] or "")]
     check("collector: ogohlantirishda 2 tanlov tugmasi",
-          warn and len(_warn_markup(warn[0]["reply_markup"])) == 2,
+          warn and len(_warn_markup(warn[0]["reply_markup"])) == 3,
           str(warn)[:150] if warn else "yo'q")
     check("collector: _album_warning_stage=button belgilandi",
           user_data.get("_album_warning_stage") == "button", str(user_data))
@@ -395,7 +395,7 @@ def test_btn_title_intercept_for_album():
     check("btn_text saqlanMAYDI", user_data.get("btn_text") is None, str(user_data))
     check("btn_url saqlanMAYDI", user_data.get("btn_url") is None, str(user_data))
     check("ogohlantirishda inline tanlov tugmalari",
-          any(len(_warn_markup(m)) == 2 for t, m in msg.replies), str(msg.replies)[:120])
+          any(len(_warn_markup(m)) == 3 for t, m in msg.replies), str(msg.replies)[:120])
     check("stage=button belgilandi", user_data.get("_album_warning_stage") == "button")
 
 
