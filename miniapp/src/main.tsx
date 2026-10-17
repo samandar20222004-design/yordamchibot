@@ -4,6 +4,7 @@ import App from './App'
 import { hideBoot } from './boot'
 import './styles/tokens.css'
 import './styles/base.css'
+import './styles/wow.css'
 
 const root = document.getElementById('root')
 if (root) {

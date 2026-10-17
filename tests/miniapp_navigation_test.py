@@ -4,8 +4,9 @@
 Savollar va haqiqiy koddan javoblar:
   * Mini App Post/PRO tugmasi /newpost yoki PRO oqimini OCHA OLADIMI?  -> YO'Q: `https://t.me/<bot>`
     faqat chatni ochadi; buyruqni foydalanuvchi o'zi yuboradi (matn shunga mos).
-  * `/start <payload>` deep-link: `ref_<id>` VA qat'iy ruxsat ro'yxati `go_plans|go_settings|go_help`
-    (Mini App «Sotib olish» / «Botga o'tish»); boshqa payload e'tiborsiz. Mini App faqat `go_<bo'lim>` quradi.
+  * `/start <payload>` deep-link: `ref_<id>` VA qat'iy ruxsat ro'yxati
+    `go_plans|go_settings|go_help|go_channels|go_invite|go_cleaner` (Mini App «Sotib olish», «Botga o'tish»,
+    «Kanal qo'shish», «Do'stlarni taklif», «Post tozalagich»); boshqa payload e'tiborsiz. Mini App faqat `go_<bo'lim>` quradi.
   * Matnda aytilgan yo'l haqiqatmi? /settings -> «💎 PRO va Tariflar» -> `sub_open`.
 Ruxsat ro'yxati kengaysa bu test ataylab yiqiladi: Mini App (telegram.ts) va bot (MINIAPP_GO_TARGETS) birga yangilansin.
 """
@@ -71,7 +72,54 @@ def test_start_payload_behaviour():
     T.check("start() ichida payload orqali /newpost yoki PRO ga yo'naltirish YO'Q", not routed, str(routed))
     T.check("start() `ref_` prefiksini va `go_` ruxsat ro'yxatini (MINIAPP_GO_TARGETS) tanlaydi",
             src.count("arg.startswith(") == 1 and "arg in MINIAPP_GO_TARGETS" in src and not re.search(r"\barg\s*(==|!=)", src))
-    T.check("go_ ruxsat ro'yxati faqat plans/settings/help", sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_help", "go_plans", "go_settings"])
+    T.check("go_ ruxsat ro'yxati faqat plans/settings/help/channels/invite/cleaner",
+            sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_channels", "go_cleaner", "go_help", "go_invite", "go_plans", "go_settings"])
+    go_src = inspect.getsource(start_mod._open_go_target)
+    for target, handler in (("plans", "send_subscription_card"), ("settings", "user_cabinet_menu"), ("help", "help_command"),
+                            ("channels", "channels_menu"), ("invite", "user_invite_menu"), ("cleaner", "cleaner_command")):
+        T.check(f"go_{target} -> botdagi haqiqiy ekran ({handler})",
+                f'target == "{target}"' in go_src and f"await {handler}(" in go_src)
+    tg = (SRC / "telegram.ts").read_text(encoding="utf8")
+    sections = sorted(re.findall(r"'([a-z]+)'", re.search(r"const BOT_SECTIONS[^=]*=\s*\[([^\]]*)\]", tg).group(1)))
+    T.check("Mini App bo'limlari bot ruxsat ro'yxati bilan AYNAN bir xil (uzilish yo'q)",
+            sections == sorted(v for v in start_mod.MINIAPP_GO_TARGETS.values()), str(sections))
+
+
+def test_go_targets_runtime():
+    print("\n== 2b. go_<bo'lim>: har biri haqiqatan botdagi ekranni chaqiradi ==")
+    import asyncio
+    import importlib
+
+    start_mod = importlib.import_module("handlers.start")
+    channels_mod = importlib.import_module("handlers.channels")
+    settings_mod = importlib.import_module("handlers.settings")
+    sub_mod = importlib.import_module("handlers.subscription")
+    called = []
+
+    def fake(name):
+        async def _f(*_a, **_k):
+            called.append(name)
+        return _f
+
+    patches = [(start_mod, "user_cabinet_menu"), (start_mod, "help_command"), (start_mod, "user_invite_menu"),
+               (channels_mod, "channels_menu"), (settings_mod, "cleaner_command"), (sub_mod, "send_subscription_card")]
+    saved = [(m, n, getattr(m, n)) for m, n in patches]
+    try:
+        for m, n in patches:
+            setattr(m, n, fake(n))
+        upd = SimpleNamespace(message=object(), effective_user=SimpleNamespace(id=1))
+        expected = {"plans": "send_subscription_card", "settings": "user_cabinet_menu", "help": "help_command",
+                    "channels": "channels_menu", "invite": "user_invite_menu", "cleaner": "cleaner_command"}
+        for target, handler in expected.items():
+            called.clear()
+            asyncio.run(start_mod._open_go_target(upd, SimpleNamespace(), target, "uz"))
+            T.check(f"go_{target} -> {handler}() chaqirildi", called == [handler], str(called))
+        called.clear()
+        asyncio.run(start_mod._open_go_target(upd, SimpleNamespace(), "unknown", "uz"))
+        T.check("noma'lum bo'lim hech narsa ochmaydi", called == [])
+    finally:
+        for m, n, f in saved:
+            setattr(m, n, f)
 
 
 def test_real_flows():
@@ -103,6 +151,7 @@ def test_real_flows():
 def main() -> int:
     test_frontend_links()
     test_start_payload_behaviour()
+    test_go_targets_runtime()
     test_real_flows()
     return T.finish()
 

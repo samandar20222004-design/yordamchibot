@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { ApiClientError } from '../api/client'
 import { closeApp, isValidBotUsername, openBot } from '../telegram'
 import { useI18n, type MessageKey } from '../i18n'
@@ -19,6 +20,33 @@ export function Button({
       {children}
     </button>
   )
+}
+
+function animationsAllowed(): boolean {
+  try {
+    return typeof window.matchMedia === 'function' && typeof window.requestAnimationFrame === 'function'
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
+/** Son 0 dan qiymatgacha silliq o'sadi (birinchi ko'rinishda). Harakat kamaytirilgan bo'lsa darhol yakuniy qiymat. */
+export function CountUp({ value, durationMs = 900 }: { value: number; durationMs?: number }) {
+  const [shown, setShown] = useState(() => (animationsAllowed() && value > 0 ? 0 : value))
+  useEffect(() => {
+    if (!animationsAllowed() || value <= 0) { setShown(value); return }
+    let raf = 0
+    const start = performance.now()
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / durationMs)
+      setShown(Math.round(value * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, durationMs])
+  return <>{shown}</>
 }
 
 export function Badge({ pro = false, children }: { pro?: boolean; children: ReactNode }) {

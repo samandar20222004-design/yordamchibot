@@ -7,12 +7,11 @@ import { MediaGrid, type LocalUpload } from '../components/MediaGrid'
 import { PostThumb } from '../components/PostThumb'
 import { RichTextField } from '../components/RichTextField'
 import { Page, PageHeader } from '../components/Shell'
-import { Badge, Button, EmptyState, ErrorState, FormError, InlineWarning, LoadingBlock, errorMessageKey, openBotAvailable } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorState, FormError, InlineWarning, LoadingBlock, errorMessageKey } from '../components/ui'
 import { config } from '../config'
 import { useScheduleFeed } from '../hooks/useScheduleFeed'
 import { toClientError } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
-import { openBot } from '../telegram'
 import { CalendarView } from './CalendarView'
 import { groupByDay, isFutureEnough, isoToLocalInput, localInputToIso } from './format'
 import { compressImage } from './imageCompress'
@@ -262,7 +261,7 @@ function EditDialog({ post, onClose, onSaved }: {
 }
 
 export function SchedulePage() {
-  const { client, feed: upcoming, me, notify, botUsername } = useAppData()
+  const { client, feed: upcoming, me, notify, botUsername, go } = useAppData()
   const { t, formatDate } = useI18n()
   const [view, setView] = useState<PostFilter | 'calendar'>('pending')
   const [calendarKey, setCalendarKey] = useState(0)
@@ -317,9 +316,7 @@ export function SchedulePage() {
         {feed.items.length === 0 ? (
           view === 'pending' ? (
             <EmptyState title={t('schedule.emptyTitle')} body={t('schedule.emptyBody')}
-              action={openBotAvailable(botUsername)
-                ? <Button variant="primary" icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>
-                : undefined} />
+              action={<Button variant="primary" icon="plus" onClick={() => go('post')}>{t('schedule.emptyCta')}</Button>} />
           ) : <EmptyState title={t('schedule.historyEmptyTitle')} body={t('schedule.historyEmptyBody')} />
         ) : (
           <>

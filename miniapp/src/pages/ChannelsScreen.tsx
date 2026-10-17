@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useAppData } from '../AppData'
 import { Avatar } from '../components/Avatar'
 import { SubPage } from '../components/SubPage'
-import { Button, ErrorState, LoadingBlock } from '../components/ui'
+import { Button, ErrorState, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useI18n } from '../i18n'
+import { openBot } from '../telegram'
 import { ChannelStatsView } from './StatsPage'
 
 /** Kanallarim: ro'yxat (rejadagi postlar, obunachilar) va har bir kanal uchun «Tahlil». */
@@ -42,6 +43,9 @@ export function ChannelsScreen({ onBack }: { onBack: () => void }) {
           </ul>
         )}
       </section>
+      {openBotAvailable(botUsername) && (
+        <Button variant="primary" block icon="plus" onClick={() => openBot(botUsername, 'channels')}>{t('me.addChannel')}</Button>
+      )}
     </SubPage>
   )
 }

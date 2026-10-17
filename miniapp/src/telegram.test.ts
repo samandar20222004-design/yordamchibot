@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getInitData, isInTelegram, openBot } from './telegram'
+import { getInitData, haptic, isInTelegram, openBot } from './telegram'
 
 type W = { Telegram?: unknown }
 const setTg = (v: unknown) => { (window as unknown as W).Telegram = v }
@@ -68,5 +68,32 @@ describe('openBot bo\'limlari (deep-link ruxsat ro\'yxati)', () => {
     expect(openBot('PostAssistrobot', 'admin' as never)).toBe(true)
     expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot')
     expect(openBot('bad name', 'plans')).toBe(false)
+  })
+  it('channels/invite/cleaner -> botdagi aynan shu ekran (go_channels, go_invite, go_cleaner)', () => {
+    const open = vi.fn()
+    ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { openTelegramLink: open } }
+    for (const s of ['channels', 'invite', 'cleaner'] as const) {
+      expect(openBot('PostAssistrobot', s)).toBe(true)
+      expect(open).toHaveBeenLastCalledWith(`https://t.me/PostAssistrobot?start=go_${s}`)
+    }
+  })
+})
+
+describe('haptic', () => {
+  it('SDK bo\'lsa tebranadi, bo\'lmasa yoki xato bersa jim', () => {
+    const impact = vi.fn()
+    const sel = vi.fn()
+    const note = vi.fn()
+    ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { HapticFeedback: { impactOccurred: impact, selectionChanged: sel, notificationOccurred: note } } }
+    haptic()
+    haptic('select')
+    haptic('success')
+    expect(impact).toHaveBeenCalledWith('light')
+    expect(sel).toHaveBeenCalled()
+    expect(note).toHaveBeenCalledWith('success')
+    ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { HapticFeedback: { impactOccurred: () => { throw new Error('x') } } } }
+    expect(() => haptic()).not.toThrow()
+    ;(window as unknown as { Telegram: unknown }).Telegram = undefined
+    expect(() => haptic('error')).not.toThrow()
   })
 })
