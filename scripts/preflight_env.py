@@ -53,6 +53,7 @@ import json
 import os
 import re
 import sys
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -289,6 +290,27 @@ def check_required_and_policy(env: dict[str, str], report: Report) -> str:
         report.ok("ENVIRONMENT_DEFAULT",
                   f"ENVIRONMENT berilmagan — fail-closed '{FAIL_CLOSED_ENVIRONMENT}' "
                   "(config.py standarti).")
+
+    if effective == "production":
+        raw_budget = (env.get("AI_GLOBAL_DAILY_USD") or "").strip()
+        allow_unbounded = (env.get("AI_ALLOW_UNBOUNDED_GLOBAL_BUDGET") or "").strip() == "1"
+        try:
+            global_budget = float(raw_budget)
+        except (TypeError, ValueError):
+            global_budget = 0.0
+        if not (global_budget > 0) and not allow_unbounded:
+            report.error(
+                "AI_GLOBAL_DAILY_BUDGET_NOT_POSITIVE",
+                "ENVIRONMENT=production talab qiladi AI_GLOBAL_DAILY_USD > 0; "
+                "cheklanmagan byudjet uchun AI_ALLOW_UNBOUNDED_GLOBAL_BUDGET=1 ni aniq belgilang.",
+            )
+        elif allow_unbounded and not (global_budget > 0):
+            report.warn(
+                "AI_GLOBAL_DAILY_BUDGET_UNBOUNDED",
+                "AI_GLOBAL_DAILY_USD musbat emas, ammo AI_ALLOW_UNBOUNDED_GLOBAL_BUDGET=1 aniq ruxsat berdi.",
+            )
+        else:
+            report.ok("AI_GLOBAL_DAILY_BUDGET_POSITIVE", "AI_GLOBAL_DAILY_USD musbat qiymatga ega.")
 
     mock = (env.get("AI_ALLOW_MOCK") or "").strip()
     if effective == "production" and _is_truthy(mock):
