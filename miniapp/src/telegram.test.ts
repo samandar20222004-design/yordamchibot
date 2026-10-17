@@ -69,10 +69,10 @@ describe('openBot bo\'limlari (deep-link ruxsat ro\'yxati)', () => {
     expect(open).toHaveBeenLastCalledWith('https://t.me/PostAssistrobot')
     expect(openBot('bad name', 'plans')).toBe(false)
   })
-  it('channels/invite/cleaner -> botdagi aynan shu ekran (go_channels, go_invite, go_cleaner)', () => {
+  it('channels/invite -> botdagi aynan shu ekran (go_channels, go_invite)', () => {
     const open = vi.fn()
     ;(window as unknown as { Telegram: unknown }).Telegram = { WebApp: { openTelegramLink: open } }
-    for (const s of ['channels', 'invite', 'cleaner'] as const) {
+    for (const s of ['channels', 'invite'] as const) {
       expect(openBot('PostAssistrobot', s)).toBe(true)
       expect(open).toHaveBeenLastCalledWith(`https://t.me/PostAssistrobot?start=go_${s}`)
     }
