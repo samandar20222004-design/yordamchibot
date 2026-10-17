@@ -25,7 +25,6 @@ from translations import settings_stats_t  # noqa: E402
 EXPECTED_LABELS = {
     "uz": [
         "🌐 Til / Язык",
-        "🧹 Post tozalash va imzo",
         "🔔 Bildirishnomalar",
         "💎 PRO va Tariflar",
         "👥 Do'stlarni taklif",
@@ -33,7 +32,6 @@ EXPECTED_LABELS = {
     ],
     "ru": [
         "🌐 Язык",
-        "🧹 Автоочистка постов и подпись",
         "🔔 Уведомления",
         "💎 PRO и тарифы",
         "👥 Пригласить друзей",
@@ -41,7 +39,6 @@ EXPECTED_LABELS = {
     ],
     "en": [
         "🌐 Language",
-        "🧹 Post cleaner & signature",
         "🔔 Notifications",
         "💎 PRO & Plans",
         "👥 Invite friends",
@@ -53,7 +50,6 @@ EXPECTED_LABELS = {
 def test():
     expected = [
         "stgs_lang",
-        "stgs_clean",
         "stgs_notif",
         "sub_open",
         "stgs_referral",
@@ -65,7 +61,7 @@ def test():
         texts = [b.text for row in kb.inline_keyboard for b in row]
         assert cbs == expected, f"[{lang}] unexpected Settings callbacks: {cbs}"
         assert texts == EXPECTED_LABELS[lang], f"[{lang}] unexpected labels: {texts}"
-        assert [len(row) for row in kb.inline_keyboard] == [2, 2, 2]
+        assert [len(row) for row in kb.inline_keyboard] == [2, 2, 1]
         assert get_settings_profile_keyboard(lang).inline_keyboard == kb.inline_keyboard
         # Secondary destinations (billing history, privacy, data deletion) remain nested.
         assert not {"stgs_pay", "stgs_privacy", "stgs_delete_data"}.intersection(cbs)

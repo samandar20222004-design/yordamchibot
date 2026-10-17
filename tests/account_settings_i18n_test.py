@@ -155,19 +155,19 @@ def test_cabinet_inline_keyboard_3_langs():
                                   get_settings_help_hub_keyboard)
 
     expected_cbs = [
-        "stgs_lang", "stgs_clean", "stgs_notif",
+        "stgs_lang", "stgs_notif",
         "sub_open", "stgs_referral", "stgs_help_hub",
     ]
     keyboards = {lang: get_cabinet_inline_keyboard(lang) for lang in ("uz", "ru", "en")}
     for lang, kb in keyboards.items():
         rows = [[(b.text, b.callback_data) for b in row] for row in kb.inline_keyboard]
         cbs = [callback for row in rows for _, callback in row]
-        check(f"{lang} Settings: 3 qator × 2 tugma", [len(row) for row in rows] == [2, 2, 2],
+        check(f"{lang} Settings: 3 qator (2+2+1 tugma; imzo/tozalash tugmasi olib tashlangan)", [len(row) for row in rows] == [2, 2, 1],
               str(rows))
-        check(f"{lang} Settings: 6 primary callbacks", cbs == expected_cbs, str(cbs))
-        check(f"{lang} Settings: cleaner, PRO, referral, and help labels localized",
-              bool(rows[0][1][0]) and bool(rows[1][1][0])
-              and bool(rows[2][0][0]) and bool(rows[2][1][0]), str(rows))
+        check(f"{lang} Settings: 5 primary callbacks", cbs == expected_cbs, str(cbs))
+        check(f"{lang} Settings: notifications, PRO, referral, and help labels localized",
+              bool(rows[0][1][0]) and bool(rows[1][0][0])
+              and bool(rows[1][1][0]) and bool(rows[2][0][0]), str(rows))
 
     cbs_by_lang = [[b.callback_data for row in keyboards[lang].inline_keyboard for b in row]
                    for lang in ("uz", "ru", "en")]

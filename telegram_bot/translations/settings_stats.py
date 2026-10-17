@@ -944,11 +944,10 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI (3 qator × 2 tugma)
+# ⚙️ SOZLAMALAR MENYUSI (3 qator: 2+2+1 tugma)
 # ============================================================
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
-    "ss_btn_cleaner_primary",
     "ss_btn_notif",
     "ss_btn_pro_plans",
     "ss_rewards_referral",
@@ -1004,10 +1003,9 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — asosiy 6 tugmali 3×2 grid.
+#: ⚙️ Sozlamalar — asosiy 5 tugma (2+2+1). «Post tozalash va imzo» tugmasi olib tashlangan.
 CB_SETTINGS_HUB = (
     "stgs_lang",
-    "stgs_clean",
     "stgs_notif",
     "sub_open",
     "stgs_referral",

@@ -106,15 +106,15 @@ def check(label, condition, extra=""):
 # SPEKS: menyu tarkibi va yorliqlari (uchala til)
 # ---------------------------------------------------------------------------
 HUB_LABELS = {
-    "uz": (("🌐 Til / Язык", "🧹 Post tozalash va imzo"),
-           ("🔔 Bildirishnomalar", "💎 PRO va Tariflar"),
-           ("👥 Do'stlarni taklif", "ℹ️ Yordam va Qo'llanma")),
-    "ru": (("🌐 Язык", "🧹 Автоочистка постов и подпись"),
-           ("🔔 Уведомления", "💎 PRO и тарифы"),
-           ("👥 Пригласить друзей", "ℹ️ Помощь и руководство")),
-    "en": (("🌐 Language", "🧹 Post cleaner & signature"),
-           ("🔔 Notifications", "💎 PRO & Plans"),
-           ("👥 Invite friends", "ℹ️ Help and Guide")),
+    "uz": (("🌐 Til / Язык", "🔔 Bildirishnomalar"),
+           ("💎 PRO va Tariflar", "👥 Do'stlarni taklif"),
+           ("ℹ️ Yordam va Qo'llanma",)),
+    "ru": (("🌐 Язык", "🔔 Уведомления"),
+           ("💎 PRO и тарифы", "👥 Пригласить друзей"),
+           ("ℹ️ Помощь и руководство",)),
+    "en": (("🌐 Language", "🔔 Notifications"),
+           ("💎 PRO & Plans", "👥 Invite friends"),
+           ("ℹ️ Help and Guide",)),
 }
 
 #: Legacy kabinet callback'lari — menyu KO'RINISHIDA bo'lmasligi shart
@@ -476,9 +476,9 @@ def test_settings_hub_has_no_legacy_duplicates():
         rows = _rows(kb)
         cbs = _cbs(kb)
 
-        check(f"[{lang}] primary grid: 3 qator, har birida 2 tugma",
-              [len(row) for row in rows] == [2, 2, 2], str(len(rows)))
-        check(f"[{lang}] six-button labels match the localized specification",
+        check(f"[{lang}] primary grid: 3 qator (2+2+1 tugma)",
+              [len(row) for row in rows] == [2, 2, 1], str(len(rows)))
+        check(f"[{lang}] five-button labels match the localized specification",
               [[text for text, _ in row] for row in rows]
               == [list(pair) for pair in HUB_LABELS[lang]], str(rows))
         check(f"[{lang}] callback tartibi speks bilan bir xil",

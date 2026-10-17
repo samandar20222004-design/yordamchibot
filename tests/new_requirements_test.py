@@ -240,10 +240,10 @@ def test_ru_cabinet_after_switch_no_crash():
             assert "<b>Настройки</b>" in text, text[:120]
             assert ctx.user_data.get("lang") == "ru", ctx.user_data  # DB'dan hydrate
             labels = [b.text for row in markup.inline_keyboard for b in row]
-            # Settings root is the static 3×2 primary grid (6 buttons).
+            # Settings root: static primary grid (5 buttons; imzo/tozalash tugmasi olib tashlangan).
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
             assert cbs == [
-                "stgs_lang", "stgs_clean", "stgs_notif",
+                "stgs_lang", "stgs_notif",
                 "sub_open", "stgs_referral", "stgs_help_hub",
             ], cbs
             assert "cab_channels" not in cbs, cbs

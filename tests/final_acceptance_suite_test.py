@@ -809,7 +809,7 @@ def test_l_settings_menu_compact_profile_hub():
     # Settings exposes six primary destinations; billing/privacy remain nested.
     header("L", "⚙️ Sozlamalar — 6 tugma / 3×2 grid, uchala tilda bir xil")
     expected_cbs = [
-        "stgs_lang", "stgs_clean", "stgs_notif",
+        "stgs_lang", "stgs_notif",
         "sub_open", "stgs_referral", "stgs_help_hub",
     ]
     base = None
@@ -818,8 +818,8 @@ def test_l_settings_menu_compact_profile_hub():
         cbs = _cbs(kb)
         if base is None:
             base = cbs
-        check(f"[{lang}] Sozlamalar hub = 6 primary actions / 3×2",
-              len(cbs) == 6 and [len(row) for row in kb.inline_keyboard] == [2, 2, 2],
+        check(f"[{lang}] Sozlamalar hub = 5 primary actions (2+2+1; imzo tugmasi olib tashlangan)",
+              len(cbs) == 5 and [len(row) for row in kb.inline_keyboard] == [2, 2, 1],
               str(cbs))
         check(f"[{lang}] secondary PRO/Help actions are nested",
               not any(cb in cbs for cb in ("stgs_pay",

@@ -350,8 +350,9 @@ img.avatar-photo { object-fit: cover; background: var(--border); }
 .hero-text { min-width: 0; }
 .hero-kicker { margin: 0 0 2px; font-size: .8125rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
 .hero-wow h2 { font-size: 1.5rem; line-height: 1.2; overflow-wrap: anywhere; }
-.hero-mark { flex: none; width: 76px; height: 76px; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, .3)); }
-.hero-mark .bm { border-radius: 50%; box-shadow: 0 0 0 3px rgba(255, 255, 255, .35); }
+/* Logo: aylana qirqimi o'ramning O'ZIDA (filter/drop-shadow yo'q — iOS Safari kvadrat "plita" chizib qo'yardi); soya box-shadow bilan */
+.hero-mark { flex: none; width: 76px; height: 76px; border-radius: 50%; overflow: hidden; isolation: isolate; -webkit-mask-image: -webkit-radial-gradient(white, black); box-shadow: 0 0 0 3px rgba(255, 255, 255, .35); }
+.hero-mark .bm { display: block; width: 100%; height: 100%; }
 .hero-chips { position: relative; display: flex; flex-wrap: wrap; gap: var(--s2); }
 .chip-glass { background: rgba(255, 255, 255, .2); color: #fff; }
 .hero-cta { position: relative; background: #fff !important; color: #1f4fd0 !important; font-weight: 700; box-shadow: 0 8px 20px rgba(0, 0, 0, .22); }

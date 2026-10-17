@@ -439,11 +439,10 @@ def test_more_settings_navigation():
         kb = get_settings_profile_keyboard(lang)
         cbs = [cb for _, cb in _flat(kb)]
         rows = kb.inline_keyboard
-        check(f"[{lang}] hub = 6 asosiy tugma", cbs == [
-            "stgs_lang", "stgs_clean", "stgs_notif",
+        check(f"[{lang}] hub = 5 asosiy tugma (imzo/tozalash tugmasi yo'q)", cbs == [
+            "stgs_lang", "stgs_notif",
             "sub_open", "stgs_referral", "stgs_help_hub"], str(cbs))
-        check(f"[{lang}] hub = 3 qator × 2", len(rows) == 3
-              and all(len(r) == 2 for r in rows), str(len(rows)))
+        check(f"[{lang}] hub = 3 qator (2+2+1)", [len(r) for r in rows] == [2, 2, 1], str(len(rows)))
         check(f"[{lang}] sekundar payment/privacy hub'da yo'q",
               not any(c in cbs for c in ("stgs_pay",
                                          "stgs_privacy", "stgs_delete_data")),

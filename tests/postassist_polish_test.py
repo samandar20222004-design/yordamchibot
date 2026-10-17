@@ -137,7 +137,7 @@ def test_1_prompt_dynamic_date_and_anti_hallucination():
 # About/guide/support yagona yordam oynasiga birlashtirildi.
 # ---------------------------------------------------------------------------
 EXPECTED_SETTINGS_CBS = (
-    "stgs_lang", "stgs_clean", "stgs_notif",
+    "stgs_lang", "stgs_notif",
     "sub_open", "stgs_referral", "stgs_help_hub",
 )
 
@@ -157,17 +157,17 @@ def test_2_settings_compact_four_button_layout():
         rows = _kb_rows(kb)
         cbs = [c for row in rows for _t, c in row]
 
-        check(f"[{lang}] 3 qator, har birida 2 tugma",
-              len(rows) == 3 and all(len(r) == 2 for r in rows), str(rows))
-        check(f"[{lang}] jami 6 tugma", len(cbs) == 6, str(cbs))
+        check(f"[{lang}] 3 qator (2+2+1 tugma)",
+              len(rows) == 3 and [len(r) for r in rows] == [2, 2, 1], str(rows))
+        check(f"[{lang}] jami 5 tugma", len(cbs) == 5, str(cbs))
         check(f"[{lang}] callback'lar KANONIK tartibda",
               cbs == list(EXPECTED_SETTINGS_CBS), str(cbs))
-        check(f"[{lang}] r1: [Til | Auto-Cleaner & Imzo]",
-              rows[0][0][1] == "stgs_lang" and rows[0][1][1] == "stgs_clean", str(rows[0]))
-        check(f"[{lang}] r2: [Bildirishnomalar | PRO va Tariflar]",
-              rows[1][0][1] == "stgs_notif" and rows[1][1][1] == "sub_open", str(rows[1]))
-        check(f"[{lang}] r3: [Do'stlarni taklif | Yordam va Qo'llanma]",
-              rows[2][0][1] == "stgs_referral" and rows[2][1][1] == "stgs_help_hub", str(rows[2]))
+        check(f"[{lang}] r1: [Til | Bildirishnomalar]",
+              rows[0][0][1] == "stgs_lang" and rows[0][1][1] == "stgs_notif", str(rows[0]))
+        check(f"[{lang}] r2: [PRO va Tariflar | Do'stlarni taklif]",
+              rows[1][0][1] == "sub_open" and rows[1][1][1] == "stgs_referral", str(rows[1]))
+        check(f"[{lang}] r3: [Yordam va Qo'llanma]",
+              rows[2][0][1] == "stgs_help_hub" and len(rows[2]) == 1, str(rows[2]))
         check(f"[{lang}] payment/privacy secondary actions are not in the grid",
               not any(callback in cbs for callback in
                       ("stgs_pay", "stgs_privacy", "stgs_delete_data")), str(cbs))

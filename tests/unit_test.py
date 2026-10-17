@@ -1129,15 +1129,14 @@ def test_main_menu_layout_v2():
     check("extras: yopish", ex[2][0] == ("❌ Yopish", "extra_close"), str(ex[2]))
 
     cab = [[(b.text, b.callback_data) for b in row] for row in get_cabinet_inline_keyboard().inline_keyboard]
-    # Six primary sections in a 3×2 grid.
-    check("kabinet: 3 qatorli 3×2 primary grid", len(cab) == 3, str(cab))
+    # Five primary sections (2+2+1); imzo/tozalash tugmasi olib tashlangan.
+    check("kabinet: 3 qatorli primary grid (2+2+1)", len(cab) == 3, str(cab))
     expected = [
         [("🌐 Til / Язык", "stgs_lang"),
-         ("🧹 Post tozalash va imzo", "stgs_clean")],
-        [("🔔 Bildirishnomalar", "stgs_notif"),
-         ("💎 PRO va Tariflar", "sub_open")],
-        [("👥 Do'stlarni taklif", "stgs_referral"),
-         ("ℹ️ Yordam va Qo'llanma", "stgs_help_hub")],
+         ("🔔 Bildirishnomalar", "stgs_notif")],
+        [("💎 PRO va Tariflar", "sub_open"),
+         ("👥 Do'stlarni taklif", "stgs_referral")],
+        [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6155,12 +6154,12 @@ def test_cabinet_i18n_suite():
     cab_cbs = [b.callback_data for row in cab.inline_keyboard for b in row]
     check("Settings inline ru: six primary labels are localized",
           all(settings_stats_t(key, "ru") in cab_texts for key in
-              ("ss_btn_lang", "ss_btn_cleaner_primary", "ss_btn_notif",
+              ("ss_btn_lang", "ss_btn_notif",
                "ss_btn_pro_plans", "ss_rewards_referral", "ss_btn_help")),
           str(cab_texts))
     check("kabinet inline ru: six-button callback_data",
           cab_cbs == [
-              "stgs_lang", "stgs_clean", "stgs_notif",
+              "stgs_lang", "stgs_notif",
               "sub_open", "stgs_referral", "stgs_help_hub",
           ],
           str(cab_cbs))

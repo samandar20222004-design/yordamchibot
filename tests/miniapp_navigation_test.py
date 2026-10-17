@@ -133,7 +133,7 @@ def test_real_flows():
     T.check("`sub_` callbacklari subscription_callback'ga ulangan",
             'CallbackQueryHandler(subscription_callback, pattern=r"^sub_")' in handlers_src)
     names = menu_commands.MENU_COMMAND_NAMES
-    T.check("☰ menyuda newpost, settings, cleaner bor", all(n in names for n in ("newpost", "settings", "cleaner")))
+    T.check("☰ menyuda newpost, settings bor; /cleaner (imzo) yo'q", all(n in names for n in ("newpost", "settings")) and "cleaner" not in names)
     start_src = (BOT / "handlers" / "start.py").read_text(encoding="utf8")
     T.check("/settings (user_cabinet_menu) hub klaviaturasini yuboradi", "get_settings_hub_keyboard(lang)" in start_src.split("async def user_cabinet_menu")[1].split("async def ")[0])
     msgs = (REPO / "miniapp" / "src" / "i18n" / "messages.ts").read_text(encoding="utf8")

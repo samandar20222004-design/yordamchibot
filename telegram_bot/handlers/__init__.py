@@ -2260,13 +2260,6 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("settings", user_cabinet_menu))
     app.add_handler(CommandHandler(["app", "miniapp"], app_command))
     app.add_handler(CommandHandler("help", help_command))
-    # 🧹 ☰ «MENU» TUGMASI — /cleaner: Post tozalagich va ✍️ Imzo ekrani
-    # BIR QADAMDA ochiladi (Sozlamalar → ✍️ Post sozlamalari → ⚙️ Ko'proq →
-    # 🧹 Avto-tozalash yo'lini yurish shart emas). Handler global ro'yxatda
-    # (``main_conv`` dan OLDIN) turadi — shu sababli buyruq faol FSM
-    # holatidan qat'i nazar darhol ishlaydi va ekran bir manbadan
-    # (``stgs_clean`` bilan bir xil quruvchilardan) chiziladi.
-    app.add_handler(CommandHandler("cleaner", cleaner_command))
     # /privacy — bot qanday ma'lumotlarni
     # saqlashini ochiq ko'rsatadi (uz/ru/en) va o'chirish tugmasini beradi.
     app.add_handler(CommandHandler("privacy", privacy_command))
