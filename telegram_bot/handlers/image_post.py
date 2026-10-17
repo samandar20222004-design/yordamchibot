@@ -189,11 +189,6 @@ def _image_album_items(context) -> list:
     return [i for i in items if isinstance(i, dict) and i.get("file_id")]
 
 
-def _is_album_session(context) -> bool:
-    """Sessiya bir nechta faylli albommi (bitta rasm emas)."""
-    return len(_image_album_items(context)) > 1
-
-
 def _album_media_payload(items: list, caption: str):
     """``sendMediaGroup`` uchun InputMedia ro'yxati (izoh faqat 1-faylda)."""
     from scheduler import _build_album_media
