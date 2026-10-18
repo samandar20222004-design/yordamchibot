@@ -84,7 +84,7 @@ describe('App', () => {
     expect(await screen.findByText('Salom, Alice!')).toBeTruthy()
     expect(screen.getByText('Bepul')).toBeTruthy()
     const nav = screen.getByRole('navigation')
-    expect(nav.querySelectorAll('button')).toHaveLength(4)
+    expect(nav.querySelectorAll('button')).toHaveLength(5)
     expect(screen.getByText('1 / 5')).toBeTruthy() // AI
   })
 

@@ -61,7 +61,7 @@ def miniapp_webapp_url(env=None):
     return url if url and valid_miniapp_url(url) else None
 
 
-MINIAPP_TABS = ("home", "post", "schedule", "me")
+MINIAPP_TABS = ("home", "post", "schedule", "market", "me")
 
 
 def miniapp_tab_url(tab: str | None = None, env=None):

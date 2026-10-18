@@ -25,7 +25,8 @@ describe('tarjimalar', () => {
   it('har bir server xato kodi uchun tarjima bor', () => {
     for (const code of ['unauthorized', 'auth_expired', 'not_registered',
       'rate_limited', 'service_unavailable', 'https_required', 'internal_error', 'auth_unavailable',
-      'bad_request', 'not_found', 'method_not_allowed', 'caption_too_long', 'draft_not_found', 'media_unavailable']) {
+      'bad_request', 'not_found', 'method_not_allowed', 'caption_too_long', 'draft_not_found', 'media_unavailable',
+      'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full']) {
       expect(keys).toContain(`err.${code}`)
     }
   })

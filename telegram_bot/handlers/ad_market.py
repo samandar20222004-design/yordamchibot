@@ -155,11 +155,14 @@ def card_text(listing: dict, lang: str, *, owner_view: bool = False) -> str:
 
 def _home_keyboard(lang: str) -> InlineKeyboardMarkup:
     t = lambda key: market_t(key, lang)  # noqa: E731
-    return _kb([
+    markup = _kb([
         [_btn(t("mk_btn_catalog"), "mk:cat"), _btn(t("mk_btn_my"), "mk:my")],
         [_btn(t("mk_btn_inbox"), "mk:inbox"), _btn(t("mk_btn_how"), "mk:how")],
         [_btn(t("mk_btn_close"), "mk:close")],
     ])
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(markup, lang, "market", before_last=True)  # Mini App yoqilgan bo'lsagina «📱 Mini App»
 
 
 async def market_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -497,27 +500,14 @@ async def _start_new_listing(update, context, channel: dict, lang: str) -> None:
         await _toast(update, market_t("mk_err_limit", lang, limit=repo.MAX_LISTINGS_PER_USER), alert=True)
         return
     raw = channel["channel_id"]
-    chat_ref = int(raw) if str(raw).lstrip("-").isdigit() else raw
-    try:
-        chat = await context.bot.get_chat(chat_ref)
-        if not chat.username:
-            await _toast(update, market_t("mk_err_private", lang), alert=True)
-            return
-        bot_member = await context.bot.get_chat_member(chat.id, context.bot.id)
-        user_member = await context.bot.get_chat_member(chat.id, user.id)
-        members = await context.bot.get_chat_member_count(chat.id)
-    except (Forbidden, BadRequest):
-        await _toast(update, market_t("mk_err_admin", lang), alert=True)
+    info = await svc.verify_channel_ownership(context.bot, user.id, raw)
+    if not info["ok"]:
+        key = {"private": "mk_err_private", "tg_error": "mk_err_tg"}.get(info["reason"], "mk_err_admin")
+        await _toast(update, market_t(key, lang), alert=True)
         return
-    except TelegramError:
-        await _toast(update, market_t("mk_err_tg", lang), alert=True)
-        return
-    if bot_member.status not in ("administrator", "creator") or user_member.status not in ("administrator", "creator"):
-        await _toast(update, market_t("mk_err_admin", lang), alert=True)
-        return
-    context.user_data["mk_new"] = {"channel_id": str(raw), "username": chat.username,
-                                   "title": chat.title or channel.get("title") or chat.username,
-                                   "members": int(members), "ts": time.time()}
+    context.user_data["mk_new"] = {"channel_id": str(raw), "username": info["username"],
+                                   "title": info["title"] or channel.get("title") or info["username"],
+                                   "members": info["members"], "ts": time.time()}
     cats = list(svc.CATEGORIES)
     rows = [[_btn(_cat_label(c, lang), f"mk:nc:{c}") for c in cats[i:i + 2]] for i in range(0, len(cats), 2)]
     rows.append([_btn(market_t("mk_btn_back", lang), "mk:my")])

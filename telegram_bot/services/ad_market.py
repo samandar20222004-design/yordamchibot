@@ -126,3 +126,27 @@ def refresh_listing_stats(listing_id: int, channel_id: str, live_members: int | 
     )
     repo.save_listing_stats(listing_id, stats)
     return stats
+
+
+async def verify_channel_ownership(bot, user_id: int, channel_ref) -> dict:
+    """Birjaga chiqarishdan oldin JONLI tekshiruv (bot ham, foydalanuvchi ham kanal admini, kanal ochiq).
+
+    Qaytadi: ``{"ok": True, "username", "title", "members"}`` yoki ``{"ok": False, "reason": "private"|"not_admin"|"tg_error"}``.
+    """
+    from telegram.error import BadRequest, Forbidden, TelegramError
+
+    chat_ref = int(channel_ref) if str(channel_ref).lstrip("-").isdigit() else channel_ref
+    try:
+        chat = await bot.get_chat(chat_ref)
+        if not chat.username:
+            return {"ok": False, "reason": "private"}
+        bot_member = await bot.get_chat_member(chat.id, bot.id)
+        user_member = await bot.get_chat_member(chat.id, user_id)
+        members = await bot.get_chat_member_count(chat.id)
+    except (Forbidden, BadRequest):
+        return {"ok": False, "reason": "not_admin"}
+    except TelegramError:
+        return {"ok": False, "reason": "tg_error"}
+    if bot_member.status not in ("administrator", "creator") or user_member.status not in ("administrator", "creator"):
+        return {"ok": False, "reason": "not_admin"}
+    return {"ok": True, "username": chat.username, "title": chat.title or chat.username, "members": int(members)}

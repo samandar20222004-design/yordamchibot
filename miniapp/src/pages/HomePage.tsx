@@ -68,7 +68,7 @@ export function HomePage() {
     { icon: 'user', label: 'home.goMe', to: 'me', tone: 'gold' },
   ]
   const canOpenBot = openBotAvailable(botUsername)
-  const goTab = (to: 'post' | 'schedule' | 'me') => { haptic('select'); go(to) }
+  const goTab = (to: 'post' | 'schedule' | 'market' | 'me') => { haptic('select'); go(to) }
   return (
     <Page wide>
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
@@ -90,6 +90,15 @@ export function HomePage() {
           <span className="chip chip-glass">{t('home.heroChannels', { n: usage.channels })}</span>
         </div>
         <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => goTab('post')}>{t('home.ctaNew')}</Button>
+      </section>
+
+      <section className="card mk-banner" aria-labelledby="mk-banner-title">
+        <span className="mk-banner-ico" aria-hidden="true"><Icon name="market" size={26} /></span>
+        <div className="mk-banner-body">
+          <h2 id="mk-banner-title">{t('mk.homeBanner')}</h2>
+          <p className="muted">{t('mk.homeBannerSub')}</p>
+        </div>
+        <Button variant="primary" onClick={() => goTab('market')}>{t('mk.homeOpen')}</Button>
       </section>
 
       {draft.data?.draft && (

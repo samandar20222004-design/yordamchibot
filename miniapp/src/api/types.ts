@@ -144,6 +144,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -242,4 +243,82 @@ export interface Template {
 export interface TemplateList {
   items: Template[]
   limit: number
+}
+
+// --- 💰 Reklama birjasi (telegram_bot/miniapp_api/market.py) ---
+export const MARKET_CATEGORIES = ['news', 'tech', 'business', 'education', 'entertainment', 'lifestyle', 'sport', 'shop', 'auto', 'other'] as const
+export type MarketCategory = (typeof MARKET_CATEGORIES)[number]
+export type MarketSort = 'm' | 'p' | 'e'
+export type MarketBadge = 'growing' | 'engaged' | 'active'
+
+export interface MarketListing {
+  id: number
+  title: string
+  username: string
+  category: MarketCategory
+  /** so'm; `null` — kelishiladi */
+  price: number | null
+  description: string | null
+  members: number | null
+  avg_views: number | null
+  er_percent: number | null
+  growth_30d: number | null
+  posts_30d: number | null
+  stats_updated_at: string | null
+  badges: MarketBadge[]
+  /** Faqat egasiga: */
+  status?: 'active' | 'paused' | 'blocked'
+  channel_id?: string
+  view_count?: number
+  inquiry_count?: number
+}
+
+export interface MarketSummary {
+  listings: number
+  inquiries: number
+  categories: MarketCategory[]
+  max_listings: number
+  price_min: number
+  price_max: number
+  description_max: number
+  message_min: number
+  message_max: number
+}
+
+export interface MarketCatalog {
+  items: MarketListing[]
+  total: number
+  page: number
+  pages: number
+  page_size: number
+}
+
+export interface MarketMineItem {
+  channel_id: string
+  title: string
+  listing: MarketListing | null
+}
+
+export interface MarketMine {
+  items: MarketMineItem[]
+  max_listings: number
+}
+
+export interface MarketThreadItem {
+  id: number
+  title: string
+  role: 'owner' | 'advertiser'
+  updated_at: string
+}
+
+export interface MarketThread {
+  thread: { id: number; title: string; username: string; role: 'owner' | 'advertiser'; status: 'open' | 'closed'; listing_id: number }
+  messages: Array<{ mine: boolean; text: string; at: string }>
+}
+
+export interface MarketListingInput {
+  channel_id: string
+  category: MarketCategory
+  price: number | null
+  description: string | null
 }

@@ -40,6 +40,9 @@ kanal panelidagi «💰 Reklama birjasi» tugmasi, birinchi kanal ulangandan key
 Pul bot orqali O'TMAYDI (kelishuv tomonlar o'rtasida; escrow yo'q). Kartada va qo'llanmada «oldindan to'lovdan
 ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 
+## Mini App
+«Birja» tabi (5-tab): katalog (mavzu chiplari, saralash, sahifalash), kanal kartasi (ko'rsatkichlar, so'rov, shikoyat), «Kanalim» (e'lon qilish, narx/tavsif/mavzu, to'xtatish, yangilash, olib tashlash), «Suhbatlar» (yozishma, yopish, bloklash). Bosh sahifada banner; `?tab=market`; bot birja ekranida «📱 Mini App» tugmasi (yoqilgan bo'lsa). API — `miniapp_api/market.py`, `miniapp/README.md`; test — `tests/miniapp_market_test.py`, `miniapp/src/market.test.tsx`. Kontakt ulashish faqat botda (Mini App'da yo'q).
+
 ## Kod
 - Sxema: `telegram_bot/schema.sql` oxiri (`ad_market_listings`, `_inquiries`, `_messages`, `_reports`, `_blocks`).
 - `repositories/ad_market_repository.py` — barcha DB qoidalari; `services/ad_market.py` — narx tahlili, ko'rsatkichlar (sof).
@@ -52,4 +55,3 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 - Escrow/kafolatli to'lov, buyurtma holatlari (kelishildi / bajarildi / baho va sharh).
 - Kunlik snapshotni e'lonlar uchun majburiy qilish va ko'rsatkichlarni fon vazifasida yangilash (hozir kartani ochganda ≥6 soat eskirgan bo'lsa bazadan qayta hisoblanadi).
 - Haftalik hisobot kanal egasiga («kartangiz N marta ko'rildi, M so'rov») — o'sish uchun foydali.
-- Mini App'da katalog.

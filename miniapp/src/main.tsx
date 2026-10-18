@@ -5,6 +5,7 @@ import { hideBoot } from './boot'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/wow.css'
+import './styles/market.css'
 
 const root = document.getElementById('root')
 if (root) {

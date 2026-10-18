@@ -104,7 +104,7 @@ describe('Kanal tahlili sahifasi', () => {
     render(<App />)
     await screen.findByText('Salom, Alice!')
     expect(within(screen.getByRole('navigation')).queryByRole('button', { name: /Tahlil/ })).toBeNull()
-    expect(within(screen.getByRole('navigation')).getAllByRole('button')).toHaveLength(4)
+    expect(within(screen.getByRole('navigation')).getAllByRole('button')).toHaveLength(5)
     fireEvent.click(nav(/^Men/))
     openChannels()
     expect(await screen.findByText('Ulangan kanal yo\'q.')).toBeTruthy()
