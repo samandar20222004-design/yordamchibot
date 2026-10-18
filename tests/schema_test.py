@@ -123,8 +123,8 @@ def test_schema_file_tables():
     # Indekslar soni: 31 → 33 (channel_dna uchun 2 yangi indeks).
     # admin xabar ID'si bo'yicha qidiruv UNIQUE constraint'ning implicit
     # indeksi orqali ishlaydi.
-    check("jadvallar soni 37",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 37,
+    check("jadvallar soni 39",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 39,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 

@@ -11,6 +11,25 @@ from locales.translations import normalize_lang, safe_t
 
 AD_MARKET_I18N = {
     "uz": {
+        "mk_unsafe_card": "🚫 Xabarda karta raqami bor. Xavfsizlik uchun karta va hamyon raqamlarini yuborish mumkin emas — bu firibgarlarning asosiy usuli.",
+        "mk_unsafe_wallet": "🚫 Xabarda kripto-hamyon manzili bor. Xavfsizlik uchun yuborish mumkin emas.",
+        "mk_unsafe_link": "🚫 Birinchi xabarda (yoki yangi hisobdan) havola yuborish mumkin emas — fishingdan himoya. Avval tanishib oling, havolani keyin yuborasiz.",
+        "mk_spam": "Bir xil xabarni qayta-qayta yuborish mumkin emas. Matnni o'zgartiring.",
+        "mk_banned": "🚫 Hisobingiz shikoyatlar sababli birjadan chetlatilgan. Qo'llab-quvvatlashga yozing.",
+        "mk_busy": "Bu kanal egasiga bugun juda ko'p so'rov kelgan. Ertaga urinib ko'ring.",
+        "mk_warn": "⚠️ <b>Ehtiyot bo'ling:</b> {items}.\nPulni oldindan o'tkazmang, karta/parol/kod bermang. Shubha bo'lsa «🚩 Firibgar» tugmasini bosing.",
+        "mk_warn_prepay": "oldindan to'lov so'ralmoqda",
+        "mk_warn_scam": "«kafolatlangan daromad/kripto» kabi shubhali iboralar bor",
+        "mk_warn_pressure": "sizni shoshiltirishmoqda",
+        "mk_warn_link": "havola bor — ochishdan oldin ehtiyot bo'ling",
+        "mk_new_account": "🆕 Yangi foydalanuvchi ({days} kun) — ehtiyot bo'ling.",
+        "mk_reports_note": "🚩 Bu foydalanuvchi haqida {n} ta shikoyat bor.",
+        "mk_safety_tip": "🛡 Maslahat: oldindan to'lov bermang, kartaga pul tashlamang; kanal egaligini @username va kanal adminlari bo'yicha tekshiring.",
+        "mk_btn_scam": "🚩 Firibgar",
+        "mk_report_user_ok": "🚩 Shikoyat qabul qilindi, suhbat yopildi. Rahmat — bu boshqalarni himoya qiladi.",
+        "mk_report_user_again": "Siz bu foydalanuvchidan allaqachon shikoyat qilgansiz.",
+        "mk_admin_user_banned": "🚫 Birja: foydalanuvchi {id} {count} ta shikoyat tufayli avtomatik chetlatildi.",
+        "mk_btn_open_app": "📱 Mini App'da",
         "mk_offer": (
             "💰 <b>Kanalingizga reklama beruvchi toping!</b>\n"
             "Kanalni Reklama birjasiga qo'ying: reklama beruvchilar ko'rsatkichlaringizni ko'rib, "
@@ -178,6 +197,25 @@ AD_MARKET_I18N = {
         "mk_cancelled": "Bekor qilindi.",
     },
     "ru": {
+        "mk_unsafe_card": "🚫 В сообщении номер карты. В целях безопасности номера карт и кошельков отправлять нельзя — это основной приём мошенников.",
+        "mk_unsafe_wallet": "🚫 В сообщении адрес криптокошелька. В целях безопасности отправлять нельзя.",
+        "mk_unsafe_link": "🚫 В первом сообщении (или с нового аккаунта) нельзя отправлять ссылки — защита от фишинга. Сначала познакомьтесь, ссылку отправите позже.",
+        "mk_spam": "Одинаковое сообщение нельзя отправлять повторно. Измените текст.",
+        "mk_banned": "🚫 Ваш аккаунт отстранён от биржи из-за жалоб. Напишите в поддержку.",
+        "mk_busy": "Этому владельцу сегодня пришло слишком много заявок. Попробуйте завтра.",
+        "mk_warn": "⚠️ <b>Осторожно:</b> {items}.\nНе переводите предоплату, не сообщайте карту/пароль/код. При сомнениях нажмите «🚩 Мошенник».",
+        "mk_warn_prepay": "просят предоплату",
+        "mk_warn_scam": "подозрительные фразы вроде «гарантированный доход/крипто»",
+        "mk_warn_pressure": "вас торопят",
+        "mk_warn_link": "есть ссылка — будьте осторожны, прежде чем открывать",
+        "mk_new_account": "🆕 Новый пользователь ({days} дн.) — будьте осторожны.",
+        "mk_reports_note": "🚩 На этого пользователя {n} жалоб.",
+        "mk_safety_tip": "🛡 Совет: не вносите предоплату, не переводите на карту; проверьте владельца канала по @username и админам.",
+        "mk_btn_scam": "🚩 Мошенник",
+        "mk_report_user_ok": "🚩 Жалоба принята, диалог закрыт. Спасибо — это защищает других.",
+        "mk_report_user_again": "Вы уже жаловались на этого пользователя.",
+        "mk_admin_user_banned": "🚫 Биржа: пользователь {id} автоматически отстранён после {count} жалоб.",
+        "mk_btn_open_app": "📱 В Mini App",
         "mk_offer": (
             "💰 <b>Найдите рекламодателей для своего канала!</b>\n"
             "Разместите канал на Бирже рекламы: рекламодатели увидят ваши показатели "
@@ -340,6 +378,25 @@ AD_MARKET_I18N = {
         "mk_cancelled": "Отменено.",
     },
     "en": {
+        "mk_unsafe_card": "🚫 The message contains a card number. For safety, card and wallet numbers can't be sent — it is the scammers' main trick.",
+        "mk_unsafe_wallet": "🚫 The message contains a crypto wallet address. It can't be sent for safety.",
+        "mk_unsafe_link": "🚫 Links can't be sent in a first message (or from a new account) — phishing protection. Get acquainted first, send the link later.",
+        "mk_spam": "The same message can't be sent repeatedly. Change the text.",
+        "mk_banned": "🚫 Your account is suspended from the exchange because of reports. Contact support.",
+        "mk_busy": "This owner has received too many requests today. Try again tomorrow.",
+        "mk_warn": "⚠️ <b>Be careful:</b> {items}.\nDon't prepay, don't share card/password/codes. If in doubt, tap «🚩 Scammer».",
+        "mk_warn_prepay": "a prepayment is requested",
+        "mk_warn_scam": "suspicious phrases like «guaranteed income/crypto»",
+        "mk_warn_pressure": "you are being rushed",
+        "mk_warn_link": "there is a link — be careful before opening it",
+        "mk_new_account": "🆕 New user ({days} d) — be careful.",
+        "mk_reports_note": "🚩 This user has {n} report(s).",
+        "mk_safety_tip": "🛡 Tip: don't prepay or transfer to a card; verify the channel owner by @username and the channel admins.",
+        "mk_btn_scam": "🚩 Scammer",
+        "mk_report_user_ok": "🚩 Report received, chat closed. Thank you — it protects others.",
+        "mk_report_user_again": "You have already reported this user.",
+        "mk_admin_user_banned": "🚫 Exchange: user {id} was suspended automatically after {count} reports.",
+        "mk_btn_open_app": "📱 In Mini App",
         "mk_offer": (
             "💰 <b>Find advertisers for your channel!</b>\n"
             "List your channel on the Ad exchange: advertisers see your stats "

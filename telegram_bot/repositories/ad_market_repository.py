@@ -19,6 +19,9 @@ MAX_MESSAGES_PER_INQUIRY = 40
 REPORT_BLOCK_THRESHOLD = 3
 MAX_LISTINGS_PER_USER = 5
 PAGE_SIZE = 5
+INBOUND_PER_DAY = 30       # egasiga kuniga ko'pi bilan shuncha YANGI so'rov (spamdan himoya)
+DUPLICATE_LIMIT = 2        # 24 soatda bir xil matn ko'pi bilan shuncha marta
+USER_BAN_THRESHOLD = 3     # turli foydalanuvchilarning shuncha shikoyati -> global ban
 
 STATUS_ACTIVE = "active"
 STATUS_PAUSED = "paused"
@@ -109,6 +112,9 @@ def create_listing(owner_id: int, channel_id, username: str, title: str, categor
     uid = int(owner_id)
     with db_cursor(commit=True) as cur:
         cur.execute("SELECT pg_advisory_xact_lock(%s)", (_LOCK_BASE + uid,))
+        cur.execute("SELECT 1 FROM ad_market_bans WHERE user_id = %s", (uid,))
+        if cur.fetchone() is not None:
+            return {"ok": False, "reason": "banned", "listing_id": None}
         cur.execute(
             "SELECT 1 FROM channels WHERE user_id = %s AND channel_id = %s AND is_active = TRUE AND deleted_at IS NULL",
             (uid, str(channel_id)),
@@ -277,14 +283,27 @@ def is_blocked(owner_id: int, user_id: int) -> bool:
         return cur.fetchone() is not None
 
 
-def create_inquiry(listing_id: int, advertiser_id: int, body: str) -> dict:
+def _dup_count(cur, user_id: int, body: str) -> int:
+    """Shu foydalanuvchining oxirgi 24 soatda AYNAN shu matnni necha marta yuborgani (spam)."""
+    cur.execute(
+        "SELECT COUNT(*) FROM ad_market_messages WHERE sender_id = %s AND body = %s AND created_at > NOW() - INTERVAL '24 hours'",
+        (int(user_id), body),
+    )
+    return int(cur.fetchone()[0])
+
+
+def create_inquiry(listing_id: int, advertiser_id: int, body: str, flags: str = "") -> dict:
     """Reklama beruvchining birinchi xabari. ``{"ok", "reason", "inquiry_id", "owner_id"}``.
 
-    ``reason``: ``not_found`` | ``own`` | ``blocked`` | ``limit`` | ``open_exists`` (``inquiry_id`` bilan).
+    ``reason``: ``not_found`` | ``own`` | ``blocked`` | ``banned`` | ``limit`` | ``busy`` | ``spam`` | ``open_exists``
+    (``inquiry_id`` bilan). ``flags`` — ``services.market_safety.pack_flags`` natijasi (oluvchiga ogohlantirish).
     """
     adv = int(advertiser_id)
     with db_cursor(commit=True) as cur:
         cur.execute("SELECT pg_advisory_xact_lock(%s)", (_LOCK_BASE + adv,))
+        cur.execute("SELECT 1 FROM ad_market_bans WHERE user_id = %s", (adv,))
+        if cur.fetchone() is not None:
+            return {"ok": False, "reason": "banned", "inquiry_id": None, "owner_id": None}
         cur.execute(
             f"SELECT l.id, l.owner_id FROM ad_market_listings l {_LIVE_JOIN} WHERE l.id = %s AND l.status = 'active'",
             (int(listing_id),),
@@ -313,12 +332,21 @@ def create_inquiry(listing_id: int, advertiser_id: int, body: str) -> dict:
         if int(cur.fetchone()[0]) >= INQUIRIES_PER_DAY:
             return {**fail, "reason": "limit"}
         cur.execute(
+            "SELECT COUNT(*) FROM ad_market_inquiries WHERE owner_id = %s AND created_at > NOW() - INTERVAL '24 hours'",
+            (owner,),
+        )
+        if int(cur.fetchone()[0]) >= INBOUND_PER_DAY:
+            return {**fail, "reason": "busy"}
+        if _dup_count(cur, adv, body) >= DUPLICATE_LIMIT:
+            return {**fail, "reason": "spam"}
+        cur.execute(
             "INSERT INTO ad_market_inquiries (listing_id, advertiser_id, owner_id, msg_count) "
             "VALUES (%s, %s, %s, 1) RETURNING id",
             (int(listing_id), adv, owner),
         )
         inquiry_id = int(cur.fetchone()[0])
-        cur.execute("INSERT INTO ad_market_messages (inquiry_id, sender_id, body) VALUES (%s, %s, %s)", (inquiry_id, adv, body))
+        cur.execute("INSERT INTO ad_market_messages (inquiry_id, sender_id, body, flags) VALUES (%s, %s, %s, %s)",
+                    (inquiry_id, adv, body, flags))
         cur.execute("UPDATE ad_market_listings SET inquiry_count = inquiry_count + 1 WHERE id = %s", (int(listing_id),))
         return {"ok": True, "reason": None, "inquiry_id": inquiry_id, "owner_id": owner}
 
@@ -342,12 +370,17 @@ def get_inquiry(inquiry_id: int, user_id: int) -> dict | None:
             "peer_id": int(r[2]) if int(r[3]) == uid else int(r[3])}
 
 
-def add_message(inquiry_id: int, sender_id: int, body: str) -> dict:
-    """Ishtirokchi xabari. ``{"ok", "reason", "recipient_id"}`` (``reason``: ``not_found|closed|full``)."""
+def add_message(inquiry_id: int, sender_id: int, body: str, flags: str = "") -> dict:
+    """Ishtirokchi xabari. ``{"ok", "reason", "recipient_id"}`` (``reason``: ``not_found|closed|full|banned|spam``)."""
     info = get_inquiry(inquiry_id, sender_id)
     if info is None:
         return {"ok": False, "reason": "not_found", "recipient_id": None}
     with db_cursor(commit=True) as cur:
+        cur.execute("SELECT 1 FROM ad_market_bans WHERE user_id = %s", (int(sender_id),))
+        if cur.fetchone() is not None:
+            return {"ok": False, "reason": "banned", "recipient_id": None}
+        if _dup_count(cur, sender_id, body) >= DUPLICATE_LIMIT:
+            return {"ok": False, "reason": "spam", "recipient_id": None}
         cur.execute(
             "UPDATE ad_market_inquiries SET msg_count = msg_count + 1, updated_at = NOW() "
             "WHERE id = %s AND status = 'open' AND msg_count < %s",
@@ -357,8 +390,8 @@ def add_message(inquiry_id: int, sender_id: int, body: str) -> dict:
             cur.execute("SELECT status FROM ad_market_inquiries WHERE id = %s", (int(inquiry_id),))
             st = cur.fetchone()
             return {"ok": False, "reason": "closed" if st and st[0] != "open" else "full", "recipient_id": None}
-        cur.execute("INSERT INTO ad_market_messages (inquiry_id, sender_id, body) VALUES (%s, %s, %s)",
-                    (int(inquiry_id), int(sender_id), body))
+        cur.execute("INSERT INTO ad_market_messages (inquiry_id, sender_id, body, flags) VALUES (%s, %s, %s, %s)",
+                    (int(inquiry_id), int(sender_id), body, flags))
     return {"ok": True, "reason": None, "recipient_id": info["peer_id"]}
 
 
@@ -368,25 +401,29 @@ def recent_messages(inquiry_id: int, user_id: int, limit: int = 6) -> list[dict]
         return []
     with db_cursor() as cur:
         cur.execute(
-            "SELECT sender_id, body, created_at FROM ad_market_messages WHERE inquiry_id = %s ORDER BY id DESC LIMIT %s",
+            "SELECT sender_id, body, created_at, flags FROM ad_market_messages WHERE inquiry_id = %s ORDER BY id DESC LIMIT %s",
             (int(inquiry_id), int(limit)),
         )
         rows = cur.fetchall()
-    return [{"sender_id": int(r[0]), "body": r[1], "created_at": r[2]} for r in reversed(rows)]
+    return [{"sender_id": int(r[0]), "body": r[1], "created_at": r[2], "flags": [f for f in (r[3] or "").split(",") if f]}
+            for r in reversed(rows)]
 
 
 def list_user_inquiries(user_id: int, limit: int = 10) -> list[dict]:
     with db_cursor() as cur:
         cur.execute(
-            "SELECT i.id, i.status, i.owner_id, i.advertiser_id, l.title, i.updated_at FROM ad_market_inquiries i "
+            "SELECT i.id, i.status, i.owner_id, i.advertiser_id, l.title, i.updated_at, "
+            "(SELECT COUNT(*) FROM ad_market_messages m WHERE m.inquiry_id = i.id AND m.sender_id <> %s AND m.created_at > "
+            " CASE WHEN i.owner_id = %s THEN COALESCE(i.owner_read_at, 'epoch'::timestamptz) ELSE i.adv_read_at END) "
+            "FROM ad_market_inquiries i "
             "JOIN ad_market_listings l ON l.id = i.listing_id "
             "WHERE (i.advertiser_id = %s OR i.owner_id = %s) AND i.status = 'open' "
             "ORDER BY i.updated_at DESC LIMIT %s",
-            (int(user_id), int(user_id), int(limit)),
+            (int(user_id), int(user_id), int(user_id), int(user_id), int(limit)),
         )
         rows = cur.fetchall()
     return [{"id": r[0], "status": r[1], "role": "owner" if int(r[2]) == int(user_id) else "advertiser",
-             "title": r[4], "updated_at": r[5]} for r in rows]
+             "title": r[4], "updated_at": r[5], "unread": int(r[6])} for r in rows]
 
 
 def close_inquiry(inquiry_id: int, user_id: int) -> dict | None:
@@ -446,6 +483,101 @@ def report_listing(listing_id: int, reporter_id: int) -> dict:
         return {"ok": True, "reason": None if fresh else "again", "count": count, "blocked": blocked}
 
 
+# ---------------------------------------------------------------- o'qilmagan xabarlar
+
+def mark_read(inquiry_id: int, user_id: int) -> bool:
+    """Suhbat ochilganda: shu foydalanuvchi uchun o'qilgan vaqt yangilanadi (faqat ishtirokchi)."""
+    info = get_inquiry(inquiry_id, user_id)
+    if info is None:
+        return False
+    col = "owner_read_at" if info["role"] == "owner" else "adv_read_at"
+    with db_cursor(commit=True) as cur:
+        cur.execute(f"UPDATE ad_market_inquiries SET {col} = NOW() WHERE id = %s", (int(inquiry_id),))
+    return True
+
+
+def unread_total(user_id: int) -> int:
+    """Barcha ochiq suhbatlardagi o'qilmagan (ikkinchi tomon yozgan) xabarlar soni."""
+    with db_cursor() as cur:
+        cur.execute(
+            "SELECT COUNT(*) FROM ad_market_messages m JOIN ad_market_inquiries i ON i.id = m.inquiry_id "
+            "WHERE i.status = 'open' AND m.sender_id <> %s AND ("
+            " (i.owner_id = %s AND m.created_at > COALESCE(i.owner_read_at, 'epoch'::timestamptz)) OR "
+            " (i.advertiser_id = %s AND m.created_at > i.adv_read_at))",
+            (int(user_id), int(user_id), int(user_id)),
+        )
+        return int(cur.fetchone()[0])
+
+
+# ---------------------------------------------------------------- foydalanuvchi shikoyati va global ban
+
+def is_banned(user_id: int) -> bool:
+    with db_cursor() as cur:
+        cur.execute("SELECT 1 FROM ad_market_bans WHERE user_id = %s", (int(user_id),))
+        return cur.fetchone() is not None
+
+
+def _ban(cur, user_id: int, reason: str) -> None:
+    """Global ban: e'lonlari bloklanadi, ochiq suhbatlari yopiladi."""
+    uid = int(user_id)
+    cur.execute("INSERT INTO ad_market_bans (user_id, reason) VALUES (%s, %s) ON CONFLICT DO NOTHING", (uid, reason))
+    cur.execute("UPDATE ad_market_listings SET status = 'blocked', updated_at = NOW() WHERE owner_id = %s", (uid,))
+    cur.execute("UPDATE ad_market_inquiries SET status = 'closed', updated_at = NOW() "
+                "WHERE (advertiser_id = %s OR owner_id = %s) AND status = 'open'", (uid, uid))
+
+
+def admin_set_ban(user_id: int, banned: bool) -> bool:
+    """Admin: foydalanuvchini birjadan butunlay chetlatish / qaytarish."""
+    with db_cursor(commit=True) as cur:
+        if banned:
+            _ban(cur, user_id, "admin")
+            return True
+        cur.execute("DELETE FROM ad_market_bans WHERE user_id = %s", (int(user_id),))
+        cur.execute("DELETE FROM ad_market_user_reports WHERE reported_id = %s", (int(user_id),))
+        return True
+
+
+def report_user(reporter_id: int, inquiry_id: int) -> dict:
+    """Suhbatdagi ikkinchi tomon haqida shikoyat (firibgarlik). ``{"ok", "reason", "count", "banned", "reported_id"}``.
+
+    Bir foydalanuvchi bir odamdan bir marta shikoyat qila oladi; ``USER_BAN_THRESHOLD`` ta TURLI foydalanuvchi
+    shikoyat qilsa shikoyat qilingan odam avtomatik global banga tushadi.
+    """
+    info = get_inquiry(inquiry_id, reporter_id)
+    if info is None:
+        return {"ok": False, "reason": "not_found", "count": 0, "banned": False, "reported_id": None}
+    reported = info["peer_id"]
+    with db_cursor(commit=True) as cur:
+        cur.execute(
+            "INSERT INTO ad_market_user_reports (reporter_id, reported_id, inquiry_id) VALUES (%s, %s, %s) "
+            "ON CONFLICT DO NOTHING", (int(reporter_id), int(reported), int(inquiry_id)))
+        fresh = bool(cur.rowcount)
+        cur.execute("SELECT COUNT(*) FROM ad_market_user_reports WHERE reported_id = %s", (int(reported),))
+        count = int(cur.fetchone()[0])
+        banned = False
+        if count >= USER_BAN_THRESHOLD:
+            cur.execute("SELECT 1 FROM ad_market_bans WHERE user_id = %s", (int(reported),))
+            if cur.fetchone() is None:
+                _ban(cur, reported, "reports")
+                banned = True
+    return {"ok": True, "reason": None if fresh else "again", "count": count, "banned": banned, "reported_id": reported}
+
+
+def get_account_age_days(user_id: int) -> float | None:
+    """Botdagi hisob yoshi (kun); noma'lum bo'lsa ``None``."""
+    with db_cursor() as cur:
+        cur.execute("SELECT EXTRACT(EPOCH FROM (NOW() - created_at)) / 86400.0 FROM users WHERE user_id = %s", (int(user_id),))
+        row = cur.fetchone()
+    return float(row[0]) if row and row[0] is not None else None
+
+
+def count_peer_reports(user_id: int) -> int:
+    """Shu foydalanuvchi haqida nechta shikoyat bor (egasiga «ishonchsiz» nishoni uchun)."""
+    with db_cursor() as cur:
+        cur.execute("SELECT COUNT(*) FROM ad_market_user_reports WHERE reported_id = %s", (int(user_id),))
+        return int(cur.fetchone()[0])
+
+
 # ---------------------------------------------------------------- hisobni o'chirish
 
 def delete_user_market_data(cur, user_id: int) -> dict:
@@ -458,4 +590,6 @@ def delete_user_market_data(cur, user_id: int) -> dict:
     out["ad_market_inquiries"] = int(cur.rowcount or 0)
     cur.execute("DELETE FROM ad_market_reports WHERE reporter_id = %s", (uid,))
     cur.execute("DELETE FROM ad_market_blocks WHERE owner_id = %s OR blocked_id = %s", (uid, uid))
+    cur.execute("DELETE FROM ad_market_user_reports WHERE reporter_id = %s", (uid,))
+    # Ban va unga kelgan shikoyatlar SAQLANADI: hisobni o'chirib ban'dan qochib bo'lmasin (faqat user_id, boshqa ma'lumot yo'q).
     return out

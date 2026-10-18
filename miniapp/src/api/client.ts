@@ -14,6 +14,7 @@ const KNOWN_CODES: readonly string[] = [
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
   'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
+  'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy',
 ]
 
 /** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
@@ -264,6 +265,12 @@ export function createApiClient(opts: ClientOptions) {
     marketReply: (id: number, text: string): Promise<{ delivered: boolean }> =>
       send('POST', `/market/threads/${id}/messages`, { text }, (v) => ({ delivered: parseMarketAck(v).delivered === true })),
     marketCloseThread: (id: number): Promise<void> => send('POST', `/market/threads/${id}/close`, undefined, () => undefined),
+    /** Tab nishoni uchun yengil so'rov: o'qilmagan xabarlar soni. */
+    marketUnread: (signal?: AbortSignal): Promise<number> =>
+      get('/market/unread', (v) => Number(parseMarketAck(v).unread) || 0, signal),
+    /** 🚩 Firibgar: suhbat yopiladi, 3 ta turli shikoyatdan keyin global ban. */
+    marketReportUser: (id: number): Promise<{ again: boolean }> =>
+      send('POST', `/market/threads/${id}/report`, undefined, (v) => ({ again: parseMarketAck(v).again === true })),
     marketBlock: (id: number): Promise<void> => send('POST', `/market/threads/${id}/block`, undefined, () => undefined),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>
       send('POST', '/ai/generate', { text, style }, parseAi, config.aiTimeoutMs),

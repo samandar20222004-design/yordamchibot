@@ -202,6 +202,36 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Лимит сообщений исчерпан. Передайте контакт в боте и общайтесь лично.",
         "en": "The chat message limit is reached. Share your contact in the bot to continue privately.",
     }),
+    "message_card": (422, {
+        "uz": "Xabarda karta raqami bor. Xavfsizlik uchun karta va hamyon raqamlarini yuborish mumkin emas.",
+        "ru": "В сообщении номер карты. В целях безопасности номера карт и кошельков отправлять нельзя.",
+        "en": "The message contains a card number. For safety, card and wallet numbers can't be sent.",
+    }),
+    "message_wallet": (422, {
+        "uz": "Xabarda kripto-hamyon manzili bor. Xavfsizlik uchun yuborish mumkin emas.",
+        "ru": "В сообщении адрес криптокошелька. В целях безопасности отправлять нельзя.",
+        "en": "The message contains a crypto wallet address. It can't be sent for safety.",
+    }),
+    "message_link": (422, {
+        "uz": "Birinchi xabarda (yoki yangi hisobdan) havola yuborish mumkin emas — fishingdan himoya.",
+        "ru": "В первом сообщении (или с нового аккаунта) нельзя отправлять ссылки — защита от фишинга.",
+        "en": "Links can't be sent in a first message (or from a new account) — phishing protection.",
+    }),
+    "message_spam": (429, {
+        "uz": "Bir xil xabarni qayta-qayta yuborish mumkin emas. Matnni o'zgartiring.",
+        "ru": "Одинаковое сообщение нельзя отправлять повторно. Измените текст.",
+        "en": "The same message can't be sent repeatedly. Change the text.",
+    }),
+    "user_banned": (403, {
+        "uz": "Hisobingiz shikoyatlar sababli birjadan chetlatilgan. Qo'llab-quvvatlashga yozing.",
+        "ru": "Ваш аккаунт отстранён от биржи из-за жалоб. Напишите в поддержку.",
+        "en": "Your account is suspended from the exchange because of reports. Contact support.",
+    }),
+    "owner_busy": (429, {
+        "uz": "Bu kanal egasiga bugun juda ko'p so'rov kelgan. Ertaga urinib ko'ring.",
+        "ru": "Этому владельцу сегодня пришло слишком много заявок. Попробуйте завтра.",
+        "en": "This owner has received too many requests today. Try again tomorrow.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

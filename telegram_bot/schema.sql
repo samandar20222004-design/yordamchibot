@@ -1329,3 +1329,24 @@ CREATE TABLE IF NOT EXISTS ad_market_blocks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (owner_id, blocked_id)
 );
+
+-- 🛡 Reklama birjasi xavfsizligi: xabarga ogohlantirish belgilari, o'qilgan vaqt (o'qilmagan hisobi),
+-- foydalanuvchi shikoyatlari va global ban (firibgar/ayyor mijozlardan himoya).
+ALTER TABLE ad_market_messages ADD COLUMN IF NOT EXISTS flags VARCHAR(80) NOT NULL DEFAULT '';
+ALTER TABLE ad_market_inquiries ADD COLUMN IF NOT EXISTS adv_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE ad_market_inquiries ADD COLUMN IF NOT EXISTS owner_read_at TIMESTAMPTZ;
+
+CREATE TABLE IF NOT EXISTS ad_market_user_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reporter_id BIGINT NOT NULL,
+    reported_id BIGINT NOT NULL,
+    inquiry_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_ad_market_user_report UNIQUE (reporter_id, reported_id)
+);
+
+CREATE TABLE IF NOT EXISTS ad_market_bans (
+    user_id BIGINT PRIMARY KEY,
+    reason VARCHAR(16) NOT NULL DEFAULT 'reports',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

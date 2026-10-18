@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { MarketBadge, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -452,7 +452,7 @@ export function parseMarketThreads(v: unknown): { items: MarketThreadItem[] } {
     items: arr(o.items, 'threads.items').map((raw) => {
       const t = rec(raw, 'thread')
       return { id: int(t.id, 'thread.id'), title: str(t.title, 'thread.title'), role: role(t.role, 'thread.role'),
-        updated_at: str(t.updated_at, 'thread.updated_at') }
+        unread: t.unread === undefined ? 0 : int(t.unread, 'thread.unread'), updated_at: str(t.updated_at, 'thread.updated_at') }
     }),
   }
 }
@@ -464,9 +464,15 @@ export function parseMarketThread(v: unknown): MarketThread {
   return {
     thread: { id: int(t.id, 'thread.id'), title: str(t.title, 'thread.title'), username: str(t.username, 'thread.username'),
       role: role(t.role, 'thread.role'), status: t.status, listing_id: int(t.listing_id, 'thread.listing_id') },
+    peer: (() => {
+      const p = o.peer === undefined ? {} : rec(o.peer, 'thread.peer')
+      return { new_account: p.new_account === true, reports: typeof p.reports === 'number' ? int(p.reports, 'peer.reports') : 0 }
+    })(),
     messages: arr(o.messages, 'thread.messages').map((raw) => {
       const m = rec(raw, 'message')
-      return { mine: bool(m.mine, 'message.mine'), text: str(m.text, 'message.text'), at: str(m.at, 'message.at') }
+      const flags = (m.flags === undefined ? [] : arr(m.flags, 'message.flags'))
+        .filter((f): f is MarketMessageFlag => f === 'prepay' || f === 'scam' || f === 'pressure' || f === 'link')
+      return { mine: bool(m.mine, 'message.mine'), text: str(m.text, 'message.text'), at: str(m.at, 'message.at'), flags }
     }),
   }
 }

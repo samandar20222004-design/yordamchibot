@@ -36,6 +36,31 @@ kanal panelidagi «💰 Reklama birjasi» tugmasi, birinchi kanal ulangandan key
 | Foydalanuvchi ma'lumotlarini o'chirish e'lon, so'rov, xabar, blok, shikoyatlarni ham o'chiradi | `delete_user_market_data` |
 | Hamma matn HTML-escape; callback ≤ 64 bayt; `mk:` fail-closed reyestrda | `callback_data.py` |
 
+## 🛡 Firibgar va ayyor mijozlardan himoya
+
+Pul bot orqali o'tmaydi, shuning uchun asosiy xavf — suhbat ichida «oldindan to'lov», soxta havola va karta so'rash. Himoya qatlamlari
+(bot va Mini App BIR XIL qoidalar, `services/market_safety.py` + `repositories/ad_market_repository.py`):
+
+| Qatlam | Nima qiladi |
+|---|---|
+| **Skaner (matn)** | Karta raqami (15–19 raqam, bo'shliq/chiziq bilan ham) va kripto-hamyon (TRC20/ERC20/BTC) — xabar **to'siladi**. Birinchi xabarda va yangi hisobdan (<2 kun) havola — **to'siladi** (kanal egasi o'z kanali havolasini yubora oladi). |
+| **Ogohlantirish belgilari** | «oldindan to'lov», «shoshiling», «kafolatlangan daromad/kripto» iboralari (uz/ru/en) — xabar yuboriladi, lekin oluvchiga ⚠️ ko'rsatiladi (bot xabarida ham, Mini App'da ham). |
+| **Ishonch belgilari** | Egasiga: «🆕 Yangi foydalanuvchi (N kun)», «🚩 N ta shikoyat». Birinchi so'rovda doim xavfsizlik maslahati. |
+| **Limitlar** | Reklama beruvchiga kuniga 5 yangi so'rov; egasiga kuniga ko'pi bilan 30 yangi so'rov; bir xil matnni 24 soatda 2 martadan ko'p yuborib bo'lmaydi (spam); suhbatda 40 xabar. |
+| **🚩 Firibgar tugmasi** | Suhbat yopiladi (egasi bo'lsa — reklama beruvchi ham bloklanadi). 3 ta TURLI foydalanuvchining shikoyati -> **global ban**: e'lonlari bloklanadi, suhbatlari yopiladi, yangi so'rov/e'lon/xabar yubora olmaydi; adminlarga xabar. |
+| **Admin** | `/market_userban <id>`, `/market_userunban <id>` (shikoyatlar tozalanadi); e'lon uchun `/market_ban`, `/market_unban`. |
+| **Hisob o'chirilsa** | E'lon/suhbat/xabar o'chadi, lekin **ban va unga kelgan shikoyatlar saqlanadi** (faqat `user_id`): hisobni o'chirib ban'dan qochib bo'lmasin. |
+
+Cheklov (halol): skaner matnga qaraydi — rasm/ovoz ichidagi karta raqami, harflar bilan yozilgan raqam («sakkiz olti nol nol…») yoki
+boshqa kanalga chiqib ketgan suhbat tekshirilmaydi. Shuning uchun foydalanuvchiga maslahat: oldindan to'lov bermang, egalikni
+`@username` va kanal adminlari bo'yicha tekshiring.
+
+## Suhbat Mini App ichida
+- «Suhbatlar» ro'yxatida va pastki paneldagi «Birja» tabida **o'qilmagan xabarlar nishoni**; suhbat ochilganda server «o'qilgan» deb belgilaydi.
+- Ochiq suhbat ilova ko'rinib turganda 8 soniyada yangilanadi; tab nishoni har daqiqada.
+- Bot egasiga/reklama beruvchiga xabar yuborganda (Mini App yoqilgan bo'lsa) **«📱 Mini App'da»** tugmasi: `?tab=market&thread=<id>` suhbatni to'g'ridan-to'g'ri ochadi.
+- Kontakt ulashish («👤 Kontakt berish») — faqat botda.
+
 ## Pul
 Pul bot orqali O'TMAYDI (kelishuv tomonlar o'rtasida; escrow yo'q). Kartada va qo'llanmada «oldindan to'lovdan
 ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.

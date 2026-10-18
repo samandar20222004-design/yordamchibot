@@ -37,9 +37,12 @@ function setup(extra: (url: string, method: string, body: unknown) => Response |
     if (url.match(/\/market\/listings\/8$/)) return jsonResponse({ listing: UNKNOWN, is_owner: false })
     if (url.includes('/market/mine')) return jsonResponse({ items: [
       { channel_id: '-1001', title: 'Kanal A', listing: MINE_LISTED }, { channel_id: '-1002', title: 'Kanal B', listing: null }], max_listings: 5 })
+    if (url.endsWith('/market/unread')) return jsonResponse({ unread: 3 })
     if (url.includes('/market/threads/3')) return jsonResponse({ thread: { id: 3, title: 'Texno Yangiliklar', username: 'texnoyangi', role: 'advertiser', status: 'open', listing_id: 7 },
-      messages: [{ mine: true, text: 'Salom, reklama kerak', at: '2026-10-17T09:00:00Z' }, { mine: false, text: 'Salom, 60 000 so\'m', at: '2026-10-17T09:05:00Z' }] })
-    if (url.includes('/market/threads')) return jsonResponse({ items: [{ id: 3, title: 'Texno Yangiliklar', role: 'advertiser', updated_at: '2026-10-17T09:05:00Z' }] })
+      peer: { new_account: true, reports: 2 },
+      messages: [{ mine: true, text: 'Salom, reklama kerak', at: '2026-10-17T09:00:00Z', flags: [] },
+        { mine: false, text: 'Oldindan to\'lov qiling, shoshiling', at: '2026-10-17T09:05:00Z', flags: ['prepay', 'pressure'] }] })
+    if (url.includes('/market/threads')) return jsonResponse({ items: [{ id: 3, title: 'Texno Yangiliklar', role: 'advertiser', unread: 2, updated_at: '2026-10-17T09:05:00Z' }] })
     if (url.includes('/me')) return jsonResponse(ME)
     if (url.includes('/channels')) return jsonResponse({ items: [], total: 0 })
     if (url.includes('/scheduled-posts')) return jsonResponse(PAGE)
@@ -147,6 +150,68 @@ describe('Reklama birjasi (Mini App)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Yuborish' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/market/threads/3/messages'))).toBe(true))
     expect(calls.find((c) => c.url.endsWith('/messages'))!.body).toEqual({ text: 'Kelishdik, ertaga' })
+  })
+})
+
+describe('Birja xavfsizligi va o\'qilmagan xabarlar (Mini App)', () => {
+  it('pastki panelda Birja tabida o\'qilmaganlar nishoni, suhbatlar ro\'yxatida suhbat soni', async () => {
+    setup()
+    render(<App />)
+    await screen.findByText('Texno Yangiliklar')
+    expect(await screen.findByLabelText('3 ta o\'qilmagan xabar')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Suhbatlar' }))
+    expect(await screen.findByLabelText('2 ta o\'qilmagan xabar')).toBeTruthy()
+  })
+
+  it('shubhali xabarda ⚠️ ogohlantirish, yangi hisob va shikoyatlar belgisi, xavfsizlik maslahati', async () => {
+    setup()
+    render(<App />)
+    await screen.findByText('Texno Yangiliklar')
+    fireEvent.click(screen.getByRole('button', { name: 'Suhbatlar' }))
+    fireEvent.click((await screen.findByText(/Kanal egasi · /)).closest('button')!)
+    expect(await screen.findByText(/Ehtiyot bo'ling/)).toBeTruthy()
+    expect(screen.getByText(/oldindan to'lov so'ralmoqda, sizni shoshiltirishmoqda/)).toBeTruthy()
+    expect(screen.getByText(/Yangi foydalanuvchi — ehtiyot bo'ling/)).toBeTruthy()
+    expect(screen.getByText(/Bu foydalanuvchi haqida 2 ta shikoyat bor/)).toBeTruthy()
+    expect(screen.getByText(/oldindan to'lov bermang, kartaga pul tashlamang/)).toBeTruthy()
+    // o'z xabarida ogohlantirish yo'q
+    expect(screen.getAllByText(/Ehtiyot bo'ling/)).toHaveLength(1)
+  })
+
+  it('🚩 Firibgar: tasdiqdan keyin POST /report yuboradi', async () => {
+    const calls = setup((url, method) => (method === 'POST' && url.endsWith('/market/threads/3/report') ? jsonResponse({ reported: true, again: false, banned: false }) : undefined))
+    render(<App />)
+    await screen.findByText('Texno Yangiliklar')
+    fireEvent.click(screen.getByRole('button', { name: 'Suhbatlar' }))
+    fireEvent.click((await screen.findByText(/Kanal egasi · /)).closest('button')!)
+    fireEvent.click(await screen.findByRole('button', { name: /Firibgar/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/3 ta turli shikoyatdan keyin/)).toBeTruthy()
+    fireEvent.click(within(dialog).getAllByRole('button').find((b) => /Firibgar/.test(b.textContent ?? ''))!)
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/market/threads/3/report'))).toBe(true))
+  })
+
+  it('?tab=market&thread=3 (botdagi «Mini App\'da» tugmasi) suhbatni to\'g\'ridan-to\'g\'ri ochadi; noto\'g\'ri qiymat e\'tiborsiz', async () => {
+    setup()
+    window.history.replaceState({}, '', '/app/?tab=market&thread=3')
+    render(<App />)
+    expect(await screen.findByText('Salom, reklama kerak')).toBeTruthy()
+    cleanup()
+    window.history.replaceState({}, '', '/app/?tab=market&thread=abc')
+    render(<App />)
+    expect(await screen.findByText('Reklama birjasi')).toBeTruthy()
+    expect(screen.queryByText('Salom, reklama kerak')).toBeNull()
+  })
+
+  it('karta raqami xatosi so\'rov oynasida tarjima qilingan xabar bilan ko\'rinadi', async () => {
+    setup((url, method) => (method === 'POST' && url.includes('/inquiries') ? jsonResponse(errorBody('message_card'), 422) : undefined))
+    render(<App />)
+    fireEvent.click((await screen.findByText('Texno Yangiliklar')).closest('button')!)
+    fireEvent.click(await screen.findByRole('button', { name: "Reklama so'rovi" }))
+    const dialog = await screen.findByRole('dialog')
+    fireEvent.change(within(dialog).getByRole('textbox'), { target: { value: 'Kartamga 8600 1234 5678 9012 tashlang' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Yuborish' }))
+    expect(await within(dialog).findByText(/Xabarda karta raqami bor/)).toBeTruthy()
   })
 })
 

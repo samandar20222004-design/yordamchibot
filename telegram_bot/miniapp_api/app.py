@@ -360,6 +360,15 @@ async def market_reply_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].reply(request["user_id"], _market_id(request), body), status=201)
 
 
+async def market_unread_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].unread(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def market_report_user_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].report_user(request["user_id"], _market_id(request)))
+
+
 @_write
 async def market_close_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].close_thread(request["user_id"], _market_id(request)))
@@ -532,6 +541,8 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/market/threads/{item_id}/messages", market_reply_handler)
     api.router.add_post("/market/threads/{item_id}/close", market_close_handler)
     api.router.add_post("/market/threads/{item_id}/block", market_block_handler)
+    api.router.add_post("/market/threads/{item_id}/report", market_report_user_handler)
+    api.router.add_get("/market/unread", market_unread_handler)
     return api
 
 

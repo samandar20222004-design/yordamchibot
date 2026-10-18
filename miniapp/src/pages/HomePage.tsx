@@ -35,7 +35,7 @@ const BOT_TOOLS: ReadonlyArray<{ section: BotSection; icon: IconName; tone: stri
 ]
 
 export function HomePage() {
-  const { me, draft, go, botUsername } = useAppData()
+  const { me, draft, go, botUsername, appearance } = useAppData()
   const { t, formatDateTime } = useI18n()
   const now = useNow()
 
@@ -92,14 +92,14 @@ export function HomePage() {
         <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => goTab('post')}>{t('home.ctaNew')}</Button>
       </section>
 
-      <section className="card mk-banner" aria-labelledby="mk-banner-title">
+      {appearance.home.market && <section className="card mk-banner" aria-labelledby="mk-banner-title">
         <span className="mk-banner-ico" aria-hidden="true"><Icon name="market" size={26} /></span>
         <div className="mk-banner-body">
           <h2 id="mk-banner-title">{t('mk.homeBanner')}</h2>
           <p className="muted">{t('mk.homeBannerSub')}</p>
         </div>
         <Button variant="primary" onClick={() => goTab('market')}>{t('mk.homeOpen')}</Button>
-      </section>
+      </section>}
 
       {draft.data?.draft && (
         <section className="card cta-card" aria-labelledby="draft-cta">
@@ -109,7 +109,7 @@ export function HomePage() {
         </section>
       )}
 
-      <section className="card next-card" aria-labelledby="next-title">
+      {appearance.home.next && <section className="card next-card" aria-labelledby="next-title">
         <span className="next-icon" aria-hidden="true"><Icon name="clock" size={26} /></span>
         <div className="next-body">
           <h2 id="next-title" className="next-title">{t('home.nextTitle')}</h2>
@@ -125,9 +125,9 @@ export function HomePage() {
             </>
           )}
         </div>
-      </section>
+      </section>}
 
-      <div className="stats stats-wow">
+      {appearance.home.stats && <div className="stats stats-wow">
         <div className="stat tone-stat-green"><span className="stat-ico" aria-hidden="true"><Icon name="megaphone" size={18} /></span>
           <span className="stat-label">{t('home.channels')}</span>
           <span className="stat-value"><CountUp value={usage.channels} /></span></div>
@@ -145,7 +145,7 @@ export function HomePage() {
           <span className="stat-label">{t('home.ai')}</span>
           <span className="stat-value"><CountUp value={usage.ai_requests_today} /> / {limit(plan.limits.daily_ai_requests)}</span>
           <Bar used={usage.ai_requests_today} max={plan.limits.daily_ai_requests} /></div>
-      </div>
+      </div>}
 
       {posts.sent > 0 && <p className="achievement" role="status">{t('home.sentCount', { n: posts.sent })}</p>}
 
@@ -196,10 +196,10 @@ export function HomePage() {
         </section>
       )}
 
-      <section className="card tip-card" aria-labelledby="tip-title">
+      {appearance.home.tips && <section className="card tip-card" aria-labelledby="tip-title">
         <h2 id="tip-title"><Icon name="sparkle" size={18} /> {t('home.tipTitle')}</h2>
         <p>{t(`home.tip${tip}` as MessageKey)}</p>
-      </section>
+      </section>}
     </Page>
   )
 }

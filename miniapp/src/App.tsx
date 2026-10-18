@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppDataContext, type AppData } from './AppData'
+import { DEFAULT_APPEARANCE, applyAppearance, loadCloudIfNewer, loadLocal, sanitize, save, type Appearance } from './appearance'
 import { hideBoot } from './boot'
 import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
@@ -13,7 +14,7 @@ import { MarketPage } from './pages/MarketPage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
-import { getInitData, getInitialTab, getLanguageHint, initTelegram, isInTelegram } from './telegram'
+import { getColorScheme, getInitData, getInitialTab, getLanguageHint, initTelegram, isInTelegram } from './telegram'
 
 function NotInTelegram() {
   const { t } = useI18n()
@@ -24,8 +25,13 @@ function NotInTelegram() {
   )
 }
 
-function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) => void }) {
-  const [tab, setTab] = useState<Tab>(() => getInitialTab() ?? 'home')
+function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
+  onLang: (lang: ReturnType<typeof normalizeLang>) => void
+  appearance: Appearance
+  setAppearance: (patch: Partial<Appearance>) => void
+  resetAppearance: () => void
+}) {
+  const [tab, setTab] = useState<Tab>(() => getInitialTab() ?? appearance.start)
   const [toast, setToast] = useState<{ text: string; kind: 'success' | 'error'; id: number } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const notify = useCallback((text: string, kind: 'success' | 'error' = 'success') => {
@@ -40,6 +46,14 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
   const draft = useResource(async (s) => ({ draft: await client.draft(s) }), true)
   const feed = useScheduleFeed(client, tab === 'schedule')
   const botUsername = me.data?.bot.username ?? null
+  // 💰 Birja: o'qilmagan xabarlar (tab nishoni). Har daqiqada va ilova qayta ko'ringanda yangilanadi.
+  const unreadRes = useResource((s) => client.marketUnread(s).then((n) => ({ n })), true)
+  const reloadUnread = unreadRes.reload
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible') reloadUnread() }, 60_000)
+    return () => clearInterval(id)
+  }, [reloadUnread])
+  const unread = unreadRes.data?.n ?? 0
 
   const profileLang = me.data?.user.language
   useEffect(() => {
@@ -57,8 +71,8 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
   }, [hasDraft])
 
   const value = useMemo<AppData>(
-    () => ({ client, me, channels, draft, feed, go: setTab, botUsername, notify, setLang: onLang }),
-    [client, me, channels, draft, feed, botUsername, notify, onLang],
+    () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang }),
+    [client, me, channels, draft, feed, unread, reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, onLang],
   )
 
   // Yuklash ekrani (#boot, index.html) /me kelguncha turadi; keyin (yoki xatoda) bir marta yashiriladi.
@@ -75,7 +89,7 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
         {tab === 'schedule' && <SchedulePage />}
         {tab === 'market' && <MarketPage />}
         {tab === 'me' && <MePage />}
-        <TabBar active={tab} onChange={setTab} />
+        <TabBar active={tab} onChange={setTab} badges={{ market: unread }} tabs={appearance.tabs} />
         {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
       </div>
     </AppDataContext.Provider>
@@ -86,17 +100,39 @@ export default function App() {
   // Pre-/me til: faqat interfeys ishorasi (autentifikatsiya emas); /me kelgach profil tili ishlatiladi.
   const [lang, setLang] = useState(() => normalizeLang(getLanguageHint()))
   const inTelegram = isInTelegram()
+  const [scheme, setScheme] = useState<'light' | 'dark'>(() => getColorScheme())
+  const [appearance, setAppearanceState] = useState<Appearance>(() => loadLocal())
 
-  useEffect(() => initTelegram((scheme) => {
-    document.documentElement.dataset.theme = scheme
-  }), [])
+  useEffect(() => initTelegram(setScheme), [])
+  // Rang/fon/mavzu/zichlik... `<html data-*>` orqali; Telegram mavzusi o'zgarsa ('auto') qayta qo'llanadi.
+  useEffect(() => { applyAppearance(appearance, scheme) }, [appearance, scheme])
+  // Boshqa qurilmada o'zgartirilgan bo'lsa (Telegram bulutli xotirasi) — yangisi olinadi.
+  useEffect(() => {
+    let alive = true
+    void loadCloudIfNewer().then((remote) => { if (alive && remote) { setAppearanceState(remote); save(remote) } })
+    return () => { alive = false }
+  }, [])
+  const setAppearance = useCallback((patch: Partial<Appearance>) => {
+    setAppearanceState((prev) => {
+      const next = sanitize({ ...prev, ...patch })
+      save(next)
+      return next
+    })
+  }, [])
+  const resetAppearance = useCallback(() => {
+    const next = sanitize(DEFAULT_APPEARANCE)
+    save(next)
+    setAppearanceState(next)
+  }, [])
   useEffect(() => { document.documentElement.lang = lang }, [lang])
 
   useEffect(() => { if (!inTelegram) hideBoot() }, [inTelegram])
 
   return (
     <I18nProvider lang={lang}>
-      {inTelegram ? <Shell onLang={setLang} /> : <NotInTelegram />}
+      {inTelegram
+        ? <Shell onLang={setLang} appearance={appearance} setAppearance={setAppearance} resetAppearance={resetAppearance} />
+        : <NotInTelegram />}
     </I18nProvider>
   )
 }

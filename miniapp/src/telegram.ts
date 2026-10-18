@@ -15,6 +15,10 @@ interface TgWebApp {
     notificationOccurred?: (type: 'success' | 'error' | 'warning') => void
     selectionChanged?: () => void
   }
+  CloudStorage?: {
+    setItem?: (key: string, value: string, cb?: (err: unknown, ok?: boolean) => void) => void
+    getItem?: (key: string, cb: (err: unknown, value?: string) => void) => void
+  }
   onEvent?: (event: string, cb: () => void) => void
   offEvent?: (event: string, cb: () => void) => void
 }
@@ -114,7 +118,14 @@ export function openBot(username: string | null | undefined, section?: BotSectio
 }
 
 /** Telegram tebranish (haptic) javobi: tugma bosilganini his qilish uchun. SDK yo'q yoki xato bersa jim. */
+let hapticsOn = true
+/** Foydalanuvchi sozlamasi («Ko'rinish» -> Tebranish). */
+export function setHapticsEnabled(on: boolean): void {
+  hapticsOn = on
+}
+
 export function haptic(kind: 'tap' | 'select' | 'success' | 'error' = 'tap'): void {
+  if (!hapticsOn) return
   const h = webApp()?.HapticFeedback
   try {
     if (kind === 'select') h?.selectionChanged?.()
@@ -166,5 +177,37 @@ export function openChannel(username: string): boolean {
     return true
   } catch {
     return false
+  }
+}
+
+/** Botdagi «📱 Mini App'da» tugmasi `?tab=market&thread=<id>` bilan suhbatni to'g'ridan-to'g'ri ochadi (faqat butun son). */
+export function getInitialThread(): number | null {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('thread')
+    return raw !== null && /^[0-9]{1,9}$/.test(raw) && Number(raw) > 0 ? Number(raw) : null
+  } catch {
+    return null
+  }
+}
+
+/** Telegram bulutli xotirasi (qurilmalar o'rtasida sinxron). Yo'q yoki xato bo'lsa `null`/jim. */
+export function cloudGet(key: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    try {
+      const store = webApp()?.CloudStorage
+      if (!store?.getItem) return resolve(null)
+      const timer = setTimeout(() => resolve(null), 3000)
+      store.getItem(key, (err, value) => { clearTimeout(timer); resolve(err || !value ? null : value) })
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+export function cloudSet(key: string, value: string): void {
+  try {
+    webApp()?.CloudStorage?.setItem?.(key, value)
+  } catch {
+    /* e'tiborsiz: mahalliy nusxa baribir saqlangan */
   }
 }

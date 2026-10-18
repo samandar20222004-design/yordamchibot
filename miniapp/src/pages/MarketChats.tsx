@@ -7,8 +7,9 @@ import { Icon } from '../components/Icon'
 import { SubPage } from '../components/SubPage'
 import { Button, ErrorState, FormError, LoadingBlock, openBotAvailable } from '../components/ui'
 import { toClientError, type Resource } from '../hooks/useResource'
-import { useI18n } from '../i18n'
+import { useI18n, type MessageKey } from '../i18n'
 import { haptic, openBot } from '../telegram'
+import type { MarketMessageFlag } from '../api/types'
 
 /** «Suhbatlar»: ochiq yozishmalar ro'yxati. */
 export function ThreadList({ threads, onOpen }: { threads: Resource<{ items: MarketThreadItem[] }>; onOpen: (id: number) => void }) {
@@ -27,7 +28,9 @@ export function ThreadList({ threads, onOpen }: { threads: Resource<{ items: Mar
               <strong className="mk-row-title">{x.title}</strong>
               <span className="muted small">{t(x.role === 'owner' ? 'mk.roleAdv' : 'mk.roleOwner')} · {formatDateTime(x.updated_at)}</span>
             </span>
-            <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+            {x.unread > 0
+              ? <span className="mk-unread" role="status" aria-label={t('mk.unreadAria', { n: x.unread })}>{x.unread}</span>
+              : <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>}
           </button>
         </li>
       ))}
@@ -35,16 +38,30 @@ export function ThreadList({ threads, onOpen }: { threads: Resource<{ items: Mar
   )
 }
 
-/** Bitta suhbat: xabarlar, javob, yopish va (egasi uchun) bloklash. */
+/** Xabardagi shubhali belgilar: oluvchiga ogohlantirish (yuboruvchining o'ziga ko'rsatilmaydi). */
+function FlagWarning({ flags }: { flags: MarketMessageFlag[] }) {
+  const { t } = useI18n()
+  if (flags.length === 0) return null
+  const high = flags.includes('prepay') && flags.length > 1
+  return (
+    <div className={`mk-warn${high ? ' mk-warn-high' : ''}`} role="alert">
+      <strong>⚠️ {t('mk.warnTitle')}</strong>
+      <span>{flags.map((f) => t(`mk.flag.${f}` as MessageKey)).join(', ')}</span>
+      <span className="muted small">{t('mk.warnTip')}</span>
+    </div>
+  )
+}
+
+/** Bitta suhbat: xabarlar, javob, yopish, bloklash va 🚩 firibgarga shikoyat. Ochiq suhbat har 8 soniyada yangilanadi. */
 export function ThreadView({ id, onBack, onChanged }: { id: number; onBack: () => void; onChanged: () => void }) {
-  const { client, notify, botUsername } = useAppData()
+  const { client, notify, botUsername, refreshUnread } = useAppData()
   const { t, formatDateTime } = useI18n()
   const [data, setData] = useState<MarketThread | null>(null)
   const [error, setError] = useState<ApiClientError | null>(null)
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [formError, setFormError] = useState<ApiClientError | null>(null)
-  const [ask, setAsk] = useState<'close' | 'block' | null>(null)
+  const [ask, setAsk] = useState<'close' | 'block' | 'scam' | null>(null)
   const end = useRef<HTMLDivElement>(null)
 
   const load = useCallback((signal?: AbortSignal) => {
@@ -57,8 +74,11 @@ export function ThreadView({ id, onBack, onChanged }: { id: number; onBack: () =
   useEffect(() => {
     const ctl = new AbortController()
     load(ctl.signal)
-    return () => ctl.abort()
-  }, [load])
+    refreshUnread() // ochilgach server «o'qilgan» deb belgilaydi: tab nishonini yangilaymiz
+    // Ikkinchi tomon yozsa suhbat o'zi yangilanadi (ilova ko'rinib turganda).
+    const id = setInterval(() => { if (document.visibilityState === 'visible') load(ctl.signal) }, 8000)
+    return () => { ctl.abort(); clearInterval(id) }
+  }, [load, refreshUnread])
   useEffect(() => { end.current?.scrollIntoView?.({ block: 'end' }) }, [data?.messages.length])
 
   const send = async () => {
@@ -85,9 +105,11 @@ export function ThreadView({ id, onBack, onChanged }: { id: number; onBack: () =
     if (!ask) return
     setBusy(true)
     try {
+      let doneKey: MessageKey = 'mk.threadClosed'
       if (ask === 'close') await client.marketCloseThread(id)
-      else await client.marketBlock(id)
-      notify(t(ask === 'close' ? 'mk.threadClosed' : 'mk.blocked'))
+      else if (ask === 'block') { await client.marketBlock(id); doneKey = 'mk.blocked' }
+      else { const r = await client.marketReportUser(id); doneKey = r.again ? 'mk.scamAgain' : 'mk.scamDone' }
+      notify(t(doneKey))
       onChanged()
       onBack()
     } catch (e) {
@@ -106,11 +128,18 @@ export function ThreadView({ id, onBack, onChanged }: { id: number; onBack: () =
       {data && (
         <>
           <p className="muted small mk-peer">{roleLabel}</p>
+          {(data.peer.new_account || data.peer.reports > 0) && (
+            <div className="mk-trust">
+              {data.peer.new_account && <span className="mk-pill">🆕 {t('mk.newAccount')}</span>}
+              {data.peer.reports > 0 && <span className="mk-pill">🚩 {t('mk.peerReports', { n: data.peer.reports })}</span>}
+            </div>
+          )}
           <div className="mk-thread" role="log" aria-live="polite">
             {data.messages.map((m, i) => (
               <div key={i} className={`mk-bubble${m.mine ? ' mk-bubble-mine' : ''}`}>
                 <span className="mk-bubble-who">{m.mine ? t('mk.you') : roleLabel} · {formatDateTime(m.at)}</span>
                 <p>{m.text}</p>
+                {!m.mine && <FlagWarning flags={m.flags} />}
               </div>
             ))}
             <div ref={end} />
@@ -121,17 +150,20 @@ export function ThreadView({ id, onBack, onChanged }: { id: number; onBack: () =
                 onChange={(e) => setText(e.target.value)} />
               {formError && <FormError error={formError} />}
               <Button variant="primary" block icon="send" busy={busy} disabled={text.trim() === ''} onClick={send}>{t('mk.send')}</Button>
+              <p className="mk-tip">{t('mk.safetyTip')}</p>
               <p className="muted small">{t('mk.contactHint')}</p>
               {openBotAvailable(botUsername) && <Button variant="ghost" block icon="bot" onClick={() => openBot(botUsername)}>{t('common.openBot')}</Button>}
               <div className="mk-actions">
                 <Button block onClick={() => setAsk('close')}>{t('mk.closeThread')}</Button>
                 {data.thread.role === 'owner' && <Button variant="ghost" block onClick={() => setAsk('block')}>{t('mk.blockUser')}</Button>}
+                <Button variant="ghost" block className="btn-danger" onClick={() => setAsk('scam')}>🚩 {t('mk.scam')}</Button>
               </div>
             </section>
           ) : <p className="muted card">{t('mk.threadClosed')}</p>}
           {ask && (
-            <ConfirmDialog title={t(ask === 'close' ? 'mk.closeThread' : 'mk.blockUser')} body={ask === 'block' ? t('mk.blockAsk') : t('mk.closeThread')}
-              confirmLabel={t(ask === 'close' ? 'mk.closeThread' : 'mk.blockUser')} danger={ask === 'block'} busy={busy}
+            <ConfirmDialog title={t(ask === 'close' ? 'mk.closeThread' : ask === 'block' ? 'mk.blockUser' : 'mk.scam')}
+              body={ask === 'block' ? t('mk.blockAsk') : ask === 'scam' ? t('mk.scamAsk') : t('mk.closeThread')}
+              confirmLabel={t(ask === 'close' ? 'mk.closeThread' : ask === 'block' ? 'mk.blockUser' : 'mk.scam')} danger={ask !== 'close'} busy={busy}
               onConfirm={confirm} onClose={() => setAsk(null)} />
           )}
         </>
