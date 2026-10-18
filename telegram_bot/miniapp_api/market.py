@@ -144,13 +144,14 @@ class MarketApi:
 
     @staticmethod
     def _thread_markup(inquiry_id: int, role: str, lang: str) -> InlineKeyboardMarkup:
+        from keyboards.callback_data import cb
         from translations import market_t
 
-        rows = [[InlineKeyboardButton(market_t("mk_btn_reply", lang), callback_data=f"mk:r:{inquiry_id}"),
-                 InlineKeyboardButton(market_t("mk_btn_share", lang), callback_data=f"mk:c:{inquiry_id}")],
-                [InlineKeyboardButton(market_t("mk_btn_end", lang), callback_data=f"mk:x:{inquiry_id}")]]
+        rows = [[InlineKeyboardButton(market_t("mk_btn_reply", lang), callback_data=cb("mk:r:", inquiry_id)),
+                 InlineKeyboardButton(market_t("mk_btn_share", lang), callback_data=cb("mk:c:", inquiry_id))],
+                [InlineKeyboardButton(market_t("mk_btn_end", lang), callback_data=cb("mk:x:", inquiry_id))]]
         if role == "owner":
-            rows[1].append(InlineKeyboardButton(market_t("mk_btn_block", lang), callback_data=f"mk:b:{inquiry_id}"))
+            rows[1].append(InlineKeyboardButton(market_t("mk_btn_block", lang), callback_data=cb("mk:b:", inquiry_id)))
         return InlineKeyboardMarkup(rows)
 
     # ---------------------------------------------------------------- katalog
