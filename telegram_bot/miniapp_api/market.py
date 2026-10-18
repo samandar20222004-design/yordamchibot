@@ -152,6 +152,15 @@ class MarketApi:
                 [InlineKeyboardButton(market_t("mk_btn_end", lang), callback_data=cb("mk:x:", inquiry_id))]]
         if role == "owner":
             rows[1].append(InlineKeyboardButton(market_t("mk_btn_block", lang), callback_data=cb("mk:b:", inquiry_id)))
+        rows.append([InlineKeyboardButton(market_t("mk_btn_scam", lang), callback_data=cb("mk:f:", inquiry_id))])
+        try:
+            from .menu import miniapp_button
+
+            app_btn = miniapp_button(lang, "market", extra={"thread": int(inquiry_id)}, label=market_t("mk_btn_open_app", lang))
+            if app_btn is not None:
+                rows.insert(0, [app_btn])
+        except Exception:  # noqa: BLE001
+            logger.debug("miniapp market: web_app tugmasi qo'shilmadi", exc_info=True)
         return InlineKeyboardMarkup(rows)
 
     # ---------------------------------------------------------------- katalog
@@ -186,6 +195,13 @@ class MarketApi:
             row = await self._blocking(repo.get_listing, listing_id) or row
         return {"listing": public_listing(row), "is_owner": row["owner_id"] == user_id}
 
+    async def _screen(self, user_id: int, text: str, *, first: bool, owner_sender: bool) -> dict:
+        """Firibgarlik tekshiruvi (bot bilan bir xil qoida): karta/hamyon/havola to'siladi, shubhali iboralar belgilanadi."""
+        verdict = await self._blocking(lambda: _svc().screen_message(user_id, text, first_message=first, owner_sender=owner_sender))
+        if not verdict["ok"]:
+            raise ApiError({"card": "message_card", "wallet": "message_wallet", "link": "message_link"}[verdict["reason"]])
+        return verdict
+
     async def inquire(self, user_id: int, listing_id: int, body: dict) -> dict:
         writes._only_keys(body, ("text",))
         text = parse_message(body.get("text"))
@@ -193,19 +209,23 @@ class MarketApi:
         if len(text) < svc.INQUIRY_MIN:
             raise ApiError("invalid_input", field="text")
         await self._service.authorize(user_id)
-        res = await self._blocking(repo.create_inquiry, listing_id, user_id, text)
+        verdict = await self._screen(user_id, text, first=True, owner_sender=False)
+        res = await self._blocking(repo.create_inquiry, listing_id, user_id, text, verdict["packed"])
         if not res["ok"]:
             raise ApiError({"limit": "inquiry_limit", "blocked": "inquiry_blocked", "own": "inquiry_own",
-                            "open_exists": "inquiry_exists"}.get(res["reason"], "not_found"))
+                            "open_exists": "inquiry_exists", "banned": "user_banned", "busy": "owner_busy",
+                            "spam": "message_spam"}.get(res["reason"], "not_found"))
         from translations import market_t
         from utils.helpers import html_escape
 
         listing = await self._blocking(repo.get_listing, listing_id)
         owner_lang = await self._lang_of(res["owner_id"])
+        trust = await self._blocking(svc.peer_context, user_id)
         delivered = await self._notify(
             res["owner_id"],
             market_t("mk_inq_owner_new", owner_lang, title=html_escape((listing or {}).get("title") or ""),
-                     text=html_escape(text)),
+                     text=html_escape(text)) + svc.trust_text(trust, owner_lang) + svc.warn_text(verdict["flags"], owner_lang)
+            + "\n\n" + market_t("mk_safety_tip", owner_lang),
             self._thread_markup(res["inquiry_id"], "owner", owner_lang))
         return {"inquiry_id": res["inquiry_id"], "delivered": delivered}
 
@@ -317,41 +337,74 @@ class MarketApi:
     async def threads(self, user_id: int) -> dict:
         await self._service.authorize(user_id)
         rows = await self._blocking(self.repo().list_user_inquiries, user_id, 30)
-        return {"items": [{"id": r["id"], "title": r["title"] or "", "role": r["role"],
+        return {"items": [{"id": r["id"], "title": r["title"] or "", "role": r["role"], "unread": r["unread"],
                            "updated_at": iso_utc(r["updated_at"])} for r in rows]}
+
+    async def unread(self, user_id: int) -> dict:
+        """Yengil so'rov (tab nishoni uchun): o'qilmagan xabarlar soni."""
+        await self._service.authorize(user_id)
+        return {"unread": await self._blocking(self.repo().unread_total, user_id)}
 
     async def thread(self, user_id: int, inquiry_id: int) -> dict:
         await self._service.authorize(user_id)
-        repo = self.repo()
+        svc, repo = _svc(), self.repo()
         info = await self._blocking(repo.get_inquiry, inquiry_id, user_id)
         if info is None:
             raise ApiError("not_found")
         msgs = await self._blocking(repo.recent_messages, inquiry_id, user_id, 40)
+        await self._blocking(repo.mark_read, inquiry_id, user_id)
+        trust = await self._blocking(svc.peer_context, info["peer_id"])
         return {"thread": {"id": info["id"], "title": info["title"] or "", "username": info["username"],
                            "role": info["role"], "status": info["status"], "listing_id": info["listing_id"]},
-                "messages": [{"mine": m["sender_id"] == user_id, "text": m["body"], "at": iso_utc(m["created_at"])} for m in msgs]}
+                "peer": {"new_account": trust["new_account"], "reports": trust["reports"]},
+                "messages": [{"mine": m["sender_id"] == user_id, "text": m["body"], "at": iso_utc(m["created_at"]),
+                              "flags": [] if m["sender_id"] == user_id else m["flags"]} for m in msgs]}
 
     async def reply(self, user_id: int, inquiry_id: int, body: dict) -> dict:
         writes._only_keys(body, ("text",))
         text = parse_message(body.get("text"))
         await self._service.authorize(user_id)
-        repo = self.repo()
-        res = await self._blocking(repo.add_message, inquiry_id, user_id, text)
+        svc, repo = _svc(), self.repo()
+        info = await self._blocking(repo.get_inquiry, inquiry_id, user_id)
+        if info is None:
+            raise ApiError("not_found")
+        verdict = await self._screen(user_id, text, first=False, owner_sender=info["role"] == "owner")
+        res = await self._blocking(repo.add_message, inquiry_id, user_id, text, verdict["packed"])
         if not res["ok"]:
-            raise ApiError({"closed": "thread_closed", "full": "thread_full"}.get(res["reason"], "not_found"))
+            raise ApiError({"closed": "thread_closed", "full": "thread_full", "banned": "user_banned",
+                            "spam": "message_spam"}.get(res["reason"], "not_found"))
         from translations import market_t
         from utils.helpers import html_escape
 
-        info = await self._blocking(repo.get_inquiry, inquiry_id, user_id)
         peer_lang = await self._lang_of(res["recipient_id"])
         peer_role = "advertiser" if info["role"] == "owner" else "owner"
         delivered = await self._notify(
             res["recipient_id"],
             market_t("mk_msg_in", peer_lang, title=html_escape(info["title"] or ""),
                      role=market_t("mk_role_owner" if info["role"] == "owner" else "mk_role_adv", peer_lang),
-                     text=html_escape(text)),
+                     text=html_escape(text)) + svc.warn_text(verdict["flags"], peer_lang),
             self._thread_markup(inquiry_id, peer_role, peer_lang))
         return {"sent": True, "delivered": delivered}
+
+    async def report_user(self, user_id: int, inquiry_id: int) -> dict:
+        """🚩 Firibgar: suhbat yopiladi (egasi bo'lsa reklama beruvchi bloklanadi); 3 ta turli shikoyat -> global ban."""
+        await self._service.authorize(user_id)
+        repo = self.repo()
+        res = await self._blocking(repo.report_user, user_id, inquiry_id)
+        if not res["ok"]:
+            raise ApiError("not_found")
+        info = await self._blocking(repo.get_inquiry, inquiry_id, user_id)
+        if info is not None and info["role"] == "owner":
+            await self._blocking(repo.block_advertiser, user_id, inquiry_id)
+        else:
+            await self._blocking(repo.close_inquiry, inquiry_id, user_id)
+        if res["banned"]:
+            from config import ADMIN_IDS_SET
+            from translations import market_t
+
+            for admin_id in ADMIN_IDS_SET:
+                await self._notify(admin_id, market_t("mk_admin_user_banned", "uz", id=res["reported_id"], count=res["count"]))
+        return {"reported": True, "again": res["reason"] == "again", "banned": bool(res["banned"])}
 
     async def close_thread(self, user_id: int, inquiry_id: int) -> dict:
         await self._service.authorize(user_id)

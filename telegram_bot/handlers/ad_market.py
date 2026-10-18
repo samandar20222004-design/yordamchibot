@@ -319,7 +319,21 @@ def _thread_keyboard(inq: dict, lang: str) -> InlineKeyboardMarkup:
             [_btn(t("mk_btn_end"), f"mk:x:{inq['id']}")]]
     if inq["role"] == "owner":
         rows[1].append(_btn(t("mk_btn_block"), f"mk:b:{inq['id']}"))
+    rows.append([_btn(t("mk_btn_scam"), f"mk:f:{inq['id']}")])
+    try:  # Mini App yoqilgan bo'lsa suhbatni to'g'ridan-to'g'ri Mini App ichida ochish tugmasi
+        from miniapp_api.menu import miniapp_button
+
+        app_btn = miniapp_button(lang, "market", extra={"thread": int(inq["id"])}, label=t("mk_btn_open_app"))
+        if app_btn is not None:
+            rows.insert(0, [app_btn])
+    except Exception:  # noqa: BLE001 — qo'shimcha tugma asosiy ekranni buzmasin
+        logger.debug("mk: Mini App tugmasi qo'shilmadi", exc_info=True)
     return _kb(rows)
+
+
+_UNSAFE_KEY = {"card": "mk_unsafe_card", "wallet": "mk_unsafe_wallet", "link": "mk_unsafe_link"}
+_FAIL_KEY = {"limit": "mk_inq_limit", "blocked": "mk_inq_blocked", "own": "mk_inq_own", "open_exists": "mk_inq_exists",
+             "banned": "mk_banned", "busy": "mk_busy", "spam": "mk_spam"}
 
 
 async def _deliver(context, to_id: int, text: str, markup=None) -> bool:
@@ -339,21 +353,22 @@ async def _handle_inquiry_text(update, context, data: dict, text: str, lang: str
     if len(text) < svc.INQUIRY_MIN:
         await update.message.reply_text(market_t("mk_inq_short", lang, min=svc.INQUIRY_MIN))
         return
-    res = await db.run_db(repo.create_inquiry, data["listing_id"], user.id, text)
+    verdict = await db.run_db(svc.screen_message, user.id, text, first_message=True, owner_sender=False)
+    if not verdict["ok"]:
+        await update.message.reply_text(market_t(_UNSAFE_KEY[verdict["reason"]], lang))
+        return
+    res = await db.run_db(repo.create_inquiry, data["listing_id"], user.id, text, verdict["packed"])
     context.user_data.pop(INPUT_KEY, None)
     if not res["ok"]:
-        key = {"limit": "mk_inq_limit", "blocked": "mk_inq_blocked", "own": "mk_inq_own",
-               "open_exists": "mk_inq_exists"}.get(res["reason"], "mk_gone")
-        await update.message.reply_text(market_t(key, lang, limit=repo.INQUIRIES_PER_DAY))
+        await update.message.reply_text(market_t(_FAIL_KEY.get(res["reason"], "mk_gone"), lang, limit=repo.INQUIRIES_PER_DAY))
         return
     listing = await db.run_db(repo.get_listing, data["listing_id"])
     owner_lang = await db.run_db(db.get_user_language, res["owner_id"]) or "uz"
+    trust = await db.run_db(svc.peer_context, user.id)
     inq = {"id": res["inquiry_id"], "role": "owner"}
-    delivered = await _deliver(
-        context, res["owner_id"],
-        market_t("mk_inq_owner_new", owner_lang, title=html_escape((listing or {}).get("title") or ""),
-                 text=html_escape(text)),
-        _thread_keyboard(inq, owner_lang))
+    body = (market_t("mk_inq_owner_new", owner_lang, title=html_escape((listing or {}).get("title") or ""), text=html_escape(text))
+            + svc.trust_text(trust, owner_lang) + svc.warn_text(verdict["flags"], owner_lang) + "\n\n" + market_t("mk_safety_tip", owner_lang))
+    delivered = await _deliver(context, res["owner_id"], body, _thread_keyboard(inq, owner_lang))
     await update.message.reply_text(market_t("mk_inq_sent" if delivered else "mk_peer_unreachable", lang))
 
 
@@ -371,20 +386,29 @@ async def market_reply_start(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
 async def _handle_reply_text(update, context, data: dict, text: str, lang: str) -> None:
     user = update.effective_user
+    info = await db.run_db(repo.get_inquiry, data["inquiry_id"], user.id)
+    if info is None:
+        context.user_data.pop(INPUT_KEY, None)
+        await update.message.reply_text(market_t("mk_thread_closed", lang))
+        return
+    verdict = await db.run_db(svc.screen_message, user.id, text[:svc.INQUIRY_MAX], first_message=False,
+                              owner_sender=(info["role"] == "owner"))
+    if not verdict["ok"]:
+        await update.message.reply_text(market_t(_UNSAFE_KEY[verdict["reason"]], lang))
+        return
     context.user_data.pop(INPUT_KEY, None)
-    res = await db.run_db(repo.add_message, data["inquiry_id"], user.id, text[:svc.INQUIRY_MAX])
+    res = await db.run_db(repo.add_message, data["inquiry_id"], user.id, text[:svc.INQUIRY_MAX], verdict["packed"])
     if not res["ok"]:
-        key = "mk_thread_full" if res["reason"] == "full" else "mk_thread_closed"
+        key = {"full": "mk_thread_full", "banned": "mk_banned", "spam": "mk_spam"}.get(res["reason"], "mk_thread_closed")
         await update.message.reply_text(market_t(key, lang, limit=repo.MAX_MESSAGES_PER_INQUIRY))
         return
-    inq = await db.run_db(repo.get_inquiry, data["inquiry_id"], user.id)
     peer_lang = await db.run_db(db.get_user_language, res["recipient_id"]) or "uz"
-    peer_role = market_t("mk_role_owner" if inq["role"] == "owner" else "mk_role_adv", peer_lang)
-    peer_view = {"id": inq["id"], "role": "advertiser" if inq["role"] == "owner" else "owner"}
+    peer_role = market_t("mk_role_owner" if info["role"] == "owner" else "mk_role_adv", peer_lang)
+    peer_view = {"id": info["id"], "role": "advertiser" if info["role"] == "owner" else "owner"}
     ok = await _deliver(
         context, res["recipient_id"],
-        market_t("mk_msg_in", peer_lang, title=html_escape(inq["title"] or ""), role=peer_role,
-                 text=html_escape(text[:svc.INQUIRY_MAX])),
+        market_t("mk_msg_in", peer_lang, title=html_escape(info["title"] or ""), role=peer_role,
+                 text=html_escape(text[:svc.INQUIRY_MAX])) + svc.warn_text(verdict["flags"], peer_lang),
         _thread_keyboard(peer_view, peer_lang))
     await update.message.reply_text(market_t("mk_msg_sent" if ok else "mk_peer_unreachable", lang))
 
@@ -442,6 +466,29 @@ async def market_block(update: Update, context: ContextTypes.DEFAULT_TYPE, inqui
         await _toast(update, market_t("mk_thread_closed", lang), alert=True)
         return
     await _toast(update, market_t("mk_blocked_ok", lang), alert=True)
+    await market_inbox(update, context)
+
+
+async def market_report_user(update: Update, context: ContextTypes.DEFAULT_TYPE, inquiry_id: int) -> None:
+    """🚩 Firibgar: suhbat yopiladi (egasi bo'lsa — reklama beruvchi bloklanadi), 3 ta turli shikoyat -> global ban."""
+    user = update.effective_user
+    lang = await _lang(context, user.id)
+    res = await db.run_db(repo.report_user, user.id, inquiry_id)
+    if not res["ok"]:
+        await _toast(update, market_t("mk_thread_closed", lang), alert=True)
+        return
+    info = await db.run_db(repo.get_inquiry, inquiry_id, user.id)
+    if info is not None and info["role"] == "owner":
+        await db.run_db(repo.block_advertiser, user.id, inquiry_id)
+    else:
+        await db.run_db(repo.close_inquiry, inquiry_id, user.id)
+    await _toast(update, market_t("mk_report_user_again" if res["reason"] == "again" else "mk_report_user_ok", lang), alert=True)
+    if res["banned"]:
+        for admin_id in ADMIN_IDS_SET:
+            try:
+                await context.bot.send_message(admin_id, market_t("mk_admin_user_banned", "uz", id=res["reported_id"], count=res["count"]))
+            except TelegramError:
+                logger.debug("mk: admin %s ga xabar yetmadi", admin_id)
     await market_inbox(update, context)
 
 
@@ -799,6 +846,8 @@ async def market_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await market_block(update, context, _int(parts, 2))
         elif action == "c":
             await market_share_contact(update, context, _int(parts, 2))
+        elif action == "f":
+            await market_report_user(update, context, _int(parts, 2))
         elif action == "my":
             await market_my(update, context)
         elif action == "lc":
@@ -839,7 +888,11 @@ async def market_admin_command(update: Update, context: ContextTypes.DEFAULT_TYP
     try:
         listing_id = int(context.args[0])
     except (IndexError, ValueError):
-        await update.message.reply_text(f"/{command} <listing_id>")
+        await update.message.reply_text(f"/{command} <id>")
+        return
+    if command in ("market_userban", "market_userunban"):
+        await db.run_db(repo.admin_set_ban, listing_id, command == "market_userban")
+        await update.message.reply_text(f"OK: user {listing_id} -> {'banned' if command == 'market_userban' else 'unbanned'}")
         return
     status = "blocked" if command == "market_ban" else "active"
     changed = await db.run_db(repo.admin_set_listing_status, listing_id, status)

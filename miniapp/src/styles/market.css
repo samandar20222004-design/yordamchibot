@@ -72,3 +72,17 @@
 .mk-sort { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mk-sort > button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; }
 .mk-sort > button[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* Pastki paneldagi o'qilmagan nishoni */
+.tab-ico { position: relative; display: grid; place-items: center; }
+.tab-badge { position: absolute; top: -5px; right: -9px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--danger, #ef4444); color: #fff; font-size: .65rem; font-weight: 700; line-height: 17px; text-align: center; box-shadow: 0 0 0 2px var(--surface); animation: toast-in .35s var(--spring, ease) both; }
+.mk-unread { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: .72rem; font-weight: 700; }
+
+/* Xavfsizlik: ogohlantirish va maslahat */
+.mk-warn { display: grid; gap: 2px; padding: var(--s2) var(--s3); border-radius: var(--r-md); background: color-mix(in srgb, #f59e0b 16%, var(--surface)); border: 1px solid color-mix(in srgb, #f59e0b 45%, var(--border)); font-size: .8125rem; }
+.mk-warn strong { color: color-mix(in srgb, #b45309 85%, var(--text)); }
+.mk-warn-high { background: color-mix(in srgb, var(--danger, #ef4444) 14%, var(--surface)); border-color: color-mix(in srgb, var(--danger, #ef4444) 50%, var(--border)); }
+.mk-trust { display: flex; flex-wrap: wrap; gap: 6px; }
+.mk-trust .mk-pill { background: color-mix(in srgb, #f59e0b 20%, transparent); color: inherit; }
+.mk-tip { font-size: .8125rem; color: var(--hint); padding-left: 1.4em; position: relative; }
+.mk-tip::before { content: '🛡'; position: absolute; left: 0; }

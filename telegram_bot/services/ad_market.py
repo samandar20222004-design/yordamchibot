@@ -150,3 +150,51 @@ async def verify_channel_ownership(bot, user_id: int, channel_ref) -> dict:
     if bot_member.status not in ("administrator", "creator") or user_member.status not in ("administrator", "creator"):
         return {"ok": False, "reason": "not_admin"}
     return {"ok": True, "username": chat.username, "title": chat.title or chat.username, "members": int(members)}
+
+
+def screen_message(user_id: int, text: str, *, first_message: bool, owner_sender: bool) -> dict:
+    """Xabarni yuborishdan OLDIN firibgarlik tekshiruvi (sinxron; ``run_db`` ichida chaqiriladi).
+
+    Qaytadi ``services.market_safety.assess`` natijasi + ``packed`` (bazaga yoziladigan belgilar) + ``age_days``.
+    """
+    from repositories import ad_market_repository as repo
+    from services import market_safety as safety
+
+    age = repo.get_account_age_days(user_id)
+    verdict = safety.assess(text, first_message=first_message, account_age_days=age, owner_sender=owner_sender)
+    verdict["packed"] = safety.pack_flags(verdict["flags"])
+    verdict["age_days"] = age
+    return verdict
+
+
+def peer_context(sender_id: int) -> dict:
+    """Oluvchiga ko'rsatiladigan yuboruvchi haqida ishonch ma'lumoti: hisob yoshi va shikoyatlar soni."""
+    from repositories import ad_market_repository as repo
+    from services import market_safety as safety
+
+    age = repo.get_account_age_days(sender_id)
+    return {"new_account": age is not None and age < safety.NEW_ACCOUNT_DAYS,
+            "age_days": int(age) if age is not None else None, "reports": repo.count_peer_reports(sender_id)}
+
+
+def warn_text(flags: list[str], lang: str) -> str:
+    """Oluvchiga ko'rsatiladigan ⚠️ ogohlantirish (belgi bo'lmasa bo'sh)."""
+    from services import market_safety as safety
+    from translations import market_t
+
+    keys = safety.warning_keys(flags)
+    if not keys:
+        return ""
+    return "\n\n" + market_t("mk_warn", lang, items=", ".join(market_t(f"mk_warn_{k}", lang) for k in keys))
+
+
+def trust_text(ctx: dict, lang: str) -> str:
+    """Yuboruvchi haqida: yangi hisob / shikoyatlar soni (bo'lmasa bo'sh)."""
+    from translations import market_t
+
+    lines = []
+    if ctx.get("new_account"):
+        lines.append(market_t("mk_new_account", lang, days=ctx.get("age_days") or 0))
+    if ctx.get("reports"):
+        lines.append(market_t("mk_reports_note", lang, n=ctx["reports"]))
+    return ("\n" + "\n".join(lines)) if lines else ""

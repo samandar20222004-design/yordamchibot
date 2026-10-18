@@ -187,7 +187,7 @@ try:
     results = []
 
     def go(lid):
-        results.append(repo.create_inquiry(lid, ADV2, "reklama haqida savol bor"))
+        results.append(repo.create_inquiry(lid, ADV2, f"reklama haqida savol bor #{lid}"))
 
     # 6 ta turli e'longa parallel urinish (L1 da ochiq so'rov ADV2 da yo'q; L3 egasi OWN2)
     threads = [threading.Thread(target=go, args=(lid,)) for lid in lids + [L3]]

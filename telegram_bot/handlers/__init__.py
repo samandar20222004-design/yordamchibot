@@ -2271,7 +2271,7 @@ def _register_global_commands(app):
     # Matn handleri FAQAT faol ``mk_input`` holatidagi foydalanuvchiga mos (asosiy FSM'ga tegmaydi).
     set_market_application(app)
     app.add_handler(CommandHandler("market", market_command))
-    app.add_handler(CommandHandler(["market_ban", "market_unban"], market_admin_command))
+    app.add_handler(CommandHandler(["market_ban", "market_unban", "market_userban", "market_userunban"], market_admin_command))
     app.add_handler(CallbackQueryHandler(market_callback, pattern=r"^mk:"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & MarketInputFilter, market_text_input))
     app.add_handler(CommandHandler("help", help_command))

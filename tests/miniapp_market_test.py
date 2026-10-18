@@ -56,6 +56,8 @@ def main() -> int:
 
     def cleanup():
         cur.execute("DELETE FROM ad_market_blocks WHERE owner_id = ANY(%s)", (list(IDS),))
+        cur.execute("DELETE FROM ad_market_user_reports WHERE reporter_id = ANY(%s) OR reported_id = ANY(%s)", (list(IDS), list(IDS)))
+        cur.execute("DELETE FROM ad_market_bans WHERE user_id = ANY(%s)", (list(IDS),))
         cur.execute("DELETE FROM ad_market_listings WHERE owner_id = ANY(%s)", (list(IDS),))
         cur.execute("DELETE FROM channel_posts_history WHERE channel_id = ANY(%s)", ([CH_OK, CH_PRIV, CH_NOADM, CH_OTHER],))
         cur.execute("DELETE FROM channels WHERE user_id = ANY(%s)", (list(IDS),))
@@ -205,6 +207,37 @@ def main() -> int:
         T.check("boshqa reklama beruvchi yoza oladi", st == 201)
         st, cl = C("POST", f"/market/threads/{inq2['inquiry_id']}/close", ADV2)
         T.check("suhbatni yopish; yopiq suhbatga yozib bo'lmaydi", st == 200 and C("POST", f"/market/threads/{inq2['inquiry_id']}/messages", OWN, {"text": "salom"})[0] == 409)
+
+        print("\n== 4b. Firibgarlikdan himoya (Mini App) ==")
+        T.check("karta raqamli so'rov -> 422 message_card (yuborilmaydi)",
+                C("POST", f"/market/listings/{lid}/inquiries", ADV3, {"text": "Kartamga 8600 1234 5678 9012 tashlang"})[1]["error"]["code"] == "message_card")
+        T.check("kripto hamyon -> 422 message_wallet", C("POST", f"/market/listings/{lid}/inquiries", ADV3,
+                {"text": "USDT: TJRabPrwbZy45PuZNJbaDDNDBmbZPsbJy5 ga yuboring"})[1]["error"]["code"] == "message_wallet")
+        T.check("birinchi xabarda havola -> 422 message_link", C("POST", f"/market/listings/{lid}/inquiries", ADV3,
+                {"text": "Saytimizga qarang: https://bit.ly/abc keyin gaplashamiz"})[1]["error"]["code"] == "message_link")
+        sent.clear()
+        st, sus = C("POST", f"/market/listings/{lid}/inquiries", ADV3, {"text": "Oldindan to'lov qilaman, shoshiling, reklama kerak"})
+        T.check("shubhali so'rov yuboriladi, lekin egasiga ⚠️ ogohlantirish va maslahat bilan boradi", st == 201 and sent
+                and "Ehtiyot bo'ling" in sent[0][1] and "Maslahat" in sent[0][1], str(sent))
+        iid3 = sus["inquiry_id"]
+        st, un = C("GET", "/market/unread", OWN)
+        T.check("/market/unread: egasida o'qilmagan bor", st == 200 and un["unread"] >= 1, str(un))
+        st, th3 = C("GET", f"/market/threads/{iid3}", OWN)
+        T.check("egasi suhbatida xabar flags bilan (prepay, pressure) va peer ma'lumoti", st == 200 and th3["messages"][0]["flags"] == ["prepay", "pressure"]
+                and th3["peer"]["reports"] == 0, str(th3))
+        T.check("o'z xabari flags'siz ko'rinadi (yuboruvchiga ogohlantirish kerak emas)",
+                C("GET", f"/market/threads/{iid3}", ADV3)[1]["messages"][0]["flags"] == [])
+        st, tl = C("GET", "/market/threads", OWN)
+        T.check("ro'yxatda har suhbat uchun unread soni", st == 200 and all("unread" in i for i in tl["items"]), str(tl))
+        T.check("suhbat ochilgach o'qilgan deb belgilanadi (unread 0)", C("GET", f"/market/threads/{iid3}", OWN)[0] == 200
+                and next(i["unread"] for i in C("GET", "/market/threads", OWN)[1]["items"] if i["id"] == iid3) == 0)
+        T.check("begona foydalanuvchi /report qila olmaydi -> 404", C("POST", f"/market/threads/{iid3}/report", ADV2)[0] == 404)
+        st, rp = C("POST", f"/market/threads/{iid3}/report", OWN)
+        T.check("🚩 Firibgar: shikoyat qabul, suhbat yopiladi, reklama beruvchi bloklanadi", st == 200 and rp["reported"] is True
+                and C("POST", f"/market/listings/{lid}/inquiries", ADV3, {"text": "Qayta yozishga urinish, blokdan keyin"})[1]["error"]["code"] == "inquiry_blocked")
+        T.check("takroriy shikoyat 'again'", C("POST", f"/market/threads/{iid3}/report", OWN)[1]["again"] is True)
+        for code in ("message_card", "message_wallet", "message_link", "message_spam", "user_banned", "owner_busy"):
+            T.check(f"xato kodi katalogda: {code}", code in catalog_codes())
 
         print("\n== 5. Shikoyat va egasi boshqaruvi ==")
         T.check("o'z e'loniga shikoyat -> 422", C("POST", f"/market/listings/{lid}/report", OWN)[0] == 422)

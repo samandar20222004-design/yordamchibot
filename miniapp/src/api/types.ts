@@ -144,7 +144,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
-  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -308,13 +308,18 @@ export interface MarketThreadItem {
   id: number
   title: string
   role: 'owner' | 'advertiser'
+  unread: number
   updated_at: string
 }
 
 export interface MarketThread {
   thread: { id: number; title: string; username: string; role: 'owner' | 'advertiser'; status: 'open' | 'closed'; listing_id: number }
-  messages: Array<{ mine: boolean; text: string; at: string }>
+  /** Ikkinchi tomon haqida ishonch belgilari: yangi hisob, shikoyatlar soni. */
+  peer: { new_account: boolean; reports: number }
+  messages: Array<{ mine: boolean; text: string; at: string; flags: MarketMessageFlag[] }>
 }
+
+export type MarketMessageFlag = 'prepay' | 'scam' | 'pressure' | 'link'
 
 export interface MarketListingInput {
   channel_id: string

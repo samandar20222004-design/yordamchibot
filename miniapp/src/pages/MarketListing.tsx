@@ -101,6 +101,7 @@ function InquiryDialog({ listing, summary, onClose, onSent }: {
       <textarea className="input" rows={5} value={text} maxLength={max} placeholder={t('mk.inqPlaceholder')}
         onChange={(e) => setText(e.target.value)} aria-label={t('mk.inqTitle', { title: listing.title })} />
       <p className="muted small mk-count">{t('mk.charCount', { n: text.trim().length, max })}</p>
+      <p className="mk-tip">{t('mk.safetyTip')}</p>
       {error && <FormError error={error} />}
       <div className="dialog-actions">
         <Button onClick={onClose} disabled={busy}>{t('mk.cancel')}</Button>

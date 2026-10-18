@@ -70,7 +70,8 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `POST /market/listings/{id}/inquiries` `{text}` | so'rov (kuniga 5, blok, o'ziga yo'q); egasiga bot orqali xabar |
 | `POST /market/listings/{id}/report` | shikoyat (3 ta turli -> avto blok) |
 | `GET/POST /market/mine`, `PATCH/DELETE /market/mine/{id}`, `POST .../refresh` | o'z kanallari va e'lonlari (egalik Telegram'da jonli tekshiriladi) |
-| `GET /market/threads`, `GET /market/threads/{id}`, `POST .../messages`, `.../close`, `.../block` | suhbatlar (faqat ishtirokchilar) |
+| `GET /market/threads`, `GET /market/threads/{id}`, `POST .../messages`, `.../close`, `.../block`, `.../report` | suhbatlar (faqat ishtirokchilar); xabar firibgarlik skanerdan o'tadi; `/report` = 🚩 Firibgar |
+| `GET /market/unread` | o'qilmagan xabarlar soni (pastki panel nishoni) |
 
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti
@@ -104,6 +105,14 @@ Bu sozlamani Bot API (kod) orqali o'zgartirib BO'LMAYDI — uni faqat bot egasi 
 
 Eslatma: bu tugma `MINIAPP_ENABLED` dan mustaqil — lekin Mini App `MINIAPP_ENABLED=0` bo'lsa URL 404 beradi, shuning uchun avval
 Mini App'ni yoqing (`MINIAPP_ENABLED=1`, `MINIAPP_URL`), keyin BotFather'da sozlang. Chat ichidagi «Menu» tugmasini kod o'zi o'rnatadi (yuqorida).
+
+## Ko'rinish sozlamalari (Men -> Ko'rinish)
+
+Foydalanuvchi o'zi tanlaydi: asosiy rang (9 ta, «Telegram» = mavzu rangi), fon (jonli/oddiy/shafaq/okean/o'rmon/yarim tun/qog'oz/nuqtalar),
+mavzu (avto/yorug'/qorong'u), zichlik, burchaklar, shrift o'lchami, animatsiya va tebranish, pastki paneldagi tablar (tartib, ko'rsatish/yashirish;
+«Men» doim bor, kamida 2 ta), ochilganda bosh bo'lim va bosh sahifa bo'limlari. Kod: `src/appearance.ts` (oq ro'yxatli `sanitize`),
+`src/styles/appearance.css` (`<html data-*>` atributlari), `src/pages/AppearanceScreen.tsx`.
+Saqlash: `localStorage` (darhol, miltillashsiz) + Telegram `CloudStorage` (qurilmalar o'rtasida; yangiroq nusxa yutadi). Serverga yozilmaydi.
 
 ## Xavfsizlik qarorlari
 

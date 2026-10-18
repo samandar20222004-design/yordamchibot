@@ -62,9 +62,10 @@ def miniapp_webapp_url(env=None):
 
 
 MINIAPP_TABS = ("home", "post", "schedule", "market", "me")
+MINIAPP_EXTRA_KEYS = ("thread",)
 
 
-def miniapp_tab_url(tab: str | None = None, env=None):
+def miniapp_tab_url(tab: str | None = None, env=None, extra: dict | None = None):
     """Mini App manzili + ``?tab=`` (Mini App shu bo'limni to'g'ridan-to'g'ri ochadi). O'chiq bo'lsa ``None``.
 
     Telegram ``web_app`` manzilidagi QUERY'ni saqlaydi (``#`` qismi esa ishga tushirish parametrlari uchun band).
@@ -74,21 +75,24 @@ def miniapp_tab_url(tab: str | None = None, env=None):
         return None
     if tab in MINIAPP_TABS:
         parts = urlsplit(url)
-        query = "&".join(q for q in (parts.query, f"tab={tab}") if q)
+        # `extra` — faqat butun sonli ID'lar (masalan thread=12): foydalanuvchi matni URL'ga tushmaydi.
+        extras = [f"{k}={int(v)}" for k, v in (extra or {}).items() if k in MINIAPP_EXTRA_KEYS and isinstance(v, int)]
+        query = "&".join(q for q in (parts.query, f"tab={tab}", *extras) if q)
         url = parts._replace(query=query).geturl()
     return url
 
 
-def miniapp_button(lang: str, tab: str | None = None, key: str = "btn_miniapp_open"):
+def miniapp_button(lang: str, tab: str | None = None, key: str = "btn_miniapp_open", extra: dict | None = None,
+                   label: str | None = None):
     """Inline ``web_app`` tugmasi yoki ``None`` (Mini App o'chiq / manzil yaroqsiz)."""
-    url = miniapp_tab_url(tab)
+    url = miniapp_tab_url(tab, extra=extra)
     if not url:
         return None
     from telegram import InlineKeyboardButton, WebAppInfo
 
     from locales.translations import get_text
 
-    return InlineKeyboardButton(get_text(key, lang), web_app=WebAppInfo(url=url))
+    return InlineKeyboardButton(label or get_text(key, lang), web_app=WebAppInfo(url=url))
 
 
 def with_miniapp_row(markup, lang: str, tab: str | None = None, before_last: bool = False):

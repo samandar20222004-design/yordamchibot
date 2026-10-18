@@ -26,7 +26,7 @@ describe('tarjimalar', () => {
     for (const code of ['unauthorized', 'auth_expired', 'not_registered',
       'rate_limited', 'service_unavailable', 'https_required', 'internal_error', 'auth_unavailable',
       'bad_request', 'not_found', 'method_not_allowed', 'caption_too_long', 'draft_not_found', 'media_unavailable',
-      'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full']) {
+      'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full', 'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy']) {
       expect(keys).toContain(`err.${code}`)
     }
   })

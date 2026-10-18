@@ -15,17 +15,31 @@ export const TABS: ReadonlyArray<{ id: Tab; icon: IconName; label: MessageKey }>
   { id: 'me', icon: 'user', label: 'tab.me' },
 ]
 
-export function TabBar({ active, onChange }: { active: Tab; onChange: (tab: Tab) => void }) {
+export function TabBar({ active, onChange, badges = {}, tabs }: {
+  active: Tab; onChange: (tab: Tab) => void; badges?: Partial<Record<Tab, number>>
+  /** Ko'rinadigan tablar va tartibi (foydalanuvchi sozlaydi). Berilmasa — hammasi. */
+  tabs?: readonly Tab[]
+}) {
   const { t } = useI18n()
-  const index = Math.max(0, TABS.findIndex((x) => x.id === active))
+  const list = tabs && tabs.length > 0
+    ? tabs.map((id) => TABS.find((x) => x.id === id)).filter((x): x is (typeof TABS)[number] => x !== undefined)
+    : TABS
+  const index = list.findIndex((x) => x.id === active)
   return (
-    <nav className="tabbar" aria-label={t('nav.label')} style={{ '--tab-i': index } as CSSProperties}>
-      <span className="tab-pill" aria-hidden="true" />
-      {TABS.map((tab) => (
+    <nav className="tabbar" aria-label={t('nav.label')} style={{ '--tab-i': Math.max(0, index), '--tab-n': list.length, gridTemplateColumns: `repeat(${list.length}, 1fr)` } as CSSProperties}>
+      {index >= 0 && <span className="tab-pill" aria-hidden="true" />}
+      {list.map((tab) => (
         <button key={tab.id} type="button" className="tab"
           onClick={() => { if (tab.id !== active) haptic('select'); onChange(tab.id) }}
           aria-current={active === tab.id ? 'page' : undefined}>
-          <Icon name={tab.icon} />
+          <span className="tab-ico">
+            <Icon name={tab.icon} />
+            {(badges[tab.id] ?? 0) > 0 && (
+              <span className="tab-badge" role="status" aria-label={t('mk.unreadAria', { n: badges[tab.id] ?? 0 })}>
+                {(badges[tab.id] ?? 0) > 9 ? '9+' : badges[tab.id]}
+              </span>
+            )}
+          </span>
           <span>{t(tab.label)}</span>
           <span className="tab-dot" aria-hidden="true" />
         </button>

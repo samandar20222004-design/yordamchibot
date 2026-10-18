@@ -8,7 +8,7 @@ import { Page, PageHeader } from '../components/Shell'
 import { Button, ErrorState, LoadingBlock } from '../components/ui'
 import { toClientError, useResource } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
-import { haptic } from '../telegram'
+import { getInitialThread, haptic } from '../telegram'
 import { ThreadList, ThreadView } from './MarketChats'
 import { ListingView, usePriceText } from './MarketListing'
 import { MineEditor, MineList } from './MarketMine'
@@ -113,10 +113,14 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
 
 /** 💰 Reklama birjasi: katalog, o'z kanalini qo'yish va suhbatlar (bot bilan bir xil qoidalar). */
 export function MarketPage() {
-  const { client } = useAppData()
+  const { client, refreshUnread } = useAppData()
   const { t } = useI18n()
-  const [sub, setSub] = useState<Sub>('catalog')
-  const [screen, setScreen] = useState<Screen>({ kind: 'main' })
+  // Botdagi «📱 Mini App'da» tugmasi (?tab=market&thread=<id>) suhbatni to'g'ridan-to'g'ri ochadi.
+  const [sub, setSub] = useState<Sub>(() => (getInitialThread() ? 'chats' : 'catalog'))
+  const [screen, setScreen] = useState<Screen>(() => {
+    const id = getInitialThread()
+    return id ? { kind: 'thread', id } : { kind: 'main' }
+  })
   const summary = useResource((s) => client.marketSummary(s), true)
   const mine = useResource((s) => client.marketMine(s), sub === 'mine' || screen.kind === 'editor')
   const threads = useResource((s) => client.marketThreads(s), sub === 'chats' || screen.kind === 'thread')
@@ -131,7 +135,7 @@ export function MarketPage() {
       onBack={back} onChanged={() => { mine.reload(); summary.reload() }} />
   }
   if (screen.kind === 'thread') {
-    return <ThreadView id={screen.id} onBack={back} onChanged={threads.reload} />
+    return <ThreadView id={screen.id} onBack={back} onChanged={() => { threads.reload(); refreshUnread() }} />
   }
 
   const subs: Array<[Sub, MessageKey]> = [['catalog', 'mk.tabCatalog'], ['mine', 'mk.tabMine'], ['chats', 'mk.tabChats']]
