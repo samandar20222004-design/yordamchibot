@@ -801,7 +801,7 @@ def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeybo
             InlineKeyboardButton(channels_queue_t("cq_ch_ctx_settings", lang),
                                  callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
         ],
-        [InlineKeyboardButton(market_t("mk_btn_channel", lang), callback_data=f"mk:lc:{channel_id}")],
+        [InlineKeyboardButton(market_t("mk_btn_channel", lang), callback_data=cb("mk:lc:", channel_id))],
         [InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
                               callback_data=CB_CHANNEL_BACK)],
     ])

@@ -1077,7 +1077,7 @@ async def _send_market_offer(send, channel_id, lang: str = "uz") -> bool:
         await send(
             market_t("mk_offer", lang),
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
-                market_t("mk_offer_btn", lang), callback_data=f"mk:lc:{channel_id}")]]),
+                market_t("mk_offer_btn", lang), callback_data=cb("mk:lc:", channel_id))]]),
             parse_mode="HTML",
         )
         return True
