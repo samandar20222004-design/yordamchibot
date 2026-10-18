@@ -67,16 +67,19 @@ EXPECTED_PANEL = {
            ["🚀 Autopilot", "📋 Kontent reja"],
            ["🧬 Channel DNA", "📊 Analytics"],
            ["👥 Team", "⚙️ Sozlamalar"],
+           ["💰 Reklama birjasi"],
            ["◀️ Orqaga"]],
     "ru": [["➕ Добавить канал"],
            ["🚀 Автопилот", "📋 Контент-план"],
            ["🧬 Channel DNA", "📊 Аналитика"],
            ["👥 Команда", "⚙️ Настройки"],
+           ["💰 Биржа рекламы"],
            ["◀️ Назад"]],
     "en": [["➕ Add channel"],
            ["🚀 Autopilot", "📋 Content plan"],
            ["🧬 Channel DNA", "📊 Analytics"],
            ["👥 Team", "⚙️ Settings"],
+           ["💰 Ad exchange"],
            ["◀️ Back"]],
 }
 
@@ -398,6 +401,7 @@ def test_channel_panel_layout_and_actions():
         f"{CB_CHANNEL_STATS}{CH_ID}",
         f"{CB_CHANNEL_TEAM}{CH_ID}",
         f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        f"mk:lc:{CH_ID}",
         CB_CHANNEL_BACK,
     ]
     for lang in LANGS:

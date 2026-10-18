@@ -424,6 +424,14 @@ from handlers.privacy import (
 #   * ``support_admin_reply`` — global MessageHandler, FAQAT ADMIN_IDS uchun
 #     va FAQAT Telegram «Reply» xabarlariga (oddiy foydalanuvchi ta'sir
 #     qila olmaydi; boshqa reply'lar eski fallback'ga o'tadi).
+from handlers.ad_market import (
+    MarketInputFilter,
+    market_admin_command,
+    market_callback,
+    market_command,
+    market_text_input,
+    set_market_application,
+)
 from handlers.support import (
     SUPPORT_ADMIN_REPLY_ENABLED,
     SUPPORT_ADMIN_REPLY_FILTER,
@@ -2259,6 +2267,13 @@ def _register_global_commands(app):
     # buyruq orqali ham kabinetga kirish mumkin (uz/ru/en — bitta yo'l).
     app.add_handler(CommandHandler("settings", user_cabinet_menu))
     app.add_handler(CommandHandler(["app", "miniapp"], app_command))
+    # 💰 Reklama birjasi: /market, admin /market_ban|unban, ``mk:`` tugmalari va matn kiritish.
+    # Matn handleri FAQAT faol ``mk_input`` holatidagi foydalanuvchiga mos (asosiy FSM'ga tegmaydi).
+    set_market_application(app)
+    app.add_handler(CommandHandler("market", market_command))
+    app.add_handler(CommandHandler(["market_ban", "market_unban"], market_admin_command))
+    app.add_handler(CallbackQueryHandler(market_callback, pattern=r"^mk:"))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & MarketInputFilter, market_text_input))
     app.add_handler(CommandHandler("help", help_command))
     # /privacy — bot qanday ma'lumotlarni
     # saqlashini ochiq ko'rsatadi (uz/ru/en) va o'chirish tugmasini beradi.

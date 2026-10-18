@@ -26,7 +26,7 @@ Qamrov (topshiriq bo'yicha, deterministik — tarmoqsiz):
            indekslar ((channel_id, created_at DESC), (channel_id, status),
            (post_id, reaction_type)) — barchasi IDEMPOTENT
            (CREATE INDEX IF NOT EXISTS), ikki marta qo'llash xavfsiz;
-           schema.sql hisoblagichlari (32 jadval / 33 indeks) o'zgarmagan.
+           schema.sql hisoblagichlari (37 jadval / 38 indeks: 32/33 + reklama birjasi 5/5) o'zgarmagan.
 
   TEST 6 — 📊 STATISTIKA OPTIMIZATSIYASI: `get_channel_post_stats`
            ilgari 8 ta ketma-ket SQL yuborardi — endi 3 ta
@@ -533,11 +533,11 @@ def test_index_tuning():
           total == idempotent and total >= 40, f"{idempotent}/{total}")
 
     # Tarixiy hisoblagichlar O'ZGARMAGAN (tests/schema_test.py bilan bir xil).
-    check("schema.sql hisoblagichi o'zgarmadi: 32 jadval",
-          schema.count("CREATE TABLE IF NOT EXISTS") == 32,
+    check("schema.sql hisoblagichi o'zgarmadi: 37 jadval (32 + 5 reklama birjasi)",
+          schema.count("CREATE TABLE IF NOT EXISTS") == 37,
           str(schema.count("CREATE TABLE IF NOT EXISTS")))
-    check("schema.sql hisoblagichi o'zgarmadi: 33 indeks",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 33,
+    check("schema.sql hisoblagichi o'zgarmadi: 38 indeks (33 + 5 reklama birjasi)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 38,
           str(schema.count("CREATE INDEX IF NOT EXISTS")))
 
     # Idempotentlik: ikki marta qo'llash xavfsiz + bir xil DDL.

@@ -327,6 +327,8 @@ REGISTERED_NAMESPACES = (
     "add_channel_",
     # 🎨 Kanal uslubi (Tone of Voice) inline tanlash: set_style:<id>:<tone>.
     "set_style:",
+    # 💰 Reklama birjasi (handlers/ad_market.py): katalog, so'rov, yozishma, kanal egasi paneli.
+    "mk:",
 )
 
 #: Payload'siz (aniq) kanonik callback tokenlari.

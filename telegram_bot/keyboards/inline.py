@@ -778,7 +778,7 @@ def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeybo
     Barcha tugmalar ≤ 18 belgi, 3 tilda (UZ/RU/EN) va ``channel_id`` kontekstini
     olib yuradi (IDOR tekshiruvi bilan).
     """
-    from translations import channels_queue_t
+    from translations import channels_queue_t, market_t
 
     return InlineKeyboardMarkup([
         [InlineKeyboardButton(channels_queue_t("cq_ch_ctx_add", lang),
@@ -801,6 +801,7 @@ def get_channel_contextual_keyboard(channel_id, lang: str = "uz") -> InlineKeybo
             InlineKeyboardButton(channels_queue_t("cq_ch_ctx_settings", lang),
                                  callback_data=cb(CB_CHANNEL_SETTINGS, channel_id)),
         ],
+        [InlineKeyboardButton(market_t("mk_btn_channel", lang), callback_data=cb("mk:lc:", channel_id))],
         [InlineKeyboardButton(channels_queue_t("cq_ch_btn_back", lang),
                               callback_data=CB_CHANNEL_BACK)],
     ])

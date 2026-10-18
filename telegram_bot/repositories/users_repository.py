@@ -2209,6 +2209,10 @@ def delete_user_data(user_id: int) -> dict:
             cur.execute("DELETE FROM voice_schedule_usage WHERE user_id = %s", (uid,))
             summary["cleaned"]["voice_schedule_usage"] = int(cur.rowcount or 0)
 
+            # Reklama birjasi: e'lonlar, so'rovlar/yozishmalar, shikoyat va bloklar.
+            from repositories.ad_market_repository import delete_user_market_data
+            summary["cleaned"].update(delete_user_market_data(cur, uid))
+
             # Manbalar: avval ularga bog'langan item/draft, keyin manba.
             cur.execute(
                 "DELETE FROM source_drafts WHERE user_id = %s", (uid,))
