@@ -577,6 +577,32 @@ def get_user_language(user_id: int) -> str:
         return "uz"
 
 
+def get_pay_region(user_id: int) -> str:
+    """Saqlangan to'lov mintaqasi ('uz' | 'intl'); tanlanmagan yoki xatoda ''."""
+    try:
+        with db_cursor() as cur:
+            cur.execute("SELECT pay_region FROM users WHERE user_id = %s", (int(user_id),))
+            row = cur.fetchone()
+        value = (row[0] if row else "") or ""
+        return value if value in ("uz", "intl") else ""
+    except Exception as e:  # noqa: BLE001
+        logger.error("get_pay_region xatosi: %s", type(e).__name__)
+        return ""
+
+
+def set_pay_region(user_id: int, region: str) -> bool:
+    """To'lov mintaqasini saqlaydi ('uz' | 'intl'); boshqa qiymat rad etiladi."""
+    if region not in ("uz", "intl"):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE users SET pay_region = %s WHERE user_id = %s", (region, int(user_id)))
+            return bool(cur.rowcount)
+    except Exception as e:  # noqa: BLE001
+        logger.error("set_pay_region xatosi: %s", type(e).__name__)
+        return False
+
+
 def set_user_language(user_id: int, language_code: str) -> bool:
     """Foydalanuvchi tilini yangilaydi ('uz' | 'ru')."""
     lang = _normalize_language_code(language_code)

@@ -60,7 +60,7 @@ function parseTier(v: unknown, what: string): TierInfo {
     const p = rec(x, `${what}.periods.${i}`)
     return {
       months: int(p.months, `${what}.months`), days: int(p.days, `${what}.days`), uzs: int(p.uzs, `${what}.uzs`),
-      stars: int(p.stars, `${what}.stars`), save_pct: int(p.save_pct, `${what}.save_pct`),
+      stars: int(p.stars, `${what}.stars`), usd: typeof p.usd === 'number' && Number.isFinite(p.usd) ? p.usd : 0, save_pct: int(p.save_pct, `${what}.save_pct`),
     }
   })
   return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`), periods }
@@ -109,6 +109,7 @@ export function parseMe(v: unknown): Me {
       language: lang(u.language),
     },
     plan: parsePlan(o.plan),
+    ...(o.pay_region === 'uz' || o.pay_region === 'intl' ? { pay_region: o.pay_region } : {}),
     ...(o.tiers === undefined ? {} : { tiers: {
       ...(rec(o.tiers, 'tiers').free === undefined ? {} : { free: parseTier(rec(o.tiers, 'tiers').free, 'tiers.free') }),
       pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),

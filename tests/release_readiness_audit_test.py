@@ -69,7 +69,6 @@ def main() -> int:
     from locales.translations import get_text  # noqa: F401
     from services.payment_service import PaymentService  # noqa: F401
     from services.subscription_service import SubscriptionService
-    from utils import helpers
 
     db.init_db()
     loop = asyncio.new_event_loop()
@@ -109,7 +108,7 @@ def main() -> int:
             check(f"{key}: Stars katalogda == STARS_PLANS == INTL_STARS_AMOUNTS == invoice",
                   sub.STARS_PLANS[info["stars_key"]]["stars"] == info["stars"] == sub.INTL_STARS_AMOUNTS[key]
                   and sub.STARS_PLANS[info["stars_key"]]["days"] == info["days"] and sub.STARS_PLANS[info["stars_key"]]["tier"] == info["tier"],
-                  f"{sub.STARS_PLANS.get(info["stars_key"])} vs {info}")
+                  f"{sub.STARS_PLANS.get(info['stars_key'])} vs {info}")
         for tier in ("pro", "ultra"):
             keys = [k for k, v in cat.items() if v["tier"] == tier]
             keys.sort(key=lambda k: cat[k]["days"])
@@ -170,7 +169,7 @@ def main() -> int:
         check("bir xil charge qayta kelsa — muddat ikki marta qo'shilmaydi", row(PAYER)[1] == first_exp)
         cur.execute("SELECT COUNT(*), MIN(amount), MIN(currency), MIN(status) FROM payments WHERE user_id = %s", (PAYER,))
         cnt, amt, curc, st = cur.fetchone()
-        check("payments: 1 ta qator, 115 Stars, XTR, succeeded", (cnt, amt, curc, st) == (1, 115, "XTR", "succeeded"), str((cnt, amt, curc, st)))
+        check("payments: 1 ta qator, katalogdagi Stars, XTR, succeeded", (cnt, amt, curc, st) == (1, cat["1m"]["stars"], "XTR", "succeeded"), str((cnt, amt, curc, st)))
         run(pay(PAYER, "3m", "ch-a-2"))
         plan, exp = row(PAYER)
         check("faol PRO ustiga 3 oy -> muddat +90 kun qo'shiladi (kuymaydi)", plan == "pro" and abs((exp - first_exp).total_seconds() / 86400 - 90) < 0.1, f"{exp - first_exp}")

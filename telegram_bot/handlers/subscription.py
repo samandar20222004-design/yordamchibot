@@ -223,6 +223,33 @@ def _get_pending_plan(context) -> str:
     return plan_key if plan_key in CARD_TARIFFS else ""
 
 
+def _derive_region(lang: str) -> str:
+    """Tildan taxminiy mintaqa: o'zbek tili -> O'zbekiston (so'm), boshqa tillar -> xalqaro (dollar). Foydalanuvchi o'zgartira oladi."""
+    return PAYMENT_REGION_UZ if str(lang or "uz") == "uz" else PAYMENT_REGION_INTL
+
+
+async def _user_region(user_id: int, lang: str) -> str:
+    """Narx ko'rsatish mintaqasi: foydalanuvchining SAQLANGAN tanlovi, bo'lmasa tildan (DB xatosi ham xavfsiz)."""
+    try:
+        stored = await db.run_db(db.get_pay_region, user_id)
+    except Exception as _silent_exc:  # noqa: BLE001
+        log_silent_failure("handlers.subscription:_user_region", _silent_exc, user_id=user_id)
+        stored = ""
+    return stored if is_payment_region(stored or "") else _derive_region(lang)
+
+
+def _usd_text(plan_key: str) -> str:
+    """Tarifning xalqaro dollar narxi: '$3.90'."""
+    return f"${(TARIFF_CATALOG.get(plan_key) or TARIFF_CATALOG['1m'])['usd']}"
+
+
+def _plan_price_text(plan_key: str, region: str) -> str:
+    """Narx matni mintaqaga qarab: UZ -> '29 000 so'm' (tilga mos birlik), xalqaro -> '$3.90'."""
+    if region == PAYMENT_REGION_INTL:
+        return _usd_text(plan_key)
+    return _fmt_uzs((TARIFF_CATALOG.get(plan_key) or TARIFF_CATALOG["1m"])["uzs"])
+
+
 def _build_pay_region_text(lang: str = "uz", plan_key: str = "") -> str:
     """Mintaqa tanlash ekrani matni (kerak bo'lsa tanlangan tarif bilan)."""
     parts = [get_text("pay_region_title", lang)]
@@ -448,22 +475,36 @@ def _limit_key_for(plan_info: dict) -> str:
     return "pro"
 
 
-def _tier_price_lines(tier: str, lang: str) -> list:
-    """Tarifning 4 muddati: narx (so'm), Stars va 1 oylikka nisbatan HAQIQIY tejam foizi (config narxlaridan)."""
+def _price_with_unit(plan_key: str, region: str, lang: str) -> str:
+    """Kartadagi qisqa narx: UZ -> '29 000 so\'m' (til birligi bilan), xalqaro -> '$3.90'."""
+    if region == PAYMENT_REGION_INTL:
+        return _usd_text(plan_key)
+    return get_text("price_uzs_tpl", lang, uzs=_fmt_uzs(TARIFF_CATALOG[plan_key]["uzs"]))
+
+
+def _tier_price_lines(tier: str, lang: str, region: str = PAYMENT_REGION_UZ) -> list:
+    """Tarifning 4 muddati: mintaqaga qarab narx (UZ: so'm; xalqaro: dollar + Stars) va 1 oylikka nisbatan HAQIQIY tejam foizi."""
     keys = tariff_keys_for(tier)
     monthly = TARIFF_CATALOG[keys[0]]
     lines = []
     for key in keys:
         info = TARIFF_CATALOG[key]
-        pct = plan_discount_percent(info["uzs"], monthly["uzs"], info["months"]) if info["months"] > 1 else 0
-        lines.append(get_text(
-            "tier_price_line", lang, period=_period_label(key, lang), uzs=_fmt_uzs(info["uzs"]),
-            stars=info["stars"], save=f" (−{pct}%)" if pct > 0 else "",
-        ))
+        if region == PAYMENT_REGION_INTL:
+            pct = plan_discount_percent(info["stars"], monthly["stars"], info["months"]) if info["months"] > 1 else 0
+            lines.append(get_text(
+                "tier_price_line_usd", lang, period=_period_label(key, lang), usd=info["usd"],
+                stars=info["stars"], save=f" (−{pct}%)" if pct > 0 else "",
+            ))
+        else:
+            pct = plan_discount_percent(info["uzs"], monthly["uzs"], info["months"]) if info["months"] > 1 else 0
+            lines.append(get_text(
+                "tier_price_line_uz", lang, period=_period_label(key, lang), uzs=_fmt_uzs(info["uzs"]),
+                save=f" (−{pct}%)" if pct > 0 else "",
+            ))
     return lines
 
 
-def _build_tier_card(tier: str, lang: str = "uz") -> str:
+def _build_tier_card(tier: str, lang: str = "uz", region: str = PAYMENT_REGION_UZ) -> str:
     """Tarif tanlangach ko'rsatiladigan to'liq karta: kimlar uchun, imkoniyatlar, narxlar, shartlar (to'lovdan OLDIN)."""
     parts = [
         get_text(f"tier_title_{tier}", lang),
@@ -471,8 +512,9 @@ def _build_tier_card(tier: str, lang: str = "uz") -> str:
         "",
         *tier_limit_lines(tier, lang),
         "",
-        get_text("tier_prices_head", lang),
-        *_tier_price_lines(tier, lang),
+        get_text("tier_prices_head_usd" if region == PAYMENT_REGION_INTL else "tier_prices_head_uz", lang),
+        *_tier_price_lines(tier, lang, region),
+        get_text("tier_region_note_usd" if region == PAYMENT_REGION_INTL else "tier_region_note_uz", lang),
         "",
         get_text("tier_terms", lang),
         "",
@@ -481,7 +523,7 @@ def _build_tier_card(tier: str, lang: str = "uz") -> str:
     return "\n".join(parts)
 
 
-def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
+def _build_subscription_card(plan_info: dict, lang: str = "uz", region: str = PAYMENT_REGION_UZ) -> str:
     """Obuna holati kartasi: tarif nomi, tugash sanasi, HAQIQIY limitlar va keyingi tarifga o'tish (uz/ru/en)."""
     plan = plan_info.get("plan_type", "free")
     if plan not in _TIER_NAME:
@@ -504,7 +546,7 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz") -> str:
     if limit_key == "pro_legacy" and plan_info.get("legacy_until") is not None:
         lines.append(get_text("plan_card_legacy", lang, until=_format_expires(plan_info.get("legacy_until"), lang)))
     ctx = dict(
-        pro_price=_fmt_uzs(TARIFF_CATALOG["1m"]["uzs"]), ultra_price=_fmt_uzs(TARIFF_CATALOG["u1m"]["uzs"]),
+        pro_price=_price_with_unit("1m", region, lang), ultra_price=_price_with_unit("u1m", region, lang),
         pro_ch=TIER_LIMITS[PLAN_PRO]["max_channels"], pro_ai=TIER_LIMITS[PLAN_PRO]["daily_ai_requests"],
         ultra_ch=TIER_LIMITS[PLAN_ULTRA]["max_channels"], ultra_ai=TIER_LIMITS[PLAN_ULTRA]["daily_ai_requests"],
         ultra_q=TIER_LIMITS[PLAN_ULTRA]["queued_posts"],
@@ -547,12 +589,19 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_tier_keyboard(tier: str, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Tanlangan tarifning 4 muddati (har biri -> to'lov mintaqasi tanlash) + orqaga."""
+def _get_tier_keyboard(tier: str, lang: str = "uz", region: str = PAYMENT_REGION_UZ) -> InlineKeyboardMarkup:
+    """Tanlangan tarifning 4 muddati (mintaqaga qarab so'm/dollar; har biri -> to'lov) + mintaqa almashtirish + orqaga."""
     keyboard = []
     for key in tariff_keys_for(tier):
-        keyboard.append([InlineKeyboardButton(
-            _card_tariff_label(key, lang), callback_data=cb(f"sub_pay:{TARIFF_CATALOG[key]['stars_key']}"))])
+        if region == PAYMENT_REGION_INTL:
+            label = get_text("tariff_btn_usd_tpl", lang, period=_period_label(key, lang), usd=TARIFF_CATALOG[key]["usd"])
+        else:
+            label = _card_tariff_label(key, lang)
+        keyboard.append([InlineKeyboardButton(label, callback_data=cb(f"sub_pay:{TARIFF_CATALOG[key]['stars_key']}"))])
+    other = PAYMENT_REGION_UZ if region == PAYMENT_REGION_INTL else PAYMENT_REGION_INTL
+    keyboard.append([InlineKeyboardButton(
+        get_text("btn_region_uzs" if other == PAYMENT_REGION_UZ else "btn_region_usd", lang),
+        callback_data=cb("sub_setreg", other, tier))])
     keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
     return InlineKeyboardMarkup(keyboard)
 
@@ -646,7 +695,7 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = update.effective_user.id
     lang = await ensure_user_lang(context, user_id)
     plan_info = await db.run_db(db.get_user_plan, user_id)
-    card = _build_subscription_card(plan_info, lang)
+    card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
     plan = plan_info.get("plan_type", "free")
 
     await update.message.reply_text(
@@ -660,7 +709,7 @@ async def start_subscription(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def send_subscription_card(message, context, user_id: int, lang: str) -> None:
     """PRO/ULTRA obuna kartasini yangi xabar sifatida yuboradi (``sub_open`` tugmasi va Mini App deep-link ``go_plans``)."""
     plan_info = await db.run_db(db.get_user_plan, user_id)
-    card = _build_subscription_card(plan_info, lang)
+    card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
     plan = plan_info.get("plan_type", "free")
     try:
         await message.reply_text(
@@ -740,6 +789,21 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text(get_text("sub_invalid_plan", lang))
             return SUBSCRIPTION_VIEW
 
+        # Mintaqa avval tanlangan (saqlangan) bo'lsa — menyu so'ralmaydi, to'g'ridan-to'g'ri o'sha oqim.
+        try:
+            saved_region = await db.run_db(db.get_pay_region, user_id)
+        except Exception as _silent_exc:  # noqa: BLE001
+            log_silent_failure("handlers.subscription:sub_pay_region", _silent_exc, user_id=user_id)
+            saved_region = ""
+        if saved_region == PAYMENT_REGION_UZ:
+            _remember_payment_choice(context, PAYMENT_REGION_UZ, plan_suffix)
+            await _show_local_card_payment(query, context, user_id, lang, plan_suffix)
+            return SUBSCRIPTION_VIEW
+        if saved_region == PAYMENT_REGION_INTL:
+            _remember_payment_choice(context, PAYMENT_REGION_INTL, plan_suffix)
+            await _show_intl_payment(query, context, user_id, lang, plan_suffix)
+            return SUBSCRIPTION_VIEW
+
         _remember_payment_choice(context, "", plan_suffix)
         text = _build_pay_region_text(lang, plan_suffix)
         markup = get_payment_region_keyboard(lang, plan_suffix)
@@ -761,6 +825,11 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             markup = get_payment_region_keyboard(lang, plan_key or None)
             await _edit_or_reply(query, text, markup)
             return SUBSCRIPTION_VIEW
+
+        try:  # tanlov saqlanadi: keyingi safar menyu so'ralmaydi va narxlar shu mintaqada ko'rsatiladi
+            await db.run_db(db.set_pay_region, user_id, region)
+        except Exception as _silent_exc:  # noqa: BLE001
+            log_silent_failure("handlers.subscription:sub_region_save", _silent_exc, user_id=user_id)
 
         if region == PAYMENT_REGION_UZ:
             _remember_payment_choice(context, PAYMENT_REGION_UZ, plan_key)
@@ -798,14 +867,31 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text(get_text("sub_invalid_plan", lang))
             return SUBSCRIPTION_VIEW
         _clear_payment_choice(context)
-        await _edit_or_reply(query, _build_tier_card(tier, lang), _get_tier_keyboard(tier, lang))
+        region = await _user_region(user_id, lang)
+        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region))
+        return SUBSCRIPTION_VIEW
+
+    if data.startswith("sub_setreg:"):
+        # Narx mintaqasini almashtirish (🇺🇿 so'm <-> 🌍 dollar): tanlov saqlanadi va tarif kartasi qayta chiziladi.
+        parts = data.split(":")
+        region = parts[1] if len(parts) > 1 else ""
+        tier = parts[2] if len(parts) > 2 else ""
+        if region not in (PAYMENT_REGION_UZ, PAYMENT_REGION_INTL) or tier not in (PLAN_PRO, PLAN_ULTRA):
+            await query.message.reply_text(get_text("sub_invalid_plan", lang))
+            return SUBSCRIPTION_VIEW
+        try:
+            await db.run_db(db.set_pay_region, user_id, region)
+        except Exception as _silent_exc:  # noqa: BLE001
+            log_silent_failure("handlers.subscription:sub_setreg", _silent_exc, user_id=user_id)
+        _clear_payment_choice(context)
+        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region))
         return SUBSCRIPTION_VIEW
 
     if data == "sub_card_pay":
         # Eski tugma (karta orqali to'lov): endi tarif va muddat avval tanlanadi — obuna kartasiga qaytamiz.
         _clear_payment_choice(context)
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        await _edit_or_reply(query, _build_subscription_card(plan_info, lang),
+        await _edit_or_reply(query, _build_subscription_card(plan_info, lang, await _user_region(user_id, lang)),
                              _get_subscription_keyboard(plan_info.get("plan_type", "free"), lang))
         return SUBSCRIPTION_VIEW
 
@@ -846,7 +932,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # Obuna kartasiga qaytish — mintaqa/tarif tanlovi bekor qilinadi.
         _clear_payment_choice(context)
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, lang)
+        card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
         plan = plan_info.get("plan_type", "free")
         try:
             await query.edit_message_text(
@@ -874,7 +960,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data == "sub_refresh":
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, lang)
+        card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
         plan = plan_info.get("plan_type", "free")
         try:
             await query.edit_message_text(
@@ -903,7 +989,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     if is_main_menu_text(text):
         # Qaytadan obuna kartasini ko'rsatamiz
         plan_info = await db.run_db(db.get_user_plan, user_id)
-        card = _build_subscription_card(plan_info, lang)
+        card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
         plan = plan_info.get("plan_type", "free")
         await update.message.reply_text(
             card,

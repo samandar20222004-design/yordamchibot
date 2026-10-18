@@ -193,11 +193,23 @@ _PRO_UZS = (_int_env("PAYMENT_PRICE_1M_UZS", 29000), _int_env("PAYMENT_PRICE_3M_
             _int_env("PAYMENT_PRICE_6M_UZS", 135000), _int_env("PAYMENT_PRICE_1Y_UZS", 245000))
 _ULTRA_UZS = (_int_env("ULTRA_PRICE_1M_UZS", 69000), _int_env("ULTRA_PRICE_3M_UZS", 175000),
               _int_env("ULTRA_PRICE_6M_UZS", 335000), _int_env("ULTRA_PRICE_1Y_UZS", 620000))
-# Telegram Stars (taxminiy 1 Star = 0,02 USD). Yakuniy qiymatlarni ishga tushirishdan oldin komissiya/tushum bilan tekshiring.
-_PRO_STARS = (_int_env("STARS_PRICE_1M", 115), _int_env("STARS_PRICE_3M", 300),
-              _int_env("STARS_PRICE_6M", 535), _int_env("STARS_PRICE_1Y", 970))
-_ULTRA_STARS = (_int_env("ULTRA_STARS_PRICE_1M", 275), _int_env("ULTRA_STARS_PRICE_3M", 695),
-                _int_env("ULTRA_STARS_PRICE_6M", 1330), _int_env("ULTRA_STARS_PRICE_1Y", 2460))
+# 🌍 XALQARO narx (Telegram Stars / dollar): O'zbekiston narxidan INTL_PRICE_MULTIPLIER (sukut 1,7) baravar qimmat.
+# Stars faqat xalqaro mintaqada sotiladi (O'zbekistonda — so'm: karta/Payme). Asos qiymatlar (O'zbekiston ekvivalenti, 1 Star ~ 0,02 USD)
+# env'dan o'qiladi; yakuniy Stars 5 ga yaxlitlanadi. Yakuniy qiymatlarni ishga tushirishdan oldin komissiya/tushum bilan tekshiring.
+INTL_PRICE_MULTIPLIER = max(1.0, _env_float("INTL_PRICE_MULTIPLIER", 1.7))
+
+
+def _intl_stars(base: int) -> int:
+    """Asos (O'zbekiston ekvivalenti) Stars -> xalqaro Stars: ko'paytirgich bilan, 5 ga yaxlitlangan."""
+    return int(round(int(base) * INTL_PRICE_MULTIPLIER / 5.0)) * 5
+
+
+_PRO_STARS_BASE = (_int_env("STARS_PRICE_1M", 115), _int_env("STARS_PRICE_3M", 300),
+                   _int_env("STARS_PRICE_6M", 535), _int_env("STARS_PRICE_1Y", 970))
+_ULTRA_STARS_BASE = (_int_env("ULTRA_STARS_PRICE_1M", 275), _int_env("ULTRA_STARS_PRICE_3M", 695),
+                     _int_env("ULTRA_STARS_PRICE_6M", 1330), _int_env("ULTRA_STARS_PRICE_1Y", 2460))
+_PRO_STARS = tuple(_intl_stars(x) for x in _PRO_STARS_BASE)
+_ULTRA_STARS = tuple(_intl_stars(x) for x in _ULTRA_STARS_BASE)
 
 PAYMENT_PRICE_1M_UZS, PAYMENT_PRICE_3M_UZS, PAYMENT_PRICE_6M_UZS, PAYMENT_PRICE_1Y_UZS = _PRO_UZS
 STARS_1M, STARS_3M, STARS_6M, STARS_1Y = _PRO_STARS
@@ -392,8 +404,7 @@ def _build_catalog() -> dict:
             key = period if tier == PLAN_PRO else "u" + period
             catalog[key] = {"key": key, "tier": tier, "period": period, "months": months, "days": days,
                             "uzs": int(price), "stars": int(star),
-                            "usd": {"1m": USD_1M, "3m": USD_3M, "6m": USD_6M, "1y": USD_1Y}[period]
-                            if tier == PLAN_PRO else "%.2f" % (int(star) * 0.02),
+                            "usd": "%.2f" % (int(star) * 0.02),  # xalqaro narx: Stars x 0,02 (env USD_EQUIV_* faqat eski kalitlar uchun)
                             "stars_key": f"stars_{key}"}
     return catalog
 

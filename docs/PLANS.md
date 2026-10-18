@@ -26,7 +26,21 @@ Majburlash: `check_channel_limit`, `reserve_ai_request` / `check_ai_limit` (atom
 `services/voice_schedule_quota.py` (atomik bron, STT'dan OLDIN; xatoda qaytariladi; DB xatosida fail-closed), AI xarajat byudjeti
 `services/ai/budget.py` (FREE/PRO/ULTRA alohida kunlik/oylik token va USD).
 
-## Narxlar (so'm · Stars) — 4 muddat: 1, 3, 6 oy va 1 yil (6 oy = 180 kun)
+## Narxlar — 4 muddat: 1, 3, 6 oy va 1 yil (6 oy = 180 kun)
+
+**Mintaqaga qarab:** O'zbekiston — so'm (Uzcard/Humo/Payme); chet el — dollar (Telegram Stars), O'zbekiston narxidan **1,7 baravar qimmat**
+(`INTL_PRICE_MULTIPLIER`; Stars 5 ga yaxlitlanadi, 1 ★ = 0,02 $). Mintaqa: foydalanuvchi tanlovi (`users.pay_region`, tarif kartasidagi
+«🌍 Dollar narxi» / «🇺🇿 So'm narxi» tugmasi yoki to'lov mintaqasi menyusi), tanlanmagan bo'lsa tildan (`uz` -> so'm, `ru`/`en` -> dollar).
+Telegram mamlakatni bermaydi, shuning uchun bu taxmin; foydalanuvchi o'zi almashtira oladi. Stars faqat xalqaro mintaqada sotiladi.
+
+| Muddat | PRO so'm | PRO $ (Stars) | ULTRA so'm | ULTRA $ (Stars) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 oy | 29 000 | $3.90 (195) | 69 000 | $9.40 (470) |
+| 3 oy | 75 000 | $10.20 (510) | 175 000 | $23.60 (1 180) |
+| 6 oy | 135 000 | $18.20 (910) | 335 000 | $45.20 (2 260) |
+| 1 yil | 245 000 | $33.00 (1 650) | 620 000 | $83.60 (4 180) |
+
+Quyidagi jadvaldagi «Stars» ustunlari — O'ZBEKISTON EKVIVALENTI (asos, `STARS_PRICE_*`); mijoz to'laydigan xalqaro Stars yuqoridagi jadvalda.
 
 | Muddat | PRO so'm | PRO tejam | PRO Stars | ULTRA so'm | ULTRA tejam | ULTRA Stars |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

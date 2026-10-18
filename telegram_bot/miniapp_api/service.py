@@ -66,7 +66,7 @@ def tier_catalog() -> dict:
             info = config.TARIFF_CATALOG[key]
             out.append({
                 "months": int(info["months"]), "days": int(info["days"]),
-                "uzs": int(info["uzs"]), "stars": int(info["stars"]),
+                "uzs": int(info["uzs"]), "stars": int(info["stars"]), "usd": float(info["usd"]),
                 "save_pct": int(config.plan_discount_percent(info["stars"], base["stars"], info["months"])),
             })
         return out
@@ -97,6 +97,14 @@ def resolve_plan(account: dict) -> dict:
         "expires_at": iso_utc(expires) if active else None,
         "limits": limits,
     }
+
+
+def pay_region(account: dict) -> str:
+    """Narx mintaqasi: foydalanuvchi saqlagan tanlov, bo'lmasa tildan ('uz' tili -> 'uz', boshqalar -> 'intl'; bot bilan bir qoida)."""
+    stored = account.get("pay_region")
+    if stored in ("uz", "intl"):
+        return stored
+    return "uz" if _language(account) == "uz" else "intl"
 
 
 def _language(account: dict) -> str:
@@ -143,6 +151,7 @@ class MiniAppService:
                          "username": account["username"],
                          "language": _language(account)},
                 "plan": plan,
+                "pay_region": pay_region(account),
                 "tiers": tier_catalog(),
                 "usage": {"channels": channels, "pending_posts": pending,
                           "ai_requests_today": account["ai_requests_today"],

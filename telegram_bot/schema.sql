@@ -781,6 +781,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;
+-- To'lov mintaqasi ('uz' = so'm, 'intl' = dollar/Stars): foydalanuvchi tanlovi; NULL = tildan aniqlanadi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_region VARCHAR(8);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;

@@ -101,8 +101,14 @@ describe('Profil sahifasi', () => {
     fireEvent.click(tabs.getByRole('button', { name: /1 yil/ }))
     expect(screen.getByText('245 000 so\'m')).toBeTruthy()
     expect(screen.getByText('620 000 so\'m')).toBeTruthy()
-    expect(screen.getByText('970 Stars')).toBeTruthy()
+    expect(screen.queryByText('1650 Stars')).toBeNull()      // so'm mintaqasida Stars ko'rsatilmaydi
     expect(screen.getAllByText('−30%').length).toBeGreaterThan(0)
+    // 🌍 xalqaro mintaqa: dollar narxi (O'zbekiston narxidan 1,7 baravar) va Stars
+    fireEvent.click(within(screen.getByRole('group', { name: 'Narx mintaqasi' })).getByRole('button', { name: /Dollar/ }))
+    expect(screen.getByText('$33.00')).toBeTruthy()
+    expect(screen.getByText('$83.60')).toBeTruthy()
+    expect(screen.getByText('1650 Stars')).toBeTruthy()
+    expect(screen.queryByText('245 000 so\'m')).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Botda sotib olish' })).toHaveLength(2) // PRO va ULTRA; to'lov tugmasi Mini App'da yo'q
     fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
     expect(await screen.findByText(/@alice/)).toBeTruthy()

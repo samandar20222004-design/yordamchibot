@@ -14,6 +14,8 @@ export interface TierPeriod {
   days: number
   uzs: number
   stars: number
+  /** Xalqaro (dollar) narx; Telegram Stars shu narxga hisoblanadi. */
+  usd: number
   /** 1 oylikka nisbatan HAQIQIY tejam (butun foiz). */
   save_pct: number
 }
@@ -45,6 +47,8 @@ export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads
 export interface Me {
   user: { id: number; name: string | null; username: string | null; language: Lang }
   plan: Plan
+  /** Narx mintaqasi: 'uz' (so'm) yoki 'intl' (dollar). Eski serverda yo'q = 'uz'. */
+  pay_region?: 'uz' | 'intl'
   tiers?: { free?: TierInfo; pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts

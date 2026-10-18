@@ -45,8 +45,8 @@ import config  # noqa: E402
 
 print("== Tarif katalogi ==")
 EXPECT = {  # kalit: (tarif, kun, so'm, Stars)
-    "1m": ("pro", 30, 29000, 115), "3m": ("pro", 90, 75000, 300), "6m": ("pro", 180, 135000, 535), "1y": ("pro", 365, 245000, 970),
-    "u1m": ("ultra", 30, 69000, 275), "u3m": ("ultra", 90, 175000, 695), "u6m": ("ultra", 180, 335000, 1330), "u1y": ("ultra", 365, 620000, 2460),
+    "1m": ("pro", 30, 29000, 195), "3m": ("pro", 90, 75000, 510), "6m": ("pro", 180, 135000, 910), "1y": ("pro", 365, 245000, 1650),
+    "u1m": ("ultra", 30, 69000, 470), "u3m": ("ultra", 90, 175000, 1180), "u6m": ("ultra", 180, 335000, 2260), "u1y": ("ultra", 365, 620000, 4180),
 }
 for key, (tier, days, uzs, stars) in EXPECT.items():
     c = config.TARIFF_CATALOG[key]
@@ -91,7 +91,7 @@ check("Mini App: muddati o'tgan ULTRA -> free", p["type"] == "free" and not p["i
 tc = tier_catalog()
 check("Mini App /me tiers: davrlar (1/3/6/12 oy) narx, Stars va haqiqiy tejam bilan", [p["months"] for p in tc["pro"]["periods"]] == [1, 3, 6, 12]
       and [p["uzs"] for p in tc["pro"]["periods"]] == [29000, 75000, 135000, 245000]
-      and [p["stars"] for p in tc["ultra"]["periods"]] == [275, 695, 1330, 2460]
+      and [p["stars"] for p in tc["ultra"]["periods"]] == [470, 1180, 2260, 4180]
       and tc["pro"]["periods"][0]["save_pct"] == 0 and all(p["save_pct"] > 0 for p in tc["pro"]["periods"][1:])
       and tc["free"]["periods"] == [] and tc["free"]["price_from_uzs"] == 0, str(tc["pro"]["periods"]))
 check("Mini App /me tiers: limitlar va 1 oylik narx config'dan", tc["pro"]["price_from_uzs"] == 29000 and tc["ultra"]["price_from_uzs"] == 69000
@@ -212,8 +212,8 @@ try:
               and abs(days_left(SUBS) - config.TARIFF_CATALOG[key]["days"]) < 0.1, f"{r} {user(SUBS)}")
     r = PaymentService.process_stars_payment(SUBS, "tier-cheat", config.TARIFF_CATALOG["1m"]["stars"], f"sub_stars_u1y_{SUBS}", "pro", 365)
     check("ULTRA 1 yillik payload PRO 1 oylik narxda -> RAD (summa tarifga mos emas)", not r.get("ok"), str(r))
-    r = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 115, f"sub_stars_1m_{SUBS}", "pro", 30)
-    r2 = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 115, f"sub_stars_1m_{SUBS}", "pro", 30)
+    r = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 195, f"sub_stars_1m_{SUBS}", "pro", 30)
+    r2 = PaymentService.process_stars_payment(SUBS, "tier-ok-dup", 195, f"sub_stars_1m_{SUBS}", "pro", 30)
     check("takroriy charge: ikkinchisi duplicate (kun qo'shilmaydi)", r.get("ok") and r2.get("duplicate") is True, f"{r} {r2}")
 
     before = days_left(UP)
