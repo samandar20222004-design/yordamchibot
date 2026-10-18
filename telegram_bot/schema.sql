@@ -1296,6 +1296,9 @@ CREATE TABLE IF NOT EXISTS ad_market_listings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- E'lon mamlakati (egasining telefon bilan tasdiqlangan mamlakati; NULL = eski e'lon, faqat global ro'yxatda) va narx valyutasi (UZS | USD).
+ALTER TABLE ad_market_listings ADD COLUMN IF NOT EXISTS country VARCHAR(2);
+ALTER TABLE ad_market_listings ADD COLUMN IF NOT EXISTS price_currency VARCHAR(3) NOT NULL DEFAULT 'UZS';
 CREATE INDEX IF NOT EXISTS idx_ad_market_listings_owner ON ad_market_listings (owner_id);
 CREATE INDEX IF NOT EXISTS idx_ad_market_listings_catalog ON ad_market_listings (status, category, members DESC);
 

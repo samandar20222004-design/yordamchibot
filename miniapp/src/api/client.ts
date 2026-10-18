@@ -15,7 +15,7 @@ const KNOWN_CODES: readonly string[] = [
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
   'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
-  'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy',
+  'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy', 'phone_required',
   'admin_only', 'sponsor_not_found', 'sponsor_not_admin',
 ]
 
@@ -239,8 +239,8 @@ export function createApiClient(opts: ClientOptions) {
       send('DELETE', `/templates/${encodeURIComponent(String(id))}`, undefined, parseTemplateDeleted),
     // --- 💰 Reklama birjasi ---
     marketSummary: (signal?: AbortSignal): Promise<MarketSummary> => get('/market/summary', parseMarketSummary, signal),
-    marketCatalog: (category: MarketCategory | 'all', sort: MarketSort, page: number, signal?: AbortSignal): Promise<MarketCatalog> =>
-      get(`/market/listings?category=${category}&sort=${sort}&page=${page}`, parseMarketCatalog, signal),
+    marketCatalog: (category: MarketCategory | 'all', sort: MarketSort, page: number, signal?: AbortSignal, country: 'all' | 'mine' | 'auto' = 'auto'): Promise<MarketCatalog> =>
+      get(`/market/listings?category=${category}&sort=${sort}&page=${page}&country=${country}`, parseMarketCatalog, signal),
     marketListing: (id: number, signal?: AbortSignal): Promise<{ listing: MarketListing; is_owner: boolean }> =>
       get(`/market/listings/${id}`, parseMarketCard, signal),
     marketInquire: (id: number, text: string): Promise<{ inquiry_id: number; delivered: boolean }> =>

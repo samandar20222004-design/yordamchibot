@@ -125,6 +125,7 @@ class AdminApi:
         from repositories import ad_market_repository as market
 
         mk = await self._blocking(market.admin_market_totals)
+        countries = await self._blocking(db.country_stats)
         return {
             "stats": {"users": dash.get("users", 0), "pro_subscribers": dash.get("pro_subscribers", 0),
                       "channels": dash.get("channels", 0), "posts_today": dash.get("posts_today", 0),
@@ -132,6 +133,7 @@ class AdminApi:
                       "sent": system.get("sent", 0), "failed": system.get("failed", 0),
                       "cancelled": system.get("cancelled", 0), "sponsors": system.get("sponsors", 0)},
             "market": mk,
+            "countries": countries,
         }
 
     # ---------------------------------------------------------------- reklama

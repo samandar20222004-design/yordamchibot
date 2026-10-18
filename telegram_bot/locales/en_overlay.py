@@ -1114,6 +1114,7 @@ EN_OVERLAY = {
     "btn_share_phone": "📱 Share number",
     "phone_verify_prompt_buy": "📱 <b>Verify your phone number</b>\n\nTo buy a plan, send <b>your own</b> number with the button below. The number is not stored — only a country mark (for the right price and security). You don't need this to use the bot.",
     "phone_verify_prompt_market": "📱 <b>Verify your phone number</b>\n\nTo list a channel on the ad exchange, send <b>your own</b> number with the button below: your channel will appear in your country's list. The number is not stored — only a country mark.",
+    "phone_verify_prompt_country": "📱 <b>Verify your phone number</b>\n\nFor your country's channel list, send <b>your own</b> number with the button below. The number is not stored — only a country mark.",
     "phone_verify_ok": "✅ Number verified: {flag} {country}",
     "phone_verify_fail": "❌ Not verified: the number must be valid and <b>yours</b>. Please try again.",
     "uz_only_note": "ℹ️ Paying in UZS is only for Uzbekistan numbers (+998). You see USD prices (Telegram Stars).",

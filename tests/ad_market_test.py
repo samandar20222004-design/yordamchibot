@@ -115,7 +115,7 @@ def cleanup():
 cleanup()
 try:
     for uid in USERS:
-        q("INSERT INTO users (user_id, username, plan_type) VALUES (%s, %s, 'free')", (uid, f"m{uid}"))
+        q("INSERT INTO users (user_id, username, plan_type, phone_country, uz_verified) VALUES (%s, %s, 'free', 'UZ', TRUE)", (uid, f"m{uid}"))
     q("INSERT INTO channels (user_id, channel_id, channel_title) VALUES (%s, %s, 'Birinchi'), (%s, %s, 'Ikkinchi'), (%s, %s, 'Uchinchi')",
       (OWN, CH1, OWN, CH2, OWN2, CH3))
     for i in range(5):
@@ -126,15 +126,15 @@ try:
     check("egalik: o'z kanali topiladi, boshqaning kanali -> None (IDOR)",
           repo.get_owned_channel(OWN, CH1) is not None and repo.get_owned_channel(OWN, CH3) is None and repo.get_owned_channel(ADV, CH1) is None)
 
-    r = repo.create_listing(OWN2, CH1, "birinchi", "Birinchi", "tech", 50000, "tavsif")
+    r = repo.create_listing(OWN2, CH1, "birinchi", "Birinchi", "tech", 50000, "tavsif", country="UZ")
     check("boshqa odam kanalini e'lon qila olmaydi (not_owner)", not r["ok"] and r["reason"] == "not_owner", str(r))
-    r = repo.create_listing(OWN, CH1, "birinchi", "Birinchi", "tech", 50000, "Texnologiya yangiliklari")
+    r = repo.create_listing(OWN, CH1, "birinchi", "Birinchi", "tech", 50000, "Texnologiya yangiliklari", country="UZ")
     check("e'lon yaratildi", r["ok"] and r["listing_id"], str(r))
     L1 = r["listing_id"]
-    r2 = repo.create_listing(OWN, CH1, "birinchi", "Birinchi", "tech", 1, None)
+    r2 = repo.create_listing(OWN, CH1, "birinchi", "Birinchi", "tech", 1, None, country="UZ")
     check("bir kanal ikki marta e'lon qilinmaydi (exists)", not r2["ok"] and r2["reason"] == "exists" and r2["listing_id"] == L1, str(r2))
-    L2 = repo.create_listing(OWN, CH2, "ikkinchi", "Ikkinchi", "news", None, None)["listing_id"]
-    L3 = repo.create_listing(OWN2, CH3, "uchinchi", "Uchinchi", "tech", 20000, None)["listing_id"]
+    L2 = repo.create_listing(OWN, CH2, "ikkinchi", "Ikkinchi", "news", None, None, country="UZ")["listing_id"]
+    L3 = repo.create_listing(OWN2, CH3, "uchinchi", "Uchinchi", "tech", 20000, None, country="UZ")["listing_id"]
 
     stats = __import__("services.ad_market", fromlist=["x"]).refresh_listing_stats(L1, CH1, 2000)
     check("ko'rsatkich bazadagi postlardan: ko'rish 400, ER 20.0%", stats["avg_views"] == 400 and stats["er_percent"] == 20.0 and stats["posts_30d"] == 5, str(stats))
@@ -182,7 +182,7 @@ try:
     q("INSERT INTO channels (user_id, channel_id, channel_title) SELECT %s, '-10098100000' || g, 'E' || g FROM generate_series(1, 4) g", (OWN2,))
     lids = []
     for g in range(1, 5):
-        lids.append(repo.create_listing(OWN2, f"-10098100000{g}", f"extra{g}", f"E{g}", "other", None, None)["listing_id"])
+        lids.append(repo.create_listing(OWN2, f"-10098100000{g}", f"extra{g}", f"E{g}", "other", None, None, country="UZ")["listing_id"])
     lids.append(L1)
     results = []
 
@@ -373,6 +373,26 @@ try:
     from keyboards.inline import get_channel_contextual_keyboard
     kb = get_channel_contextual_keyboard(CH1, "uz").inline_keyboard
     check("kanal panelida «Reklama birjasi» tugmasi (mk:lc:<kanal>)", any(b.callback_data == f"mk:lc:{CH1}" for row in kb for b in row))
+
+    # mamlakat filtri: o'z mamlakati / global, valyuta
+    q("INSERT INTO channels (user_id, channel_id, channel_title) VALUES (%s, %s, 'DE kanal')", (ADV3, "-100981000009"))
+    DE = repo.create_listing(ADV3, "-100981000009", "de_kanal", "DE kanal", "tech", 25, None, country="DE", price_currency="USD")
+    de_id = DE["listing_id"]
+    check("DE e'loni yaratildi", bool(DE["ok"]), str(DE))
+    ids_all = {i["listing_id"] if "listing_id" in i else i["id"] for i in repo.list_catalog(country=None, page_size=50)["items"]}
+    ids_uz = {i["listing_id"] if "listing_id" in i else i["id"] for i in repo.list_catalog(country="UZ", page_size=50)["items"]}
+    ids_de = {i["listing_id"] if "listing_id" in i else i["id"] for i in repo.list_catalog(country="DE", page_size=50)["items"]}
+    check("katalog global: DE va UZ e'lonlari ham ko'rinadi", de_id in ids_all and L3 in ids_all)
+    check("katalog UZ filtri: DE e'loni yo'q, UZ e'loni bor", de_id not in ids_uz and L3 in ids_uz)
+    check("katalog DE filtri: faqat DE e'loni", ids_de == {de_id})
+    check("e'lon valyutasi saqlandi (USD / UZS)", repo.get_listing(de_id)["price_currency"] == "USD" and repo.get_listing(L3)["price_currency"] == "UZS")
+    q("DELETE FROM ad_market_listings WHERE id = %s", (de_id,))
+    # telefon tasdiqlanmagan egasi e'lon qo'ya olmaydi
+    q("UPDATE users SET phone_country = NULL, uz_verified = FALSE WHERE user_id = %s", (OWN2,))
+    check("telefonsiz foydalanuvchining mamlakati noma'lum", asyncio.run(h._viewer_country(OWN2)) == "")
+    check("noma'lum mamlakat -> katalog filtri doim global", h._country_filter(SimpleNamespace(user_data={"mk_cf": "mine"}), "") == "all")
+    check("tasdiqlangan mamlakat -> standart filtr o'z mamlakati", h._country_filter(SimpleNamespace(user_data={}), "UZ") == "mine")
+    q("UPDATE users SET phone_country = 'UZ', uz_verified = TRUE WHERE user_id = %s", (OWN2,))
 finally:
     q("DELETE FROM channels WHERE channel_id LIKE '-10098100000%%'")
     cleanup()

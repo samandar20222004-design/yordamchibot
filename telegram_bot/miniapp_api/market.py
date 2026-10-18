@@ -48,6 +48,7 @@ def public_listing(row: dict, *, owner: bool = False) -> dict:
         "growth_30d": row.get("growth_30d"), "posts_30d": row.get("posts_30d"),
         "stats_updated_at": iso_utc(row["stats_updated_at"]) if row.get("stats_updated_at") else None,
         "badges": svc.listing_badges(row),
+        "country": row.get("country") or None, "currency": row.get("price_currency") or "UZS",
     }
     if owner:
         out.update({"status": row["status"], "channel_id": row["channel_id"],
@@ -55,12 +56,13 @@ def public_listing(row: dict, *, owner: bool = False) -> dict:
     return out
 
 
-def parse_price(value) -> int | None:
-    """JSON narx: ``null`` — kelishiladi; aks holda butun son (PRICE_MIN..PRICE_MAX)."""
+def parse_price(value, currency: str = "UZS") -> int | None:
+    """JSON narx: ``null`` — kelishiladi; aks holda butun son (valyutaga qarab: so'm PRICE_MIN..PRICE_MAX, dollar 1..100 000)."""
     svc = _svc()
     if value is None:
         return None
-    if isinstance(value, bool) or not isinstance(value, int) or value < svc.PRICE_MIN or value > svc.PRICE_MAX:
+    low, high = svc.price_range(currency)
+    if isinstance(value, bool) or not isinstance(value, int) or value < low or value > high:
         raise ApiError("invalid_input", field="price")
     return value
 
@@ -168,21 +170,28 @@ class MarketApi:
         await self._service.authorize(user_id)
         svc, repo = _svc(), self.repo()
         totals = await self._blocking(repo.market_totals)
+        country = await self._blocking(repo.get_viewer_country, user_id)
         return {**totals, "categories": list(svc.CATEGORIES), "max_listings": repo.MAX_LISTINGS_PER_USER,
                 "price_min": svc.PRICE_MIN, "price_max": svc.PRICE_MAX,
+                "price_min_usd": svc.PRICE_MIN_USD, "price_max_usd": svc.PRICE_MAX_USD,
+                "viewer": {"country": country, "currency": svc.owner_currency(country)},
                 "description_max": svc.DESCRIPTION_MAX, "message_min": svc.INQUIRY_MIN, "message_max": TEXT_MAX}
 
-    async def catalog(self, user_id: int, *, category: str | None, sort: str, page: int) -> dict:
+    async def catalog(self, user_id: int, *, category: str | None, sort: str, page: int, country: str = "all") -> dict:
         await self._service.authorize(user_id)
         svc, repo = _svc(), self.repo()
+        if country not in ("all", "mine", "auto"):
+            raise ApiError("bad_request")
         if category not in (None, "", "all") and category not in svc.CATEGORIES:
             raise ApiError("bad_request")
         if sort not in SORTS:
             raise ApiError("bad_request")
-        data = await self._blocking(repo.list_catalog, category or "all", sort, page, repo.PAGE_SIZE)
+        viewer_country = await self._blocking(repo.get_viewer_country, user_id)
+        only = viewer_country if (country in ("mine", "auto") and viewer_country) else None
+        data = await self._blocking(repo.list_catalog, category or "all", sort, page, repo.PAGE_SIZE, only)
         pages = max(1, -(-data["total"] // repo.PAGE_SIZE))
         return {"items": [public_listing(i) for i in data["items"]], "total": data["total"], "page": page,
-                "pages": pages, "page_size": repo.PAGE_SIZE}
+                "pages": pages, "page_size": repo.PAGE_SIZE, "viewer_country": viewer_country, "filter": "mine" if only else "all"}
 
     async def listing(self, user_id: int, listing_id: int) -> dict:
         await self._service.authorize(user_id)
@@ -263,10 +272,14 @@ class MarketApi:
         writes._only_keys(body, ("channel_id", "category", "price", "description"))
         channel_id = writes.parse_channel_id(body.get("channel_id"))
         category = parse_category(body.get("category"))
-        price = parse_price(body.get("price"))
         description = parse_description(body.get("description"))
         await self._service.authorize(user_id)
         svc, repo = _svc(), self.repo()
+        country = await self._blocking(repo.get_viewer_country, user_id)
+        if not country:  # e'lon uchun telefon (mamlakat) tasdiqlanishi shart — botda
+            raise ApiError("phone_required")
+        currency = svc.owner_currency(country)
+        price = parse_price(body.get("price"), currency)
         channel = await self._blocking(repo.get_owned_channel, user_id, channel_id)
         if channel is None:
             raise ApiError("channel_not_found")
@@ -276,7 +289,8 @@ class MarketApi:
         if not info["ok"]:
             raise ApiError({"private": "market_private", "tg_error": "service_unavailable"}.get(info["reason"], "market_not_admin"))
         res = await self._blocking(repo.create_listing, user_id, channel["channel_id"], info["username"],
-                                   info["title"] or channel.get("title") or info["username"], category, price, description)
+                                   info["title"] or channel.get("title") or info["username"], category, price, description,
+                                   country, currency)
         if not res["ok"]:
             raise ApiError({"limit": "market_limit", "exists": "inquiry_exists"}.get(res["reason"], "channel_not_found"))
         await self._blocking(svc.refresh_listing_stats, res["listing_id"], channel["channel_id"], info["members"])
@@ -290,8 +304,6 @@ class MarketApi:
         fields: dict = {}
         if "category" in body:
             fields["category"] = parse_category(body["category"])
-        if "price" in body:
-            fields["price_post"] = parse_price(body["price"])
         if "description" in body:
             fields["description"] = parse_description(body["description"])
         status = body.get("status")
@@ -302,6 +314,8 @@ class MarketApi:
         row = await self._blocking(repo.get_listing_for_owner, listing_id, user_id)
         if row is None:
             raise ApiError("not_found")
+        if "price" in body:
+            fields["price_post"] = parse_price(body["price"], row.get("price_currency") or "UZS")
         if "status" in body:
             if row["status"] == "blocked":
                 raise ApiError("market_blocked")

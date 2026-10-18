@@ -12,9 +12,9 @@ import { haptic, openChannel } from '../telegram'
 import { formatCount, formatMoney } from './marketUtils'
 
 /** Narx: «60 000 so'm» yoki «kelishiladi». */
-export function usePriceText(): (price: number | null) => string {
+export function usePriceText(): (price: number | null, currency?: 'UZS' | 'USD') => string {
   const { t } = useI18n()
-  return (price) => (price === null ? t('mk.priceNeg') : `${formatMoney(price)} ${t('mk.currency')}`)
+  return (price, currency = 'UZS') => (price === null ? t('mk.priceNeg') : currency === 'USD' ? `$${formatMoney(price)}` : `${formatMoney(price)} ${t('mk.currency')}`)
 }
 
 /** E'lon ko'rsatkichlari: obunachi (+o'sish), ko'rish, ER, postlar — noma'lum bo'lsa halol «ma'lumot yetarli emas». */
@@ -58,7 +58,7 @@ export function ListingFacts({ listing }: { listing: MarketListing }) {
   return (
     <>
       <ListingMetrics listing={listing} />
-      <div className="mk-price"><span className="muted">{t('mk.fPrice')}</span><strong>{price(listing.price)}</strong></div>
+      <div className="mk-price"><span className="muted">{t('mk.fPrice')}</span><strong>{price(listing.price, listing.currency)}</strong></div>
       <ListingBadges listing={listing} />
       {listing.description && <p className="mk-desc">{listing.description}</p>}
       <p className="muted small mk-foot">

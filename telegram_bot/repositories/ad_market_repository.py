@@ -30,12 +30,12 @@ STATUS_BLOCKED = "blocked"
 _LISTING_COLS = (
     "l.id, l.channel_id, l.owner_id, l.username, l.title, l.category, l.price_post, l.description, l.status, "
     "l.members, l.avg_views, l.er_percent, l.growth_30d, l.posts_30d, l.stats_updated_at, "
-    "l.view_count, l.inquiry_count, l.created_at"
+    "l.view_count, l.inquiry_count, l.created_at, l.country, l.price_currency"
 )
 _LISTING_KEYS = (
     "id", "channel_id", "owner_id", "username", "title", "category", "price_post", "description", "status",
     "members", "avg_views", "er_percent", "growth_30d", "posts_30d", "stats_updated_at",
-    "view_count", "inquiry_count", "created_at",
+    "view_count", "inquiry_count", "created_at", "country", "price_currency",
 )
 
 #: ``update_listing_fields`` faqat shu ustunlarni o'zgartiradi.
@@ -103,8 +103,17 @@ def get_listing_for_owner(listing_id: int, owner_id: int) -> dict | None:
         return _listing(cur.fetchone())
 
 
+def get_viewer_country(user_id: int) -> str:
+    """Foydalanuvchining telefon bilan tasdiqlangan mamlakati (ISO-2) yoki ``''``."""
+    with db_cursor() as cur:
+        cur.execute("SELECT COALESCE(phone_country, '') FROM users WHERE user_id = %s", (int(user_id),))
+        row = cur.fetchone()
+    return (row[0] if row else "") or ""
+
+
 def create_listing(owner_id: int, channel_id, username: str, title: str, category: str,
-                   price_post: int | None, description: str | None) -> dict:
+                   price_post: int | None, description: str | None, country: str | None = None,
+                   price_currency: str = "UZS") -> dict:
     """E'lon yaratadi (kanal egaligi tekshiriladi). ``{"ok", "reason", "listing_id"}``.
 
     ``reason``: ``not_owner`` | ``exists`` | ``limit``.
@@ -133,9 +142,10 @@ def create_listing(owner_id: int, channel_id, username: str, title: str, categor
         if int(cur.fetchone()[0]) >= MAX_LISTINGS_PER_USER:
             return {"ok": False, "reason": "limit", "listing_id": None}
         cur.execute(
-            "INSERT INTO ad_market_listings (channel_id, owner_id, username, title, category, price_post, description) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-            (str(channel_id), uid, username, (title or "")[:255], category, price_post, description),
+            "INSERT INTO ad_market_listings (channel_id, owner_id, username, title, category, price_post, description, "
+            "country, price_currency) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+            (str(channel_id), uid, username, (title or "")[:255], category, price_post, description,
+             (country or None), "USD" if price_currency == "USD" else "UZS"),
         )
         return {"ok": True, "reason": None, "listing_id": int(cur.fetchone()[0])}
 
@@ -228,13 +238,17 @@ _SORTS = {
 }
 
 
-def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, page_size: int = PAGE_SIZE) -> dict:
-    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``."""
+def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, page_size: int = PAGE_SIZE,
+                 country: str | None = None) -> dict:
+    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``. ``country`` (ISO-2) berilsa — faqat shu mamlakat e'lonlari."""
     where = ["l.status = 'active'"]
     params: list = []
     if category and category != "all":
         where.append("l.category = %s")
         params.append(category)
+    if country:
+        where.append("l.country = %s")
+        params.append(str(country).upper()[:2])
     order = _SORTS.get(sort, _SORTS["m"])
     size = max(1, min(int(page_size), 20))
     offset = max(0, int(page)) * size

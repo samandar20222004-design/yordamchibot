@@ -124,6 +124,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   message_spam: 'err.message_spam',
   user_banned: 'err.user_banned',
   owner_busy: 'err.owner_busy',
+  phone_required: 'err.phone_required',
   admin_only: 'err.admin_only',
   sponsor_not_found: 'err.sponsor_not_found',
   sponsor_not_admin: 'err.sponsor_not_admin',

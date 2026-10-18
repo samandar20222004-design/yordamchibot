@@ -26,8 +26,9 @@ PHONE_VERIFY_TTL_SECONDS = 600
 PENDING_KEY = "phone_verify"
 
 #: Nima uchun so'raladi (matn tanlash uchun): tarif sotib olish / so'mda to'lash / birja e'loni.
-PURPOSE_BUY, PURPOSE_UZ, PURPOSE_MARKET = "buy", "uz", "market"
-_PROMPT_KEYS = {PURPOSE_BUY: "phone_verify_prompt_buy", PURPOSE_UZ: "uz_verify_prompt", PURPOSE_MARKET: "phone_verify_prompt_market"}
+PURPOSE_BUY, PURPOSE_UZ, PURPOSE_MARKET, PURPOSE_COUNTRY = "buy", "uz", "market", "country"
+_PROMPT_KEYS = {PURPOSE_BUY: "phone_verify_prompt_buy", PURPOSE_UZ: "uz_verify_prompt", PURPOSE_MARKET: "phone_verify_prompt_market",
+                PURPOSE_COUNTRY: "phone_verify_prompt_country"}
 
 
 async def is_phone_verified(user_id: int) -> bool:
@@ -49,9 +50,9 @@ async def ask_phone_verification(message, context, lang: str, *, purpose: str = 
         [[KeyboardButton(get_text("btn_share_phone", lang), request_contact=True)]],
         resize_keyboard=True, one_time_keyboard=True,
     )
+    send = getattr(message, "reply_text", None) or getattr(message, "send_message")  # Message yoki Chat
     try:
-        await message.reply_text(get_text(_PROMPT_KEYS.get(purpose, _PROMPT_KEYS[PURPOSE_BUY]), lang), reply_markup=markup,
-                                 parse_mode="HTML")
+        await send(get_text(_PROMPT_KEYS.get(purpose, _PROMPT_KEYS[PURPOSE_BUY]), lang), reply_markup=markup, parse_mode="HTML")
     except Exception as _silent_exc:  # noqa: BLE001
         log_silent_failure("handlers.phone_verify:ask_phone_verification", _silent_exc)
 
@@ -86,7 +87,7 @@ async def phone_contact_callback(update: Update, context: ContextTypes.DEFAULT_T
         if purpose == PURPOSE_UZ:
             text += "\n\n" + get_text("uz_only_note", lang)
         await message.reply_text(text, reply_markup=keyboard, parse_mode="HTML")
-    if purpose == PURPOSE_MARKET:
+    if purpose in (PURPOSE_MARKET, PURPOSE_COUNTRY):
         await message.reply_text(get_text("market_after_verify", lang), parse_mode="HTML")
     elif pending.get("tier"):
         from handlers.subscription import _build_tier_card, _get_tier_keyboard, _user_region

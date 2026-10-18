@@ -5,14 +5,14 @@ import { MARKET_CATEGORIES, type MarketCategory, type MarketListing, type Market
 import { Avatar } from '../components/Avatar'
 import { Icon } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
-import { Button, ErrorState, LoadingBlock } from '../components/ui'
+import { Button, ErrorState, LoadingBlock, openBotAvailable } from '../components/ui'
 import { toClientError, useResource } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
-import { getInitialThread, haptic } from '../telegram'
+import { getInitialThread, haptic, openBot } from '../telegram'
 import { ThreadList, ThreadView } from './MarketChats'
 import { ListingView, usePriceText } from './MarketListing'
 import { MineEditor, MineList } from './MarketMine'
-import { formatCount } from './marketUtils'
+import { countryFlag, formatCount } from './marketUtils'
 
 type Sub = 'catalog' | 'mine' | 'chats'
 type Screen =
@@ -22,12 +22,14 @@ type Screen =
   | { kind: 'thread'; id: number }
 
 /** Katalog sahifalari: mavzu/saralash o'zgarsa boshidan, «Yana» bosilsa keyingi sahifa qo'shiladi. */
-function useCatalog(category: MarketCategory | 'all', sort: MarketSort) {
+function useCatalog(category: MarketCategory | 'all', sort: MarketSort, scope: 'all' | 'mine' | 'auto') {
   const { client } = useAppData()
   const [items, setItems] = useState<MarketListing[]>([])
   const [page, setPage] = useState(0)
   const [pages, setPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const [viewerCountry, setViewerCountry] = useState('')
+  const [applied, setApplied] = useState<'all' | 'mine'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<ApiClientError | null>(null)
   const ctl = useRef<AbortController | null>(null)
@@ -38,21 +40,23 @@ function useCatalog(category: MarketCategory | 'all', sort: MarketSort) {
     ctl.current = c
     setLoading(true)
     setError(null)
-    client.marketCatalog(category, sort, target, c.signal).then(
+    client.marketCatalog(category, sort, target, c.signal, scope).then(
       (res) => {
         if (c.signal.aborted) return
         setItems((prev) => (target === 0 ? res.items : [...prev, ...res.items]))
         setPage(res.page)
         setPages(res.pages)
         setTotal(res.total)
+        setViewerCountry(res.viewer_country)
+        setApplied(res.filter)
         setLoading(false)
       },
       (e) => { if (!c.signal.aborted) { setError(toClientError(e)); setLoading(false) } },
     )
-  }, [client, category, sort])
+  }, [client, category, sort, scope])
 
   useEffect(() => { load(0); return () => ctl.current?.abort() }, [load])
-  return { items, total, loading, error, hasMore: page + 1 < pages, more: () => load(page + 1), reload: () => load(0) }
+  return { items, total, viewerCountry, applied, loading, error, hasMore: page + 1 < pages, more: () => load(page + 1), reload: () => load(0) }
 }
 
 function ListingRow({ listing, onOpen }: { listing: MarketListing; onOpen: () => void }) {
@@ -63,11 +67,11 @@ function ListingRow({ listing, onOpen }: { listing: MarketListing; onOpen: () =>
       <Avatar text={listing.title} />
       <span className="mk-card-main">
         <strong className="mk-card-title">{listing.title}</strong>
-        <span className="muted small">@{listing.username} · {t(`mk.cat.${listing.category}` as MessageKey)}</span>
+        <span className="muted small">{countryFlag(listing.country)} @{listing.username} · {t(`mk.cat.${listing.category}` as MessageKey)}</span>
         <span className="mk-chips-row">
           <span className="mk-pill">👥 {formatCount(listing.members)}</span>
           {listing.er_percent !== null && <span className="mk-pill">📈 {listing.er_percent}%</span>}
-          <span className="mk-pill">💲 {price(listing.price)}</span>
+          <span className="mk-pill">💲 {price(listing.price, listing.currency)}</span>
         </span>
       </span>
       <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
@@ -79,10 +83,24 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
   const { t } = useI18n()
   const [category, setCategory] = useState<MarketCategory | 'all'>('all')
   const [sort, setSort] = useState<MarketSort>('m')
-  const cat = useCatalog(category, sort)
+  const [scope, setScope] = useState<'all' | 'mine' | 'auto'>('auto')
+  const cat = useCatalog(category, sort, scope)
+  const { botUsername } = useAppData()
   const sorts: Array<[MarketSort, MessageKey]> = [['m', 'mk.sortM'], ['p', 'mk.sortP'], ['e', 'mk.sortE']]
   return (
     <>
+      {cat.viewerCountry ? (
+        <div className="mk-sort" role="group" aria-label={t('mk.countryLabel')}>
+          <span className="muted small">{t('mk.countryLabel')}</span>
+          <button type="button" aria-pressed={cat.applied === 'mine'} onClick={() => setScope('mine')}>{countryFlag(cat.viewerCountry)} {cat.viewerCountry}</button>
+          <button type="button" aria-pressed={cat.applied === 'all'} onClick={() => setScope('all')}>{t('mk.countryAll')}</button>
+        </div>
+      ) : (
+        <p className="muted small">
+          {t('mk.countryHint')}{' '}
+          {openBotAvailable(botUsername) && <button type="button" className="btn btn-ghost" onClick={() => openBot(botUsername)}>{t('common.openBot')}</button>}
+        </p>
+      )}
       <div className="mk-chips" role="group" aria-label={t('mk.tabCatalog')}>
         {(['all', ...MARKET_CATEGORIES] as const).map((c) => (
           <button key={c} type="button" className="chip" aria-pressed={category === c} onClick={() => setCategory(c)}>
