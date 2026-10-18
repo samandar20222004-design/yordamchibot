@@ -302,7 +302,10 @@ def get_admin_dashboard_keyboard() -> InlineKeyboardMarkup:
          for label, callback in row]
         for row in ADMIN_DASHBOARD_ROWS
     ]
-    return InlineKeyboardMarkup(keyboard)
+    from miniapp_api.menu import with_miniapp_row
+
+    # 📱 Mini App yoqilgan bo'lsagina: super admin boshqaruvi (reklama, majburiy obuna, statistika) Mini App'da.
+    return with_miniapp_row(InlineKeyboardMarkup(keyboard), "uz", "admin")
 
 
 def get_admin_monitoring_keyboard() -> InlineKeyboardMarkup:
@@ -551,7 +554,9 @@ def get_ai_studio_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
             InlineKeyboardButton(get_text("btn_main_menu", lang), callback_data="studio_close"),
         ],
     ]
-    return InlineKeyboardMarkup(keyboard)
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(InlineKeyboardMarkup(keyboard), lang, "post", before_last=True)  # Mini App yoqilgan bo'lsagina
 
 
 
@@ -674,7 +679,9 @@ def render_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardMark
     # ro'yxat ostida yangi kanal ulash va oynani yopish tugmalari bo'ladi.
     keyboard.append([InlineKeyboardButton(get_text("cab_add_channel_alt", lang), callback_data="add_channel_start")])
     keyboard.append([InlineKeyboardButton(get_text("cab_close", lang), callback_data="close_msg")])
-    return InlineKeyboardMarkup(keyboard)
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(InlineKeyboardMarkup(keyboard), lang, "me", before_last=True)
 
 
 # ============================================================
@@ -707,7 +714,9 @@ def render_my_channels_list(channels: list, lang: str = "uz") -> InlineKeyboardM
         channels_queue_t("cq_ch_add_btn", lang), callback_data="add_channel_start")])
     keyboard.append([InlineKeyboardButton(
         channels_queue_t("cq_ch_close_btn", lang), callback_data="close_msg")])
-    return InlineKeyboardMarkup(keyboard)
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(InlineKeyboardMarkup(keyboard), lang, "me", before_last=True)
 
 
 def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
@@ -726,7 +735,7 @@ def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMar
     """
     from translations import content_menu_t
 
-    return InlineKeyboardMarkup([
+    markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(content_menu_t("ctx_btn_ai_post", lang),
                                  callback_data=CB_CTX_AI_POST),
@@ -750,6 +759,10 @@ def get_post_creation_contextual_keyboard(lang: str = "uz") -> InlineKeyboardMar
                                  callback_data=CB_CTX_POST_SCORE),
         ],
     ])
+    # 📱 Mini App yoqilgan bo'lsagina: post yaratishni Mini App'da davom ettirish (to'liq muharrir, format, media, rejalash).
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(markup, lang, "post")
 
 
 render_post_creation_menu = get_post_creation_contextual_keyboard

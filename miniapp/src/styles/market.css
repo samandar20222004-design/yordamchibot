@@ -86,3 +86,25 @@
 .mk-trust .mk-pill { background: color-mix(in srgb, #f59e0b 20%, transparent); color: inherit; }
 .mk-tip { font-size: .8125rem; color: var(--hint); padding-left: 1.4em; position: relative; }
 .mk-tip::before { content: '🛡'; position: absolute; left: 0; }
+
+/* ---- 👑 Super admin rejimi ---- */
+.adm-banner { display: flex; align-items: center; gap: var(--s2); justify-content: center; padding: var(--s2) var(--s3); font-size: .8125rem; font-weight: 600; color: var(--on-accent); background: linear-gradient(90deg, #7c3aed, #2563eb); }
+.adm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+@media (min-width: 640px) { .adm-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.adm-stat { display: grid; gap: 2px; padding: var(--s3) var(--s4); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); min-width: 0; }
+.adm-card { display: grid; gap: var(--s3); }
+.adm-inline { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s3); align-items: end; }
+.adm-ad { gap: var(--s2); }
+.adm-ad-text { overflow-wrap: anywhere; white-space: pre-wrap; }
+.adm-actions { display: flex; flex-wrap: wrap; gap: var(--s2); align-items: center; }
+.adm-actions .switch-row { flex: 1 1 140px; padding: 0; }
+.adm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s3); align-items: center; }
+.adm-row-main { display: grid; gap: 2px; min-width: 0; }
+.adm-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-listing { gap: var(--s2); }
+.chip-warn { background: color-mix(in srgb, var(--danger, #dc2626) 14%, var(--bg)); }
+.adm-switch { border-color: color-mix(in srgb, #7c3aed 45%, var(--border)); }
+.tabbar-admin .tab-exit { color: var(--hint); }
+.adm-card .switch-row, .adm-actions .switch-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: 0; }
+.adm-card .switch-text { min-width: 0; flex: 1 1 auto; }
+.adm-listing .adm-actions .btn { flex: 1 1 0; }

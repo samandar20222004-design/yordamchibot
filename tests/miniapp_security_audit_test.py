@@ -247,6 +247,13 @@ def test_all_routes_require_auth():
                  ("POST", "/api/v1/market/threads/{item_id}/block"), ("POST", "/api/v1/market/threads/{item_id}/close"),
                  ("POST", "/api/v1/market/threads/{item_id}/messages"), ("POST", "/api/v1/market/threads/{item_id}/report"),
                  ("GET", "/api/v1/market/unread")]
+    # 🛡 Super admin (miniapp_api/admin.py): har biri auth + admin tekshiruvi.
+    expected += [("DELETE", "/api/v1/admin/ads/{item_id}"), ("DELETE", "/api/v1/admin/sponsors/{item_id}"),
+                 ("GET", "/api/v1/admin/ads"), ("GET", "/api/v1/admin/market"), ("GET", "/api/v1/admin/overview"),
+                 ("GET", "/api/v1/admin/sponsors"), ("PATCH", "/api/v1/admin/ads/settings"),
+                 ("PATCH", "/api/v1/admin/ads/{item_id}"), ("POST", "/api/v1/admin/ads"),
+                 ("POST", "/api/v1/admin/market/listings/{item_id}/status"),
+                 ("POST", "/api/v1/admin/market/users/{item_id}/ban"), ("POST", "/api/v1/admin/sponsors")]
     expected.sort()
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
@@ -258,7 +265,7 @@ def test_all_routes_require_auth():
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 23, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 31, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,
@@ -268,7 +275,11 @@ def test_all_routes_require_auth():
                          "/api/v1/market/listings/{item_id}/inquiries": False, "/api/v1/market/listings/{item_id}/report": False,
                          "/api/v1/market/mine": False, "/api/v1/market/mine/{item_id}/refresh": False,
                          "/api/v1/market/threads/{item_id}/block": False, "/api/v1/market/threads/{item_id}/close": False,
-                         "/api/v1/market/threads/{item_id}/messages": False, "/api/v1/market/threads/{item_id}/report": False},
+                         "/api/v1/market/threads/{item_id}/messages": False, "/api/v1/market/threads/{item_id}/report": False,
+                         # 🛡 admin: AI ishlatmaydi
+                         "/api/v1/admin/ads": False, "/api/v1/admin/sponsors": False,
+                         "/api/v1/admin/market/listings/{item_id}/status": False,
+                         "/api/v1/admin/market/users/{item_id}/ban": False},
                         str(ai_flags))
     methods = {r.method for r in api.router.routes()}
     T.check("faqat ruxsat etilgan usullar ulangan (PUT yo'q)", methods <= {"GET", "HEAD", "POST", "PATCH", "DELETE"}, str(methods))

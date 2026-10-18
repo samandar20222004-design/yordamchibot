@@ -59,10 +59,10 @@ export function getUserPhotoUrl(): string | null {
 }
 
 /** Botdagi «📱 Mini App» tugmalari `?tab=` bilan ochadi: faqat ma'lum bo'limlar (boshqa qiymat e'tiborsiz). */
-export function getInitialTab(): 'home' | 'post' | 'schedule' | 'market' | 'me' | null {
+export function getInitialTab(): 'home' | 'post' | 'schedule' | 'market' | 'me' | 'admin' | null {
   try {
     const tab = new URLSearchParams(window.location.search).get('tab')
-    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'market' || tab === 'me' ? tab : null
+    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'market' || tab === 'me' || tab === 'admin' ? tab : null
   } catch {
     return null
   }

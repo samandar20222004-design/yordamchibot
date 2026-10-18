@@ -860,7 +860,16 @@ def get_content_creation_keyboard(lang: str = "uz", context=None):
     """
     if context is not None:
         lang = get_lang(context, lang)
-    return ReplyKeyboardMarkup(content_creation_rows(lang), resize_keyboard=True)
+    rows = [list(r) for r in content_creation_rows(lang)]
+    try:  # Mini App yoqilgan bo'lsa: post yaratishni Mini App'da davom ettirish (◀️ Orqaga'dan oldin)
+        from miniapp_api.menu import miniapp_reply_button
+
+        app_btn = miniapp_reply_button("post", lang)
+        if app_btn is not None:
+            rows.insert(max(0, len(rows) - 1), [app_btn])
+    except Exception:  # noqa: BLE001 — qo'shimcha tugma asosiy menyuni buzmasin
+        pass
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
 
 
 def get_main_keyboard(is_admin=False, lang="uz", context=None,

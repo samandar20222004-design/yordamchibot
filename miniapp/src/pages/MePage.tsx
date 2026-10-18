@@ -30,7 +30,7 @@ function Row({ icon, tone, label, value, onClick }: { icon: IconName; tone: stri
 }
 
 export function MePage() {
-  const { me, channels, botUsername } = useAppData()
+  const { me, channels, botUsername, setAdminMode } = useAppData()
   const [screen, setScreen] = useState<Screen>(null)
   const { t, formatDate } = useI18n()
   const photo = getUserPhotoUrl()
@@ -75,6 +75,12 @@ export function MePage() {
           <div><strong>{posts.sent}</strong><span>{t('home.sent')}</span></div>
         </div>
       </section>
+
+      {me.data.is_admin && (
+        <section className="set-group adm-switch" aria-label={t('adm.title')}>
+          <Row icon="shield" tone="violet" label={t('adm.enter')} value={t('adm.enterHint')} onClick={() => setAdminMode(true)} />
+        </section>
+      )}
 
       <h3 className="sec-label">{t('me.secSettings')}</h3>
       <section className="set-group" aria-label={t('me.secSettings')}>

@@ -151,6 +151,8 @@ class MiniAppService:
                 "settings": {"notifications": notifications},
                 "next_post_at": iso_utc(next_at),
                 "bot": {"username": self._settings.bot_username or None},
+                # 👑 Super admin rejimi tugmasini ko'rsatish uchun (ruxsat HAR admin so'rovida serverda qayta tekshiriladi).
+                "is_admin": bool(self._is_admin(user_id, account["role"])),
             }
 
         return await self._authorized(user_id, query)

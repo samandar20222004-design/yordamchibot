@@ -61,7 +61,7 @@ def miniapp_webapp_url(env=None):
     return url if url and valid_miniapp_url(url) else None
 
 
-MINIAPP_TABS = ("home", "post", "schedule", "market", "me")
+MINIAPP_TABS = ("home", "post", "schedule", "market", "me", "admin")
 MINIAPP_EXTRA_KEYS = ("thread",)
 
 
@@ -112,3 +112,15 @@ def with_miniapp_row(markup, lang: str, tab: str | None = None, before_last: boo
     except Exception:  # noqa: BLE001 — qo'shimcha tugma hech qachon asosiy ekranni buzmasin
         logger.debug("Mini App tugmasi qo'shilmadi", exc_info=True)
         return markup
+
+
+def miniapp_reply_button(tab: str | None = None, lang: str = "uz"):
+    """Pastki (reply) klaviatura uchun ``web_app`` tugmasi yoki ``None`` (Mini App o'chiq): «📱 Mini App'da»."""
+    url = miniapp_tab_url(tab)
+    if not url:
+        return None
+    from telegram import KeyboardButton, WebAppInfo
+
+    from translations import market_t
+
+    return KeyboardButton(market_t("mk_btn_open_app", lang), web_app=WebAppInfo(url=url))
