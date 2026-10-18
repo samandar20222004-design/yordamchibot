@@ -763,6 +763,10 @@ def _private_update(uid=777, text=None, voice=False, contact=False, sticker=Fals
 def _first_matching_handler(app, upd):
     """PTB Application.process_update kabi: guruh bo'yicha birinchi mos handler."""
     for group in sorted(app.handlers):
+        if group < 0:
+            # Manfiy guruhlar — yon kanal handlerlari (masalan +998 kontakt tasdiqlash): faqat o'z holati kutilsa
+            # ApplicationHandlerStop bilan to'xtatadi, aks holda xabar odatdagi yo'ldan (guruh 0+) davom etadi.
+            continue
         for handler in app.handlers[group]:
             check = handler.check_update(upd)
             if check is None or check is False:

@@ -177,6 +177,9 @@ print("\n== 4b. Kontakt (+998) qabul qilish ==")
 import time  # noqa: E402
 
 
+stopped = [False]
+
+
 def send_contact(phone, contact_uid, uid=42, pending=True, age=0):
     replies = []
 
@@ -189,7 +192,13 @@ def send_contact(phone, contact_uid, uid=42, pending=True, age=0):
     if pending:
         ud["uz_verify"] = {"tier": "pro", "ts": time.time() - age}
     ctx = SimpleNamespace(user_data=ud, bot=SimpleNamespace())
-    run(sub.uz_contact_callback(upd, ctx))
+    from telegram.ext import ApplicationHandlerStop
+
+    try:
+        run(sub.uz_contact_callback(upd, ctx))
+        stopped[0] = False
+    except ApplicationHandlerStop:
+        stopped[0] = True
     return replies, ctx
 
 
@@ -200,13 +209,14 @@ check("o'z +998 kontakti: tasdiqlandi, so'm kartasi yuborildi, kutish belgisi o'
       len(r) == 2 and "tasdiqlandi" in r[0] and "29 000" in r[1] and "uz_verify" not in ctx.user_data, str(r))
 verify_calls.clear()
 r, _ = send_contact("+998901234567", 99)
-check("BOSHQA odamning kontakti rad etiladi", len(r) == 1 and "Tasdiqlanmadi" in r[0] and verify_calls[0][2] == 99, str(r))
+check("BOSHQA odamning kontakti rad etiladi (va «noma'lum xabar» javobi chiqmaydi)", stopped[0] is True and len(r) == 1 and "Tasdiqlanmadi" in r[0] and verify_calls[0][2] == 99, str(r))
 store["eligible"] = False
 r, _ = send_contact("+79001234567", 42)
 check("chet el raqami (+7) rad etiladi", len(r) == 1 and "Tasdiqlanmadi" in r[0], str(r))
 verify_calls.clear()
 r, _ = send_contact("+998901234567", 42, pending=False)
-check("«So'mda to'lash» bosilmagan bo'lsa kontakt e'tiborsiz (DB'ga tegilmaydi)", r == [] and verify_calls == [])
+check("«So'mda to'lash» bosilmagan bo'lsa kontakt e'tiborsiz (DB'ga tegilmaydi, boshqa handlerlar to'smaydi)",
+      r == [] and verify_calls == [] and stopped[0] is False)
 r, _ = send_contact("+998901234567", 42, age=sub.UZ_VERIFY_TTL_SECONDS + 5)
 check("10 daqiqadan eski so'rov e'tiborsiz", r == [] and verify_calls == [])
 

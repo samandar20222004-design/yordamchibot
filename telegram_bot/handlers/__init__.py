@@ -2337,8 +2337,8 @@ def _register_content_and_queue_callbacks(app):
     # uchun global reyestr. Faol conversation bo'lsa main_conv birinchi ishlaydi.
     app.add_handler(CallbackQueryHandler(morning_digest_disable_callback, pattern=r"^md_disable$"))
     app.add_handler(CallbackQueryHandler(subscription_callback, pattern=r"^sub_"))
-    # +998 raqamni O'Z kontakti orqali tasdiqlash (so'mda to'lash); faqat «So'mda to'lash» so'ralgan bo'lsa ishlaydi, boshqa paytda jim.
-    app.add_handler(MessageHandler(filters.CONTACT, uz_contact_callback))
+    # +998 raqamni O'Z kontakti orqali tasdiqlash (so'mda to'lash); faqat «So'mda to'lash» so'ralgan bo'lsa ishlaydi (ApplicationHandlerStop); boshqa paytda kontakt oddiy yo'l bilan ketadi.
+    app.add_handler(MessageHandler(filters.CONTACT, uz_contact_callback), group=-5)
     app.add_handler(CallbackQueryHandler(converter_callback, pattern=r"^conv_show:"))
     app.add_handler(CallbackQueryHandler(converter_close_callback, pattern=r"^conv_close$"))
     app.add_handler(CallbackQueryHandler(subscription_check_callback, pattern=r"^(check_sub_status|check_subscription)$"))

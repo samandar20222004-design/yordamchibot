@@ -274,6 +274,8 @@ async def uz_contact_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     ud.pop("uz_verify", None)
     if time.time() - float(pending.get("ts") or 0) > UZ_VERIFY_TTL_SECONDS:
         return
+    from telegram.ext import ApplicationHandlerStop
+
     user_id = update.effective_user.id
     lang = await ensure_user_lang(context, user_id)
     try:
@@ -284,13 +286,14 @@ async def uz_contact_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard = get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang)
     if not ok:
         await message.reply_text(get_text("uz_verify_fail", lang), reply_markup=keyboard, parse_mode="HTML")
-        return
+        raise ApplicationHandlerStop
     tier = pending.get("tier") if pending.get("tier") in (PLAN_PRO, PLAN_ULTRA) else PLAN_PRO
     await message.reply_text(get_text("uz_verify_ok", lang), reply_markup=keyboard, parse_mode="HTML")
     await message.reply_text(
         _build_tier_card(tier, lang, PAYMENT_REGION_UZ),
         reply_markup=_get_tier_keyboard(tier, lang, PAYMENT_REGION_UZ), parse_mode="HTML",
     )
+    raise ApplicationHandlerStop  # kontakt qayta ishlandi: «noma'lum xabar» javobi chiqmasin
 
 
 def _usd_text(plan_key: str) -> str:
