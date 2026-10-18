@@ -98,7 +98,9 @@ def _lang(context) -> str:
 # ============================================================
 def templates_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
     """📋 Shablonlar menyusi (SPEKS: 3 amal + Orqaga)."""
-    return InlineKeyboardMarkup([
+    from miniapp_api.menu import with_miniapp_row
+
+    return with_miniapp_row(InlineKeyboardMarkup([
         [InlineKeyboardButton(templates_t("btn_new", lang),
                               callback_data=CB_TPL_NEW)],
         [InlineKeyboardButton(templates_t("btn_use", lang),
@@ -107,7 +109,7 @@ def templates_menu_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                               callback_data=CB_TPL_DEL)],
         [InlineKeyboardButton(templates_t("btn_back", lang),
                               callback_data=CB_TPL_BACK)],
-    ])
+    ]), lang, "post", before_last=True)  # Mini App yoqilgan bo'lsagina: shablonlar Mini App'da ham
 
 
 def _templates_list_keyboard(templates: list, action_prefix: str,

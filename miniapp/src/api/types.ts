@@ -52,6 +52,8 @@ export interface Me {
   settings?: { notifications: NotificationSettings }
   next_post_at: string | null
   bot: { username: string | null }
+  /** Super admin rejimiga ruxsat (server hal qiladi; eski serverda yo'q = false). */
+  is_admin?: boolean
 }
 
 export interface Channel {
@@ -144,7 +146,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
-  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -327,3 +329,22 @@ export interface MarketListingInput {
   price: number | null
   description: string | null
 }
+
+// --- 👑 Super admin ---
+export interface AdminOverview {
+  stats: { users: number; pro_subscribers: number; channels: number; posts_today: number; pending_posts: number
+    stars_revenue: number; sent: number; failed: number; cancelled: number; sponsors: number }
+  market: AdminMarketTotals
+}
+export interface AdminMarketTotals { active: number; paused: number; blocked: number; banned_users: number; open_inquiries: number }
+export type AdSupport = 'channel' | 'reply'
+export interface AdminAd { id: number; scope: AdSupport; text: string; button_text: string; button_url: string; is_active: boolean }
+export interface AdminAdSettings { reply: { enabled: boolean; interval: number }; channel: { enabled: boolean; interval: number } }
+export interface AdminAds { settings: AdminAdSettings; items: Record<AdSupport, AdminAd[]> }
+export interface AdminSponsor { id: number; channel_id: string; title: string; username: string; invite_link: string }
+export interface AdminListing {
+  id: number; title: string; username: string; owner_id: number; category: string; status: 'active' | 'paused' | 'blocked'
+  members: number | null; view_count: number; inquiry_count: number; reports: number; owner_banned: boolean
+}
+export interface AdminMarket { totals: AdminMarketTotals; items: AdminListing[] }
+export interface AdminAdInput { scope: AdSupport; text: string; button_text?: string; button_url?: string }

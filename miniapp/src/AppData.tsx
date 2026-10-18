@@ -24,6 +24,9 @@ export interface AppData {
   botUsername: string | null
   /** Qisqa xabar (toast): muvaffaqiyat yoki xato. */
   notify: (text: string, kind?: 'success' | 'error') => void
+  /** Super admin: rejim yoqilganmi va uni almashtirish (faqat `me.is_admin` bo'lganda ishlaydi). */
+  adminMode: boolean
+  setAdminMode: (on: boolean) => void
   /** Interfeys tilini darhol almashtirish (server saqlagandan keyin). */
   setLang: (lang: Lang) => void
 }

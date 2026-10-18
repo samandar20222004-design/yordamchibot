@@ -1,6 +1,7 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
+  parseAdminAdEnvelope, parseAdminAds, parseAdminMarket, parseAdminOverview, parseAdminSponsors,
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
   parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketSummary, parseMarketThread, parseMarketThreads,
   parseCalendar, parseDeleted, parseSettingsSaved, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
@@ -15,6 +16,7 @@ const KNOWN_CODES: readonly string[] = [
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
   'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
   'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy',
+  'admin_only', 'sponsor_not_found', 'sponsor_not_admin',
 ]
 
 /** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
@@ -272,6 +274,25 @@ export function createApiClient(opts: ClientOptions) {
     marketReportUser: (id: number): Promise<{ again: boolean }> =>
       send('POST', `/market/threads/${id}/report`, undefined, (v) => ({ again: parseMarketAck(v).again === true })),
     marketBlock: (id: number): Promise<void> => send('POST', `/market/threads/${id}/block`, undefined, () => undefined),
+    // --- 👑 Super admin (server har bir so'rovda ruxsatni tekshiradi) ---
+    adminOverview: (signal?: AbortSignal): Promise<AdminOverview> => get('/admin/overview', parseAdminOverview, signal),
+    adminAds: (signal?: AbortSignal): Promise<AdminAds> => get('/admin/ads', parseAdminAds, signal),
+    adminAdSettings: (patch: { reply_enabled?: boolean; reply_interval?: number; channel_enabled?: boolean; channel_interval?: number }): Promise<AdminAds> =>
+      send('PATCH', '/admin/ads/settings', patch, parseAdminAds),
+    adminAdCreate: (input: AdminAdInput): Promise<AdminAd> => send('POST', '/admin/ads', input, parseAdminAdEnvelope),
+    adminAdUpdate: (id: number, patch: { text?: string; button_text?: string; button_url?: string; is_active?: boolean }): Promise<AdminAd> =>
+      send('PATCH', `/admin/ads/${id}`, patch, parseAdminAdEnvelope),
+    adminAdDelete: (id: number): Promise<void> => send('DELETE', `/admin/ads/${id}`, undefined, () => undefined),
+    adminSponsors: (signal?: AbortSignal): Promise<{ items: AdminSponsor[] }> => get('/admin/sponsors', parseAdminSponsors, signal),
+    adminSponsorAdd: (channel: string): Promise<{ items: AdminSponsor[] }> =>
+      send('POST', '/admin/sponsors', { channel }, parseAdminSponsors, config.aiTimeoutMs),
+    adminSponsorDelete: (id: number): Promise<void> => send('DELETE', `/admin/sponsors/${id}`, undefined, () => undefined),
+    adminMarket: (status: 'all' | 'active' | 'paused' | 'blocked', signal?: AbortSignal): Promise<AdminMarket> =>
+      get(`/admin/market${status === 'all' ? '' : `?status=${status}`}`, parseAdminMarket, signal),
+    adminListingStatus: (id: number, status: 'active' | 'blocked'): Promise<void> =>
+      send('POST', `/admin/market/listings/${id}/status`, { status }, () => undefined),
+    adminUserBan: (userId: number, banned: boolean): Promise<void> =>
+      send('POST', `/admin/market/users/${userId}/ban`, { banned }, () => undefined),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>
       send('POST', '/ai/generate', { text, style }, parseAi, config.aiTimeoutMs),
   }

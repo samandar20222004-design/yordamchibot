@@ -106,6 +106,14 @@ Bu sozlamani Bot API (kod) orqali o'zgartirib BO'LMAYDI — uni faqat bot egasi 
 Eslatma: bu tugma `MINIAPP_ENABLED` dan mustaqil — lekin Mini App `MINIAPP_ENABLED=0` bo'lsa URL 404 beradi, shuning uchun avval
 Mini App'ni yoqing (`MINIAPP_ENABLED=1`, `MINIAPP_URL`), keyin BotFather'da sozlang. Chat ichidagi «Menu» tugmasini kod o'zi o'rnatadi (yuqorida).
 
+## 👑 Super admin rejimi
+
+`/me.is_admin` (botdagi `rbac_service.ADMIN_ROLES` qoidasi) bo'lsa Men sahifasida «Super admin rejimi» qatori chiqadi; u alohida pastki panelni
+(Umumiy · Reklama · Obuna · Birja · Oddiy) ochadi, «Oddiy» qaytaradi. `?tab=admin` ham shu rejimda ochadi (admin bo'lmasa e'tiborsiz).
+API: `GET /admin/overview|ads|sponsors|market`, `PATCH /admin/ads/settings`, `POST/PATCH/DELETE /admin/ads[/{id}]`, `POST/DELETE /admin/sponsors[/{id}]`,
+`POST /admin/market/listings/{id}/status`, `POST /admin/market/users/{id}/ban` — hammasi admin bo'lmaganga `403 admin_only`, o'zgartirishlar auditga yoziladi.
+Batafsil va bot bilan solishtirma — `docs/MINIAPP_PARITY.md`.
+
 ## Ko'rinish sozlamalari (Men -> Ko'rinish)
 
 Foydalanuvchi o'zi tanlaydi: asosiy rang (9 ta, «Telegram» = mavzu rangi), fon (jonli/oddiy/shafaq/okean/o'rmon/yarim tun/qog'oz/nuqtalar),

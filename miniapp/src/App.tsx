@@ -10,11 +10,20 @@ import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
 import { useScheduleFeed } from './hooks/useScheduleFeed'
 import { HomePage } from './pages/HomePage'
+import { AdminShell } from './pages/admin/AdminShell'
 import { MarketPage } from './pages/MarketPage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
 import { getColorScheme, getInitData, getInitialTab, getLanguageHint, initTelegram, isInTelegram } from './telegram'
+
+const ADMIN_MODE_KEY = 'postassist.adminMode'
+function loadAdminMode(): boolean {
+  try { return localStorage.getItem(ADMIN_MODE_KEY) === '1' } catch { return false }
+}
+function saveAdminMode(on: boolean): void {
+  try { if (on) localStorage.setItem(ADMIN_MODE_KEY, '1'); else localStorage.removeItem(ADMIN_MODE_KEY) } catch { /* e'tiborsiz */ }
+}
 
 function NotInTelegram() {
   const { t } = useI18n()
@@ -31,7 +40,12 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
   setAppearance: (patch: Partial<Appearance>) => void
   resetAppearance: () => void
 }) {
-  const [tab, setTab] = useState<Tab>(() => getInitialTab() ?? appearance.start)
+  const [tab, setTab] = useState<Tab>(() => {
+    const initial = getInitialTab()
+    return initial === null || initial === 'admin' ? appearance.start : initial
+  })
+  // Super admin rejimi: tanlov shu qurilmada eslab qolinadi (faqat qulaylik); ruxsatni server har so'rovda tekshiradi.
+  const [adminWanted, setAdminWanted] = useState<boolean>(() => getInitialTab() === 'admin' || loadAdminMode())
   const [toast, setToast] = useState<{ text: string; kind: 'success' | 'error'; id: number } | null>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const notify = useCallback((text: string, kind: 'success' | 'error' = 'success') => {
@@ -70,9 +84,11 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
     }
   }, [hasDraft])
 
+  const adminMode = adminWanted && me.data?.is_admin === true
+  const setAdminMode = useCallback((on: boolean) => { setAdminWanted(on); saveAdminMode(on) }, [])
   const value = useMemo<AppData>(
-    () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang }),
-    [client, me, channels, draft, feed, unread, reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, onLang],
+    () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang, adminMode, setAdminMode }),
+    [client, me, channels, draft, feed, unread, reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, onLang, adminMode, setAdminMode],
   )
 
   // Yuklash ekrani (#boot, index.html) /me kelguncha turadi; keyin (yoki xatoda) bir marta yashiriladi.
@@ -82,6 +98,7 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
 
   return (
     <AppDataContext.Provider value={value}>
+      {adminMode ? <AdminShell /> : (
       <div className="shell">
         <OfflineBanner />
         {tab === 'home' && <HomePage />}
@@ -90,8 +107,9 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
         {tab === 'market' && <MarketPage />}
         {tab === 'me' && <MePage />}
         <TabBar active={tab} onChange={setTab} badges={{ market: unread }} tabs={appearance.tabs} />
-        {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
       </div>
+      )}
+      {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
     </AppDataContext.Provider>
   )
 }

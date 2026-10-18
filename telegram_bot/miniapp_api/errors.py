@@ -232,6 +232,21 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Этому владельцу сегодня пришло слишком много заявок. Попробуйте завтра.",
         "en": "This owner has received too many requests today. Try again tomorrow.",
     }),
+    "admin_only": (403, {
+        "uz": "Bu bo'lim faqat adminlar uchun.",
+        "ru": "Этот раздел только для администраторов.",
+        "en": "This section is for admins only.",
+    }),
+    "sponsor_not_found": (404, {
+        "uz": "Kanal topilmadi. @username yoki raqamli ID ni tekshiring.",
+        "ru": "Канал не найден. Проверьте @username или числовой ID.",
+        "en": "Channel not found. Check the @username or numeric ID.",
+    }),
+    "sponsor_not_admin": (403, {
+        "uz": "Bot bu kanalda admin emas. Avval botni kanalga admin qilib qo'shing.",
+        "ru": "Бот не админ в этом канале. Сначала добавьте бота админом.",
+        "en": "The bot is not an admin of this channel. Add the bot as an admin first.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

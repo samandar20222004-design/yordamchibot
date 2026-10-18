@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -122,6 +122,7 @@ export function parseMe(v: unknown): Me {
     ...(o.settings === undefined ? {} : { settings: { notifications: parseNotifications(rec(o.settings, 'settings').notifications, 'settings.notifications') } }),
     next_post_at: strOrNull(o.next_post_at, 'next_post_at'),
     bot: { username: strOrNull(bot.username, 'bot.username') },
+    ...(o.is_admin === true ? { is_admin: true } : {}),
   }
 }
 
@@ -479,4 +480,63 @@ export function parseMarketThread(v: unknown): MarketThread {
 
 export function parseMarketAck(v: unknown): Record<string, unknown> {
   return rec(v, 'ack')
+}
+
+// --- 👑 Super admin ---
+function count(v: unknown): number {
+  return typeof v === 'number' && Number.isFinite(v) ? v : 0
+}
+function parseAdminTotals(v: unknown): AdminMarketTotals {
+  const o = rec(v, 'admin.market')
+  return { active: count(o.active), paused: count(o.paused), blocked: count(o.blocked), banned_users: count(o.banned_users), open_inquiries: count(o.open_inquiries) }
+}
+export function parseAdminOverview(v: unknown): AdminOverview {
+  const o = rec(v, 'admin.overview')
+  const s = rec(o.stats, 'admin.stats')
+  return {
+    stats: { users: count(s.users), pro_subscribers: count(s.pro_subscribers), channels: count(s.channels), posts_today: count(s.posts_today),
+      pending_posts: count(s.pending_posts), stars_revenue: count(s.stars_revenue), sent: count(s.sent), failed: count(s.failed),
+      cancelled: count(s.cancelled), sponsors: count(s.sponsors) },
+    market: parseAdminTotals(o.market),
+  }
+}
+function parseAdminAd(v: unknown): AdminAd {
+  const o = rec(v, 'admin.ad')
+  const scope = o.scope === 'reply' ? 'reply' : 'channel'
+  return { id: int(o.id, 'ad.id'), scope, text: str(o.text, 'ad.text'), button_text: str(o.button_text ?? '', 'ad.button_text'),
+    button_url: str(o.button_url ?? '', 'ad.button_url'), is_active: bool(o.is_active, 'ad.is_active') }
+}
+export function parseAdminAdEnvelope(v: unknown): AdminAd {
+  return parseAdminAd(rec(v, 'admin.ad.env').ad)
+}
+export function parseAdminAds(v: unknown): AdminAds {
+  const o = rec(v, 'admin.ads')
+  const s = rec(o.settings, 'ads.settings')
+  const side = (x: unknown, what: string) => {
+    const r = rec(x, what)
+    return { enabled: bool(r.enabled, `${what}.enabled`), interval: int(r.interval, `${what}.interval`) }
+  }
+  const items = rec(o.items, 'ads.items')
+  return {
+    settings: { reply: side(s.reply, 'ads.reply'), channel: side(s.channel, 'ads.channel') },
+    items: { channel: arr(items.channel, 'ads.items.channel').map(parseAdminAd), reply: arr(items.reply, 'ads.items.reply').map(parseAdminAd) },
+  }
+}
+export function parseAdminSponsors(v: unknown): { items: AdminSponsor[] } {
+  return { items: arr(rec(v, 'admin.sponsors').items, 'sponsors.items').map((x) => {
+    const o = rec(x, 'sponsor')
+    return { id: int(o.id, 'sponsor.id'), channel_id: str(o.channel_id, 'sponsor.channel_id'), title: str(o.title ?? '', 'sponsor.title'),
+      username: str(o.username ?? '', 'sponsor.username'), invite_link: str(o.invite_link ?? '', 'sponsor.invite_link') }
+  }) }
+}
+export function parseAdminMarket(v: unknown): AdminMarket {
+  const o = rec(v, 'admin.market')
+  return { totals: parseAdminTotals(o.totals), items: arr(o.items, 'market.items').map((x) => {
+    const r = rec(x, 'listing')
+    const status = r.status === 'blocked' ? 'blocked' : r.status === 'paused' ? 'paused' : 'active'
+    return { id: int(r.id, 'listing.id'), title: str(r.title ?? '', 'listing.title'), username: str(r.username ?? '', 'listing.username'),
+      owner_id: int(r.owner_id, 'listing.owner_id'), category: str(r.category ?? 'other', 'listing.category'), status,
+      members: intOrNull(r.members, 'listing.members'), view_count: count(r.view_count), inquiry_count: count(r.inquiry_count),
+      reports: count(r.reports), owner_banned: r.owner_banned === true }
+  }) }
 }

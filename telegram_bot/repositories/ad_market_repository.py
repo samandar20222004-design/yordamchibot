@@ -578,6 +578,38 @@ def count_peer_reports(user_id: int) -> int:
         return int(cur.fetchone()[0])
 
 
+def admin_list_listings(limit: int = 30, status: str | None = None) -> list[dict]:
+    """Admin nazorati: so'nggi e'lonlar (barcha holatlar) + shikoyatlar soni."""
+    where, params = "", []
+    if status in (STATUS_ACTIVE, STATUS_PAUSED, STATUS_BLOCKED):
+        where, params = "WHERE l.status = %s", [status]
+    with db_cursor() as cur:
+        cur.execute(
+            f"SELECT l.id, l.title, l.username, l.owner_id, l.category, l.status, l.members, l.view_count, l.inquiry_count, "
+            f"(SELECT COUNT(*) FROM ad_market_reports r WHERE r.listing_id = l.id), "
+            f"EXISTS (SELECT 1 FROM ad_market_bans b WHERE b.user_id = l.owner_id) "
+            f"FROM ad_market_listings l {where} ORDER BY l.created_at DESC LIMIT %s",
+            params + [max(1, min(int(limit), 100))],
+        )
+        rows = cur.fetchall()
+    return [{"id": r[0], "title": r[1], "username": r[2], "owner_id": int(r[3]), "category": r[4], "status": r[5],
+             "members": r[6], "view_count": r[7], "inquiry_count": r[8], "reports": int(r[9]), "owner_banned": bool(r[10])}
+            for r in rows]
+
+
+def admin_market_totals() -> dict:
+    """Admin nazorati uchun umumiy hisob: e'lonlar holati, chetlatilganlar, shikoyatlar."""
+    with db_cursor() as cur:
+        cur.execute("SELECT status, COUNT(*) FROM ad_market_listings GROUP BY status")
+        by_status = {r[0]: int(r[1]) for r in cur.fetchall()}
+        cur.execute("SELECT COUNT(*) FROM ad_market_bans")
+        banned = int(cur.fetchone()[0])
+        cur.execute("SELECT COUNT(*) FROM ad_market_inquiries WHERE status = 'open'")
+        open_inq = int(cur.fetchone()[0])
+    return {"active": by_status.get("active", 0), "paused": by_status.get("paused", 0), "blocked": by_status.get("blocked", 0),
+            "banned_users": banned, "open_inquiries": open_inq}
+
+
 # ---------------------------------------------------------------- hisobni o'chirish
 
 def delete_user_market_data(cur, user_id: int) -> dict:

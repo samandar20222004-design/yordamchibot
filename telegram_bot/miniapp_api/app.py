@@ -36,6 +36,7 @@ from .repository import MAX_OFFSET
 from .service import MiniAppService
 from .settings import MiniAppSettings, load_settings
 from .static import register_static_routes
+from .admin import AdminApi
 from .market import MarketApi
 from .writes import PostWriter, read_json_object
 
@@ -51,6 +52,7 @@ _K_LIMITER = web.AppKey("miniapp_limiter", StrictLimiter)
 _K_CLOCK = web.AppKey("miniapp_clock", object)
 _K_WRITER = web.AppKey("miniapp_writer", PostWriter)
 _K_MARKET = web.AppKey("miniapp_market", MarketApi)
+_K_ADMIN = web.AppKey("miniapp_admin", AdminApi)
 
 
 def _public(handler):
@@ -379,6 +381,81 @@ async def market_block_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].block(request["user_id"], _market_id(request)))
 
 
+
+# ------------------------------------------------------------ super admin
+_BIG_INT_RE = re.compile(r"\A[0-9]{1,15}\Z")
+
+
+def _admin_id(request: web.Request, name: str = "item_id") -> int:
+    raw = request.match_info.get(name, "")
+    if not _BIG_INT_RE.match(raw) or int(raw) <= 0:
+        raise ApiError("not_found")
+    return int(raw)
+
+
+async def admin_overview_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].overview(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def admin_ads_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].ads(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def admin_ad_settings_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].update_ad_settings(request["user_id"], body))
+
+
+@_write
+async def admin_ad_create_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].create_ad(request["user_id"], body), status=201)
+
+
+@_write
+async def admin_ad_update_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].update_ad(request["user_id"], _admin_id(request), body))
+
+
+@_write
+async def admin_ad_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].delete_ad(request["user_id"], _admin_id(request)))
+
+
+async def admin_sponsors_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].sponsors(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def admin_sponsor_add_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].add_sponsor(request["user_id"], body), status=201)
+
+
+@_write
+async def admin_sponsor_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].delete_sponsor(request["user_id"], _admin_id(request)))
+
+
+async def admin_market_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].market(request["user_id"], request.query.get("status")),
+                             headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def admin_market_status_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].set_listing_status(request["user_id"], _admin_id(request), body))
+
+
+@_write
+async def admin_market_ban_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].set_user_ban(request["user_id"], _admin_id(request), body))
+
+
 # -------------------------------------------------------------- middleware
 @web.middleware
 async def api_middleware(request: web.Request, handler):
@@ -478,7 +555,7 @@ async def _guarded(request: web.Request, handler):
 
 # ------------------------------------------------------------ ulash nuqtasi
 def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock=time.time,
-                  service=None, writer=None, market=None) -> web.Application:
+                  service=None, writer=None, market=None, admin=None) -> web.Application:
     api = web.Application(middlewares=[api_middleware])
     runner = runner or ReadOnlyRunner(
         statement_timeout_ms=settings.db_statement_timeout_ms,
@@ -492,14 +569,16 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api[_K_CLOCK] = clock
     api[_K_WRITER] = writer or PostWriter(api[_K_SERVICE], settings)
     api[_K_MARKET] = market or MarketApi(api[_K_SERVICE], settings)
+    api[_K_ADMIN] = admin or AdminApi(api[_K_SERVICE], settings)
 
     async def _close_writer(app: web.Application) -> None:
         closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
         if closer is not None:
             await closer()
-        market_closer = getattr(app[_K_MARKET], "aclose", None)
-        if market_closer is not None:
-            await market_closer()
+        for key in (_K_MARKET, _K_ADMIN):
+            closer2 = getattr(app[key], "aclose", None)
+            if closer2 is not None:
+                await closer2()
 
     api.on_cleanup.append(_close_writer)
     api.router.add_get("/health", health_handler)
@@ -543,6 +622,18 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/market/threads/{item_id}/block", market_block_handler)
     api.router.add_post("/market/threads/{item_id}/report", market_report_user_handler)
     api.router.add_get("/market/unread", market_unread_handler)
+    api.router.add_get("/admin/overview", admin_overview_handler)
+    api.router.add_get("/admin/ads", admin_ads_handler)
+    api.router.add_patch("/admin/ads/settings", admin_ad_settings_handler)
+    api.router.add_post("/admin/ads", admin_ad_create_handler)
+    api.router.add_patch("/admin/ads/{item_id}", admin_ad_update_handler)
+    api.router.add_delete("/admin/ads/{item_id}", admin_ad_delete_handler)
+    api.router.add_get("/admin/sponsors", admin_sponsors_handler)
+    api.router.add_post("/admin/sponsors", admin_sponsor_add_handler)
+    api.router.add_delete("/admin/sponsors/{item_id}", admin_sponsor_delete_handler)
+    api.router.add_get("/admin/market", admin_market_handler)
+    api.router.add_post("/admin/market/listings/{item_id}/status", admin_market_status_handler)
+    api.router.add_post("/admin/market/users/{item_id}/ban", admin_market_ban_handler)
     return api
 
 
