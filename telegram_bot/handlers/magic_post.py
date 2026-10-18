@@ -34,7 +34,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 import database as db
-from config import ADMIN_IDS_SET
+from config import ADMIN_IDS_SET, BOT_USERNAME
 from handlers.ai_assistant import AI_GET_TIME, _show_time_prompt
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import (
@@ -59,6 +59,7 @@ from utils.ai_agent import (
 from telegram.error import BadRequest
 from utils.telegram_sanitizer import html_to_text, sanitize_html
 from utils.helpers import (
+    apply_post_watermark,
     check_ai_rate_limit,
     html_escape,
     telegram_html_payload,
@@ -562,14 +563,19 @@ async def magic_style_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 # ============================================================
 # YUBORISH: kanalga darhol jo'natish
 # ============================================================
-async def _magic_deliver_one(bot, chat_id, post_text: str) -> bool:
+async def _magic_deliver_one(bot, chat_id, post_text: str, user_id: int | None = None) -> bool:
     """Bitta kanalga post yuboradi (safe HTML, xato bo'lsa plain-text fallback).
+
+    ``user_id`` berilsa bepul tarif nishoni (``🤖 @bot``) qo'yiladi (PRO/admin — toza): to'g'ridan-to'g'ri
+    yuborish ham rejalangan post bilan bir xil qoidaga bo'ysunadi.
 
     yagona ``delivery_service`` orqali — rate-limit (1 post/s kanal)
     va RetryAfter aniq kutish + jitter dvigatel tomonida boshqariladi.
     Tarmoq xatosida blind retry YO'Q (ikkinchi yuborish dublikat chiqarishi
     mumkin) — xato hanuz False sifatida qaytadi.
     """
+    if user_id is not None:
+        post_text = await apply_post_watermark(post_text, user_id, BOT_USERNAME)
     payload, parse_mode = telegram_html_payload(post_text)
     try:
         await delivery_service.send_message(
@@ -611,7 +617,7 @@ async def _magic_finish_send(query, context, targets: list) -> int:
     for channel in targets:
         ch_id = channel[0]
         ch_title = channel[1] if len(channel) > 1 else str(ch_id)
-        if await _magic_deliver_one(context.bot, ch_id, post_text):
+        if await _magic_deliver_one(context.bot, ch_id, post_text, user_id=user_id):
             sent += 1
             sent_names.append(channel_label_html(ch_id, ch_title))
 

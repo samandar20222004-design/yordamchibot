@@ -90,14 +90,14 @@ def count_owner_listings(user_id: int) -> int:
 
 def get_listing(listing_id: int) -> dict | None:
     with db_cursor() as cur:
-        cur.execute(f"SELECT {_LISTING_COLS} FROM ad_market_listings l WHERE l.id = %s", (int(listing_id),))
+        cur.execute(f"SELECT {_LISTING_COLS} FROM ad_market_listings l WHERE l.id = %s", (int(listing_id),))  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
         return _listing(cur.fetchone())
 
 
 def get_listing_for_owner(listing_id: int, owner_id: int) -> dict | None:
     with db_cursor() as cur:
         cur.execute(
-            f"SELECT {_LISTING_COLS} FROM ad_market_listings l WHERE l.id = %s AND l.owner_id = %s",
+            f"SELECT {_LISTING_COLS} FROM ad_market_listings l WHERE l.id = %s AND l.owner_id = %s",  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             (int(listing_id), int(owner_id)),
         )
         return _listing(cur.fetchone())
@@ -148,7 +148,7 @@ def update_listing_fields(listing_id: int, owner_id: int, **fields) -> bool:
     sets = ", ".join(f"{k} = %s" for k, _ in items)
     with db_cursor(commit=True) as cur:
         cur.execute(
-            f"UPDATE ad_market_listings SET {sets}, updated_at = NOW() WHERE id = %s AND owner_id = %s",
+            f"UPDATE ad_market_listings SET {sets}, updated_at = NOW() WHERE id = %s AND owner_id = %s",  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             [v for _, v in items] + [int(listing_id), int(owner_id)],
         )
         return bool(cur.rowcount)
@@ -240,11 +240,11 @@ def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, pa
     offset = max(0, int(page)) * size
     with db_cursor() as cur:
         cur.execute(
-            f"SELECT COUNT(*) FROM ad_market_listings l {_LIVE_JOIN} WHERE {' AND '.join(where)}", params
+            f"SELECT COUNT(*) FROM ad_market_listings l {_LIVE_JOIN} WHERE {' AND '.join(where)}", params  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
         )
         total = int(cur.fetchone()[0])
         cur.execute(
-            f"SELECT {_LISTING_COLS} FROM ad_market_listings l {_LIVE_JOIN} "
+            f"SELECT {_LISTING_COLS} FROM ad_market_listings l {_LIVE_JOIN} "  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             f"WHERE {' AND '.join(where)} ORDER BY {order} LIMIT %s OFFSET %s",
             params + [size, offset],
         )
@@ -256,7 +256,7 @@ def get_public_listing(listing_id: int, viewer_id: int | None = None) -> dict | 
     """Reklama beruvchiga ko'rinadigan e'lon (faol + kanal tirik); ko'rishlar hisoblagichi +1 (egasi o'zini ko'rsa — yo'q)."""
     with db_cursor(commit=True) as cur:
         cur.execute(
-            f"SELECT {_LISTING_COLS} FROM ad_market_listings l {_LIVE_JOIN} WHERE l.id = %s AND l.status = 'active'",
+            f"SELECT {_LISTING_COLS} FROM ad_market_listings l {_LIVE_JOIN} WHERE l.id = %s AND l.status = 'active'",  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             (int(listing_id),),
         )
         data = _listing(cur.fetchone())
@@ -268,7 +268,7 @@ def get_public_listing(listing_id: int, viewer_id: int | None = None) -> dict | 
 def market_totals() -> dict:
     """Bosh ekran uchun: katalogdagi faol e'lonlar va barcha so'rovlar soni."""
     with db_cursor() as cur:
-        cur.execute(f"SELECT COUNT(*) FROM ad_market_listings l {_LIVE_JOIN} WHERE l.status = 'active'")
+        cur.execute(f"SELECT COUNT(*) FROM ad_market_listings l {_LIVE_JOIN} WHERE l.status = 'active'")  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
         listings = int(cur.fetchone()[0])
         cur.execute("SELECT COALESCE(SUM(inquiry_count), 0) FROM ad_market_listings")
         inquiries = int(cur.fetchone()[0])
@@ -305,7 +305,7 @@ def create_inquiry(listing_id: int, advertiser_id: int, body: str, flags: str = 
         if cur.fetchone() is not None:
             return {"ok": False, "reason": "banned", "inquiry_id": None, "owner_id": None}
         cur.execute(
-            f"SELECT l.id, l.owner_id FROM ad_market_listings l {_LIVE_JOIN} WHERE l.id = %s AND l.status = 'active'",
+            f"SELECT l.id, l.owner_id FROM ad_market_listings l {_LIVE_JOIN} WHERE l.id = %s AND l.status = 'active'",  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             (int(listing_id),),
         )
         row = cur.fetchone()
@@ -492,7 +492,7 @@ def mark_read(inquiry_id: int, user_id: int) -> bool:
         return False
     col = "owner_read_at" if info["role"] == "owner" else "adv_read_at"
     with db_cursor(commit=True) as cur:
-        cur.execute(f"UPDATE ad_market_inquiries SET {col} = NOW() WHERE id = %s", (int(inquiry_id),))
+        cur.execute(f"UPDATE ad_market_inquiries SET {col} = NOW() WHERE id = %s", (int(inquiry_id),))  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
     return True
 
 
@@ -585,7 +585,7 @@ def admin_list_listings(limit: int = 30, status: str | None = None) -> list[dict
         where, params = "WHERE l.status = %s", [status]
     with db_cursor() as cur:
         cur.execute(
-            f"SELECT l.id, l.title, l.username, l.owner_id, l.category, l.status, l.members, l.view_count, l.inquiry_count, "
+            f"SELECT l.id, l.title, l.username, l.owner_id, l.category, l.status, l.members, l.view_count, l.inquiry_count, "  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             f"(SELECT COUNT(*) FROM ad_market_reports r WHERE r.listing_id = l.id), "
             f"EXISTS (SELECT 1 FROM ad_market_bans b WHERE b.user_id = l.owner_id) "
             f"FROM ad_market_listings l {where} ORDER BY l.created_at DESC LIMIT %s",

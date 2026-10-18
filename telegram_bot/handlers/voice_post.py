@@ -634,7 +634,7 @@ async def _voice_finish_send(query, context, targets: list) -> int:
     for channel in targets:
         ch_id = channel[0]
         ch_title = channel[1] if len(channel) > 1 else str(ch_id)
-        if await _magic_deliver_one(context.bot, ch_id, post_text):
+        if await _magic_deliver_one(context.bot, ch_id, post_text, user_id=user_id):
             sent += 1
             sent_names.append(channel_label_html(ch_id, ch_title))
 
