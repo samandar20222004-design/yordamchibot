@@ -19,9 +19,9 @@ from __future__ import annotations
 import re
 from datetime import datetime, time, timedelta
 
+from services.user_timezone import utz
 from services.recurrence import (
     INTERVAL_MAX_DAYS,
-    TASHKENT,
     WEEKEND_MASK,
     WORKDAYS_MASK,
     first_occurrence,
@@ -227,10 +227,10 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
         return {"ok": False, "reason": "empty"}
     if len(text) > MAX_TEXT_CHARS:
         return {"ok": False, "reason": "too_long"}
-    now = now or datetime.now(TASHKENT)
+    now = now or datetime.now(utz())
     if now.tzinfo is None:
-        now = TASHKENT.localize(now)
-    now = now.astimezone(TASHKENT)
+        now = utz().localize(now)
+    now = now.astimezone(utz())
     t = _norm(text)
 
     kind, payload, rest = _strip_recurrence(t)
@@ -255,7 +255,7 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
             if extract_time(t) is None and not re.search(r"\d+\s*(daqiqa|minut|мин|soat|час|kun|день|дня)", _en_to_24h_text(t)):
                 return {"ok": False, "reason": "no_time"}
             return {"ok": False, "reason": "unrecognized"}
-        when = when.astimezone(TASHKENT)
+        when = when.astimezone(utz())
         if when <= now:
             # masalan "12:00 kunda" -> mavjud parser "00 kun" deb 0 kun keyin (= hozir) qaytaradi: hech qachon o'tmish/hozirga rejalanmaydi
             return {"ok": False, "reason": "unrecognized"}
@@ -301,11 +301,11 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
     elif rtype in ("daily", "interval"):
         # Kun so'zi ("bugun/ertaga") bo'lsa — shu kun; bo'lmasa bugun, vaqt o'tib ketgan bo'lsa ertaga.
         naive = datetime(now.year, now.month, now.day, rtime.hour, rtime.minute) + timedelta(days=off or 0)
-        start = TASHKENT.localize(naive)
+        start = utz().localize(naive)
         if start <= now:
             if off:
                 return {"ok": False, "reason": "past"}
-            start = TASHKENT.localize(naive + timedelta(days=1))
+            start = utz().localize(naive + timedelta(days=1))
     else:
         base = now + timedelta(days=off or 0)
         start = first_occurrence(rtype, rday, rtime, base if off else now)
@@ -318,12 +318,12 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
 
 def validate_proposal(start, recurrence, now: datetime | None = None) -> dict:
     """Tashqi manbadan (AI) kelgan taklifni tekshiradi. -> ``{"ok": True, "start", "recurrence"}`` yoki ``{"ok": False, "reason"}``."""
-    now = now or datetime.now(TASHKENT)
+    now = now or datetime.now(utz())
     if not isinstance(start, datetime):
         return {"ok": False, "reason": "unrecognized"}
     if start.tzinfo is None:
-        start = TASHKENT.localize(start)
-    start = start.astimezone(TASHKENT)
+        start = utz().localize(start)
+    start = start.astimezone(utz())
     if start <= now:
         return {"ok": False, "reason": "past"}
     if start > now + timedelta(days=366):

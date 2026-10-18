@@ -643,7 +643,7 @@ def verify_phone(user_id: int, phone_number: str, contact_user_id) -> str | None
     Qabul: kontakt egasi shu foydalanuvchining o'zi (``contact_user_id == user_id``) va yaroqli raqam. O'zbekiston (+998) bo'lsa
     ``uz_verified`` ham qo'yiladi (so'm narxi/to'lovi). Qaytadi: ISO-2 (noma'lum prefiks uchun ``ZZ``) yoki ``None`` (rad).
     """
-    from services.country import country_from_phone
+    from services.country import UNKNOWN as UNKNOWN_COUNTRY, country_from_phone
 
     try:
         if int(contact_user_id) != int(user_id):
@@ -657,14 +657,42 @@ def verify_phone(user_id: int, phone_number: str, contact_user_id) -> str | None
         with db_cursor(commit=True) as cur:
             cur.execute(
                 "UPDATE users SET phone_country = %s, phone_verified_at = NOW(), "
-                "uz_verified = (uz_verified OR %s), pay_region = CASE WHEN %s THEN 'uz' ELSE pay_region END "
+                "uz_verified = (uz_verified OR %s), pay_region = CASE WHEN %s THEN 'uz' ELSE pay_region END, "
+                # bayram/mavsum eslatmalari: standart «UZ» bo'lib qolgan chet ellik o'z mamlakatiga o'tadi (qo'lda tanlangan saqlanadi)
+                "target_country = CASE WHEN %s AND COALESCE(target_country, 'UZ') = 'UZ' THEN %s ELSE target_country END "
                 "WHERE user_id = %s",
-                (country, country == "UZ", country == "UZ", int(user_id)),
+                (country, country == "UZ", country == "UZ", country not in ("UZ", UNKNOWN_COUNTRY), country, int(user_id)),
             )
-            return country if cur.rowcount else None
+            ok = bool(cur.rowcount)
+        if ok:
+            from services.user_timezone import invalidate
+
+            invalidate(user_id)
+        return country if ok else None
     except Exception as e:  # noqa: BLE001
         logger.error("verify_phone xatosi: %s", type(e).__name__)
         return None
+
+
+def get_timezone_row(user_id: int) -> tuple[str | None, str | None]:
+    """``(users.timezone, users.phone_country)`` — zonani ``services.user_timezone.resolve`` aniqlaydi."""
+    with db_cursor() as cur:
+        cur.execute("SELECT timezone, phone_country FROM users WHERE user_id = %s", (int(user_id),))
+        row = cur.fetchone()
+    return (row[0], row[1]) if row else (None, None)
+
+
+def set_user_timezone(user_id: int, tz_name: str | None) -> bool:
+    """Qo'lda tanlangan zonani saqlaydi (``None`` — avtomatik: telefon mamlakati zonasiga qaytadi)."""
+    from services.user_timezone import invalidate, valid_tz
+
+    if tz_name is not None and not valid_tz(tz_name):
+        return False
+    with db_cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET timezone = %s WHERE user_id = %s", (tz_name, int(user_id)))
+        ok = bool(cur.rowcount)
+    invalidate(user_id)
+    return ok
 
 
 def country_stats(limit: int = 30) -> dict:

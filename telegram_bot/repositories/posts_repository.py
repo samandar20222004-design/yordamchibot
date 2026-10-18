@@ -615,17 +615,20 @@ def set_queue_slots(user_id: int, slots: list) -> bool:
 
 def get_queue_occupied_times(user_id: int, channel_id: str, target_date) -> list:
     """Berilgan sana uchun band qilingan vaqtlarni qaytaradi."""
+    from services.user_timezone import utz
+
+    zone = utz().zone  # foydalanuvchining O'Z kunlik vaqt zonasi
     try:
         with db_cursor() as cur:
             cur.execute("""
-                SELECT EXTRACT(HOUR FROM scheduled_time AT TIME ZONE 'Asia/Tashkent')::int,
-                       EXTRACT(MINUTE FROM scheduled_time AT TIME ZONE 'Asia/Tashkent')::int
+                SELECT EXTRACT(HOUR FROM scheduled_time AT TIME ZONE %s)::int,
+                       EXTRACT(MINUTE FROM scheduled_time AT TIME ZONE %s)::int
                 FROM scheduled_posts
                 WHERE user_id = %s
                   AND status = 'pending'
                   AND (channel_id = %s OR channel_id = 'ALL')
-                  AND (scheduled_time AT TIME ZONE 'Asia/Tashkent')::date = %s
-            """, (user_id, str(channel_id), target_date))
+                  AND (scheduled_time AT TIME ZONE %s)::date = %s
+            """, (zone, zone, user_id, str(channel_id), zone, target_date))
             return [(row[0], row[1]) for row in cur.fetchall()]
     except Exception as e:
         logger.error(f"Queue occupied times xatosi: {e}")

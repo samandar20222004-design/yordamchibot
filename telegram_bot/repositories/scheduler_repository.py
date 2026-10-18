@@ -23,7 +23,7 @@ import logging
 import re
 
 
-from database import tashkent_tz
+from database import tashkent_tz  # noqa: F401
 from repositories.runtime import (  # noqa: F401
     _cache_clear, _invalidate_user, db_cursor
 )
@@ -765,7 +765,9 @@ def find_next_queue_slot(slots: list, occupied: list, now, max_days: int = 7) ->
                 if slot_dt <= now:
                     continue
             else:
-                slot_dt = tashkent_tz.localize(
+                from services.user_timezone import utz  # kech import: `services` paketi database bilan aylanma import qilmasin
+
+                slot_dt = utz().localize(
                     datetime(target_date.year, target_date.month, target_date.day, hh, mm)
                 )
 

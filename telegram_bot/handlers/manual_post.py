@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -109,6 +109,7 @@ from utils.silent_errors import log_silent_failure
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import shift_local, utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # ============================================================
 # FSM HOLATLARI (450–454 — mavjud holatlar bilan to'qnashmaydi)
@@ -1006,7 +1007,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     context.user_data.pop(UD_DUP_CHANNEL_ID, None)
     context.user_data.pop(UD_DUP_CHANNEL_TITLE, None)
 
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
 
     delete_after_hours = 24 if mode == MODE_24H else 0
     recurrence_type = "daily" if mode == MODE_REPEAT else "none"
@@ -1018,16 +1019,15 @@ async def _publish(target_msg, context, user_id: int, channel_id,
 
     if mode == MODE_REPEAT and context.user_data.get(UD_REPEAT_TIME):
         hh, mm = (int(x) for x in context.user_data[UD_REPEAT_TIME].split(":"))
-        scheduled_time = tashkent_tz.localize(
+        scheduled_time = utz().localize(
             datetime(now.year, now.month, now.day, hh, mm))
         if scheduled_time <= now:
-            scheduled_time = tashkent_tz.normalize(
-                scheduled_time + timedelta(days=1))
+            scheduled_time = shift_local(scheduled_time, days=1)
     elif context.user_data.get(UD_WHEN):
         try:
             scheduled_time = datetime.strptime(
                 context.user_data[UD_WHEN], "%Y-%m-%d %H:%M")
-            scheduled_time = tashkent_tz.localize(scheduled_time)
+            scheduled_time = utz().localize(scheduled_time)
         except (ValueError, TypeError):
             scheduled_time = now
     else:

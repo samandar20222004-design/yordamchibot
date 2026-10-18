@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 # yoziladigan `scheduled_time` qiymatlari SHU zonaga bog'lanadi.
 TIMEZONE_NAME = "Asia/Tashkent"
 tashkent_tz = pytz.timezone(TIMEZONE_NAME)
+from services.user_timezone import DEFAULT_TZ_NAME, shift_local, tz_name_for, use_tz, utz  # noqa: E402
 
 # Tarmoq xatosidan keyin qayta urinishdan oldin kutish (soniya)
 NETWORK_RETRY_DELAY = 30
@@ -202,7 +203,7 @@ def _db_ok(result) -> bool:
 
 def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, extra_ids,
                        recurrence_type=None, recurrence_day=None, recurrence_time=None,
-                       end_date=None, idempotency_key=None) -> dict:
+                       end_date=None, idempotency_key=None, owner_tz=None) -> dict:
     """Telegramga yuborilgan post uchun DB'ga yozilishi kerak bo'lgan barcha
     ma'lumot (JSON-serializable): 'posted' markeri + takrorlanuvchi post uchun
     keyingi vaqt / yakunlanganlik."""
@@ -221,18 +222,19 @@ def _build_sent_marker(post_id, sent_msg_id, channel_id, delete_after_hours, ext
     }
     if recurrence_type in RECURRING_TYPES:
         try:
-            now = now_tashkent()
-            end_at = _as_tashkent(end_date) if end_date else None
-            if end_at and now >= end_at:
-                marker["completed"] = True
-            else:
-                next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
-                if next_time and end_at and _as_tashkent(next_time) > end_at:
-                    # AUDIT-009: keyingi davr end_date'dan KEYIN bo'lsa rejalashtirilmaydi — post shu yerda
-                    # yakunlanadi (avval end_date'dan keyingi bitta ortiqcha post chiqardi).
+            with use_tz(owner_tz or DEFAULT_TZ_NAME):  # takrorlash egasining O'Z vaqt zonasida hisoblanadi
+                now = now_tashkent()
+                end_at = _as_tashkent(end_date) if end_date else None
+                if end_at and now >= end_at:
                     marker["completed"] = True
-                elif next_time:
-                    marker["next_time"] = next_time.isoformat()
+                else:
+                    next_time = calculate_next_time(recurrence_type, recurrence_day, recurrence_time, now)
+                    if next_time and end_at and _as_tashkent(next_time) > end_at:
+                        # AUDIT-009: keyingi davr end_date'dan KEYIN bo'lsa rejalashtirilmaydi — post shu yerda
+                        # yakunlanadi (avval end_date'dan keyingi bitta ortiqcha post chiqardi).
+                        marker["completed"] = True
+                    elif next_time:
+                        marker["next_time"] = next_time.isoformat()
         except Exception:
             logger.exception("Takrorlanuvchi post uchun keyingi vaqtni hisoblashda xato (Post ID: %s)", post_id)
     return marker
@@ -674,8 +676,8 @@ def _as_tashkent(value):
     if value is None:
         return None
     if getattr(value, "tzinfo", None) is None:
-        return tashkent_tz.localize(value)
-    return value.astimezone(tashkent_tz)
+        return utz().localize(value)
+    return value.astimezone(utz())
 
 
 def _replace_tashkent(moment, hour: int, minute: int):
@@ -685,17 +687,17 @@ def _replace_tashkent(moment, hour: int, minute: int):
     shuning uchun natija ``normalize()`` orqali qayta hisoblanadi.
     """
     naive = moment.replace(tzinfo=None, hour=hour, minute=minute, second=0, microsecond=0)
-    return tashkent_tz.localize(naive)
+    return utz().localize(naive)
 
 
 def _shift_tashkent(moment, **delta):
     """Toshkent vaqtida kun/soat qo'shadi (ofset qayta normallashtiriladi)."""
-    return tashkent_tz.normalize(moment + timedelta(**delta))
+    return shift_local(moment, **delta)
 
 
 def now_tashkent():
-    """Hozirgi Toshkent vaqti — kodning barcha nuqtalari uchun yagona manba."""
-    return datetime.now(tashkent_tz)
+    """Hozirgi vaqt (joriy foydalanuvchi zonasida; fon vazifada Toshkent) — taqqoslash uchun yagona manba."""
+    return datetime.now(utz())
 
 
 def compose_post_text(content: str, has_ad_free: bool, channel_ad: str,
@@ -1860,10 +1862,16 @@ async def _execute_send(bot, post):
         # holatda (DB xatosi, restart) post qayta yuborilmasligi kerak:
         # marker (posted + sent_message_id + takrorlash rejasi) backoff bilan
         # yoziladi; yozilmasa xotira/journal guard'ida qoladi.
+        owner_tz = None
+        if ctx["recurrence_type"] in RECURRING_TYPES:
+            try:
+                owner_tz = await db.run_db(tz_name_for, ctx["user_id"])
+            except Exception:  # noqa: BLE001 — zona topilmasa Toshkent (eski xulq)
+                owner_tz = None
         sent_marker = _build_sent_marker(
             post_id, sent_msg_id, ctx["channel_id"], ctx["delete_after_hours"], extra_ids,
             ctx["recurrence_type"], ctx["recurrence_day"], ctx["recurrence_time"], ctx["end_date"],
-            delivery_marker_key,
+            delivery_marker_key, owner_tz=owner_tz,
         )
 
     except RetryAfter as e:
@@ -2427,7 +2435,7 @@ async def daily_morning_digest_job(bot=None, now=None):
     )
 
     if isinstance(now, date) and not isinstance(now, datetime):
-        current = tashkent_tz.localize(datetime.combine(now, datetime.min.time()))
+        current = utz().localize(datetime.combine(now, datetime.min.time()))
     else:
         current = _as_tashkent(now) if now is not None else now_tashkent()
     if current is None:

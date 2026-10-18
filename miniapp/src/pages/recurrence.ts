@@ -7,10 +7,21 @@ export const WORKDAYS_MASK = 1 | 2 | 4 | 8 | 16
 export const ALL_MASK = 127
 export const TASHKENT_TZ = 'Asia/Tashkent'
 
-const DAY_FMT = new Intl.DateTimeFormat('en-US', { timeZone: TASHKENT_TZ, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const makeFmt = (tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+let appTz = TASHKENT_TZ
+let DAY_FMT = makeFmt(appTz)
+
+/** Foydalanuvchi vaqt zonasi (server `/me.user.timezone`): takrorlanish soati/hafta kuni shu zonada. Yaroqsiz bo'lsa Toshkent. */
+export function setAppTimezone(tz: string | undefined): void {
+  let next = TASHKENT_TZ
+  if (tz) { try { makeFmt(tz); next = tz } catch { next = TASHKENT_TZ } }
+  appTz = next
+  DAY_FMT = makeFmt(appTz)
+}
+export function getAppTimezone(): string { return appTz }
 const WEEKDAY_INDEX: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
 
-/** Instantning Toshkent vaqtidagi hafta kuni (Du=0), soat va daqiqasi. Takrorlanish qoidalari server tomonida shu zonada hisoblanadi. */
+/** Instantning foydalanuvchi zonasidagi (standart Toshkent) hafta kuni (Du=0), soat va daqiqasi. Takrorlanish qoidalari server tomonida shu zonada hisoblanadi. */
 export function tashkentParts(date: Date): { weekday: number; time: string } {
   const parts = DAY_FMT.formatToParts(date)
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''

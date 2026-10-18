@@ -28,6 +28,7 @@ from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # ============================================================
 # 🌐 3 TILLIK AI MOSLASHUVI (UZ / RU / EN) — YAGONA MANBA
@@ -1276,7 +1277,7 @@ _ROUTER_I18N = {
             "Siz PostAssist — professional Telegram kanallar boshqaruvchisi va "
             "post muharriri botisiz."
         ),
-        "time": "Hozirgi vaqt: {now} (Toshkent, UTC+5), {day}, {year}-yil.",
+        "time": "Hozirgi vaqt: {now} ([[TZ]]), {day}, {year}-yil.",
         "extra": "Qo'shimcha ko'rsatma: {extra}",
         "style_title": "TIL VA USLUB TALABLARI (juda muhim):",
         "style_body": (
@@ -1305,7 +1306,7 @@ _ROUTER_I18N = {
             "     Aniq faktlar, chaqiriq (CTA), kerakli hashtaglar qo'shing.\n"
             "     Quruq umumiy qoliplar yozmang — har bir jumla aniq mazmun bersin.\n"
             "   • Tayyor post/forward/e'lon yuborilsa — matnni BUZMASDAN, to'liq ko'chiring.\n"
-            "   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — Toshkent bo'yicha "
+            "   • Vaqt ko'rsatilsa ('bugun 15:45', 'ertaga 9 da') — [[TZ]] bo'yicha "
             "'YYYY-MM-DD HH:MM' da yozing.\n"
             "   • 'Barcha kanallarga' deyilsa — target_all: true."
         ),
@@ -1316,7 +1317,7 @@ _ROUTER_I18N = {
             "   • Faqat so'ralgan o'zgarishni qiling, qolganini saqlab qoldiring."
         ),
         "rules": "MUHIM QOIDALAR:",
-        "rule_time": "• Vaqt hisobini FAQAT Toshkent vaqti (UTC+5) bo'yicha qiling.",
+        "rule_time": "• Vaqt hisobini FAQAT [[TZ]] vaqti bo'yicha qiling.",
         "rule_json": "• JSON dan boshqa hech narsa yozmang. Toza JSON formati:",
         "json_reply": "faq niyatida to'liq, HTML formatlangan javob (boshqa hollarda bo'sh satr)",
         "json_post": (
@@ -1330,7 +1331,7 @@ _ROUTER_I18N = {
             "Вы — PostAssist, профессиональный помощник по управлению "
             "Telegram-каналами и редактированию постов."
         ),
-        "time": "Текущее время: {now} (Ташкент, UTC+5), {day}, {year} год.",
+        "time": "Текущее время: {now} ([[TZ]]), {day}, {year} год.",
         "extra": "Дополнительная инструкция: {extra}",
         "style_title": "ТРЕБОВАНИЯ К ЯЗЫКУ И СТИЛЮ (очень важно):",
         "style_body": (
@@ -1363,7 +1364,7 @@ _ROUTER_I18N = {
             "   • Если прислали готовый пост/пересланное сообщение/объявление — скопируйте "
             "текст ПОЛНОСТЬЮ, НЕ ИЗМЕНЯЯ.\n"
             "   • Если указано время ('сегодня 15:45', 'завтра в 9') — запишите его по "
-            "Ташкенту в формате 'YYYY-MM-DD HH:MM'.\n"
+            "поясу [[TZ]] в формате 'YYYY-MM-DD HH:MM'.\n"
             "   • Если сказано «во все каналы» — target_all: true."
         ),
         "edit": (
@@ -1373,7 +1374,7 @@ _ROUTER_I18N = {
             "   • Измените только то, о чём просят, остальное сохраните."
         ),
         "rules": "ВАЖНЫЕ ПРАВИЛА:",
-        "rule_time": "• Время рассчитывайте ТОЛЬКО по Ташкенту (UTC+5).",
+        "rule_time": "• Время рассчитывайте ТОЛЬКО по поясу [[TZ]].",
         "rule_json": "• Не пишите ничего, кроме JSON. Чистый формат JSON:",
         "json_reply": "при намерении faq — полный HTML-ответ (в остальных случаях пустая строка)",
         "json_post": "при намерении post/edit — готовый текст поста (только текст поста)",
@@ -1385,7 +1386,7 @@ _ROUTER_I18N = {
             "You are PostAssist — a professional Telegram channel manager and "
             "post editor bot."
         ),
-        "time": "Current time: {now} (Tashkent, UTC+5), {day}, {year}.",
+        "time": "Current time: {now} ([[TZ]]), {day}, {year}.",
         "extra": "Additional instruction: {extra}",
         "style_title": "LANGUAGE AND STYLE REQUIREMENTS (very important):",
         "style_body": (
@@ -1417,7 +1418,7 @@ _ROUTER_I18N = {
             "   • If a ready post/forward/announcement is sent — copy the text EXACTLY, "
             "without altering it.\n"
             "   • If a time is mentioned ('today 15:45', 'tomorrow at 9') — write it in "
-            "Tashkent time as 'YYYY-MM-DD HH:MM'.\n"
+            "[[TZ]] time as 'YYYY-MM-DD HH:MM'.\n"
             "   • If they say 'to all channels' — target_all: true."
         ),
         "edit": (
@@ -1426,7 +1427,7 @@ _ROUTER_I18N = {
             "   • Change only what was asked, keep everything else."
         ),
         "rules": "IMPORTANT RULES:",
-        "rule_time": "• Calculate time using Tashkent time (UTC+5) ONLY.",
+        "rule_time": "• Calculate time using [[TZ]] time ONLY.",
         "rule_json": "• Write nothing but JSON. Clean JSON format:",
         "json_reply": "for the faq intent — the full HTML answer (empty string otherwise)",
         "json_post": "for the post/edit intent — the ready post text (nothing but the post text)",
@@ -1482,7 +1483,7 @@ def _get_router_system_instruction(is_pro: bool = False, lang: str = "uz") -> st
     """
     code = normalize_ai_lang(lang)
     t = _router_i18n(code)
-    now_dt = datetime.now(tashkent_tz)
+    now_dt = datetime.now(utz())
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
     current_day = _prompt_weekday_name(now_dt, code)  # hafta kuni (tilga mos)
@@ -1518,19 +1519,19 @@ def _get_router_system_instruction(is_pro: bool = False, lang: str = "uz") -> st
         f"}}"
     )
     # Eng yuqoriga QAT'IY til bloki qo'yiladi (idempotent — takrorlanmaydi).
-    return with_language(prompt, code)
+    return with_language(_fill_tz(prompt), code)
 
 
 #: Yengil (time extraction) promptining tilga bog'liq qismlari.
 _TIME_I18N = {
     "uz": {
         "persona": "Siz Telegram post rejalashtiruvchi botning yordamchisisiz.",
-        "time": "Hozirgi Toshkent vaqti: {now}, joriy yil: {year}.",
+        "time": "Hozirgi vaqt ([[TZ]]): {now}, joriy yil: {year}.",
         "task": (
             "Foydalanuvchining xabarini tahlil qiling va FAQAT bitta JSON qaytaring:\n"
             "• Agar xabarda post chiqish VAQTI ko'rsatilgan bo'lsa (masalan: '15:45 ga', "
             "'ertaga ertalab 9 da', 'bugun kechqurun 20:00', '1 soatdan keyin', "
-            "'5 daqiqadan keyin', '2-sentyabr 10:00') — vaqtni Toshkent vaqti bo'yicha "
+            "'5 daqiqadan keyin', '2-sentyabr 10:00') — vaqtni [[TZ]] vaqti bo'yicha "
             "hisoblab 'YYYY-MM-DD HH:MM' formatida \"scheduled_time\" ga yozing, "
             "\"has_explicit_time\": true.\n"
             "• Agar xabar vaqt emas, balki savol yoki boshqa gap bo'lsa — "
@@ -1543,12 +1544,12 @@ _TIME_I18N = {
     },
     "ru": {
         "persona": "Вы — помощник бота планирования постов в Telegram.",
-        "time": "Текущее время в Ташкенте: {now}, текущий год: {year}.",
+        "time": "Текущее время ([[TZ]]): {now}, текущий год: {year}.",
         "task": (
             "Проанализируйте сообщение пользователя и верните ТОЛЬКО один JSON:\n"
             "• Если в сообщении указано ВРЕМЯ выхода поста (например: 'в 15:45', "
             "'завтра утром в 9', 'сегодня вечером в 20:00', 'через 1 час', "
-            "'через 5 минут', '2 сентября 10:00') — рассчитайте время по Ташкенту и "
+            "'через 5 минут', '2 сентября 10:00') — рассчитайте время по поясу [[TZ]] и "
             "запишите его в \"scheduled_time\" в формате 'YYYY-MM-DD HH:MM', "
             "\"has_explicit_time\": true.\n"
             "• Если это не время, а вопрос или другая фраза — \"has_explicit_time\": false, "
@@ -1561,12 +1562,12 @@ _TIME_I18N = {
     },
     "en": {
         "persona": "You are the assistant of a Telegram post scheduling bot.",
-        "time": "Current Tashkent time: {now}, current year: {year}.",
+        "time": "Current time ([[TZ]]): {now}, current year: {year}.",
         "task": (
             "Analyze the user's message and return ONE JSON object only:\n"
             "• If the message contains a POST TIME (for example: 'at 15:45', "
             "'tomorrow morning at 9', 'today at 20:00', 'in 1 hour', 'in 5 minutes', "
-            "'September 2, 10:00') — calculate it in Tashkent time and write it into "
+            "'September 2, 10:00') — calculate it in [[TZ]] time and write it into "
             "\"scheduled_time\" as 'YYYY-MM-DD HH:MM', with \"has_explicit_time\": true.\n"
             "• If it is not a time but a question or another phrase — "
             "\"has_explicit_time\": false, \"scheduled_time\": null, and write a short, "
@@ -1582,11 +1583,19 @@ _TIME_I18N["uz"]["json_label"] = "JSON formati:"
 _TIME_I18N["ru"]["json_label"] = "Формат JSON:"
 
 
+def _fill_tz(text: str) -> str:
+    """``[[TZ]]`` -> joriy foydalanuvchi zonasi («Berlin, UTC+1»): AI vaqtni foydalanuvchining O'Z vaqtida yozadi."""
+    from services.user_timezone import city, offset_label
+
+    zone = utz()
+    return text.replace("[[TZ]]", f"{city(zone.zone)}, {offset_label(zone)}")
+
+
 def _get_time_system_instruction(lang: str = "uz") -> str:
     """Yengil rejim: faqat erkin tildagi vaqtni yoki savolni ajratadi (3 tilda)."""
     code = normalize_ai_lang(lang)
     t = _TIME_I18N.get(code) or _TIME_I18N["uz"]
-    now_dt = datetime.now(tashkent_tz)
+    now_dt = datetime.now(utz())
     now_str = now_dt.strftime("%Y-%m-%d %H:%M")
     current_year = now_dt.year
     prompt = (
@@ -1602,7 +1611,7 @@ def _get_time_system_instruction(lang: str = "uz") -> str:
         f'  "target_all": false\n'
         f"}}"
     )
-    return with_language(prompt, code)
+    return with_language(_fill_tz(prompt), code)
 
 
 

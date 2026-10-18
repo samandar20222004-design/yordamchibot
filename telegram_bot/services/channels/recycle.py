@@ -47,6 +47,7 @@ from ..channels.duplicate_detector import (
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # ---------------------------------------------------------------------------
 # QOIDALAR (speks: 14+ kun, yaxshi ko'rsatkich)
@@ -88,15 +89,15 @@ def _as_aware(moment: Any) -> datetime | None:
         except ValueError:
             return None
     if value.tzinfo is None:
-        return tashkent_tz.localize(value)
+        return utz().localize(value)
     return value
 
 
 def post_age_days(post: dict, *, now: datetime | None = None) -> float | None:
     """Post yoshi (kunlarda); vaqt o'qilmasa ``None``."""
-    moment = now or datetime.now(tashkent_tz)
+    moment = now or datetime.now(utz())
     if moment.tzinfo is None:
-        moment = tashkent_tz.localize(moment)
+        moment = utz().localize(moment)
     published = _as_aware((post or {}).get("post_date")
                           or (post or {}).get("date")
                           or (post or {}).get("created_at"))
@@ -142,9 +143,9 @@ def select_recycle_candidates(
                          "metrics_available": True}],
          "metrics_available": bool, "avg_views": float, "scanned": int}
     """
-    moment = now or datetime.now(tashkent_tz)
+    moment = now or datetime.now(utz())
     if moment.tzinfo is None:
-        moment = tashkent_tz.localize(moment)
+        moment = utz().localize(moment)
 
     prepared: list[dict] = []
     for raw in posts or []:

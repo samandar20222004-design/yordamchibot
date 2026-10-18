@@ -520,7 +520,7 @@ async def workers_smoke(timeout: float) -> None:
         ("start_web_server", "main.py: web health-server ko'tariladi"),
         ("start_polling", "main.py: Telegram polling boshlanadi"),
         ("scheduler.start()", "main.py: APScheduler ishga tushiriladi"),
-        ("concurrent_updates(True)", "main.py: update'lar parallel qabul qilinadi"),
+        ("concurrent_updates(TimezoneUpdateProcessor(256))", "main.py: update'lar parallel qabul qilinadi (+ foydalanuvchi vaqt zonasi)"),
         ("recover_on_startup", "main.py: startup tiklanish (recover) chaqiriladi"),
         ("daily_morning_digest_job, 'cron', hour=9, minute=0",
          "main.py: daily digest 09:00 Toshkent cron'i ro'yxatdan o'tadi"),

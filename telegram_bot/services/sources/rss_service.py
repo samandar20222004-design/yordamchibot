@@ -45,6 +45,7 @@ from . import url_extractor as ux
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 #: Rejalashtirish uchun yagona standart vaqt zonasi (scheduler bilan bir xil).
 
@@ -701,17 +702,17 @@ class RssService(SMMFeatureService):
 # ---------------------------------------------------------------------------
 def _scheduled_time_for(source: dict, *, now: datetime | None = None) -> datetime:
     """Autopublish uchun rejalashtirish vaqti (best-time yoki standart)."""
-    moment = now or datetime.now(tashkent_tz)
+    moment = now or datetime.now(utz())
     if moment.tzinfo is None:
-        moment = tashkent_tz.localize(moment)
-    local = moment.astimezone(tashkent_tz)
+        moment = utz().localize(moment)
+    local = moment.astimezone(utz())
     hour = AUTOPUBLISH_HOUR_FALLBACK
     try:
         hour = int((source or {}).get("post_hour") or AUTOPUBLISH_HOUR_FALLBACK)
     except (TypeError, ValueError):
         hour = AUTOPUBLISH_HOUR_FALLBACK
     hour = max(0, min(23, hour))
-    candidate = tashkent_tz.localize(
+    candidate = utz().localize(
         datetime(local.year, local.month, local.day, hour, 0, 0))
     if candidate <= local:
         candidate = candidate + timedelta(days=1)

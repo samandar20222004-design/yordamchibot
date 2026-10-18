@@ -11,6 +11,8 @@ import time
 import pytz  # noqa: F401 — vaqt zonasi bilan ishlovchi modullar uchun saqlanadi
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from telegram.ext import ApplicationBuilder, Application
+
+from handlers.timezone_flow import TimezoneUpdateProcessor
 from telegram import Update
 # 📋 ☰ «MENU» TUGMASI (set_my_commands) — buyruq nomlari, TARTIBI va
 # uz/ru/en tavsiflari YAGONA manbadan (``menu_commands``) olinadi; shu
@@ -951,7 +953,7 @@ async def main():
         ApplicationBuilder()
         .bot(create_safe_bot(BOT_TOKEN))
         .application_class(GuardedApplication)
-        .concurrent_updates(True)
+        .concurrent_updates(TimezoneUpdateProcessor(256))  # True bilan bir xil parallellik + har yangilanishda foydalanuvchi vaqt zonasi
         # SafeHTMLBot applies the SSOT sanitizer to all HTML sends/edits.
         # Network timeout/pool settings are kept in create_safe_bot().
         .build()

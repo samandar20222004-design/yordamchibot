@@ -58,6 +58,7 @@ __all__ = (
 )
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 DEFAULT_LANG = "uz"
 
 # ---------------------------------------------------------------------------
@@ -193,24 +194,24 @@ def _as_datetime(value):
         dt = value
         if dt.tzinfo is None:
             try:
-                dt = tashkent_tz.localize(dt)
+                dt = utz().localize(dt)
             except Exception:  # pragma: no cover
                 return dt.replace(tzinfo=None)
         try:
-            return dt.astimezone(tashkent_tz)
+            return dt.astimezone(utz())
         except Exception:  # pragma: no cover
             return dt
     if isinstance(value, _date):
         try:
-            return tashkent_tz.localize(
+            return utz().localize(
                 datetime(value.year, value.month, value.day)
             )
         except Exception:  # pragma: no cover
             return None
     if isinstance(value, _time):
         try:
-            today = datetime.now(tashkent_tz)
-            return tashkent_tz.localize(
+            today = datetime.now(utz())
+            return utz().localize(
                 datetime(today.year, today.month, today.day,
                          value.hour, value.minute, value.second)
             )
@@ -218,7 +219,7 @@ def _as_datetime(value):
             return None
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         try:
-            return datetime.fromtimestamp(float(value), tz=tashkent_tz)
+            return datetime.fromtimestamp(float(value), tz=utz())
         except Exception:  # pragma: no cover
             return None
     if isinstance(value, str):
@@ -232,7 +233,7 @@ def _as_datetime(value):
             if 0 <= hh <= 23 and 0 <= mm <= 59:
                 # Soat/daqiqa — sana kerak emas, lekin ``datetime`` qaytaramiz
                 # ( chaqiruv nuqtalari bir xil tur bilan ishlaydi).
-                return tashkent_tz.localize(
+                return utz().localize(
                     datetime(2000, 1, 1, hh, mm, int(m.group(3) or 0))
                 )
         for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d.%m.%Y %H:%M",
@@ -319,7 +320,7 @@ def format_list_datetime(value, lang=DEFAULT_LANG, now=None) -> str:
     dt = _as_datetime(value)
     if dt is None:
         return ""
-    ref = _as_datetime(now) or datetime.now(tashkent_tz)
+    ref = _as_datetime(now) or datetime.now(utz())
     try:
         delta_days = (dt.date() - ref.date()).days
     except Exception:  # pragma: no cover

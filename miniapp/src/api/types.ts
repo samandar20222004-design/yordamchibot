@@ -45,7 +45,7 @@ export type AiStyle = 'sales' | 'premium' | 'casual' | 'ads' | 'informative'
 export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads', 'informative']
 
 export interface Me {
-  user: { id: number; name: string | null; username: string | null; language: Lang }
+  user: { id: number; name: string | null; username: string | null; language: Lang; timezone?: string }
   plan: Plan
   /** Narx mintaqasi: 'uz' (so'm) yoki 'intl' (dollar). Eski serverda yo'q = 'uz'. */
   pay_region?: 'uz' | 'intl'
