@@ -113,8 +113,10 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 ## Bilish kerak
 
 - `/start` yangi foydalanuvchilarni taklif kodi yoki admin tasdig'isiz ro'yxatdan o'tkazadi.
-- Bepul tarifda kanal postining OXIRIGA `\n\n🤖 @BOT_USERNAME` qo'shiladi (`utils/helpers.py`:
-  `apply_post_watermark`; limit kesishidan KEYIN `compose_post_text(footer=...)`). PRO/admin — toza.
+- Bepul tarifda kanal postining BOSHIGA `🤖 @BOT_USERNAME\n\n` qo'shiladi (`utils/helpers.py`:
+  `apply_post_watermark`; limit matnni faqat OXIRIDAN kesadi, shuning uchun nishon yo'qolmaydi). PRO/ULTRA/enterprise/admin — toza.
+  Hamma yuborish yo'lida: rejalangan post, Post Enhancer, Magic/Score/Voice Post (`_magic_deliver_one(user_id=)`), Rasm->Post, tozalagich preview.
+  Kafolat testi: `tests/release_readiness_audit_test.py`.
 - Hostingga va production bazaga kirish yo'q; tezlik o'lchovlari faqat lokal.
 - Bu konteynerda fon PostgreSQL ba'zan to'xtaydi — test oldidan qayta ishga tushir.
 - Real-DB testlar (`refactor_step5_test.py`) toza bazani kutadi: qayta yugurishdan

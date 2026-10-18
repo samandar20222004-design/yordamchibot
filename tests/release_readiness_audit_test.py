@@ -269,9 +269,9 @@ def main() -> int:
             for name, (uid, expect) in users.items():
                 out = payload_for(uid, ptype)
                 text = (out or {}).get("final_content") or ""
-                has = LINE in text and text.count(LINE) == 1
+                has = text.lstrip().startswith(LINE) and text.count(LINE) == 1
                 none = LINE not in text
-                check(f"rejalangan [{ptype}] {name}: nishon {'BOR (1 marta)' if expect else 'YO`Q'}", has if expect else none, text[:80])
+                check(f"rejalangan [{ptype}] {name}: nishon {'BOR, POST BOSHIDA (1 marta)' if expect else 'YO`Q'}", has if expect else none, text[:80])
         long_text = "a" * 5000
         out = payload_for(FREE, "text", long_text)["final_content"]
         check("bepul: 5000 belgili matn kesilganda ham nishon saqlanadi", LINE in out and len(out) <= 4096 + 40, str(len(out)))
@@ -304,7 +304,7 @@ def main() -> int:
                 finally:
                     magic_post.delivery_service.send_message = saved
                 text = sent[0] if sent else ""
-                has = LINE in text
+                has = text.lstrip().startswith(LINE)
                 check(f"{label} -> kanal, {name}: nishon {'BOR' if expect else 'YO`Q'}", has if expect else (not has and bool(text) and not text.startswith("EXC")),
                       text[:100])
 
@@ -328,7 +328,7 @@ def main() -> int:
             finally:
                 image_post.delivery_service.send_photo = saved
             cap = captured.get("caption", "")
-            check(f"Rasm->Post -> kanal, {name}: nishon {'BOR' if expect else 'YO`Q'}", (LINE in cap) if expect else (LINE not in cap and "Rasm matni" in cap), cap[:100])
+            check(f"Rasm->Post -> kanal, {name}: nishon {'BOR' if expect else 'YO`Q'}", cap.lstrip().startswith(LINE) if expect else (LINE not in cap and "Rasm matni" in cap), cap[:100])
     finally:
         cleanup()
         conn.close()

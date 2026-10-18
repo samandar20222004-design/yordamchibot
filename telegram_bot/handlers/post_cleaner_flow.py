@@ -62,7 +62,7 @@ from services.media_group_collector import (
 from services.media_group_collector import FULL, MediaGroupCollector
 from translations import settings_stats_t as t
 from utils.channel_labels import channel_label_html, sent_notice
-from utils.helpers import html_escape, watermark_footer, watermark_footer_length
+from utils.helpers import html_escape, watermark_footer_length, watermark_header
 from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
@@ -310,7 +310,7 @@ async def _load_session(user_id: int) -> dict:
         "autosend": bool(autosend),
         "channels": [(str(c[0]), str(c[1] or c[0])) for c in (channels or [])],
         "own": frozenset(own or ()),
-        # Bepul foydalanuvchi postining OXIRIGA «🤖 @bot» qo'shiladi — joy qoldiramiz.
+        # Bepul foydalanuvchi postining BOSHIGA «🤖 @bot» qo'shiladi — joy qoldiramiz.
         "reserve": 0 if (premium or user_id in ADMIN_IDS_SET)
         else watermark_footer_length(BOT_USERNAME),
     }
@@ -552,11 +552,11 @@ async def _album_ready(context, user_id: int, lang: str, chat_id: int, entries: 
         rows = [[_btn(t("ss_cl_btn_pub", lang, channel=title[:40]),
                       f"{CB_PUBLISH}:{token}:{index}")]
                 for index, (_cid, title) in enumerate(channels[:_CHANNEL_BUTTONS_MAX])]
-        # Preview the same Free-tier footer that the scheduler applies at
+        # Preview the same Free-tier header (post BOSHIDA) that the scheduler applies at
         # delivery time; keep the stored body independent of tier changes.
         preview_item = dict(item)
         if session["reserve"]:
-            preview_item["html"] += watermark_footer(BOT_USERNAME)
+            preview_item["html"] = watermark_header(BOT_USERNAME) + preview_item["html"]
         await _send_preview(bot, chat_id, preview_item,
                             InlineKeyboardMarkup(rows) if rows else None, lang)
     except Exception as exc:  # noqa: BLE001 — fon vazifa foydalanuvchiga xabar beradi
