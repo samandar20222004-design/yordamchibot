@@ -46,6 +46,12 @@ Foydalanish:
     post_score_criterion_label("cta", "ru")            # «📣 CTA»
 """
 
+from translations.ad_market import (  # noqa: F401
+    AD_MARKET_I18N,
+    AD_MARKET_KEYS,
+    ad_market_parity_report,
+    market_t,
+)
 from translations.magic_post import (  # noqa: F401
     MAGIC_POST_I18N,
     MAGIC_POST_KEYS,

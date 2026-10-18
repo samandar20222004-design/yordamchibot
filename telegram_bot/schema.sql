@@ -1261,3 +1261,71 @@ NOT EXISTS voice_schedule_usage (
 );
 CREATE INDEX IF
 NOT EXISTS idx_voice_schedule_usage_user ON voice_schedule_usage (user_id, used_at DESC);
+
+-- ============================================================
+-- 💰 REKLAMA BIRJASI (kanallar o'rtasida reklama): kanal e'loni, so'rovlar, bot orqali yozishma, shikoyat, blok.
+-- Pul bot orqali O'TMAYDI (kelishuv tomonlar o'rtasida). Hisob o'chirilganda qatorlar ham o'chadi
+-- (repositories/users_repository.py). Kanal o'chirilsa/faolsizlansa e'lon katalogda ko'rinmaydi (channels bilan JOIN).
+-- ============================================================
+CREATE TABLE IF NOT EXISTS ad_market_listings (
+    id BIGSERIAL PRIMARY KEY,
+    channel_id VARCHAR(255) NOT NULL UNIQUE,
+    owner_id BIGINT NOT NULL,
+    username VARCHAR(64) NOT NULL,
+    title VARCHAR(255),
+    category VARCHAR(24) NOT NULL DEFAULT 'other',
+    price_post BIGINT,
+    description TEXT,
+    status VARCHAR(10) NOT NULL DEFAULT 'active',
+    members INTEGER,
+    avg_views INTEGER,
+    er_percent NUMERIC(6,1),
+    growth_30d INTEGER,
+    posts_30d INTEGER,
+    stats_updated_at TIMESTAMPTZ,
+    view_count INTEGER NOT NULL DEFAULT 0,
+    inquiry_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ad_market_listings_owner ON ad_market_listings (owner_id);
+CREATE INDEX IF NOT EXISTS idx_ad_market_listings_catalog ON ad_market_listings (status, category, members DESC);
+
+CREATE TABLE IF NOT EXISTS ad_market_inquiries (
+    id BIGSERIAL PRIMARY KEY,
+    listing_id BIGINT NOT NULL REFERENCES ad_market_listings(id) ON DELETE CASCADE,
+    advertiser_id BIGINT NOT NULL,
+    owner_id BIGINT NOT NULL,
+    status VARCHAR(8) NOT NULL DEFAULT 'open',
+    msg_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ad_market_open_inquiry
+    ON ad_market_inquiries (listing_id, advertiser_id) WHERE status = 'open';
+CREATE INDEX IF NOT EXISTS idx_ad_market_inq_adv ON ad_market_inquiries (advertiser_id, status);
+CREATE INDEX IF NOT EXISTS idx_ad_market_inq_owner ON ad_market_inquiries (owner_id, status);
+
+CREATE TABLE IF NOT EXISTS ad_market_messages (
+    id BIGSERIAL PRIMARY KEY,
+    inquiry_id BIGINT NOT NULL REFERENCES ad_market_inquiries(id) ON DELETE CASCADE,
+    sender_id BIGINT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ad_market_msg_inq ON ad_market_messages (inquiry_id, id);
+
+CREATE TABLE IF NOT EXISTS ad_market_reports (
+    id BIGSERIAL PRIMARY KEY,
+    listing_id BIGINT NOT NULL REFERENCES ad_market_listings(id) ON DELETE CASCADE,
+    reporter_id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_ad_market_report UNIQUE (listing_id, reporter_id)
+);
+
+CREATE TABLE IF NOT EXISTS ad_market_blocks (
+    owner_id BIGINT NOT NULL,
+    blocked_id BIGINT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (owner_id, blocked_id)
+);

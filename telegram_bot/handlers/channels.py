@@ -1069,6 +1069,23 @@ async def _send_dna_offer(send, channel_id, lang: str = "uz") -> bool:
         return False
 
 
+async def _send_market_offer(send, channel_id, lang: str = "uz") -> bool:
+    """💰 Reklama birjasi taklifi (bir martalik, birinchi kanal ulanganda). Xato asosiy oqimni buzmaydi."""
+    try:
+        from translations import market_t
+
+        await send(
+            market_t("mk_offer", lang),
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(
+                market_t("mk_offer_btn", lang), callback_data=f"mk:lc:{channel_id}")]]),
+            parse_mode="HTML",
+        )
+        return True
+    except Exception:
+        logger.debug("Birja taklifi yuborilmadi (channel=%s)", channel_id, exc_info=True)
+        return False
+
+
 async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
                         raw_target, title_hint: str | None = None):
     """Umumiy ulash oqimi: tekshirish → limit → saqlash → natija ro'yxati.
@@ -1151,6 +1168,7 @@ async def _link_channel(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # tuzamizmi?" 1-click tugmasi) darhol yuboramiz.
         if await _should_offer_dna(user_id, channel_id):
             await _send_dna_offer(msg.reply_text, channel_id, lang)
+            await _send_market_offer(msg.reply_text, channel_id, lang)
             from handlers.onboarding import run_instant_dna_onboarding
             await run_instant_dna_onboarding(
                 msg.reply_text,
@@ -1327,6 +1345,7 @@ async def on_bot_chat_member_update(update: Update, context: ContextTypes.DEFAUL
                     )
 
                 await _send_dna_offer(_dm_send, str(chat.id), lang)
+                await _send_market_offer(_dm_send, str(chat.id), lang)
                 from handlers.onboarding import run_instant_dna_onboarding
                 await run_instant_dna_onboarding(
                     _dm_send,

@@ -665,6 +665,7 @@ def test_i_channel_panel_management_screen():
         f"{CB_CHANNEL_STATS}{CH_ID}",
         f"{CB_CHANNEL_TEAM}{CH_ID}",
         f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        f"mk:lc:{CH_ID}",
         CB_CHANNEL_BACK,
     ]
     expected_rows = [
@@ -672,6 +673,7 @@ def test_i_channel_panel_management_screen():
         ["🚀 Autopilot", "📋 Kontent reja"],
         ["🧬 Channel DNA", "📊 Analytics"],
         ["👥 Team", "⚙️ Sozlamalar"],
+        ["💰 Reklama birjasi"],
         ["◀️ Orqaga"],
     ]
     check("Panel: PHASE 9 contextual callback'lari tartibda",

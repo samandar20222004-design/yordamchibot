@@ -341,6 +341,7 @@ def test_channels_contextual_menu() -> None:
         ["🚀 Autopilot", "📋 Kontent reja"],
         ["🧬 Channel DNA", "📊 Analytics"],
         ["👥 Team", "⚙️ Sozlamalar"],
+        ["💰 Reklama birjasi"],
         ["◀️ Orqaga"],
     ]
     check(
@@ -355,6 +356,7 @@ def test_channels_contextual_menu() -> None:
         [f"ch_ap:{ch_id}", f"ch_plan:{ch_id}"],
         [f"ch_dna:{ch_id}", f"ch_st:{ch_id}"],
         [f"ch_team:{ch_id}", f"ch_set:{ch_id}"],
+        [f"mk:lc:{ch_id}"],
         ["ch_back"],
     ]
     check("Kanal kontekstual tugmalari callback_data to'g'ri", cbs == expected_cbs, f"got={cbs}")

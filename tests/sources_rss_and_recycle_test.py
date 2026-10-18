@@ -1490,6 +1490,7 @@ def test_ui_routing_i18n():
         f"{CB_CHANNEL_STATS}{CH_ID}",
         f"{CB_CHANNEL_TEAM}{CH_ID}",
         f"{CB_CHANNEL_SETTINGS}{CH_ID}",
+        f"mk:lc:{CH_ID}",
         CB_CHANNEL_BACK,
     ]
     for lang in LANGS:
