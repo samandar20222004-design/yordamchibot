@@ -628,8 +628,10 @@ def test_send_and_schedule_from_result():
     # --- Bitta kanal → darhol yuborish ---
     deliver_calls = []
 
-    async def fake_deliver(bot, chat_id, post_text):
+    async def fake_deliver(bot, chat_id, post_text, user_id=None):
+        # user_id beriladi: bepul tarif nishoni to'g'ridan-to'g'ri yuborishda ham qo'yiladi
         deliver_calls.append((chat_id, post_text))
+        assert user_id is not None
         return True
 
     ctx = _improve_ctx(user_id=880404)
