@@ -28,10 +28,14 @@ Majburlash: `check_channel_limit`, `reserve_ai_request` / `check_ai_limit` (atom
 
 ## Narxlar — 4 muddat: 1, 3, 6 oy va 1 yil (6 oy = 180 kun)
 
-**Mintaqaga qarab:** O'zbekiston — so'm (Uzcard/Humo/Payme); chet el — dollar (Telegram Stars), O'zbekiston narxidan **1,7 baravar qimmat**
-(`INTL_PRICE_MULTIPLIER`; Stars 5 ga yaxlitlanadi, 1 ★ = 0,02 $). Mintaqa: foydalanuvchi tanlovi (`users.pay_region`, tarif kartasidagi
-«🌍 Dollar narxi» / «🇺🇿 So'm narxi» tugmasi yoki to'lov mintaqasi menyusi), tanlanmagan bo'lsa tildan (`uz` -> so'm, `ru`/`en` -> dollar).
-Telegram mamlakatni bermaydi, shuning uchun bu taxmin; foydalanuvchi o'zi almashtira oladi. Stars faqat xalqaro mintaqada sotiladi.
+**Mintaqaga qarab (TILGA BOG'LIQ EMAS):** hamma uchun standart — **dollar** (Telegram Stars), O'zbekiston narxidan **1,7 baravar qimmat**
+(`INTL_PRICE_MULTIPLIER`; Stars 5 ga yaxlitlanadi, 1 ★ = 0,02 $). **So'm** (arzon; Uzcard/Humo/Payme) faqat O'zbekistonlik deb TASDIQLANGANlarga:
+* foydalanuvchi «🇺🇿 So'mda to'lash» bosadi va Telegram «kontakt ulashish» tugmasi bilan **o'z** telefonini yuboradi; raqam `+998` + 9 raqam
+  bo'lsa va kontakt egasi shu foydalanuvchining o'zi bo'lsa `users.uz_verified = TRUE` (raqamning o'zi SAQLANMAYDI);
+* yoki avval mahalliy karta/Payme orqali muvaffaqiyatli to'lagan (eski mijozlar qayta tasdiqlamaydi);
+* tasdiqlangan foydalanuvchi ko'rinishni dollarga/so'mga almashtira oladi (`users.pay_region`).
+Til (uz/ru/en) mintaqani belgilamaydi — chet ellik o'zbek tiliga o'tib arzon narx ola olmaydi. So'm rekvizitlari (karta/Payme) tasdiqlanmaganga berilmaydi;
+Stars esa har doim xalqaro narxda. Telegram mamlakatni bermaydi; telefon prefiksi mavjud eng ishonchli mezon (+998 SIM-kartali chet ellik ham so'm ola oladi — qabul qilingan xavf).
 
 | Muddat | PRO so'm | PRO $ (Stars) | ULTRA so'm | ULTRA $ (Stars) |
 | --- | ---: | ---: | ---: | ---: |

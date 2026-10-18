@@ -44,6 +44,15 @@ passed = 0
 LANGS = ("uz", "ru", "en")
 
 
+# 🇺🇿 So'm/to'lov mintaqasi TILGA BOG'LIQ EMAS: faqat tasdiqlangan (+998) foydalanuvchiga ochiladi. DB'siz sinov uchun holat qo'lda.
+import database as _dbm  # noqa: E402
+
+_UZ_STATE = {"verified": False}
+_dbm.get_pay_region = lambda uid: "uz" if _UZ_STATE["verified"] else "intl"
+_dbm.is_uz_eligible = lambda uid: _UZ_STATE["verified"]
+_dbm.set_pay_region = lambda uid, region: region == "intl" or _UZ_STATE["verified"]
+
+
 def check(name, cond, extra=""):
     global failures, passed
     if cond:
@@ -245,16 +254,19 @@ def test_region_buttons_all_languages():
 # ============================================================
 
 def test_ru_user_local_flow():
-    print("== 2. RU foydalanuvchi → 🇺🇿 Uzcard/Humo (mahalliy to'lov) ==")
+    print("== 2. RU foydalanuvchi (+998 tasdiqlangan) → 🇺🇿 Uzcard/Humo (mahalliy to'lov) ==")
 
-    bot, last_q, texts, markups, ctx = _run_region_flow(
-        "ru", ["sub_pay:stars_1m", "sub_region:uz:1m"]
-    )
+    _UZ_STATE["verified"] = True
+    try:
+        bot, last_q, texts, markups, ctx = _run_region_flow(
+            "ru", ["sub_pay:stars_1m", "sub_region:uz:1m"]
+        )
+    finally:
+        _UZ_STATE["verified"] = False
     joined = "\n".join(texts)
     first_screen = texts[0] + "\n" + (_kb_texts_kb(markups[0]) if markups else "")
-    check("Tarif tanlangach avval mintaqa menyusi (2 tugma) chiqadi",
-          "Выберите регион оплаты" in first_screen
-          and "Узбекистан" in first_screen and "Международная" in first_screen,
+    check("Tasdiqlangan foydalanuvchi: tarif tanlangach menyu so'ralmaydi, to'g'ridan-to'g'ri mahalliy ekran",
+          "8600 0609 5082 5589" in first_screen and "Выберите регион оплаты" not in first_screen,
           first_screen[:160])
     check("Tarif tanlashda REKVIZIT DARHOL chiqmaydi: mintaqa tanlovigacha invoice yo'q",
           not bot.invoices, bot.invoices)
@@ -364,13 +376,14 @@ def test_international_flow_hides_local_cards():
     # 3.6 Obuna kartasidagi Stars tugmasi ENDI rekvizit emas, mintaqa menyusini
     # ochadi (to'lov rekvizitlari to'g'ridan-to'g'ri chiqmasligi sharti).
     bot5, q5, texts5, markups5, _ = _run_region_flow("en", ["sub_pay:stars_1m"])
-    screen5 = texts5[0] + "\n" + (_kb_texts_kb(markups5[0]) if markups5 else "")
-    check("Stars tarif tugmasi bosilganda invoice yo'q — avval mintaqa so'raladi",
-          not bot5.invoices and len(q5.edits) == 1
-          and "Select your payment region" in screen5
-          and "Uzbekistan — Uzcard / Humo" in screen5
-          and "International — Stars / Crypto" in screen5,
-          screen5[:160])
+    check("Tasdiqlanmagan foydalanuvchi (til qanday bo'lmasin): tarif tugmasi -> dollar/Stars invoice, so'm rekvizitlari YO'Q",
+          len(bot5.invoices) == 1 and bot5.invoices[0]["currency"] == "XTR"
+          and "8600" not in "\n".join(texts5), str((bot5.invoices, texts5[:1])))
+    # So'mni tanlash (menyu) tasdiqlanmagan foydalanuvchiga rekvizit BERMAYDI: avval +998 tasdiqlash so'raladi.
+    bot6, q6, texts6, markups6, ctx6 = _run_region_flow("uz", ["sub_region:uz:1m"])
+    check("Tasdiqlanmagan + so'm tanlandi: rekvizit/so'm to'lovi YO'Q, +998 tasdiqlash so'raladi",
+          "8600" not in "\n".join(texts6) and not bot6.invoices and any("+998" in t for t in texts6)
+          and "uz_verify" in ctx6.user_data, str(texts6[:2]))
 
 
 # ============================================================

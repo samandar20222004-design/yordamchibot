@@ -49,32 +49,38 @@ for key, info in cat.items():
 check("STARS_PLANS (precheckout) katalogdagi xalqaro summa bilan bir xil",
       all(config.STARS_PLANS[i["stars_key"]]["stars"] == i["stars"] for i in cat.values()))
 
-print("\n== 2. Mintaqani aniqlash ==")
-check("o'zbek tili -> uz; ru/en -> intl", sub._derive_region("uz") == UZ and sub._derive_region("ru") == INTL and sub._derive_region("en") == INTL)
-
-store = {"region": ""}
+print("\n== 2. Mintaqani aniqlash: TILGA BOG'LIQ EMAS ==")
+store = {"region": "intl", "eligible": False}
 calls = []
+verify_calls = []
 
 
 async def fake_run_db(fn, *a, **k):
     name = getattr(fn, "__name__", "")
     if name == "get_pay_region":
         return store["region"]
+    if name == "is_uz_eligible":
+        return store["eligible"]
     if name == "set_pay_region":
         calls.append(a)
+        if a[1] == "uz" and not store["eligible"]:
+            return False
         store["region"] = a[1]
         return True
+    if name == "verify_uz_phone":
+        verify_calls.append(a)
+        return store["eligible"] or (a[2] == a[0] and "".join(c for c in str(a[1]) if c.isdigit()).startswith("998"))
     raise AssertionError(f"kutilmagan DB chaqiruvi: {name}")
 
 
 sub.db.run_db = fake_run_db
 run = asyncio.run
-check("saqlanmagan: tildan (uz -> uz, ru -> intl)", run(sub._user_region(1, "uz")) == UZ and run(sub._user_region(1, "ru")) == INTL)
-store["region"] = "uz"
-check("saqlangan tanlov tildan USTUN (ru + uz)", run(sub._user_region(1, "ru")) == UZ)
 store["region"] = "intl"
-check("saqlangan tanlov tildan USTUN (uz + intl)", run(sub._user_region(1, "uz")) == INTL)
-store["region"] = ""
+check("tasdiqlanmagan: o'zbek tilida ham dollar (til mintaqani belgilamaydi)",
+      all(run(sub._user_region(1, lang)) == INTL for lang in ("uz", "ru", "en")))
+store["region"] = "uz"
+check("tasdiqlangan (+998): hamma tilda so'm", all(run(sub._user_region(1, lang)) == UZ for lang in ("uz", "ru", "en")))
+store["region"] = "intl"
 
 print("\n== 3. Tarif kartasi va tugmalar (uz/ru/en) ==")
 for lang in ("uz", "ru", "en"):
@@ -104,7 +110,7 @@ for lang in ("uz", "ru", "en"):
     check(f"[{lang}] xalqaro paketlar tugmasi: dollar + Stars", "$3.90" in intl_kb.inline_keyboard[0][0].text and "195★" in intl_kb.inline_keyboard[0][0].text,
           intl_kb.inline_keyboard[0][0].text)
 
-print("\n== 4. Mintaqa almashtirish va saqlash (handler) ==")
+print("\n== 4. Mintaqa almashtirish va +998 tasdiqlash (handler) ==")
 
 
 class Q:
@@ -115,7 +121,7 @@ class Q:
         self.replies = []
 
         async def reply_text(text, **kw):
-            self.replies.append(text)
+            self.replies.append((text, kw.get("reply_markup")))
 
         async def edit_message_text(text, **kw):
             self.edits.append((text, kw.get("reply_markup")))
@@ -141,25 +147,70 @@ def press(data, ud=None):
     return q, ctx, res
 
 
-store["region"] = ""
+store.update(region="intl", eligible=False)
 calls.clear()
+q, ctx, _ = press("sub_setreg:uz:pro")
+markup = q.replies[0][1] if q.replies else None
+btn = markup.keyboard[0][0] if markup else None
+check("tasdiqlanmagan «So'mda to'lash»: so'm kartasi YO'Q, +998 tasdiqlash so'raladi (kontakt ulashish tugmasi)",
+      not q.edits and q.replies and "+998" in q.replies[0][0] and btn is not None and btn.request_contact is True
+      and ctx.user_data.get("uz_verify", {}).get("tier") == "pro", str((q.replies, q.edits)))
+check("... va mintaqa 'uz' ga O'ZGARTIRILMADI", store["region"] == "intl")
 q, ctx, _ = press("sub_setreg:intl:pro")
-check("sub_setreg:intl:pro -> mintaqa SAQLANDI va dollar kartasi chizildi",
-      calls == [(42, "intl")] and q.edits and "$3.90" in q.edits[0][0], str((calls, q.edits[:1])))
+check("dollarga o'tish har doim mumkin", calls[-1] == (42, "intl") and "$3.90" in q.edits[0][0])
+store.update(region="intl", eligible=True)
 q, ctx, _ = press("sub_setreg:uz:ultra")
-check("sub_setreg:uz:ultra -> so'm kartasi", calls[-1] == (42, "uz") and "69 000" in q.edits[0][0] and "$" not in q.edits[0][0])
+check("tasdiqlangan foydalanuvchi so'mga qayta o'ta oladi (qayta tasdiqlash so'ralmaydi)",
+      store["region"] == "uz" and "69 000" in q.edits[0][0] and not q.replies, str((q.edits, q.replies)))
 calls.clear()
 for bad in ("sub_setreg:mars:pro", "sub_setreg:uz:enterprise", "sub_setreg:uz", "sub_setreg::"):
     q, _, _ = press(bad)
     check(f"yaroqsiz '{bad}' rad etiladi (saqlanmaydi)", calls == [] and not q.edits)
-store["region"] = "intl"
+store.update(region="intl", eligible=False)
 q, _, _ = press("sub_tier:pro")
-check("sub_tier: saqlangan 'intl' bo'yicha dollar narxi", "$3.90" in q.edits[0][0])
-store["region"] = ""
+check("sub_tier: tasdiqlanmagan -> dollar (o'zbek tilida ham)", "$3.90" in q.edits[0][0] and "29 000" not in q.edits[0][0])
+store.update(region="uz", eligible=True)
 q, _, _ = press("sub_tier:pro")
-check("sub_tier: saqlanmagan, til 'uz' -> so'm", "29 000" in q.edits[0][0] and "$" not in q.edits[0][0])
+check("sub_tier: tasdiqlangan -> so'm", "29 000" in q.edits[0][0] and "$" not in q.edits[0][0])
 
-print("\n== 5. To'lovga o'tish: saqlangan mintaqada menyu so'ralmaydi ==")
+print("\n== 4b. Kontakt (+998) qabul qilish ==")
+import time  # noqa: E402
+
+
+def send_contact(phone, contact_uid, uid=42, pending=True, age=0):
+    replies = []
+
+    async def reply_text(text, **kw):
+        replies.append(text)
+
+    msg = SimpleNamespace(contact=SimpleNamespace(phone_number=phone, user_id=contact_uid), reply_text=reply_text)
+    upd = SimpleNamespace(message=msg, effective_user=SimpleNamespace(id=uid))
+    ud = {"lang": "uz"}
+    if pending:
+        ud["uz_verify"] = {"tier": "pro", "ts": time.time() - age}
+    ctx = SimpleNamespace(user_data=ud, bot=SimpleNamespace())
+    run(sub.uz_contact_callback(upd, ctx))
+    return replies, ctx
+
+
+store.update(region="intl", eligible=False)
+verify_calls.clear()
+r, ctx = send_contact("+998 90 123 45 67", 42)
+check("o'z +998 kontakti: tasdiqlandi, so'm kartasi yuborildi, kutish belgisi o'chdi",
+      len(r) == 2 and "tasdiqlandi" in r[0] and "29 000" in r[1] and "uz_verify" not in ctx.user_data, str(r))
+verify_calls.clear()
+r, _ = send_contact("+998901234567", 99)
+check("BOSHQA odamning kontakti rad etiladi", len(r) == 1 and "Tasdiqlanmadi" in r[0] and verify_calls[0][2] == 99, str(r))
+store["eligible"] = False
+r, _ = send_contact("+79001234567", 42)
+check("chet el raqami (+7) rad etiladi", len(r) == 1 and "Tasdiqlanmadi" in r[0], str(r))
+verify_calls.clear()
+r, _ = send_contact("+998901234567", 42, pending=False)
+check("«So'mda to'lash» bosilmagan bo'lsa kontakt e'tiborsiz (DB'ga tegilmaydi)", r == [] and verify_calls == [])
+r, _ = send_contact("+998901234567", 42, age=sub.UZ_VERIFY_TTL_SECONDS + 5)
+check("10 daqiqadan eski so'rov e'tiborsiz", r == [] and verify_calls == [])
+
+print("\n== 5. To'lovga o'tish: til emas, tasdiqlash hal qiladi ==")
 shown = []
 
 
@@ -172,26 +223,27 @@ async def fake_local(query, context, uid, lang, plan_key):
 
 
 sub._show_intl_payment, sub._show_local_card_payment = fake_intl, fake_local
-for saved, expect in (("intl", [("intl", "1y")]), ("uz", [("uz", "1y")])):
-    store["region"] = saved
+for region, eligible, expect in (("uz", True, [("uz", "1y")]), ("intl", False, [("intl", "1y")]), ("intl", True, [("intl", "1y")])):
+    store.update(region=region, eligible=eligible)
     shown.clear()
     q, _, _ = press("sub_pay:stars_1y")
-    check(f"saqlangan '{saved}': menyu YO'Q, to'g'ridan-to'g'ri {saved} to'lovi", shown == expect and not q.edits, str((shown, q.edits)))
-store["region"] = ""
+    check(f"mintaqa '{region}' (tasdiqlangan={eligible}): menyu YO'Q, to'g'ridan-to'g'ri {expect[0][0]} to'lovi", shown == expect and not q.edits, str((shown, q.edits)))
+store.update(region="intl", eligible=False)
+q, _, _ = press("sub_region:uz:1m")
+check("menyudan 'uz' tanlovi tasdiqlanmagan foydalanuvchiga so'm to'lovini OCHMAYDI", shown == [("intl", "1y")] and not q.edits
+      and q.replies and "+998" in q.replies[0][0], str((shown, q.replies)))
 shown.clear()
-q, ctx, _ = press("sub_pay:stars_1y")
-check("saqlanmagan: mintaqa menyusi so'raladi (eski xulq)", shown == [] and q.edits and "Uzcard" in q.edits[0][0], str(q.edits[:1]))
 calls.clear()
 q, _, _ = press("sub_region:intl:1y")
-check("menyudan tanlangan mintaqa ham saqlanadi", calls == [(42, "intl")] and shown == [("intl", "1y")], str((calls, shown)))
+check("menyudan 'intl' tanlovi saqlanadi va dollar to'lovi ochiladi", calls == [(42, "intl")] and shown == [("intl", "1y")], str((calls, shown)))
 
 print("\n== 6. Mini App ==")
 from miniapp_api.service import pay_region, tier_catalog  # noqa: E402
 
-check("Mini App mintaqa: saqlangan > til", pay_region({"pay_region": "intl", "language_code": "uz"}) == "intl"
-      and pay_region({"pay_region": "uz", "language_code": "en"}) == "uz")
-check("Mini App mintaqa: til (uz -> uz, ru/en -> intl, noma'lum -> uz)", pay_region({"language_code": "uz"}) == "uz"
-      and pay_region({"language_code": "ru"}) == "intl" and pay_region({"language_code": "en"}) == "intl" and pay_region({}) == "uz")
+check("Mini App mintaqa (til hisobga olinmaydi): tasdiqlangan -> uz; tasdiqlanmagan/til qanday bo'lmasin -> intl",
+      pay_region({"uz_eligible": True}) == "uz" and pay_region({"uz_eligible": True, "pay_region": "intl"}) == "intl"
+      and pay_region({"language_code": "uz"}) == "intl" and pay_region({"language_code": "uz", "pay_region": "uz"}) == "intl"
+      and pay_region({}) == "intl")
 tc = tier_catalog()
 check("Mini App /me tiers: usd va Stars katalogdan (PRO 3.9/195, ULTRA 83.6/4180)",
       tc["pro"]["periods"][0]["usd"] == 3.9 and tc["pro"]["periods"][0]["stars"] == 195
@@ -199,7 +251,8 @@ check("Mini App /me tiers: usd va Stars katalogdan (PRO 3.9/195, ULTRA 83.6/4180
       and tc["pro"]["periods"][0]["uzs"] == 29000, str(tc["pro"]["periods"][0]))
 check("get_text kalitlari uch tilda mavjud", all(get_text(k, lang) != k for lang in ("uz", "ru", "en") for k in
       ("tier_prices_head_uz", "tier_prices_head_usd", "tier_price_line_uz", "tier_price_line_usd", "tier_region_note_uz",
-       "tier_region_note_usd", "tariff_btn_usd_tpl", "price_uzs_tpl", "btn_region_usd", "btn_region_uzs")))
+       "tier_region_note_usd", "tariff_btn_usd_tpl", "price_uzs_tpl", "btn_region_usd", "btn_region_uzs", "btn_share_phone",
+       "uz_verify_prompt", "uz_verify_ok", "uz_verify_fail")))
 
 print(f"\nNATIJA: [OK]={passed} [XATO]={failed}")
 sys.exit(1 if failed else 0)

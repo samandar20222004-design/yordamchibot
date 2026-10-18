@@ -22,7 +22,7 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
   const periodsAvail = tiers?.pro.periods ?? []
   const [months, setMonths] = useState<number>(periodsAvail.find((p) => p.months === 1)?.months ?? periodsAvail[0]?.months ?? 1)
   // Narx mintaqasi: serverdan (saqlangan tanlov yoki til); bu yerda faqat ko'rinish almashtiriladi (to'lov botda).
-  const [region, setRegion] = useState<Region>(me.pay_region ?? 'uz')
+  const [region, setRegion] = useState<Region>(me.pay_region ?? 'intl')
   const currentType = me.plan.type === 'ultra' ? 'ultra' : me.plan.type === 'enterprise' ? 'enterprise' : me.plan.is_pro ? 'pro' : 'free'
 
   const order: TierId[] = ['free', 'pro', 'ultra']
@@ -77,13 +77,15 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
   return (
     <SubPage title={t('plans.title')} onBack={onBack}>
       <p className="muted">{t('plans.lead')}</p>
-      <div className="period-tabs" role="group" aria-label={t('plans.regionLabel')}>
-        {(['uz', 'intl'] as const).map((r) => (
-          <button key={r} type="button" aria-pressed={region === r} onClick={() => setRegion(r)}>
-            <span>{t(r === 'uz' ? 'plans.regionUz' : 'plans.regionIntl')}</span>
-          </button>
-        ))}
-      </div>
+      {me.pay_region === 'uz' && (
+        <div className="period-tabs" role="group" aria-label={t('plans.regionLabel')}>
+          {(['uz', 'intl'] as const).map((r) => (
+            <button key={r} type="button" aria-pressed={region === r} onClick={() => setRegion(r)}>
+              <span>{t(r === 'uz' ? 'plans.regionUz' : 'plans.regionIntl')}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <p className="muted small">{t(region === 'uz' ? 'plans.regionNoteUz' : 'plans.regionNoteIntl')}</p>
       {periodsAvail.length > 0 && (
         <div className="period-tabs" role="group" aria-label={t('plans.periodLabel')}>

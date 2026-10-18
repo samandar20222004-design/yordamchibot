@@ -783,6 +783,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;
 -- To'lov mintaqasi ('uz' = so'm, 'intl' = dollar/Stars): foydalanuvchi tanlovi; NULL = tildan aniqlanadi.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_region VARCHAR(8);
+-- O'zbekiston raqami (+998) o'z kontakti orqali tasdiqlangan (so'mda to'lash/narx shu bilan ochiladi). Raqamning o'zi SAQLANMAYDI.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS uz_verified BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;

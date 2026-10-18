@@ -100,11 +100,11 @@ def resolve_plan(account: dict) -> dict:
 
 
 def pay_region(account: dict) -> str:
-    """Narx mintaqasi: foydalanuvchi saqlagan tanlov, bo'lmasa tildan ('uz' tili -> 'uz', boshqalar -> 'intl'; bot bilan bir qoida)."""
-    stored = account.get("pay_region")
-    if stored in ("uz", "intl"):
-        return stored
-    return "uz" if _language(account) == "uz" else "intl"
+    """Narx mintaqasi (bot bilan BIR qoida, TILGA BOG'LIQ EMAS): 'uz' (so'm) faqat tasdiqlangan +998 yoki avval mahalliy to'lagan
+    foydalanuvchiga va u o'zi dollarni tanlamagan bo'lsa; qolganlarga 'intl' (dollar)."""
+    if account.get("uz_eligible") and account.get("pay_region") != "intl":
+        return "uz"
+    return "intl"
 
 
 def _language(account: dict) -> str:

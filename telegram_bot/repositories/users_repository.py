@@ -578,21 +578,52 @@ def get_user_language(user_id: int) -> str:
 
 
 def get_pay_region(user_id: int) -> str:
-    """Saqlangan to'lov mintaqasi ('uz' | 'intl'); tanlanmagan yoki xatoda ''."""
+    """Narx/to'lov mintaqasi: ``'uz'`` (so'm; FAQAT tasdiqlangan O'zbekiston foydalanuvchisi) yoki ``'intl'`` (dollar, boshqalar va xatoda).
+
+    Til BU YERDA hisobga olinmaydi (tilni istalgan odam almashtira oladi). ``'uz'`` bo'lish sharti: ``uz_verified`` (o'z +998
+    kontakti) YOKI avval mahalliy karta/Payme orqali muvaffaqiyatli to'lagan (eski mijozlar qayta tasdiqlamaydi) va u o'zi
+    «dollar» ko'rinishini tanlamagan (``pay_region = 'intl'``).
+    """
     try:
         with db_cursor() as cur:
-            cur.execute("SELECT pay_region FROM users WHERE user_id = %s", (int(user_id),))
+            cur.execute(
+                "SELECT COALESCE(uz_verified, FALSE), pay_region, "
+                "EXISTS (SELECT 1 FROM payments p WHERE p.user_id = users.user_id AND p.payment_method = 'uzcard_humo' "
+                "        AND p.status = 'succeeded') "
+                "FROM users WHERE user_id = %s",
+                (int(user_id),),
+            )
             row = cur.fetchone()
-        value = (row[0] if row else "") or ""
-        return value if value in ("uz", "intl") else ""
+        if not row:
+            return "intl"
+        verified, chosen, paid_local = bool(row[0]), row[1], bool(row[2])
+        return "uz" if (verified or paid_local) and chosen != "intl" else "intl"
     except Exception as e:  # noqa: BLE001
         logger.error("get_pay_region xatosi: %s", type(e).__name__)
-        return ""
+        return "intl"
+
+
+def is_uz_eligible(user_id: int) -> bool:
+    """So'mda to'lash/narx ochiq bo'lishi mumkinmi (tasdiqlangan +998 yoki avval mahalliy to'lov)? Ko'rinish tanlovidan mustaqil."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(uz_verified, FALSE) OR EXISTS (SELECT 1 FROM payments p WHERE p.user_id = users.user_id "
+                "AND p.payment_method = 'uzcard_humo' AND p.status = 'succeeded') FROM users WHERE user_id = %s",
+                (int(user_id),),
+            )
+            row = cur.fetchone()
+        return bool(row and row[0])
+    except Exception as e:  # noqa: BLE001
+        logger.error("is_uz_eligible xatosi: %s", type(e).__name__)
+        return False
 
 
 def set_pay_region(user_id: int, region: str) -> bool:
-    """To'lov mintaqasini saqlaydi ('uz' | 'intl'); boshqa qiymat rad etiladi."""
+    """Ko'rinish tanlovi: ``'intl'`` (dollar) har doim mumkin; ``'uz'`` (so'm) — FAQAT tasdiqlangan/eski mahalliy mijoz uchun."""
     if region not in ("uz", "intl"):
+        return False
+    if region == "uz" and not is_uz_eligible(user_id):
         return False
     try:
         with db_cursor(commit=True) as cur:
@@ -600,6 +631,28 @@ def set_pay_region(user_id: int, region: str) -> bool:
             return bool(cur.rowcount)
     except Exception as e:  # noqa: BLE001
         logger.error("set_pay_region xatosi: %s", type(e).__name__)
+        return False
+
+
+def verify_uz_phone(user_id: int, phone_number: str, contact_user_id) -> bool:
+    """O'z kontakti orqali O'zbekiston raqamini (+998) tasdiqlaydi. Raqam SAQLANMAYDI — faqat ``uz_verified`` belgisi.
+
+    Qabul: kontakt egasi shu foydalanuvchining o'zi (``contact_user_id == user_id``) va raqam ``998`` + 9 raqam.
+    """
+    try:
+        if int(contact_user_id) != int(user_id):
+            return False
+    except (TypeError, ValueError):
+        return False
+    digits = "".join(ch for ch in str(phone_number or "") if ch.isdigit())
+    if not (len(digits) == 12 and digits.startswith("998")):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE users SET uz_verified = TRUE, pay_region = 'uz' WHERE user_id = %s", (int(user_id),))
+            return bool(cur.rowcount)
+    except Exception as e:  # noqa: BLE001
+        logger.error("verify_uz_phone xatosi: %s", type(e).__name__)
         return False
 
 
