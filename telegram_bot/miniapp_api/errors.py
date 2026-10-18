@@ -152,6 +152,56 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Лимит шаблонов исчерпан. Удалите ненужный и попробуйте снова.",
         "en": "The templates limit is reached. Delete one you no longer need and try again.",
     }),
+    "market_private": (422, {
+        "uz": "Kanalda username yo'q (yopiq kanal). Birjada faqat ochiq kanallar bo'ladi.",
+        "ru": "У канала нет username (закрытый канал). На бирже только открытые каналы.",
+        "en": "The channel has no username (private). Only public channels can be listed.",
+    }),
+    "market_not_admin": (403, {
+        "uz": "Egalikni tasdiqlab bo'lmadi: siz ham, bot ham kanalda admin bo'lishingiz kerak.",
+        "ru": "Не удалось подтвердить владение: вы и бот должны быть админами канала.",
+        "en": "Ownership could not be verified: both you and the bot must be channel admins.",
+    }),
+    "market_limit": (403, {
+        "uz": "Bitta hisobdan ko'pi bilan 5 ta kanal qo'yish mumkin.",
+        "ru": "С одного аккаунта можно разместить не более 5 каналов.",
+        "en": "One account can list at most 5 channels.",
+    }),
+    "market_blocked": (403, {
+        "uz": "E'lon shikoyatlar tufayli bloklangan. Tekshiruv uchun qo'llab-quvvatlashga yozing.",
+        "ru": "Объявление заблокировано из-за жалоб. Для проверки напишите в поддержку.",
+        "en": "This listing was blocked because of reports. Contact support for a review.",
+    }),
+    "inquiry_limit": (429, {
+        "uz": "Kuniga 5 tadan ko'p yangi so'rov yuborib bo'lmaydi. Ertaga urinib ko'ring.",
+        "ru": "Нельзя отправлять больше 5 новых заявок в сутки. Попробуйте завтра.",
+        "en": "You can't send more than 5 new requests per day. Try again tomorrow.",
+    }),
+    "inquiry_blocked": (403, {
+        "uz": "Bu kanal egasi sizdan so'rov qabul qilmaydi.",
+        "ru": "Владелец этого канала не принимает заявки от вас.",
+        "en": "This channel's owner does not accept requests from you.",
+    }),
+    "inquiry_own": (422, {
+        "uz": "Bu sizning kanalingiz.",
+        "ru": "Это ваш канал.",
+        "en": "This is your channel.",
+    }),
+    "inquiry_exists": (409, {
+        "uz": "Bu kanal bilan ochiq suhbatingiz bor — «Suhbatlar» bo'limidan davom eting.",
+        "ru": "У вас уже есть открытый диалог с этим каналом — продолжите в «Диалогах».",
+        "en": "You already have an open chat with this channel — continue in Chats.",
+    }),
+    "thread_closed": (409, {
+        "uz": "Bu suhbat yopilgan.",
+        "ru": "Этот диалог закрыт.",
+        "en": "This chat is closed.",
+    }),
+    "thread_full": (409, {
+        "uz": "Suhbat xabar limiti tugadi. Botda «Kontakt berish» orqali shaxsiy gaplashing.",
+        "ru": "Лимит сообщений исчерпан. Передайте контакт в боте и общайтесь лично.",
+        "en": "The chat message limit is reached. Share your contact in the bot to continue privately.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

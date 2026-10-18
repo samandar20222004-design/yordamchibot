@@ -238,22 +238,36 @@ def test_all_routes_require_auth():
                 ("PATCH", "/api/v1/me/settings"), ("PATCH", "/api/v1/posts/{post_id}"),
                 ("POST", "/api/v1/ai/generate"), ("POST", "/api/v1/draft/media"), ("POST", "/api/v1/posts"), ("POST", "/api/v1/posts/{post_id}/media"), ("POST", "/api/v1/schedule/parse"),
                 ("POST", "/api/v1/templates")]
+    # 💰 Reklama birjasi (miniapp_api/market.py): har biri auth talab qiladi, yozuvchilari yozuv-limiti bilan.
+    expected += [("DELETE", "/api/v1/market/mine/{item_id}"), ("GET", "/api/v1/market/listings"), ("GET", "/api/v1/market/listings/{item_id}"),
+                 ("GET", "/api/v1/market/mine"), ("GET", "/api/v1/market/summary"), ("GET", "/api/v1/market/threads"),
+                 ("GET", "/api/v1/market/threads/{item_id}"), ("PATCH", "/api/v1/market/mine/{item_id}"),
+                 ("POST", "/api/v1/market/listings/{item_id}/inquiries"), ("POST", "/api/v1/market/listings/{item_id}/report"),
+                 ("POST", "/api/v1/market/mine"), ("POST", "/api/v1/market/mine/{item_id}/refresh"),
+                 ("POST", "/api/v1/market/threads/{item_id}/block"), ("POST", "/api/v1/market/threads/{item_id}/close"),
+                 ("POST", "/api/v1/market/threads/{item_id}/messages")]
+    expected.sort()
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
     for method, canonical in routes:
-        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890").replace("{template_id}", "1")
+        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890").replace("{template_id}", "1").replace("{item_id}", "1")
         st, body = run(fetch(app, path, method=method) if method != "GET" else fetch(app, path))
         if path.endswith("/health"):
             T.check("/health auth'siz 200", st == 200)
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 13, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 22, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,
                          "/api/v1/templates": False, "/api/v1/draft/media": False,
-                         "/api/v1/posts/{post_id}/media": False}, str(ai_flags))
+                         "/api/v1/posts/{post_id}/media": False,
+                         # 💰 birja: AI ishlatmaydi
+                         "/api/v1/market/listings/{item_id}/inquiries": False, "/api/v1/market/listings/{item_id}/report": False,
+                         "/api/v1/market/mine": False, "/api/v1/market/mine/{item_id}/refresh": False,
+                         "/api/v1/market/threads/{item_id}/block": False, "/api/v1/market/threads/{item_id}/close": False,
+                         "/api/v1/market/threads/{item_id}/messages": False}, str(ai_flags))
     methods = {r.method for r in api.router.routes()}
     T.check("faqat ruxsat etilgan usullar ulangan (PUT yo'q)", methods <= {"GET", "HEAD", "POST", "PATCH", "DELETE"}, str(methods))
     T.check("DB'ga auth'siz tegilmadi", CountingRunner.calls == 0)

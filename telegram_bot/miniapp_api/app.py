@@ -36,6 +36,7 @@ from .repository import MAX_OFFSET
 from .service import MiniAppService
 from .settings import MiniAppSettings, load_settings
 from .static import register_static_routes
+from .market import MarketApi
 from .writes import PostWriter, read_json_object
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ _K_SERVICE = web.AppKey("miniapp_service", MiniAppService)
 _K_LIMITER = web.AppKey("miniapp_limiter", StrictLimiter)
 _K_CLOCK = web.AppKey("miniapp_clock", object)
 _K_WRITER = web.AppKey("miniapp_writer", PostWriter)
+_K_MARKET = web.AppKey("miniapp_market", MarketApi)
 
 
 def _public(handler):
@@ -280,6 +282,94 @@ async def schedule_parse_handler(request: web.Request):
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
+
+# ----------------------------------------------------------- reklama birjasi
+def _market_id(request: web.Request) -> int:
+    raw = request.match_info.get("item_id", "")
+    if not _INT_RE.match(raw) or int(raw) <= 0:
+        raise ApiError("not_found")
+    return int(raw)
+
+
+async def market_summary_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].summary(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def market_catalog_handler(request: web.Request):
+    page = _parse_int(request.query.get("page"), default=0, lo=0, hi=10000)
+    data = await request.app[_K_MARKET].catalog(
+        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "m"), page=page)
+    return web.json_response(data, headers={"Cache-Control": "no-store"})
+
+
+async def market_listing_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].listing(request["user_id"], _market_id(request)),
+                             headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def market_inquire_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    data = await request.app[_K_MARKET].inquire(request["user_id"], _market_id(request), body)
+    return web.json_response(data, status=201)
+
+
+@_write
+async def market_report_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].report(request["user_id"], _market_id(request)))
+
+
+async def market_mine_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].mine(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def market_publish_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_MARKET].publish(request["user_id"], body), status=201)
+
+
+@_write
+async def market_update_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_MARKET].update_listing(request["user_id"], _market_id(request), body))
+
+
+@_write
+async def market_refresh_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].refresh(request["user_id"], _market_id(request)))
+
+
+@_write
+async def market_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].delete_listing(request["user_id"], _market_id(request)))
+
+
+async def market_threads_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].threads(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def market_thread_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].thread(request["user_id"], _market_id(request)),
+                             headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def market_reply_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_MARKET].reply(request["user_id"], _market_id(request), body), status=201)
+
+
+@_write
+async def market_close_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].close_thread(request["user_id"], _market_id(request)))
+
+
+@_write
+async def market_block_handler(request: web.Request):
+    return web.json_response(await request.app[_K_MARKET].block(request["user_id"], _market_id(request)))
+
+
 # -------------------------------------------------------------- middleware
 @web.middleware
 async def api_middleware(request: web.Request, handler):
@@ -379,7 +469,7 @@ async def _guarded(request: web.Request, handler):
 
 # ------------------------------------------------------------ ulash nuqtasi
 def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock=time.time,
-                  service=None, writer=None) -> web.Application:
+                  service=None, writer=None, market=None) -> web.Application:
     api = web.Application(middlewares=[api_middleware])
     runner = runner or ReadOnlyRunner(
         statement_timeout_ms=settings.db_statement_timeout_ms,
@@ -392,11 +482,15 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
                                        max_concurrency=settings.rate_redis_concurrency)
     api[_K_CLOCK] = clock
     api[_K_WRITER] = writer or PostWriter(api[_K_SERVICE], settings)
+    api[_K_MARKET] = market or MarketApi(api[_K_SERVICE], settings)
 
     async def _close_writer(app: web.Application) -> None:
         closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
         if closer is not None:
             await closer()
+        market_closer = getattr(app[_K_MARKET], "aclose", None)
+        if market_closer is not None:
+            await market_closer()
 
     api.on_cleanup.append(_close_writer)
     api.router.add_get("/health", health_handler)
@@ -423,6 +517,21 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/templates", templates_handler)
     api.router.add_post("/templates", template_create_handler)
     api.router.add_delete("/templates/{template_id}", template_delete_handler)
+    api.router.add_get("/market/summary", market_summary_handler)
+    api.router.add_get("/market/listings", market_catalog_handler)
+    api.router.add_get("/market/listings/{item_id}", market_listing_handler)
+    api.router.add_post("/market/listings/{item_id}/inquiries", market_inquire_handler)
+    api.router.add_post("/market/listings/{item_id}/report", market_report_handler)
+    api.router.add_get("/market/mine", market_mine_handler)
+    api.router.add_post("/market/mine", market_publish_handler)
+    api.router.add_patch("/market/mine/{item_id}", market_update_handler)
+    api.router.add_post("/market/mine/{item_id}/refresh", market_refresh_handler)
+    api.router.add_delete("/market/mine/{item_id}", market_delete_handler)
+    api.router.add_get("/market/threads", market_threads_handler)
+    api.router.add_get("/market/threads/{item_id}", market_thread_handler)
+    api.router.add_post("/market/threads/{item_id}/messages", market_reply_handler)
+    api.router.add_post("/market/threads/{item_id}/close", market_close_handler)
+    api.router.add_post("/market/threads/{item_id}/block", market_block_handler)
     return api
 
 

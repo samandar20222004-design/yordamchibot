@@ -1,7 +1,8 @@
 import { config } from '../config'
-import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
+  parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketSummary, parseMarketThread, parseMarketThreads,
   parseCalendar, parseDeleted, parseSettingsSaved, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
@@ -12,6 +13,7 @@ const KNOWN_CODES: readonly string[] = [
   'invalid_input', 'schedule_in_past', 'unsupported_media_type', 'payload_too_large',
   'channel_not_found', 'not_editable', 'queue_limit_reached', 'ai_limit_reached',
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
+  'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
 ]
 
 /** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
@@ -232,6 +234,37 @@ export function createApiClient(opts: ClientOptions) {
       send('POST', '/templates', { name, text }, parseTemplateSaved),
     deleteTemplate: (id: number): Promise<{ id: number }> =>
       send('DELETE', `/templates/${encodeURIComponent(String(id))}`, undefined, parseTemplateDeleted),
+    // --- 💰 Reklama birjasi ---
+    marketSummary: (signal?: AbortSignal): Promise<MarketSummary> => get('/market/summary', parseMarketSummary, signal),
+    marketCatalog: (category: MarketCategory | 'all', sort: MarketSort, page: number, signal?: AbortSignal): Promise<MarketCatalog> =>
+      get(`/market/listings?category=${category}&sort=${sort}&page=${page}`, parseMarketCatalog, signal),
+    marketListing: (id: number, signal?: AbortSignal): Promise<{ listing: MarketListing; is_owner: boolean }> =>
+      get(`/market/listings/${id}`, parseMarketCard, signal),
+    marketInquire: (id: number, text: string): Promise<{ inquiry_id: number; delivered: boolean }> =>
+      send('POST', `/market/listings/${id}/inquiries`, { text }, (v) => {
+        const o = parseMarketAck(v)
+        return { inquiry_id: Number(o.inquiry_id), delivered: o.delivered === true }
+      }),
+    marketReport: (id: number): Promise<{ again: boolean; blocked: boolean }> =>
+      send('POST', `/market/listings/${id}/report`, undefined, (v) => {
+        const o = parseMarketAck(v)
+        return { again: o.again === true, blocked: o.blocked === true }
+      }),
+    marketMine: (signal?: AbortSignal): Promise<MarketMine> => get('/market/mine', parseMarketMine, signal),
+    marketPublish: (input: MarketListingInput): Promise<MarketListing> =>
+      send('POST', '/market/mine', input, parseMarketListingEnvelope, config.aiTimeoutMs),
+    marketUpdate: (id: number, patch: Partial<Pick<MarketListingInput, 'category' | 'price' | 'description'>> & { status?: 'active' | 'paused' }): Promise<MarketListing> =>
+      send('PATCH', `/market/mine/${id}`, patch, parseMarketListingEnvelope),
+    marketRefresh: (id: number): Promise<MarketListing> =>
+      send('POST', `/market/mine/${id}/refresh`, undefined, parseMarketListingEnvelope),
+    marketDelete: (id: number): Promise<void> =>
+      send('DELETE', `/market/mine/${id}`, undefined, () => undefined),
+    marketThreads: (signal?: AbortSignal): Promise<{ items: MarketThreadItem[] }> => get('/market/threads', parseMarketThreads, signal),
+    marketThread: (id: number, signal?: AbortSignal): Promise<MarketThread> => get(`/market/threads/${id}`, parseMarketThread, signal),
+    marketReply: (id: number, text: string): Promise<{ delivered: boolean }> =>
+      send('POST', `/market/threads/${id}/messages`, { text }, (v) => ({ delivered: parseMarketAck(v).delivered === true })),
+    marketCloseThread: (id: number): Promise<void> => send('POST', `/market/threads/${id}/close`, undefined, () => undefined),
+    marketBlock: (id: number): Promise<void> => send('POST', `/market/threads/${id}/block`, undefined, () => undefined),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>
       send('POST', '/ai/generate', { text, style }, parseAi, config.aiTimeoutMs),
   }

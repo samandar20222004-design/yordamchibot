@@ -5,12 +5,13 @@ import { haptic } from '../telegram'
 import { Icon, type IconName } from './Icon'
 import { Button } from './ui'
 
-export type Tab = 'home' | 'post' | 'schedule' | 'me'
+export type Tab = 'home' | 'post' | 'schedule' | 'market' | 'me'
 
 export const TABS: ReadonlyArray<{ id: Tab; icon: IconName; label: MessageKey }> = [
   { id: 'home', icon: 'home', label: 'tab.home' },
   { id: 'post', icon: 'post', label: 'tab.post' },
   { id: 'schedule', icon: 'calendar', label: 'tab.schedule' },
+  { id: 'market', icon: 'market', label: 'tab.market' },
   { id: 'me', icon: 'user', label: 'tab.me' },
 ]
 

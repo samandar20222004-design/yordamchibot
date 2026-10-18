@@ -55,10 +55,10 @@ export function getUserPhotoUrl(): string | null {
 }
 
 /** Botdagi «📱 Mini App» tugmalari `?tab=` bilan ochadi: faqat ma'lum bo'limlar (boshqa qiymat e'tiborsiz). */
-export function getInitialTab(): 'home' | 'post' | 'schedule' | 'me' | null {
+export function getInitialTab(): 'home' | 'post' | 'schedule' | 'market' | 'me' | null {
   try {
     const tab = new URLSearchParams(window.location.search).get('tab')
-    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'me' ? tab : null
+    return tab === 'home' || tab === 'post' || tab === 'schedule' || tab === 'market' || tab === 'me' ? tab : null
   } catch {
     return null
   }
@@ -147,5 +147,24 @@ export function initTelegram(onTheme: (scheme: 'light' | 'dark') => void): () =>
     } catch {
       /* e'tiborsiz */
     }
+  }
+}
+
+const CHANNEL_USERNAME = /^[A-Za-z][A-Za-z0-9_]{3,31}$/
+
+/** Ochiq kanalni Telegram'da ochadi (Mini App yopilmaydi). Noto'g'ri nom -> `false`. */
+export function openChannel(username: string): boolean {
+  if (!CHANNEL_USERNAME.test(username)) return false
+  const url = `https://t.me/${username}`
+  const app = webApp()
+  if (app?.openTelegramLink) {
+    app.openTelegramLink(url)
+    return true
+  }
+  try {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  } catch {
+    return false
   }
 }

@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
-import { AI_STYLES, NOTIFICATION_KEYS } from './types'
-import type { PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
+import type { MarketBadge, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -374,4 +374,103 @@ export function parseTemplateSaved(v: unknown): { id: number; created: boolean }
 
 export function parseTemplateDeleted(v: unknown): { id: number } {
   return { id: int(rec(v, 'template').id, 'template.id') }
+}
+
+// --- 💰 Reklama birjasi ---
+function category(v: unknown): MarketCategory {
+  return (MARKET_CATEGORIES as readonly string[]).includes(v as string) ? (v as MarketCategory) : 'other'
+}
+
+export function parseMarketListing(v: unknown): MarketListing {
+  const o = rec(v, 'listing')
+  const badges = (o.badges === undefined ? [] : arr(o.badges, 'listing.badges'))
+    .filter((b): b is MarketBadge => b === 'growing' || b === 'engaged' || b === 'active')
+  const status = o.status === 'active' || o.status === 'paused' || o.status === 'blocked' ? o.status : undefined
+  return {
+    id: int(o.id, 'listing.id'), title: str(o.title, 'listing.title'), username: str(o.username, 'listing.username'),
+    category: category(o.category), price: intOrNull(o.price, 'listing.price'),
+    description: strOrNull(o.description, 'listing.description'),
+    members: intOrNull(o.members, 'listing.members'), avg_views: intOrNull(o.avg_views, 'listing.avg_views'),
+    er_percent: numOrNull(o.er_percent, 'listing.er_percent'), growth_30d: intOrNull(o.growth_30d, 'listing.growth_30d'),
+    posts_30d: intOrNull(o.posts_30d, 'listing.posts_30d'), stats_updated_at: strOrNull(o.stats_updated_at, 'listing.stats_updated_at'),
+    badges,
+    ...(status ? { status } : {}),
+    ...(typeof o.channel_id === 'string' ? { channel_id: o.channel_id } : {}),
+    ...(typeof o.view_count === 'number' ? { view_count: int(o.view_count, 'listing.view_count') } : {}),
+    ...(typeof o.inquiry_count === 'number' ? { inquiry_count: int(o.inquiry_count, 'listing.inquiry_count') } : {}),
+  }
+}
+
+export function parseMarketSummary(v: unknown): MarketSummary {
+  const o = rec(v, 'market')
+  return {
+    listings: int(o.listings, 'market.listings'), inquiries: int(o.inquiries, 'market.inquiries'),
+    categories: arr(o.categories, 'market.categories').map(category), max_listings: int(o.max_listings, 'market.max_listings'),
+    price_min: int(o.price_min, 'market.price_min'), price_max: int(o.price_max, 'market.price_max'),
+    description_max: int(o.description_max, 'market.description_max'),
+    message_min: int(o.message_min, 'market.message_min'), message_max: int(o.message_max, 'market.message_max'),
+  }
+}
+
+export function parseMarketCatalog(v: unknown): MarketCatalog {
+  const o = rec(v, 'catalog')
+  return {
+    items: arr(o.items, 'catalog.items').map(parseMarketListing), total: int(o.total, 'catalog.total'),
+    page: int(o.page, 'catalog.page'), pages: int(o.pages, 'catalog.pages'), page_size: int(o.page_size, 'catalog.page_size'),
+  }
+}
+
+export function parseMarketCard(v: unknown): { listing: MarketListing; is_owner: boolean } {
+  const o = rec(v, 'card')
+  return { listing: parseMarketListing(o.listing), is_owner: bool(o.is_owner, 'card.is_owner') }
+}
+
+export function parseMarketListingEnvelope(v: unknown): MarketListing {
+  return parseMarketListing(rec(v, 'envelope').listing)
+}
+
+export function parseMarketMine(v: unknown): MarketMine {
+  const o = rec(v, 'mine')
+  return {
+    items: arr(o.items, 'mine.items').map((raw) => {
+      const i = rec(raw, 'mine.item')
+      return { channel_id: str(i.channel_id, 'mine.channel_id'), title: str(i.title, 'mine.title'),
+        listing: i.listing === null || i.listing === undefined ? null : parseMarketListing(i.listing) }
+    }),
+    max_listings: int(o.max_listings, 'mine.max_listings'),
+  }
+}
+
+function role(v: unknown, what: string): 'owner' | 'advertiser' {
+  if (v !== 'owner' && v !== 'advertiser') throw new ShapeError(what)
+  return v
+}
+
+export function parseMarketThreads(v: unknown): { items: MarketThreadItem[] } {
+  const o = rec(v, 'threads')
+  return {
+    items: arr(o.items, 'threads.items').map((raw) => {
+      const t = rec(raw, 'thread')
+      return { id: int(t.id, 'thread.id'), title: str(t.title, 'thread.title'), role: role(t.role, 'thread.role'),
+        updated_at: str(t.updated_at, 'thread.updated_at') }
+    }),
+  }
+}
+
+export function parseMarketThread(v: unknown): MarketThread {
+  const o = rec(v, 'thread')
+  const t = rec(o.thread, 'thread.thread')
+  if (t.status !== 'open' && t.status !== 'closed') throw new ShapeError('thread.status')
+  return {
+    thread: { id: int(t.id, 'thread.id'), title: str(t.title, 'thread.title'), username: str(t.username, 'thread.username'),
+      role: role(t.role, 'thread.role'), status: t.status, listing_id: int(t.listing_id, 'thread.listing_id') },
+    messages: arr(o.messages, 'thread.messages').map((raw) => {
+      const m = rec(raw, 'message')
+      return { mine: bool(m.mine, 'message.mine'), text: str(m.text, 'message.text'), at: str(m.at, 'message.at') }
+    }),
+  }
+}
+
+export function parseMarketAck(v: unknown): Record<string, unknown> {
+  return rec(v, 'ack')
 }

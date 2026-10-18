@@ -75,7 +75,7 @@ h1, h2, h3, p { margin: 0; }
 
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   background: var(--surface); border-top: 1px solid var(--border);
   padding-bottom: var(--safe-bottom); padding-left: var(--safe-left); padding-right: var(--safe-right);
 }

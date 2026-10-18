@@ -31,6 +31,7 @@ telegram_bot/miniapp_api/      backend qatlami (aiohttp, bot handlerlariga bog'l
   repository.py faqat o'qish SQL (egalik SQL ichida)
   service.py    ruxsat + ma'lumot + javob shakli
   writes.py     yozuv amallari: post yaratish/tahrirlash/bekor, til, AI (mavjud servislar qayta ishlatiladi)
+  market.py     💰 Reklama birjasi API (/market/*): katalog, e'lon, so'rov, yozishma; qoidalar bot bilan bir xil (repositories/ad_market_repository.py)
   menu.py       MINIAPP_URL -> Telegram «Menu» tugmasi (faqat yoqilgan + to'g'ri HTTPS bo'lsa)
   app.py        middleware, marshrutlar, register_miniapp_routes()
   static.py     /app/* statik serving, SPA fallback, path traversal himoyasi
@@ -63,6 +64,13 @@ maydon rad (mass-assignment yo'q), `user_id` hech qachon tanadan olinmaydi. Cook
 | `POST /posts` (qo'shimcha) | `use_draft: true` — media (`post_type`, `file_id`), reaksiya va avto-o'chirish qoralamadan olinadi, post yaratilgach qoralama o'chadi; `button_text`+`button_url` — inline tugma (faqat http/https/tg havola) |
 | Chegaralar | matn <= 4096; **media sarlavhasi <= 1024** (`422 caption_too_long`, yaratishda ham, `PATCH`da ham — jimgina kesilmaydi); tugma matni <= 64, tugma havolasi <= 2000 (bot validatori <= 2048). Frontend (`miniapp/src/config.ts`), backend (`writes.py`) va scheduler (`TELEGRAM_CAPTION_LIMIT`) mosligi `tests/miniapp_media_lifecycle_test.py` da tekshiriladi |
 | Rasm proksisi | `GET /draft/media` uchun bitta PTB `Bot` qayta ishlatiladi va ilova to'xtaganda yopiladi (`PostWriter.aclose`) |
+| `GET /market/summary` | birja hisobi: faol e'lonlar, so'rovlar, kategoriyalar, chegaralar |
+| `GET /market/listings?category=&sort=m\|p\|e&page=` | katalog (faol e'lon + faol kanal); ichki hisoblagichlarsiz |
+| `GET /market/listings/{id}` | kanal kartasi (ko'rishlar +1, egasi o'zini ko'rsa hisoblanmaydi) |
+| `POST /market/listings/{id}/inquiries` `{text}` | so'rov (kuniga 5, blok, o'ziga yo'q); egasiga bot orqali xabar |
+| `POST /market/listings/{id}/report` | shikoyat (3 ta turli -> avto blok) |
+| `GET/POST /market/mine`, `PATCH/DELETE /market/mine/{id}`, `POST .../refresh` | o'z kanallari va e'lonlari (egalik Telegram'da jonli tekshiriladi) |
+| `GET /market/threads`, `GET /market/threads/{id}`, `POST .../messages`, `.../close`, `.../block` | suhbatlar (faqat ishtirokchilar) |
 
 Validatsiya: matn 1..4096 belgi (Telegram utf-16 limiti ham), boshqaruv belgilari rad; vaqt kamida 60 s keyin, ko'pi bilan 366 kun;
 `channel_id` faqat raqam yoki `@username` shaklida va **faqat egasiga tegishli faol kanal**; bepul tarifda navbat limiti
@@ -83,6 +91,19 @@ Kodlar: `bad_request`, `https_required`, `unauthorized`, `auth_expired`, `not_re
    va bot o'zgarmaydi.
 3. BotFather'da qo'shimcha: `/mybots → Bot Settings → Menu Button` (yoki `/newapp`) orqali ham o'sha URL ni berish mumkin;
    kod bilan o'rnatilgan tugma BotFather sozlamasini bot ishga tushganda qayta yozadi.
+
+## Chatlar ro'yxatidagi va profildagi «Ochish» (Open) tugmasi — BotFather'da
+
+Umumiy chatlar ro'yxatida va bot profilida ko'k «Ochish» tugmasi Telegram'ning **Main Mini App** sozlamasi bilan chiqadi.
+Bu sozlamani Bot API (kod) orqali o'zgartirib BO'LMAYDI — uni faqat bot egasi **@BotFather** da yoqadi:
+
+1. @BotFather → `/mybots` → botni tanlang → **Bot Settings** → **Configure Mini App** (yoki **Main App**).
+2. **Enable Mini App** → URL: `https://<domen>/app/` (`MINIAPP_URL` bilan bir xil, faqat HTTPS).
+3. Saqlang. Bir necha daqiqadan keyin (Telegram keshi tufayli ba'zan kechroq, ilovani qayta ochish kerak bo'lishi mumkin)
+   chatlar ro'yxatida botning yonida «Ochish» tugmasi va profilda «Open app» paydo bo'ladi.
+
+Eslatma: bu tugma `MINIAPP_ENABLED` dan mustaqil — lekin Mini App `MINIAPP_ENABLED=0` bo'lsa URL 404 beradi, shuning uchun avval
+Mini App'ni yoqing (`MINIAPP_ENABLED=1`, `MINIAPP_URL`), keyin BotFather'da sozlang. Chat ichidagi «Menu» tugmasini kod o'zi o'rnatadi (yuqorida).
 
 ## Xavfsizlik qarorlari
 

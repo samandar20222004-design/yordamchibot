@@ -9,6 +9,7 @@ import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
 import { useScheduleFeed } from './hooks/useScheduleFeed'
 import { HomePage } from './pages/HomePage'
+import { MarketPage } from './pages/MarketPage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
@@ -72,6 +73,7 @@ function Shell({ onLang }: { onLang: (lang: ReturnType<typeof normalizeLang>) =>
         {tab === 'home' && <HomePage />}
         {tab === 'post' && <PostPage />}
         {tab === 'schedule' && <SchedulePage />}
+        {tab === 'market' && <MarketPage />}
         {tab === 'me' && <MePage />}
         <TabBar active={tab} onChange={setTab} />
         {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
