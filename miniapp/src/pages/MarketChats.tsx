@@ -3,6 +3,7 @@ import { useAppData } from '../AppData'
 import { ApiClientError } from '../api/client'
 import type { MarketThread, MarketThreadItem } from '../api/types'
 import { ConfirmDialog } from '../components/Dialog'
+import { Icon } from '../components/Icon'
 import { SubPage } from '../components/SubPage'
 import { Button, ErrorState, FormError, LoadingBlock, openBotAvailable } from '../components/ui'
 import { toClientError, type Resource } from '../hooks/useResource'
@@ -26,6 +27,7 @@ export function ThreadList({ threads, onOpen }: { threads: Resource<{ items: Mar
               <strong className="mk-row-title">{x.title}</strong>
               <span className="muted small">{t(x.role === 'owner' ? 'mk.roleAdv' : 'mk.roleOwner')} · {formatDateTime(x.updated_at)}</span>
             </span>
+            <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
           </button>
         </li>
       ))}

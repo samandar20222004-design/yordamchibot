@@ -70,7 +70,7 @@ function ListingRow({ listing, onOpen }: { listing: MarketListing; onOpen: () =>
           <span className="mk-pill">💲 {price(listing.price)}</span>
         </span>
       </span>
-      <span className="bot-tool-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
+      <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
     </button>
   )
 }
@@ -90,11 +90,12 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
           </button>
         ))}
       </div>
-      <fieldset className="segmented" aria-label={t('mk.sortM')}>
+      <div className="mk-sort" role="group" aria-label={t('mk.sortBy')}>
+        <span className="muted small">{t('mk.sortBy')}</span>
         {sorts.map(([k, label]) => (
           <button key={k} type="button" aria-pressed={sort === k} onClick={() => setSort(k)}>{t(label)}</button>
         ))}
-      </fieldset>
+      </div>
       {cat.loading && cat.items.length === 0 && <LoadingBlock rows={3} />}
       {cat.error && cat.items.length === 0 && <ErrorState error={cat.error} onRetry={cat.reload} />}
       {!cat.loading && !cat.error && cat.items.length === 0 && (

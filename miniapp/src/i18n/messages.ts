@@ -568,6 +568,7 @@ const uz = {
   "err.inquiry_exists": "Bu kanal bilan ochiq suhbatingiz bor — «Suhbatlar» bo'limidan davom eting.",
   "err.thread_closed": "Bu suhbat yopilgan.",
   "err.thread_full": "Suhbat xabar limiti tugadi. Botda «Kontakt berish» orqali shaxsiy gaplashing.",
+  "mk.sortBy": "Saralash",
 } as const
 
 export type MessageKey = keyof typeof uz
@@ -1139,6 +1140,7 @@ const ru: Messages = {
   "err.inquiry_exists": "У вас уже есть открытый диалог с этим каналом — продолжите в «Диалогах».",
   "err.thread_closed": "Этот диалог закрыт.",
   "err.thread_full": "Лимит сообщений исчерпан. Передайте контакт в боте и общайтесь лично.",
+  "mk.sortBy": "Сортировка",
 }
 
 const en: Messages = {
@@ -1707,6 +1709,7 @@ const en: Messages = {
   "err.inquiry_exists": "You already have an open chat with this channel — continue in Chats.",
   "err.thread_closed": "This chat is closed.",
   "err.thread_full": "The chat message limit is reached. Share your contact in the bot to continue privately.",
+  "mk.sortBy": "Sort by",
 }
 
 export const messages: Record<Lang, Messages> = { uz, ru, en }

@@ -66,3 +66,9 @@
 .mk-banner-ico { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: var(--accent); color: var(--on-accent); }
 .mk-banner-body { display: grid; gap: 2px; min-width: 0; }
 .mk-banner-body h2 { font-size: 1.0625rem; }
+
+.mk-go { display: grid; place-items: center; color: var(--hint); }
+/* Saralash: bo'lim tablaridan ajralib turadigan ixcham chiplar */
+.mk-sort { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mk-sort > button { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; }
+.mk-sort > button[aria-pressed='true'] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
