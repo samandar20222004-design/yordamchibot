@@ -2396,7 +2396,7 @@ from repositories.users_repository import (  # noqa: E402, F401
     downgrade_expired_subscriptions, find_user_by_target, get_all_user_ids,
     get_referral_stats, get_referrer_id, get_user_channel_list_for_analytics,
     touch_user_activity,
-    get_pay_region, set_pay_region, is_uz_eligible, verify_uz_phone, get_user_code, get_user_credits, get_user_language, get_user_onboarding,
+    get_pay_profile, get_pay_region, set_pay_region, is_uz_eligible, verify_phone, get_user_country, country_stats, get_user_code, get_user_credits, get_user_language, get_user_onboarding,
     get_plan_tier, get_user_overview_stats, get_user_plan, get_user_setting,
     get_retention_cohort, get_referral_conversion_stats,
     get_user_settings_bulk, get_user_settings_and_signature,

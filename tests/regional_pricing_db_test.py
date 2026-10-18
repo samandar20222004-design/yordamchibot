@@ -70,25 +70,38 @@ def main() -> int:
         check("tasdiqlanmagan so'm tanlay olmaydi (set_pay_region('uz') -> False)", db.set_pay_region(A, "uz") is False and db.get_pay_region(A) == "intl")
         check("noto'g'ri mintaqa rad etiladi", db.set_pay_region(A, "mars") is False)
 
-        print("\n== +998 tasdiqlash ==")
-        check("o'z +998 kontakti qabul qilinadi", db.verify_uz_phone(A, "+998 90 123-45-67", A) is True)
-        check("tasdiqlangach 'uz' (so'm)", db.get_pay_region(A) == "uz" and db.is_uz_eligible(A) is True)
-        check("BOSHQA odamning kontakti rad etiladi", db.verify_uz_phone(B, "+998901234567", A) is False and db.is_uz_eligible(B) is False)
-        check("kontakt user_id yo'q/noto'g'ri rad etiladi", db.verify_uz_phone(B, "+998901234567", None) is False
-              and db.verify_uz_phone(B, "+998901234567", "x") is False)
-        for bad in ("+79001234567", "+1 415 555 2671", "998901234", "+99890123456789", "", None, "abc"):
-            check(f"chet el/noto'g'ri raqam rad: {bad!r}", db.verify_uz_phone(B, bad, B) is False)
-        check("rad etilganlardan keyin B hamon 'intl'", db.get_pay_region(B) == "intl")
-        cur.execute("SELECT uz_verified FROM users WHERE user_id = %s", (A,))
-        check("raqamning o'zi SAQLANMAGAN (faqat belgi)", cur.fetchone()[0] is True
-              and not any("998901234567" in str(v) for v in (cur.execute("SELECT row_to_json(u) FROM users u WHERE user_id = %s", (A,)), cur.fetchone())[1:]))
+        print("\n== Telefon tasdiqlash (har davlat) ==")
+        check("tasdiqlashdan oldin profil: telefon yo'q", db.get_pay_profile(A)["phone_verified"] is False and db.get_user_country(A) == "")
+        check("o'z +998 kontakti -> 'UZ'", db.verify_phone(A, "+998 90 123-45-67", A) == "UZ")
+        check("tasdiqlangach: so'm (uz), mamlakat UZ, telefon tasdiqlangan",
+              db.get_pay_region(A) == "uz" and db.is_uz_eligible(A) is True and db.get_user_country(A) == "UZ"
+              and db.get_pay_profile(A)["phone_verified"] is True)
+        check("BOSHQA odamning kontakti rad etiladi", db.verify_phone(B, "+998901234567", A) is None and db.get_user_country(B) == "")
+        check("kontakt user_id yo'q/noto'g'ri rad etiladi", db.verify_phone(B, "+998901234567", None) is None
+              and db.verify_phone(B, "+998901234567", "x") is None)
+        for bad in ("998901234", "+99890123456789", "", None, "abc", "12345"):
+            check(f"yaroqsiz raqam rad: {bad!r}", db.verify_phone(B, bad, B) is None)
+        check("rad etilganlardan keyin B hamon tasdiqlanmagan", db.get_user_country(B) == "" and db.get_pay_region(B) == "intl")
+        check("chet el raqami (+1 AQSH) qabul: country=US, so'm EMAS", db.verify_phone(B, "+1 415 555 2671", B) == "US"
+              and db.get_pay_region(B) == "intl" and db.is_uz_eligible(B) is False and db.get_user_country(B) == "US")
+        check("B uchun so'mga o'tib bo'lmaydi (telefoni AQSH)", db.set_pay_region(B, "uz") is False)
+        check("+7 76/77 -> KZ, boshqa +7 -> RU, +49 -> DE", db.verify_phone(C, "+77011234567", C) == "KZ"
+              and db.verify_phone(C, "+79001234567", C) == "RU" and db.verify_phone(C, "+4915112345678", C) == "DE")
+        check("noma'lum prefiks -> ZZ (yaroqli raqam)", db.verify_phone(C, "+999123456789", C) == "ZZ")
+        cur.execute("SELECT row_to_json(u)::text FROM users u WHERE user_id = %s", (A,))
+        dump = cur.fetchone()[0]
+        check("raqamning o'zi SAQLANMAGAN (faqat mamlakat belgisi)", "998901234567" not in dump and "901234567" not in dump)
+        stats = db.country_stats()
+        check("davlat statistikasi: UZ/DE/US hisoblanadi, tasdiqlanmaganlar alohida",
+              any(i["country"] == "UZ" for i in stats["items"]) and stats["verified"] >= 2 and stats["unverified"] >= 1
+              and stats["total"] == stats["verified"] + stats["unverified"], str(stats))
 
         print("\n== Ko'rinish tanlovi ==")
-        check("tasdiqlangan dollarni tanlay oladi", db.set_pay_region(A, "intl") is True and db.get_pay_region(A) == "intl")
+        check("tasdiqlangan (UZ) dollarni tanlay oladi", db.set_pay_region(A, "intl") is True and db.get_pay_region(A) == "intl")
         check("... va qayta so'mga o'ta oladi (qayta tasdiqlash shart emas)", db.set_pay_region(A, "uz") is True and db.get_pay_region(A) == "uz")
 
         print("\n== Eski mahalliy mijoz (karta/Payme orqali to'lagan) ==")
-        check("to'lovsiz D: 'intl'", db.get_pay_region(D) == "intl")
+        check("to'lovsiz D: 'intl'", db.get_pay_region(D) == "intl" and db.get_pay_profile(D)["phone_verified"] is False)
         cur.execute("INSERT INTO payments (user_id, amount, currency, payload, telegram_payment_charge_id, status, payment_method) "
                     "VALUES (%s, 29000, 'UZS', 'x', %s, 'succeeded', 'uzcard_humo')", (D, f"loc-{D}"))
         check("mahalliy to'lagan D: avtomatik 'uz' (qayta tasdiqlamaydi)", db.get_pay_region(D) == "uz" and db.is_uz_eligible(D) is True)

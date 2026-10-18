@@ -785,6 +785,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_region VARCHAR(8);
 -- O'zbekiston raqami (+998) o'z kontakti orqali tasdiqlangan (so'mda to'lash/narx shu bilan ochiladi). Raqamning o'zi SAQLANMAYDI.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS uz_verified BOOLEAN NOT NULL DEFAULT FALSE;
+-- Telefon (o'z kontakti) tasdiqlangan mamlakat (ISO-2; ZZ = noma'lum prefiks): statistika, birja filtri va narx mintaqasi. Raqam saqlanmaydi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country VARCHAR(2);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_users_phone_country ON users (phone_country) WHERE phone_country IS NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;

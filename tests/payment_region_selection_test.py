@@ -47,7 +47,10 @@ LANGS = ("uz", "ru", "en")
 # 🇺🇿 So'm/to'lov mintaqasi TILGA BOG'LIQ EMAS: faqat tasdiqlangan (+998) foydalanuvchiga ochiladi. DB'siz sinov uchun holat qo'lda.
 import database as _dbm  # noqa: E402
 
-_UZ_STATE = {"verified": False}
+_UZ_STATE = {"verified": False, "phone": True}
+_dbm.get_pay_profile = lambda uid: {
+    "region": "uz" if _UZ_STATE["verified"] else "intl", "phone_verified": _UZ_STATE["phone"],
+    "country": ("UZ" if _UZ_STATE["verified"] else "US") if _UZ_STATE["phone"] else "", "uz_eligible": _UZ_STATE["verified"]}
 _dbm.get_pay_region = lambda uid: "uz" if _UZ_STATE["verified"] else "intl"
 _dbm.is_uz_eligible = lambda uid: _UZ_STATE["verified"]
 _dbm.set_pay_region = lambda uid, region: region == "intl" or _UZ_STATE["verified"]
@@ -383,7 +386,7 @@ def test_international_flow_hides_local_cards():
     bot6, q6, texts6, markups6, ctx6 = _run_region_flow("uz", ["sub_region:uz:1m"])
     check("Tasdiqlanmagan + so'm tanlandi: rekvizit/so'm to'lovi YO'Q, +998 tasdiqlash so'raladi",
           "8600" not in "\n".join(texts6) and not bot6.invoices and any("+998" in t for t in texts6)
-          and "uz_verify" in ctx6.user_data, str(texts6[:2]))
+          and "phone_verify" in ctx6.user_data, str(texts6[:2]))
 
 
 # ============================================================
@@ -551,8 +554,8 @@ def test_schema_and_database_additive():
     # ``idx_ai_reservations_user`` qo'shildi → 18 → 19; PHASE C refaktorida
     # ``idx_post_templates_user`` qo'shildi → 23 → 24; PHASE D (11, 12-bandlar)
     # da kontent manbalari indekslari qo'shildi → 24 → 28.
-    check("schema.sql: indekslar soni schema_test parallelligiga mos (38)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 38,
+    check("schema.sql: indekslar soni schema_test parallelligiga mos (39)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 39,
           schema.count("CREATE INDEX IF NOT EXISTS"))
     check("database.py: ichki fallback DDL ham payment_method'ni oladi",
           "payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'"

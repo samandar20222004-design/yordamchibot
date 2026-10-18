@@ -536,8 +536,8 @@ def test_index_tuning():
     check("schema.sql hisoblagichi o'zgarmadi: 39 jadval (32 + 7 reklama birjasi)",
           schema.count("CREATE TABLE IF NOT EXISTS") == 39,
           str(schema.count("CREATE TABLE IF NOT EXISTS")))
-    check("schema.sql hisoblagichi o'zgarmadi: 38 indeks (33 + 5 reklama birjasi)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 38,
+    check("schema.sql hisoblagichi o'zgarmadi: 39 indeks (33 + 5 reklama birjasi + 1 phone_country)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 39,
           str(schema.count("CREATE INDEX IF NOT EXISTS")))
 
     # Idempotentlik: ikki marta qo'llash xavfsiz + bir xil DDL.

@@ -236,64 +236,36 @@ async def _user_region(user_id: int, lang: str = "") -> str:
     return PAYMENT_REGION_UZ if region == PAYMENT_REGION_UZ else PAYMENT_REGION_INTL
 
 
-UZ_VERIFY_TTL_SECONDS = 600
-
-
-async def _ask_uz_verification(message, context, tier: str, lang: str) -> None:
-    """So'mda to'lash/narx uchun O'zbekiston raqamini (+998) O'Z kontakti orqali tasdiqlashni so'raydi (Telegram «kontakt ulashish» tugmasi)."""
-    import time
-
-    from telegram import KeyboardButton, ReplyKeyboardMarkup
-
-    ud = getattr(context, "user_data", None)
-    if ud is not None:
-        ud["uz_verify"] = {"tier": tier if tier in (PLAN_PRO, PLAN_ULTRA) else PLAN_PRO, "ts": time.time()}
-    markup = ReplyKeyboardMarkup(
-        [[KeyboardButton(get_text("btn_share_phone", lang), request_contact=True)]],
-        resize_keyboard=True, one_time_keyboard=True,
-    )
+async def _pay_ctx(user_id: int) -> tuple:
+    """(region, so'm almashtirgich ko'rsatilsinmi): telefoni boshqa davlatniki deb tasdiqlangan foydalanuvchiga so'm taklif qilinmaydi."""
     try:
-        await message.reply_text(get_text("uz_verify_prompt", lang), reply_markup=markup, parse_mode="HTML")
+        profile = await db.run_db(db.get_pay_profile, user_id) or {}
     except Exception as _silent_exc:  # noqa: BLE001
-        log_silent_failure("handlers.subscription:_ask_uz_verification", _silent_exc)
+        log_silent_failure("handlers.subscription:_pay_ctx", _silent_exc, user_id=user_id)
+        profile = {}
+    region = PAYMENT_REGION_UZ if profile.get("region") == PAYMENT_REGION_UZ else PAYMENT_REGION_INTL
+    show_uz_toggle = not (profile.get("phone_verified") and not profile.get("uz_eligible"))
+    return region, show_uz_toggle
 
 
-async def uz_contact_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Foydalanuvchi kontakt ulashdi: faqat «So'mda to'lash» so'ralgan bo'lsa (10 daqiqa ichida) va kontakt o'ziniki, +998 bo'lsa tasdiqlanadi.
+async def _ask_verify(message, context, tier: str, lang: str, purpose: str = "uz") -> None:
+    """Telefon tasdiqlashni so'raydi (``handlers.phone_verify``); tarif kartasiga qaytish uchun ``tier`` eslab qolinadi."""
+    from handlers.phone_verify import ask_phone_verification
 
-    Raqam saqlanmaydi (faqat ``uz_verified`` belgisi). Boshqa paytda yuborilgan kontaktga tegilmaydi.
+    await ask_phone_verification(message, context, lang, purpose=purpose, tier=tier)
+
+
+async def _purchase_gate(query, context, user_id: int, lang: str, plan_key: str) -> bool:
+    """Tarif sotib olishdan oldin telefon (mamlakat) tasdiqlanishi SHART (kirishda emas, faqat xarid paytida).
+
+    ``True`` — o'tsin; ``False`` — tasdiqlash so'raldi (chaqiruvchi to'xtaydi).
     """
-    import time
+    from handlers.phone_verify import PURPOSE_BUY, is_phone_verified
 
-    message = getattr(update, "message", None)
-    contact = getattr(message, "contact", None)
-    ud = getattr(context, "user_data", None)
-    pending = (ud or {}).get("uz_verify")
-    if contact is None or not isinstance(pending, dict):
-        return
-    ud.pop("uz_verify", None)
-    if time.time() - float(pending.get("ts") or 0) > UZ_VERIFY_TTL_SECONDS:
-        return
-    from telegram.ext import ApplicationHandlerStop
-
-    user_id = update.effective_user.id
-    lang = await ensure_user_lang(context, user_id)
-    try:
-        ok = await db.run_db(db.verify_uz_phone, user_id, getattr(contact, "phone_number", ""), getattr(contact, "user_id", None))
-    except Exception as _silent_exc:  # noqa: BLE001
-        log_silent_failure("handlers.subscription:uz_contact_callback", _silent_exc, user_id=user_id)
-        ok = False
-    keyboard = get_main_keyboard(user_id in ADMIN_IDS_SET, lang=lang)
-    if not ok:
-        await message.reply_text(get_text("uz_verify_fail", lang), reply_markup=keyboard, parse_mode="HTML")
-        raise ApplicationHandlerStop
-    tier = pending.get("tier") if pending.get("tier") in (PLAN_PRO, PLAN_ULTRA) else PLAN_PRO
-    await message.reply_text(get_text("uz_verify_ok", lang), reply_markup=keyboard, parse_mode="HTML")
-    await message.reply_text(
-        _build_tier_card(tier, lang, PAYMENT_REGION_UZ),
-        reply_markup=_get_tier_keyboard(tier, lang, PAYMENT_REGION_UZ), parse_mode="HTML",
-    )
-    raise ApplicationHandlerStop  # kontakt qayta ishlandi: «noma'lum xabar» javobi chiqmasin
+    if await is_phone_verified(user_id):
+        return True
+    await _ask_verify(query.message, context, tier_of_key(plan_key), lang, PURPOSE_BUY)
+    return False
 
 
 def _usd_text(plan_key: str) -> str:
@@ -408,6 +380,8 @@ async def _show_local_card_payment(query, context, user_id: int, lang: str, plan
     (yoki '💳 Karta orqali to'lov' tugmasi orqali — u o'zi mahalliy tanlov).
     """
     plan_key = plan_key if plan_key in CARD_TARIFFS else "1m"
+    if not await _purchase_gate(query, context, user_id, lang, plan_key):
+        return
     try:
         eligible = await db.run_db(db.is_uz_eligible, user_id)
     except Exception as _silent_exc:  # noqa: BLE001
@@ -415,7 +389,7 @@ async def _show_local_card_payment(query, context, user_id: int, lang: str, plan
         eligible = False
     if not eligible:
         # So'mdagi (arzon) to'lov rekvizitlari FAQAT tasdiqlangan O'zbekiston foydalanuvchisiga; qolganlar uchun dollar/Stars.
-        await _ask_uz_verification(query.message, context, tier_of_key(plan_key), lang)
+        await _ask_verify(query.message, context, tier_of_key(plan_key), lang)
         return
     plan = CARD_TARIFFS[plan_key]
     order_id = await db.run_db(
@@ -475,6 +449,8 @@ async def _show_intl_payment(query, context, user_id: int, lang: str, plan_key: 
         text = get_text("intl_payment_title", lang)
         markup = get_intl_tariffs_keyboard(lang)
         await _edit_or_reply(query, text, markup)
+        return
+    if not await _purchase_gate(query, context, user_id, lang, plan_key):
         return
 
     chat_id = getattr(getattr(query, "message", None), "chat_id", None)
@@ -656,7 +632,7 @@ def _get_subscription_keyboard(plan: str, lang: str = "uz") -> InlineKeyboardMar
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_tier_keyboard(tier: str, lang: str = "uz", region: str = PAYMENT_REGION_UZ) -> InlineKeyboardMarkup:
+def _get_tier_keyboard(tier: str, lang: str = "uz", region: str = PAYMENT_REGION_UZ, show_uz_toggle: bool = True) -> InlineKeyboardMarkup:
     """Tanlangan tarifning 4 muddati (mintaqaga qarab so'm/dollar; har biri -> to'lov) + mintaqa almashtirish + orqaga."""
     keyboard = []
     for key in tariff_keys_for(tier):
@@ -666,7 +642,8 @@ def _get_tier_keyboard(tier: str, lang: str = "uz", region: str = PAYMENT_REGION
             label = _card_tariff_label(key, lang)
         keyboard.append([InlineKeyboardButton(label, callback_data=cb(f"sub_pay:{TARIFF_CATALOG[key]['stars_key']}"))])
     if region == PAYMENT_REGION_INTL:  # so'm: tasdiqlangan O'zbekiston foydalanuvchisi yoki +998 tasdiqlash
-        keyboard.append([InlineKeyboardButton(get_text("btn_region_uzs", lang), callback_data=cb("sub_setreg", PAYMENT_REGION_UZ, tier))])
+        if show_uz_toggle:
+            keyboard.append([InlineKeyboardButton(get_text("btn_region_uzs", lang), callback_data=cb("sub_setreg", PAYMENT_REGION_UZ, tier))])
     else:
         keyboard.append([InlineKeyboardButton(get_text("btn_region_usd", lang), callback_data=cb("sub_setreg", PAYMENT_REGION_INTL, tier))])
     keyboard.append([InlineKeyboardButton(get_text("btn_back", lang), callback_data="sub_back")])
@@ -887,7 +864,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             log_silent_failure("handlers.subscription:sub_region_save", _silent_exc, user_id=user_id)
             saved = False
         if region == PAYMENT_REGION_UZ and not saved:
-            await _ask_uz_verification(query.message, context, tier_of_key(plan_key or "1m"), lang)
+            await _ask_verify(query.message, context, tier_of_key(plan_key or "1m"), lang)
             return SUBSCRIPTION_VIEW
 
         if region == PAYMENT_REGION_UZ:
@@ -926,8 +903,8 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             await query.message.reply_text(get_text("sub_invalid_plan", lang))
             return SUBSCRIPTION_VIEW
         _clear_payment_choice(context)
-        region = await _user_region(user_id, lang)
-        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region))
+        region, show_uz = await _pay_ctx(user_id)
+        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region, show_uz))
         return SUBSCRIPTION_VIEW
 
     if data.startswith("sub_setreg:"):
@@ -944,11 +921,16 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
             log_silent_failure("handlers.subscription:sub_setreg", _silent_exc, user_id=user_id)
             saved = False
         if region == PAYMENT_REGION_UZ and not saved:
-            # So'm narxi/to'lovi — faqat O'zbekiston raqami (+998) tasdiqlangandan keyin.
-            await _ask_uz_verification(query.message, context, tier, lang)
+            # So'm narxi/to'lovi — faqat O'zbekiston raqami (+998) tasdiqlangandan keyin; boshqa davlat raqami bo'lsa — tushuntirish.
+            _, show_uz = await _pay_ctx(user_id)
+            if not show_uz:
+                await query.message.reply_text(get_text("uz_only_note", lang), parse_mode="HTML")
+            else:
+                await _ask_verify(query.message, context, tier, lang, "uz")
             return SUBSCRIPTION_VIEW
         _clear_payment_choice(context)
-        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region))
+        region, show_uz = await _pay_ctx(user_id)
+        await _edit_or_reply(query, _build_tier_card(tier, lang, region), _get_tier_keyboard(tier, lang, region, show_uz))
         return SUBSCRIPTION_VIEW
 
     if data == "sub_card_pay":

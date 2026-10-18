@@ -156,9 +156,9 @@ def test_schema_file_indexes():
     print("== schema.sql: indekslar ==")
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
-    # PHASE E + FAZA 8,9,22: team membership + aggregate comment insight + channel_dna indexes → 33, +5 (reklama birjasi) = 38.
-    check("indekslar soni 38",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 38,
+    # PHASE E + FAZA 8,9,22: team membership + aggregate comment insight + channel_dna indexes → 33, +5 (reklama birjasi) +1 (phone_country) = 39.
+    check("indekslar soni 39",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 39,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
     # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
     for name, columns in (
