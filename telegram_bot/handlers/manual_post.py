@@ -54,6 +54,10 @@ from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import (
     CB_MANUAL_24H,
     CB_MANUAL_MORE_BACK,
+    CB_MANUAL_REACT_RM,
+    CB_MANUAL_REACT_SAVE,
+    CB_MANUAL_URL_RM,
+    get_manual_back_markup,
     get_manual_compact_panel,
     get_manual_more_panel,
     CB_MANUAL_CANCEL,
@@ -134,6 +138,7 @@ MODE_REPEAT = "repeat"  # 🔄 Takroriy e'lon
 from utils.delivery_options import DELIVERY_KEYS  # noqa: E402
 
 UD_DELIVERY = "mnp_delivery"
+UD_REACT_PREV = "mnp_react_prev"  # reaksiya ekrani ochilgandagi holat (Orqaga — o'zgarishlarni bekor qiladi)
 UD_DEL24 = "mnp_del24"          # 🗑 24 soatdan keyin avtomatik o'chirish (belgi; yuborish vaqti alohida tanlanadi)
 UD_CONTENT = "mnp_content"
 UD_POST_TYPE = "mnp_post_type"
@@ -215,7 +220,7 @@ def _clear_manual_state(context) -> None:
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MEDIA_GROUP, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
-                UD_URL_BTN_URL, UD_DELIVERY, UD_DEL24, UD_SELECTED_CHANNEL_ID,
+                UD_URL_BTN_URL, UD_DELIVERY, UD_DEL24, UD_REACT_PREV, UD_SELECTED_CHANNEL_ID,
                 UD_SELECTED_CHANNEL_TITLE, UD_ALBUM_ITEMS, UD_ALBUM_GROUP):
         context.user_data.pop(key, None)
     user_id = _manual_user_id(context)
@@ -1732,6 +1737,13 @@ async def manual_url_media_received(update: Update,
     return MANUAL_URL_INPUT
 
 
+def _more_markup(context, lang: str):
+    """⚙️ Qo'shimcha paneli joriy holat bilan (✅ belgilar + olib tashlash tugmalari)."""
+    return get_manual_more_panel(
+        context.user_data.setdefault(UD_DELIVERY, {}), bool(context.user_data.get(UD_DEL24)), lang,
+        has_link=bool(_manual_url_button(context)), has_reactions=bool(_manual_reactions(context)))
+
+
 async def _edit_markup(query, markup) -> None:
     """Xabarning tugmalarini joyida almashtiradi («message is not modified» xatosi e'tiborsiz)."""
     try:
@@ -1769,7 +1781,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
             if key not in DELIVERY_KEYS:
                 return MANUAL_PREVIEW
             options[key] = not options.get(key, False)
-        await _edit_markup(query, get_manual_more_panel(options, bool(context.user_data.get(UD_DEL24)), lang))
+        await _edit_markup(query, _more_markup(context, lang))
         return MANUAL_PREVIEW
 
     if data == CB_MANUAL_MORE_BACK:
@@ -1793,13 +1805,14 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == CB_MANUAL_EDIT:
         await query.message.reply_text(
             manual_post_t("mp_edit_prompt", lang),
-            reply_markup=get_cancel_keyboard(lang),
+            reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )
         return MANUAL_EDIT_INPUT
 
     # --- ❤️ REAKSIYALAR (2-qadam UI/UX polish) ---
     if data == CB_MANUAL_REACT:
+        context.user_data[UD_REACT_PREV] = list(context.user_data.get(UD_REACTIONS) or [])
         # Preset tanlash oynasi: [👍/👎] | [🔥/❤️/👏] + ➕ O'zim kiritaman
         # + ◀️ Orqaga. Tanlov shu xabarning o'zida (toggle) yangilanadi.
         await query.message.reply_text(
@@ -1811,8 +1824,16 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return MANUAL_PREVIEW
 
+    if data == CB_MANUAL_REACT_SAVE:
+        # ✅ Saqlash va davom etish — tanlangan reaksiyalar bilan preview (keyingi qadam: Hozir / Vaqt).
+        context.user_data.pop(UD_REACT_PREV, None)
+        await _show_preview(query.message, context, lang)
+        return MANUAL_PREVIEW
+
     if data == CB_MANUAL_REACT_BACK:
-        # Saqlash / Orqaga — tanlangan reaksiyalar bilan preview yangilanadi.
+        # ◀️ Orqaga — bu ekrandagi o'zgarishlar BEKOR (oldingi holat qaytadi).
+        if UD_REACT_PREV in context.user_data:
+            context.user_data[UD_REACTIONS] = context.user_data.pop(UD_REACT_PREV)
         await _show_preview(query.message, context, lang)
         return MANUAL_PREVIEW
 
@@ -1820,7 +1841,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         # ➕ O'zim kiritaman — qo'lda emoji kiritish holati ochiladi.
         await query.message.reply_text(
             manual_post_t("mp_react_custom_prompt", lang),
-            reply_markup=get_cancel_keyboard(lang),
+            reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )
         return MANUAL_REACTION_CUSTOM
@@ -1851,7 +1872,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.message.reply_text(
             manual_post_t("mp_url_prompt", lang)
             + _manual_album_warning(context, lang),
-            reply_markup=get_cancel_keyboard(lang),
+            reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )
         return MANUAL_URL_INPUT
@@ -1860,7 +1881,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data[UD_MODE] = MODE_TIME
         await query.message.reply_text(
             manual_post_t("mp_time_prompt", lang),
-            reply_markup=get_cancel_keyboard(lang),
+            reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )
         return MANUAL_TIME_INPUT
@@ -1869,7 +1890,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data[UD_MODE] = MODE_REPEAT
         await query.message.reply_text(
             manual_post_t("mp_repeat_prompt", lang),
-            reply_markup=get_cancel_keyboard(lang),
+            reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )
         return MANUAL_TIME_INPUT
@@ -1914,8 +1935,18 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == CB_MANUAL_24H:
         # 🗑 24 soatlik e'lon — faqat BELGI (yoqish/o'chirish). Yuborish vaqti keyin «Hozir yuborish» / «Vaqt belgilash» bilan tanlanadi.
         context.user_data[UD_DEL24] = not context.user_data.get(UD_DEL24)
-        await _edit_markup(query, get_manual_more_panel(
-            context.user_data.setdefault(UD_DELIVERY, {}), bool(context.user_data.get(UD_DEL24)), lang))
+        await _edit_markup(query, _more_markup(context, lang))
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_URL_RM:
+        context.user_data.pop(UD_URL_BTN_TEXT, None)
+        context.user_data.pop(UD_URL_BTN_URL, None)
+        await _edit_markup(query, _more_markup(context, lang))
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_REACT_RM:
+        context.user_data[UD_REACTIONS] = []
+        await _edit_markup(query, _more_markup(context, lang))
         return MANUAL_PREVIEW
 
     # dublikat ogohlantirishi amallari (SPEKS: 3 tugma).

@@ -42,19 +42,17 @@ MANUAL_POST_I18N = {
         # --- Kontent qabul qilindi: preview sarlavhasi ---
         "mp_preview_title": "👀 <b>Post preview — tayyor!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>Endi nima qilamiz?</b>\n"
-            "🚀 Hozir yuborish — darhol kanalga chiqadi\n"
-            "📅 Vaqtni belgilash — masalan, 19:30 ga\n"
-            "❤️ Reaksiyalar — post tagiga emoji tugmalari qo'shiladi\n"
-            "🔗 Havolali tugma — post ostida havolali (URL) tugma chiqadi\n"
-            "🗑 24 soatlik e'lon — chiqadi va 24 soatdan keyin avtomatik "
-            "o'chadi\n"
-            "🔄 Takroriy e'lon — har kuni bitta vaqtda qayta chiqadi"
+            "\n\n<b>Keyingi qadam:</b> 🚀 Hozir yuborish yoki 📅 Vaqt belgilash.\n"
+            "Reaksiya, havolali tugma, 24 soatlik e'lon — ⚙️ Qo'shimcha ichida."
         ),
         # --- Universal boshqaruv paneli tugmalari ---
         "mp_btn_send_now": "🚀 Hozir yuborish",
         "mp_btn_schedule": "📅 Vaqt belgilash",
         "mp_btn_more": "⚙️ Qo'shimcha",
+        "mp_btn_reactions_on": "✅ Reaksiyalar",
+        "mp_btn_url_btn_on": "✅ Havolali tugma",
+        "mp_btn_url_rm": "🗑 Havolani o'chir",
+        "mp_btn_react_rm": "🗑 Reaksiya o'chir",
         "mp_btn_24h_on": "✅ 24 soatlik",
         "mp_btn_reactions": "❤️ Reaksiyalar",
         "mp_btn_url_btn": "🔗 Havolali tugma",
@@ -236,13 +234,8 @@ MANUAL_POST_I18N = {
         ),
         "mp_preview_title": "👀 <b>Предпросмотр поста — готово!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>Что делаем дальше?</b>\n"
-            "🚀 Отправить сейчас — сразу выйдет в канал\n"
-            "📅 Указать время — например, на 19:30\n"
-            "❤️ Реакции — эмодзи-кнопки под постом\n"
-            "🔗 Кнопка-ссылка — кнопка с URL под постом\n"
-            "🗑 Объявление на 24 часа — выйдет и удалится через 24 часа\n"
-            "🔄 Повторяемое объявление — выходит ежедневно в одно время"
+            "\n\n<b>Дальше:</b> 🚀 Отправить сейчас или 📅 Указать время.\n"
+            "Реакции, кнопка-ссылка, объявление на 24 часа — в ⚙️ Ещё."
         ),
         "mp_btn_send_now": "🚀 Отправить сейчас",
         "mp_btn_schedule": "📅 Указать время",
@@ -251,6 +244,10 @@ MANUAL_POST_I18N = {
         "mp_btn_24h": "🗑 На 24 часа",
         "mp_btn_24h_on": "✅ На 24 часа",
         "mp_btn_more": "⚙️ Ещё",
+        "mp_btn_reactions_on": "✅ Реакции",
+        "mp_btn_url_btn_on": "✅ Кнопка-ссылка",
+        "mp_btn_url_rm": "🗑 Убрать ссылку",
+        "mp_btn_react_rm": "🗑 Убрать реакции",
         "mp_btn_repeat": "🔄 Повтор",
         "mp_btn_edit": "✏️ Редактировать",
         "mp_btn_cancel": "❌ Отмена",
@@ -413,14 +410,8 @@ MANUAL_POST_I18N = {
         ),
         "mp_preview_title": "👀 <b>Post preview — ready!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>What's next?</b>\n"
-            "🚀 Send now — published to the channel immediately\n"
-            "📅 Set time — for example, 19:30\n"
-            "❤️ Reactions — emoji buttons attached under the post\n"
-            "🔗 Link button — a URL button appears under the post\n"
-            "🗑 24-hour announcement — published, then auto-deleted after "
-            "24 hours\n"
-            "🔄 Recurring announcement — republished daily at the same time"
+            "\n\n<b>Next:</b> 🚀 Send now or 📅 Set time.\n"
+            "Reactions, link button, 24-hour post — under ⚙️ More."
         ),
         "mp_btn_send_now": "🚀 Send now",
         "mp_btn_schedule": "📅 Set time",
@@ -429,6 +420,10 @@ MANUAL_POST_I18N = {
         "mp_btn_24h": "🗑 24-hour",
         "mp_btn_24h_on": "✅ 24-hour",
         "mp_btn_more": "⚙️ More",
+        "mp_btn_reactions_on": "✅ Reactions",
+        "mp_btn_url_btn_on": "✅ Link button",
+        "mp_btn_url_rm": "🗑 Remove link",
+        "mp_btn_react_rm": "🗑 Clear reactions",
         "mp_btn_repeat": "🔄 Recurring",
         "mp_btn_edit": "✏️ Edit",
         "mp_btn_cancel": "❌ Cancel",

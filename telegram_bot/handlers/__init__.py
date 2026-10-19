@@ -1462,6 +1462,7 @@ def _content_states(all_menu_jumps):
             MessageHandler(filters.ALL & ~filters.COMMAND, manual_time_received),
         ],
         MANUAL_EDIT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
             MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
         ],
         # ✍️ 2-qadam UI/UX polish: ❤️ reaksiya (qo'lda emoji) va

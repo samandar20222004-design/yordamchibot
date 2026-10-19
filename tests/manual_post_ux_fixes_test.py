@@ -109,5 +109,18 @@ check("PRO: nishon yo'q", out == "Salom", out)
 out = run(apply_post_watermark("", 555, BOT, limit=1024))
 check("bepul + bo'sh matn (rasm): faqat nishon", out == LINE, out)
 
+print("== Qo'shilganini olib tashlash (✅ + 🗑) ==")
+from keyboards.inline import get_manual_back_markup  # noqa: E402
+
+for lang in ("uz", "ru", "en"):
+    plain = [b.callback_data for r in get_manual_more_panel({}, False, lang).inline_keyboard for b in r]
+    full_kb = get_manual_more_panel({}, False, lang, has_link=True, has_reactions=True)
+    full = [b.callback_data for r in full_kb.inline_keyboard for b in r]
+    labels = [b.text for r in full_kb.inline_keyboard for b in r]
+    check(f"[{lang}] havola/reaksiya yo'q bo'lsa olib tashlash tugmasi ko'rinmaydi", "mnp_urlrm" not in plain and "mnp_reactrm" not in plain)
+    check(f"[{lang}] bor bo'lsa 🗑 olib tashlash tugmalari chiqadi", "mnp_urlrm" in full and "mnp_reactrm" in full)
+    check(f"[{lang}] olib tashlash yorliqlari <= 18 belgi", all(len(x) <= 18 for x in labels if x.startswith("🗑") and "24" not in x and "Forward" not in x), str(labels))
+    check(f"[{lang}] kiritish bosqichida «Orqaga» (postni yo'qotmaydi): mnp_panel", [b.callback_data for r in get_manual_back_markup(lang).inline_keyboard for b in r] == ["mnp_panel"])
+
 print(f"\n JAMI: o'tdi={passed}, xato={failed}")
 sys.exit(1 if failed else 0)
