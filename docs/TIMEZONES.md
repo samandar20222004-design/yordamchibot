@@ -13,7 +13,7 @@ Telefon `/start`da so'ralmaydi; tasdiqlangach zona avtomatik o'zgaradi (qo'lda t
 chet ellik `/timezone` -> «🌍 UTC bo'yicha» orqali zonani o'zi qo'yadi. Vaqt so'raladigan ekranlar oxirida joriy zona va `/timezone` ko'rsatiladi.
 
 ## Qanday ishlaydi
-- `handlers/timezone_flow.py:load_user_timezone` (handler guruhi -10) har yangilanishda foydalanuvchi zonasini `ContextVar`ga qo'yadi
+- `handlers/timezone_flow.py:TimezoneUpdateProcessor` (`main.py`da ulangan; handler emas, guruhlar ro'yxatiga tegmaydi) har yangilanishda foydalanuvchi zonasini `ContextVar`ga qo'yadi
   (10 daqiqalik xotira keshi); Mini App so'rovlari uchun shuni `miniapp_api/app.py` middleware qiladi.
 - Kod `utz()` orqali joriy zonani oladi (`tashkent_tz` o'rniga). Fon vazifalar (`scheduler._build_sent_marker`) takrorlanuvchi postning
   keyingi vaqtini **egasining** zonasida (`use_tz`) hisoblaydi.
