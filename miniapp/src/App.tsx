@@ -1,20 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppDataContext, type AppData } from './AppData'
 import { DEFAULT_APPEARANCE, applyAppearance, loadCloudIfNewer, loadLocal, sanitize, save, type Appearance } from './appearance'
 import { hideBoot } from './boot'
 import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
 import { Toast } from './components/Dialog'
-import { EmptyState } from './components/ui'
+import { EmptyState, LoadingBlock } from './components/ui'
 import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
 import { useScheduleFeed } from './hooks/useScheduleFeed'
 import { HomePage } from './pages/HomePage'
-import { AdminShell } from './pages/admin/AdminShell'
-import { MarketPage } from './pages/MarketPage'
 import { MePage } from './pages/MePage'
 import { PostPage } from './pages/PostPage'
 import { SchedulePage } from './pages/SchedulePage'
+// Kam ishlatiladigan bo'limlar alohida bo'lak (chunk) bo'lib yuklanadi: birinchi ochilish yengil (admin/birja kodi kerak bo'lganda keladi).
+const AdminShell = lazy(() => import('./pages/admin/AdminShell').then((m) => ({ default: m.AdminShell })))
+const MarketPage = lazy(() => import('./pages/MarketPage').then((m) => ({ default: m.MarketPage })))
 import { getColorScheme, getInitData, getInitialTab, getLanguageHint, initTelegram, isInTelegram } from './telegram'
 
 const ADMIN_MODE_KEY = 'postassist.adminMode'
@@ -98,13 +99,13 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
 
   return (
     <AppDataContext.Provider value={value}>
-      {adminMode ? <AdminShell /> : (
+      {adminMode ? <Suspense fallback={<LoadingBlock />}><AdminShell /></Suspense> : (
       <div className="shell">
         <OfflineBanner />
         {tab === 'home' && <HomePage />}
         {tab === 'post' && <PostPage />}
         {tab === 'schedule' && <SchedulePage />}
-        {tab === 'market' && <MarketPage />}
+        {tab === 'market' && <Suspense fallback={<LoadingBlock />}><MarketPage /></Suspense>}
         {tab === 'me' && <MePage />}
         <TabBar active={tab} onChange={setTab} badges={{ market: unread }} tabs={appearance.tabs} />
       </div>

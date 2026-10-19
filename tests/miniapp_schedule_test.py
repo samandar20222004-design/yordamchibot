@@ -165,23 +165,27 @@ def main() -> int:
         T.check("free: AI taklifi qabul, source=ai, kvota 1 bron qilindi va QAYTARILMADI",
                 b["ok"] and b["source"] == "ai" and ai.reserved == [FREE] and ai.released == [], f"{b} {ai.reserved} {ai.released}")
         T.check("AI taklifi UTC ga o'girildi (09:00 Toshkent = 04:00 UTC)", b["proposal"]["scheduled_at"].startswith("2026-10-16T04:00:00"), str(b))
-        ai.reserved.clear(); ai.released.clear()
+        ai.reserved.clear()
+        ai.released.clear()
         for label, result in (("o'tmish vaqti", {"start": "2026-10-14T09:00", "recurrence": None}),
                               ("yaroqsiz takrorlanish turi", {"start": "2026-10-16T09:00", "recurrence": {"type": "monthly", "day": 1, "time": "09:00"}}),
                               ("start yo'q (AI tushunmadi)", {"start": None, "recurrence": None}),
                               ("matn (JSON emas)", "Mana javob: ertaga ertalab"),
                               ("takrorlanish vaqti start bilan mos emas-ligi tekshiruvi emas, lekin kun yaroqsiz", {"start": "2026-10-16T09:00", "recurrence": {"type": "interval", "day": 99, "time": "09:00"}})):
             ai.next_result = result
-            ai.reserved.clear(); ai.released.clear()
+            ai.reserved.clear()
+            ai.released.clear()
             st, b = parse(FREE, "tushunarsiz ibora " + label)
             T.check(f"AI yaroqsiz ({label}): ok=False va kvota QAYTARILDI", st == 200 and b["ok"] is False and ai.reserved == [FREE] and ai.released == [1], f"{b} {ai.reserved} {ai.released}")
-        ai.reserved.clear(); ai.released.clear()
+        ai.reserved.clear()
+        ai.released.clear()
         ai.exc = RuntimeError("provider down")
         st, b = parse(FREE, "yana tushunarsiz")
         T.check("AI xatosi: 200 ok=False (500 emas), kvota qaytarildi", st == 200 and b["ok"] is False and ai.released == [1], f"{st} {b}")
         ai.exc = None
         ai.next_result = good
-        ai.reserved.clear(); ai.released.clear()
+        ai.reserved.clear()
+        ai.released.clear()
         st, b = parse(PRO, "har ertalab nonushta payti")
         T.check("PRO: AI taklifi ishlaydi, kvota bron QILINMAYDI (bot ai_generate qoidasi)", b["ok"] and ai.reserved == [], f"{b} {ai.reserved}")
         st, b = parse(ADM, "har ertalab nonushta payti")
@@ -203,7 +207,8 @@ def main() -> int:
         st, b = call("POST", "/api/v1/schedule/parse", None, {"text": "ertaga 9:00"})
         T.check("autentifikatsiyasiz -> 401", st == 401, f"{st}")
         ai.next_result = {"start": None, "recurrence": None}
-        ai.reserved.clear(); ai.released.clear()
+        ai.reserved.clear()
+        ai.released.clear()
         st, b = parse(FREE, "salom qalaysiz")
         T.check("rejalash bo'lmagan matn: AI ham tushunmadi -> kvota QAYTARILDI", ai.reserved == [FREE] and ai.released == [1], f"{ai.reserved} {ai.released}")
         T.check("aniqlanmagan ibora: 200 ok=False reason bor", st == 200 and b["ok"] is False and b["reason"] in ("no_time", "unrecognized"), str(b))

@@ -66,6 +66,10 @@ NETWORK_RETRY_DELAY = 30
 SEND_MICRO_DELAY_MIN = 0.05
 SEND_MICRO_DELAY_MAX = 0.1
 SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
+#: Bir vaqtda yuboriladigan postlar soni (turli kanallar). Telegram umumiy chegarasi ~30 xabar/s; 1 = eski ketma-ket xulq.
+#: Bir tick'da ko'pi bilan nechta paket (har biri POST_BATCH_SIZE) olinadi: 30 x 100 = 3000 post.
+SEND_MAX_ROUNDS = max(1, min(100, int(os.getenv("SEND_MAX_ROUNDS", "30") or 30)))
+SEND_CONCURRENCY = max(1, min(16, int(os.getenv("SEND_CONCURRENCY", "4") or 4)))
 
 # Quiet Hours tugashi (08:00) uchun thundering-herd himoyasi. Bir tickda
 # 08:00:00 ga yig'ilgan postlar DB navbatida 30..180 soniyalik oynalar bilan
@@ -995,78 +999,98 @@ async def check_and_send_posts(bot):
             await db.run_db(db.recover_stale_processing_posts)
         except Exception:
             logger.exception("Stale 'processing' postlarni har-tick tiklashda xato")
-        now = now_tashkent()
-        due_posts = await db.run_db(db.get_due_posts, now)
-        if due_posts:
-            logger.info("Yuboriladigan postlar soni: %d", len(due_posts))
+        # Navbat bo'sh bo'lguncha (yoki SEND_MAX_ROUNDS) paket-paket olinadi: bitta paket POST_BATCH_SIZE bilan cheklangan,
+        # shuning uchun ommaviy vaqtda (masalan 09:00) postlar keyingi daqiqalarga qolib ketmaydi.
+        for _round in range(SEND_MAX_ROUNDS):
+            now = now_tashkent()
+            due_posts = await db.run_db(db.get_due_posts, now)
+            fetched = len(due_posts or [])
+            if due_posts:
+                logger.info("Yuboriladigan postlar soni: %d", len(due_posts))
 
-        # Quiet Hours oxiridagi 08:00 herd'ni Telegramga tegmasdan oldin DB'da
-        # tarqatamiz. get_due_posts qatorlarni allaqachon processing qilgan;
-        # kelajak slotlari retry_post orqali pending holatiga atomik qaytadi.
-        ready_posts = []
-        for post, stagger_at in stagger_quiet_hour_posts(due_posts, now):
-            if stagger_at is not None and stagger_at > now:
-                await db.run_db(db.retry_post, post[0], stagger_at)
-                logger.info(
-                    "Quiet-hours stagger: post %s (kanal %s) → %s",
-                    post[0], post[2], stagger_at.isoformat(),
-                )
-            else:
-                ready_posts.append(post)
-        due_posts = ready_posts
+            # Quiet Hours oxiridagi 08:00 herd'ni Telegramga tegmasdan oldin DB'da
+            # tarqatamiz. get_due_posts qatorlarni allaqachon processing qilgan;
+            # kelajak slotlari retry_post orqali pending holatiga atomik qaytadi.
+            ready_posts = []
+            for post, stagger_at in stagger_quiet_hour_posts(due_posts, now):
+                if stagger_at is not None and stagger_at > now:
+                    await db.run_db(db.retry_post, post[0], stagger_at)
+                    logger.info(
+                        "Quiet-hours stagger: post %s (kanal %s) → %s",
+                        post[0], post[2], stagger_at.isoformat(),
+                    )
+                else:
+                    ready_posts.append(post)
+            due_posts = ready_posts
 
-        for index, post in enumerate(due_posts):
-            # 1) Mikro-kechikish — birinchi postdan keyin har safar.
-            if index:
-                await asyncio.sleep(SEND_MICRO_DELAY)
-            # paket o'rtasida shutdown so'ralgan bo'lsa — qolgan
-            # (hali Telegramga yuborilmagan) postlar darhol 'pending' ga
-            # qaytariladi; ular keyingi ishga tushishda yuboriladi.
-            if lifecycle.is_shutting_down():
-                await _requeue_unsent_on_shutdown(due_posts[index:])
-                break
-            # 1b) Kanal FloodWait sovutishida bo'lsa — bu post Telegramga
-            #     URINILMAYDI, DB'da kechiktiriladi; boshqa kanallar davom etadi.
-            channel_id = post[2] if post and len(post) > 2 else None
-            cooldown = channel_flood_remaining(channel_id)
-            if cooldown > 0:
-                logger.info(
-                    "Kanal %s FloodWait sovutishida (%.0fs) — post %s kechiktirildi.",
-                    channel_id, cooldown, post[0] if post else "?",
-                )
-                await _requeue_post(post, cooldown)
-                continue
-            try:
-                with lifecycle.track(f"post:{post[0] if post else '?'}"):
-                    await _execute_send(bot, post)
-            except RetryAfter as e:
-                # 2) Telegram FloodWait (429): scheduler BLOKLANMAYDI —
-                #    qisqa (≤ FLOOD_WAIT_INLINE_SLEEP_MAX) pauza, post esa
-                #    Telegram ko'rsatgan to'liq muddatga DB'da kechiktiriladi;
-                #    kanal sovutishga qo'yiladi, navbat XAVFSIZ davom etadi.
-                wait_seconds = flood_wait_requeue_seconds(e)
-                logger.warning(
-                    "Telegram FloodWait (429): post %s %.0fs ga kechiktirildi (kanal %s)",
-                    post[0] if post else "?", wait_seconds, channel_id,
-                )
-                inline_sleep = flood_wait_inline_sleep(wait_seconds)
-                # Freeze darhol boshlanadi va Telegram RetryAfter + 5s xavfsizlik
-                # buferini to'liq qamraydi. Kalit kanalga xos: boshqa kanallar
-                # mustaqil davom etadi.
-                mark_channel_flood(
-                    channel_id, wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
-                )
-                await asyncio.sleep(inline_sleep)
-                # DB retry ham aynan RetryAfter + 5s (+ kichik collision jitter).
-                await _requeue_post(
-                    post,
-                    wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
-                    + delivery_service.retry_jitter(),
-                )
-            except Exception:
-                logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
-                # Xatolik yuz berganda post 'processing' da qolib ketmasligi uchun qayta navbatga qo'yamiz.
-                await _requeue_post(post, 60)
+            # Bir nechta kanalga bir vaqtda (cheklangan parallellik): Telegram javobini kutish davrida keyingi post
+            # ham yuboriladi. Bitta kanalga postlar KETMA-KET (kanal qulfi) — kanal bo'yicha tezlik cheklovi buzilmaydi.
+            slots = asyncio.Semaphore(SEND_CONCURRENCY)
+            channel_locks: dict = {}
+            running: list = []
+
+            async def _deliver_one(post, channel_id):
+                try:
+                    async with channel_locks.setdefault(channel_id, asyncio.Lock()):
+                        # Navbat kutayotganda bot yopilishi boshlangan bo'lsa — Telegramga URINILMAYDI, post 'pending'ga qaytadi.
+                        if lifecycle.is_shutting_down():
+                            await _requeue_unsent_on_shutdown([post])
+                            return
+                        # 1b) Kanal FloodWait sovutishida bo'lsa — bu post Telegramga URINILMAYDI, DB'da kechiktiriladi;
+                        #     boshqa kanallar davom etadi.
+                        cooldown = channel_flood_remaining(channel_id)
+                        if cooldown > 0:
+                            logger.info(
+                                "Kanal %s FloodWait sovutishida (%.0fs) — post %s kechiktirildi.",
+                                channel_id, cooldown, post[0] if post else "?",
+                            )
+                            await _requeue_post(post, cooldown)
+                            return
+                        try:
+                            with lifecycle.track(f"post:{post[0] if post else '?'}"):
+                                await _execute_send(bot, post)
+                        except RetryAfter as e:
+                            # 2) Telegram FloodWait (429): qisqa (≤ FLOOD_WAIT_INLINE_SLEEP_MAX) pauza, post esa Telegram
+                            #    ko'rsatgan to'liq muddatga DB'da kechiktiriladi; kanal sovutishga qo'yiladi.
+                            wait_seconds = flood_wait_requeue_seconds(e)
+                            logger.warning(
+                                "Telegram FloodWait (429): post %s %.0fs ga kechiktirildi (kanal %s)",
+                                post[0] if post else "?", wait_seconds, channel_id,
+                            )
+                            inline_sleep = flood_wait_inline_sleep(wait_seconds)
+                            # Freeze darhol boshlanadi va Telegram RetryAfter + 5s xavfsizlik buferini to'liq qamraydi.
+                            # Kalit kanalga xos: boshqa kanallar mustaqil davom etadi.
+                            mark_channel_flood(channel_id, wait_seconds + FLOOD_WAIT_SAFETY_SECONDS)
+                            await asyncio.sleep(inline_sleep)
+                            # DB retry ham aynan RetryAfter + 5s (+ kichik collision jitter).
+                            await _requeue_post(
+                                post,
+                                wait_seconds + FLOOD_WAIT_SAFETY_SECONDS
+                                + delivery_service.retry_jitter(),
+                            )
+                        except Exception:
+                            logger.exception("Post yuborishda kutilmagan xato (Post ID: %s)", post[0] if post else "?")
+                            # Xatolik yuz berganda post 'processing' da qolib ketmasligi uchun qayta navbatga qo'yamiz.
+                            await _requeue_post(post, 60)
+                finally:
+                    slots.release()
+
+            for index, post in enumerate(due_posts):
+                # 1) Mikro-kechikish — birinchi postdan keyin har safar.
+                if index:
+                    await asyncio.sleep(SEND_MICRO_DELAY)
+                # paket o'rtasida shutdown so'ralgan bo'lsa — qolgan (hali Telegramga yuborilmagan) postlar darhol
+                # 'pending' ga qaytariladi; ular keyingi ishga tushishda yuboriladi.
+                if lifecycle.is_shutting_down():
+                    await _requeue_unsent_on_shutdown(due_posts[index:])
+                    break
+                channel_id = post[2] if post and len(post) > 2 else None
+                await slots.acquire()
+                running.append(asyncio.ensure_future(_deliver_one(post, channel_id)))
+            if running:
+                await asyncio.gather(*running, return_exceptions=True)
+            if fetched < db.POST_BATCH_SIZE or lifecycle.is_shutting_down():
+                break  # navbat bo'shadi (yoki bot yopilmoqda)
     except Exception:
         logger.exception("Scheduler ishida kutilmagan xato")
 

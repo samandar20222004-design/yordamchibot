@@ -697,7 +697,7 @@ def test_manual_post_flow_consumes_payload_once():
 
     from locales.translations import get_text
 
-    state, sent, context, mp = asyncio.run(run())
+    state, sent, context, _mp = asyncio.run(run())
     preview_prefix = get_text("np_album_received", "uz").split("{")[0].strip()
     # 🖼 BIRLASHTIRILGAN PREVIEW: media + caption + boshqaruv tugmalari BITTA
     # xabarda (avval matn/panel va media ALOHIDA xabarlarda ketardi).

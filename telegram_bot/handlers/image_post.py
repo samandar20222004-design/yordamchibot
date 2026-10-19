@@ -636,7 +636,7 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     #   N ta alohida AI chaqiruvi va N ta uslub menyusi BO'LMAYDI;
     # * izoh (caption) butun albomga tegishli — yagona matn;
     # * natija preview'i va kanalga yuborish BITTA ko'p-mediali post bo'ladi.
-    album_items = _register_album_items(context, message)
+    _register_album_items(context, message)
     # file_id Vision natijasidan qat'i nazar saqlanadi — fallback'da ham
     # tayyor post AYNAN shu rasm bilan yuboriladi.
     context.user_data["image_post_file_id"] = getattr(media, "file_id", None)

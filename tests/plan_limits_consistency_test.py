@@ -112,7 +112,8 @@ try:
     intl = [b.text for row in get_intl_tariffs_keyboard("uz").inline_keyboard for b in row]
     check("tarif o'zgarsa (99/777) xalqaro tarif klaviaturasi yangi narxni ko'rsatadi", any("99★" in t for t in intl) and any("777★" in t for t in intl), str(intl))
 finally:
-    config.STARS_PLANS["stars_1m"].update(orig[0]); config.STARS_PLANS["stars_1y"].update(orig[1])
+    config.STARS_PLANS["stars_1m"].update(orig[0])
+    config.STARS_PLANS["stars_1y"].update(orig[1])
 labels = [b.text for row in get_intl_tariffs_keyboard("uz").inline_keyboard for b in row]
 check("standart narxlarda PRO Stars (xalqaro narx, O'zbekistondan 1,7x): 195★/510★/910★/1650★, shablon qolmaydi",
       all(any(f"{n}★" in t for t in labels) for n in (195, 510, 910, 1650)) and not any("{" in t for t in labels), str(labels))

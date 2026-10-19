@@ -46,7 +46,7 @@ from locales.translations import TRANSLATIONS  # noqa: E402
 
 for key in ("receipt_admin_duplicate_line", "receipt_too_many_pending", "pc_already_decided", "stars_refund_user"):
     check(f"i18n: {key} uch tilda bor va farq qiladi",
-          all(TRANSLATIONS[l].get(key) for l in ("uz", "ru", "en")) and len({TRANSLATIONS[l][key] for l in ("uz", "ru", "en")}) == 3)
+          all(TRANSLATIONS[lg].get(key) for lg in ("uz", "ru", "en")) and len({TRANSLATIONS[lg][key] for lg in ("uz", "ru", "en")}) == 3)
 
 # --- P-2: Payme (xotira do'koni) ---
 from payme_merchant_test import (  # noqa: E402

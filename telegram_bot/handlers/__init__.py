@@ -401,7 +401,7 @@ from handlers.payment_receipt import (
 # (stgs_* callback'lari); rewards/help hub callback'lari alohida patternlar
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
 from handlers.settings import (
-    cleaner_command,
+    cleaner_command,  # noqa: F401 — ichki mantiq saqlangan (tugma olib tashlangan)
     cleaner_signature_entry,
     settings_help_hub_callback,
     settings_menu_callback,
