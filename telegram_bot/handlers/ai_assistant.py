@@ -62,6 +62,7 @@ logger = logging.getLogger(__name__)
 # b2c01d1 compatibility: get_user_subscription fallback
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # ============================================================
 # AI YORDAMCHI HOLATLARI (FSM States)
@@ -667,7 +668,7 @@ async def ai_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return AI_GET_TIME
 
     text = (update.message.text or "").strip()
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     user_id = update.effective_user.id
     is_admin = (user_id in ADMIN_IDS_SET)
 
@@ -830,7 +831,7 @@ async def ai_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         clear_fsm_data(context)
         return ConversationHandler.END
 
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     post_time = now
     if sched_time_str:
         # Ichki (bot o'zi yozgan) "%Y-%m-%d %H:%M" formati — buzilgan bo'lsa

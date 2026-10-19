@@ -932,7 +932,7 @@ EN_OVERLAY = {
         "• <i>\"in 30 minutes\"</i>\n"
         "Or exact format: <code>DD.MM.YYYY HH:MM</code> "
         "(e.g. <code>30.08.2026 18:00</code>)\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "ai_time_detecting": "🤖 <i>Detecting time...</i>",
     "ai_full_post_text": "📝 <b>Post text (full):</b>\n\n{text}",
@@ -1077,7 +1077,7 @@ EN_OVERLAY = {
         "Format: <code>DD.MM.YYYY HH:MM</code>\n"
         "Example: <code>{example}</code>\n\n"
         "Or just say it in plain words, e.g. <i>every day at 12:00</i>, <i>every 2 days at 09:30</i>, <i>every weekend at 10:00</i>. 🎤 You can also send a voice message.\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "vs_limit_free": "🎤 <b>Free voice scheduling used.</b>\n\nThe free plan includes voice scheduling once. PRO allows up to {n} per day. You can type the time instead.",
     "vs_limit_pro": "🎤 <b>Voice scheduling limit reached.</b>\n\n{n} voice schedules used today. Try later or type the time.",
@@ -1114,6 +1114,11 @@ EN_OVERLAY = {
     "btn_share_phone": "📱 Share number",
     "phone_verify_prompt_buy": "📱 <b>Verify your phone number</b>\n\nTo buy a plan, send <b>your own</b> number with the button below. The number is not stored — only a country mark (for the right price and security). You don't need this to use the bot.",
     "phone_verify_prompt_market": "📱 <b>Verify your phone number</b>\n\nTo list a channel on the ad exchange, send <b>your own</b> number with the button below: your channel will appear in your country's list. The number is not stored — only a country mark.",
+    "tz_title": "🕒 <b>Your time zone</b>\n\nCurrent: <b>{zone}</b> ({offset})\n\nPosts, schedules and reports use this time. Pick your country's zone:",
+    "tz_offset_title": '🌍 <b>Pick by UTC offset</b>\n\nIf your city is not listed, choose the UTC offset (e.g. Tashkent = UTC+5).',
+    "tz_btn_offset": '🌍 By UTC offset',
+    "tz_btn_auto": '🔁 Auto',
+    "tz_btn_back": '⬅️ Back',
     "phone_verify_prompt_country": "📱 <b>Verify your phone number</b>\n\nFor your country's channel list, send <b>your own</b> number with the button below. The number is not stored — only a country mark.",
     "phone_verify_ok": "✅ Number verified: {flag} {country}",
     "phone_verify_fail": "❌ Not verified: the number must be valid and <b>yours</b>. Please try again.",
@@ -1149,7 +1154,7 @@ EN_OVERLAY = {
         "⚠️ <b>This time has already passed.</b>\n\n"
         "Please enter a time in the FUTURE.\n"
         "Example: <code>{example}</code>\n\n"
-        "🕒 <i>Now in Tashkent: {now}</i>"
+        "🕒 <i>Now: {now} · [[TZ]]</i>"
     ),
     "np_time_format_error": (
         "⚠️ <b>Time format not recognized.</b>\n\n"
@@ -1159,7 +1164,7 @@ EN_OVERLAY = {
         "• time only — <code>18:00</code> (today, or tomorrow if passed)\n"
         "• <code>tomorrow 18:00</code>\n"
         "• <code>in 2 hours</code>\n\n"
-        "🕒 <i>All times are Tashkent time (UTC+5).</i>"
+        "🕒 <i>All times use [[TZ]]. /timezone</i>"
     ),
     "np_time_set": (
         "🕒 Time set: {time}. You can still change reactions, link or settings."
@@ -1172,7 +1177,7 @@ EN_OVERLAY = {
         "⚠️ <b>Wrong time format.</b>\n\n"
         "Write only the time as <code>HH:MM</code>.\n"
         "Example: <code>10:00</code> or <code>18:30</code>\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "np_weekday_ask": "📅 <b>Which weekday should it go out?</b>",
     "np_weekday_invalid": "⚠️ Pick one of the days:",
@@ -1182,7 +1187,7 @@ EN_OVERLAY = {
     ),
     "np_recur_time_format": (
         "⚠️ <b>Wrong format!</b> Write the time as <code>HH:MM</code>. "
-        "Example: <code>10:00</code> 🕒 <i>(Tashkent time, UTC+5)</i>"
+        "Example: <code>10:00</code> 🕒 <i>[[TZ]]</i>"
     ),
     "np_duration_ask_daily": "⏳ <b>How long should the post go out daily?</b>",
     "np_duration_ask_weekly": "⏳ <b>How long should this post keep going out?</b>",
@@ -1209,7 +1214,7 @@ EN_OVERLAY = {
         "limit only that much will show in the channel post. The full text is saved."
     ),
     "np_confirm_time_none": "⏰ Time not set",
-    "np_confirm_time_single": "⏰ {time} (Tashkent time)",
+    "np_confirm_time_single": "⏰ {time} · time zone: [[TZ]]",
     "np_confirm_time_daily": "🔁 Daily at {time}",
     "np_confirm_time_twice": "🔁 Daily at {time} and {time2}",
     "np_confirm_time_weekly": "📅 Every {day} at {time}",
@@ -1467,7 +1472,7 @@ EN_OVERLAY = {
         "⚠️ <b>Time format not recognized.</b>\n\n"
         "Correct format: <code>DD.MM.YYYY HH:MM</code>\n"
         "Example: <code>{example}</code> or time only — <code>18:00</code>\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     # ✏️ TASK 2: edit selection menu (p_edit: does not ask for text right away).
     "pend_edit_menu_title": (

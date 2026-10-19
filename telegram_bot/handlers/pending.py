@@ -24,6 +24,7 @@ from utils.silent_errors import log_silent_failure
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 # Eslatma: 201 SLOT_ADD (Queue) bilan to'qnashgan edi — endi 205 unikal.
 EDIT_POST_TIME    = 205
 EDIT_POST_CONTENT = 202  # Matnni tahrirlash
@@ -205,7 +206,7 @@ async def edit_post_time_received(update: Update, context: ContextTypes.DEFAULT_
     if not post:
         return ConversationHandler.END
 
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     # Yagona, crash-proof parser: "31.12.2026 18:00", "18:00", "ertaga 5 da"...
     new_time, reason = parse_schedule_input(text, now)
     if new_time is None:

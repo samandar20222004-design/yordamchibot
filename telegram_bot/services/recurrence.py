@@ -24,6 +24,7 @@ from datetime import datetime, time, timedelta
 import pytz
 
 TASHKENT = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 RECURRING_TYPES = ("daily", "weekly", "interval", "weekdays", "twice")
 INTERVAL_MIN_DAYS = 2
@@ -124,12 +125,12 @@ def twice_times(rtime, rday) -> tuple[time, time]:
 def _at(date_moment: datetime, t: time) -> datetime:
     """Toshkent vaqtida shu kunning ``t`` vaqti (ofset qayta normallashtiriladi)."""
     naive = datetime(date_moment.year, date_moment.month, date_moment.day, t.hour, t.minute)
-    return TASHKENT.localize(naive)
+    return utz().localize(naive)
 
 
 def _day_shift(moment: datetime, days: int) -> datetime:
     naive = datetime(moment.year, moment.month, moment.day) + timedelta(days=days)
-    return TASHKENT.localize(naive.replace(hour=moment.hour, minute=moment.minute))
+    return utz().localize(naive.replace(hour=moment.hour, minute=moment.minute))
 
 
 def next_extended_occurrence(rtype, rday, rtime, now: datetime):
@@ -140,8 +141,8 @@ def next_extended_occurrence(rtype, rday, rtime, now: datetime):
     """
     t = _as_time(rtime)
     if now.tzinfo is None:
-        now = TASHKENT.localize(now)
-    now = now.astimezone(TASHKENT)
+        now = utz().localize(now)
+    now = now.astimezone(utz())
     if rtype == "interval":
         n = int(rday)
         return _day_shift(_at(now, t), n)
@@ -158,8 +159,8 @@ def next_twice_occurrence(rtime, rday, now: datetime):
     """``twice`` uchun ``now`` DAN KEYINGI chiqish: bugungi qolgan vaqt, bo'lmasa ertangi birinchi."""
     first, second = twice_times(rtime, rday)
     if now.tzinfo is None:
-        now = TASHKENT.localize(now)
-    now = now.astimezone(TASHKENT)
+        now = utz().localize(now)
+    now = now.astimezone(utz())
     for k in (0, 1):
         for slot in (first, second):
             cand = _day_shift(_at(now, slot), k)
@@ -176,8 +177,8 @@ def first_occurrence(rtype, rday, rtime, start: datetime):
     """
     t = _as_time(rtime)
     if start.tzinfo is None:
-        start = TASHKENT.localize(start)
-    start = start.astimezone(TASHKENT)
+        start = utz().localize(start)
+    start = start.astimezone(utz())
     if rtype in ("daily", "interval"):
         return start
     if rtype == "twice":

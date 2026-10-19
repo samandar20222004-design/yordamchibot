@@ -32,6 +32,7 @@ PLAN_VIEW = 413
 # Butun bot uchun yagona vaqt zonasi (scheduler.TIMEZONE_NAME bilan bir xil) —
 # shunda DB'ga yozilgan scheduled_time va APScheduler tick'lari mos keladi.
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 #: Haftalik postlar har kuni shu soatda chiqadi (talab: 12:00).
 PLAN_SCHEDULE_HOUR = 12
@@ -71,14 +72,14 @@ def week_schedule_times(count: int = PLAN_WEEK_DAYS,
       * barcha vaqtlar Toshkent zonasida (aware ``datetime``) — Neon DB'dagi
         ``TIMESTAMP WITH TIME ZONE`` ustuniga to'g'ri yoziladi.
     """
-    reference = now if now is not None else datetime.now(tashkent_tz)
+    reference = now if now is not None else datetime.now(utz())
     if reference.tzinfo is None:
-        reference = tashkent_tz.localize(reference)
-    reference = reference.astimezone(tashkent_tz)
+        reference = utz().localize(reference)
+    reference = reference.astimezone(utz())
 
     days_to_monday = (0 - reference.weekday()) % 7
     monday = (reference + timedelta(days=days_to_monday)).date()
-    first = tashkent_tz.localize(datetime(monday.year, monday.month, monday.day, hour, minute))
+    first = utz().localize(datetime(monday.year, monday.month, monday.day, hour, minute))
     if first <= reference:
         first = first + timedelta(days=7)
     return [first + timedelta(days=i) for i in range(max(0, int(count)))]
@@ -440,7 +441,7 @@ async def plan_schedule_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 6) Tasdiq: har bir kun va aniq vaqt ro'yxati bilan.
     day_lines = []
     for i, moment in enumerate(scheduled_times):
-        moment_tz = moment.astimezone(tashkent_tz) if moment.tzinfo else tashkent_tz.localize(moment)
+        moment_tz = moment.astimezone(utz()) if moment.tzinfo else utz().localize(moment)
         day_lines.append(safe_t(
             "plan_sched_day_line", lang,
             day=weekday_label(moment_tz.weekday(), lang),

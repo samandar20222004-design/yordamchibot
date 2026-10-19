@@ -643,7 +643,7 @@ TRANSLATIONS = {
             "• <i>“30 daqiqadan keyin”</i>\n"
             "Yoki aniq format: <code>DD.MM.YYYY HH:MM</code> "
             "(masalan <code>30.08.2026 18:00</code>)\n\n"
-            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
+            "🕒 <i>Vaqt zonasi: [[TZ]]. /timezone</i>"
         ),
         "ai_time_detecting": "🤖 <i>Vaqt aniqlanmoqda...</i>",
         "ai_full_post_text": "📝 <b>Post matni (to'liq):</b>\n\n{text}",
@@ -787,7 +787,7 @@ TRANSLATIONS = {
             "Format: <code>DD.MM.YYYY HH:MM</code>\n"
             "Namuna: <code>{example}</code>\n\n"
             "Yoki oddiy so'z bilan yozing, masalan: <i>har kuni 12:00</i>, <i>har 2 kunda 09:30</i>, <i>har dam olish kuni 10:00</i>. 🎤 Ovozli xabar ham yuborishingiz mumkin.\n\n"
-            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
+            "🕒 <i>Vaqt zonasi: [[TZ]]. /timezone</i>"
         ),
         "vs_limit_free": "🎤 <b>Bepul ovozli rejalash ishlatilgan.</b>\n\nBepul tarifda ovoz bilan rejalash bir marta beriladi. PRO tarifda kuniga {n} tagacha. Vaqtni matn bilan yozishingiz mumkin.",
         "vs_limit_pro": "🎤 <b>Ovozli rejalash chegarasi tugadi.</b>\n\nBugun {n} ta ovozli rejalash ishlatildi. Keyinroq urinib ko'ring yoki vaqtni matn bilan yozing.",
@@ -800,7 +800,7 @@ TRANSLATIONS = {
             "⚠️ <b>Bu vaqt allaqachon o'tib ketgan.</b>\n\n"
             "Iltimos, KELAJAKDAGI vaqtni kiriting.\n"
             "Namuna: <code>{example}</code>\n\n"
-            "🕒 <i>Hozir Toshkentda: {now}</i>"
+            "🕒 <i>Hozir: {now} · [[TZ]]</i>"
         ),
         "np_time_format_error": (
             "⚠️ <b>Vaqt formati tushunarsiz.</b>\n\n"
@@ -810,7 +810,7 @@ TRANSLATIONS = {
             "• faqat soat — <code>18:00</code> (bugun, o'tgan bo'lsa ertaga)\n"
             "• <code>ertaga 18:00</code>\n"
             "• <code>2 soatdan keyin</code>\n\n"
-            "🕒 <i>Barcha vaqtlar Toshkent vaqti (UTC+5) bo'yicha.</i>"
+            "🕒 <i>Barcha vaqtlar — [[TZ]] bo'yicha. /timezone</i>"
         ),
         "np_time_set": (
             "🕒 Vaqt belgilandi: {time}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
@@ -823,7 +823,7 @@ TRANSLATIONS = {
             "⚠️ <b>Noto'g'ri vaqt formati.</b>\n\n"
             "Faqat soatni <code>HH:MM</code> ko'rinishida yozing.\n"
             "Namuna: <code>10:00</code> yoki <code>18:30</code>\n\n"
-            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
+            "🕒 <i>Vaqt zonasi: [[TZ]]. /timezone</i>"
         ),
         "np_weekday_ask": "📅 <b>Haftaning qaysi kuni chiqsin?</b>",
         "np_weekday_invalid": "⚠️ Kunlardan birini tanlang:",
@@ -833,7 +833,7 @@ TRANSLATIONS = {
         ),
         "np_recur_time_format": (
             "⚠️ <b>Noto'g'ri format!</b> Soatni <code>HH:MM</code> ko'rinishida "
-            "yozing. Namuna: <code>10:00</code> 🕒 <i>(Toshkent vaqti, UTC+5)</i>"
+            "yozing. Namuna: <code>10:00</code> 🕒 <i>[[TZ]]</i>"
         ),
         "np_duration_ask_daily": (
             "⏳ <b>Post qancha muddat davomida har kuni chiqsin?</b>"
@@ -867,7 +867,7 @@ TRANSLATIONS = {
             "tufayli kanaldagi postda shu limitgacha ko'rinadi. Matn to'liq saqlanadi."
         ),
         "np_confirm_time_none": "⏰ Vaqt belgilanmagan",
-        "np_confirm_time_single": "⏰ {time} (Toshkent vaqti)",
+        "np_confirm_time_single": "⏰ {time} · vaqt zonasi: [[TZ]]",
         "np_confirm_time_daily": "🔁 Har kuni, soat {time} da",
         "np_confirm_time_twice": "🔁 Har kuni, soat {time} va {time2} da",
         "np_confirm_time_weekly": "📅 Har {day}, soat {time} da",
@@ -1205,7 +1205,7 @@ TRANSLATIONS = {
             "⚠️ <b>Vaqt formati tushunarsiz.</b>\n\n"
             "To'g'ri format: <code>DD.MM.YYYY HH:MM</code>\n"
             "Namuna: <code>{example}</code> yoki faqat soat — <code>18:00</code>\n\n"
-            "🕒 <i>Toshkent vaqti (UTC+5).</i>"
+            "🕒 <i>Vaqt zonasi: [[TZ]]. /timezone</i>"
         ),
         # ✏️ 2-VAZIFA: tahrirlash TANLOV MENYUSI (p_edit: → darhol matn so'ramaydi).
         "pend_edit_menu_title": (
@@ -2042,6 +2042,11 @@ TRANSLATIONS = {
         "btn_share_phone": "📱 Raqam yuborish",
         "phone_verify_prompt_buy": "📱 <b>Telefon raqamini tasdiqlang</b>\n\nTarif sotib olish uchun pastdagi tugma bilan <b>o'z</b> raqamingizni yuboring. Raqam saqlanmaydi — faqat mamlakat belgisi (to'g'ri narx va xavfsizlik uchun). Botdan foydalanish uchun bu shart emas.",
         "phone_verify_prompt_market": "📱 <b>Telefon raqamini tasdiqlang</b>\n\nReklama birjasiga e'lon qo'yish uchun pastdagi tugma bilan <b>o'z</b> raqamingizni yuboring: kanalingiz mamlakatingiz ro'yxatida ko'rinadi. Raqam saqlanmaydi — faqat mamlakat belgisi.",
+        "tz_title": '🕒 <b>Vaqt mintaqangiz</b>\n\nHozir: <b>{zone}</b> ({offset})\n\nPostlar, rejalar va hisobotlar shu vaqtda. Mamlakatingiz zonasini tanlang:',
+        "tz_offset_title": "🌍 <b>UTC bo'yicha tanlang</b>\n\nShahringiz ro'yxatda bo'lmasa, UTC siljishini tanlang (masalan, Toshkent = UTC+5).",
+        "tz_btn_offset": "🌍 UTC bo'yicha",
+        "tz_btn_auto": '🔁 Avto',
+        "tz_btn_back": '⬅️ Orqaga',
         "phone_verify_prompt_country": "📱 <b>Telefon raqamini tasdiqlang</b>\n\nMamlakat bo'yicha kanallar ro'yxati uchun pastdagi tugma bilan <b>o'z</b> raqamingizni yuboring. Raqam saqlanmaydi — faqat mamlakat belgisi.",
         "phone_verify_ok": "✅ Raqam tasdiqlandi: {flag} {country}",
         "phone_verify_fail": "❌ Tasdiqlanmadi: raqam to'g'ri va <b>o'zingizniki</b> bo'lishi kerak. Qayta urinib ko'ring.",
@@ -2860,7 +2865,7 @@ TRANSLATIONS = {
             "• <i>«через 30 минут»</i>\n"
             "Или точный формат: <code>DD.MM.YYYY HH:MM</code> "
             "(например <code>30.08.2026 18:00</code>)\n\n"
-            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
+            "🕒 <i>Часовой пояс: [[TZ]]. /timezone</i>"
         ),
         "ai_time_detecting": "🤖 <i>Время определяется...</i>",
         "ai_full_post_text": "📝 <b>Полный текст поста:</b>\n\n{text}",
@@ -3003,7 +3008,7 @@ TRANSLATIONS = {
             "Формат: <code>DD.MM.YYYY HH:MM</code>\n"
             "Пример: <code>{example}</code>\n\n"
             "Или напишите обычными словами, например: <i>каждый день в 12:00</i>, <i>раз в 2 дня в 09:30</i>, <i>по выходным в 10:00</i>. 🎤 Можно отправить и голосовое сообщение.\n\n"
-            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
+            "🕒 <i>Часовой пояс: [[TZ]]. /timezone</i>"
         ),
         "vs_limit_free": "🎤 <b>Бесплатное голосовое планирование использовано.</b>\n\nНа бесплатном тарифе оно доступно один раз. В PRO — до {n} в день. Время можно написать текстом.",
         "vs_limit_pro": "🎤 <b>Лимит голосового планирования исчерпан.</b>\n\nСегодня использовано {n}. Попробуйте позже или напишите время текстом.",
@@ -3016,7 +3021,7 @@ TRANSLATIONS = {
             "⚠️ <b>Это время уже прошло.</b>\n\n"
             "Пожалуйста, укажите время в БУДУЩЕМ.\n"
             "Пример: <code>{example}</code>\n\n"
-            "🕒 <i>Сейчас в Ташкенте: {now}</i>"
+            "🕒 <i>Сейчас: {now} · [[TZ]]</i>"
         ),
         "np_time_format_error": (
             "⚠️ <b>Формат времени не распознан.</b>\n\n"
@@ -3026,7 +3031,7 @@ TRANSLATIONS = {
             "• только время — <code>18:00</code> (сегодня, если прошло — завтра)\n"
             "• <code>завтра 18:00</code>\n"
             "• <code>через 2 часа</code>\n\n"
-            "🕒 <i>Всё время указывается по Ташкенту (UTC+5).</i>"
+            "🕒 <i>Всё время — по поясу [[TZ]]. /timezone</i>"
         ),
         "np_time_set": (
             "🕒 Время установлено: {time}. Вы можете изменить реакции, ссылку или настройки."
@@ -3039,7 +3044,7 @@ TRANSLATIONS = {
             "⚠️ <b>Неверный формат времени.</b>\n\n"
             "Укажите только время в виде <code>HH:MM</code>.\n"
             "Пример: <code>10:00</code> или <code>18:30</code>\n\n"
-            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
+            "🕒 <i>Часовой пояс: [[TZ]]. /timezone</i>"
         ),
         "np_weekday_ask": "📅 <b>В какой день недели выходить?</b>",
         "np_weekday_invalid": "⚠️ Выберите один из дней:",
@@ -3049,7 +3054,7 @@ TRANSLATIONS = {
         ),
         "np_recur_time_format": (
             "⚠️ <b>Неверный формат!</b> Укажите время как <code>HH:MM</code>. "
-            "Пример: <code>10:00</code> 🕒 <i>(время по Ташкенту, UTC+5)</i>"
+            "Пример: <code>10:00</code> 🕒 <i>[[TZ]]</i>"
         ),
         "np_duration_ask_daily": (
             "⏳ <b>Как долго пост должен выходить ежедневно?</b>"
@@ -3084,7 +3089,7 @@ TRANSLATIONS = {
             "Текст сохраняется полностью."
         ),
         "np_confirm_time_none": "⏰ Время не указано",
-        "np_confirm_time_single": "⏰ {time} (время Ташкента)",
+        "np_confirm_time_single": "⏰ {time} · часовой пояс: [[TZ]]",
         "np_confirm_time_daily": "🔁 Ежедневно, в {time}",
         "np_confirm_time_twice": "🔁 Ежедневно, в {time} и {time2}",
         "np_confirm_time_weekly": "📅 Каждый {day}, в {time}",
@@ -3414,7 +3419,7 @@ TRANSLATIONS = {
             "⚠️ <b>Формат времени не распознан.</b>\n\n"
             "Правильный формат: <code>DD.MM.YYYY HH:MM</code>\n"
             "Пример: <code>{example}</code> или только время — <code>18:00</code>\n\n"
-            "🕒 <i>Время по Ташкенту (UTC+5).</i>"
+            "🕒 <i>Часовой пояс: [[TZ]]. /timezone</i>"
         ),
         # ✏️ 2-ЗАДАЧА: меню выбора при редактировании (p_edit: → текст сразу не спрашивается).
         "pend_edit_menu_title": (
@@ -4257,6 +4262,11 @@ TRANSLATIONS = {
         "btn_share_phone": "📱 Отправить номер",
         "phone_verify_prompt_buy": "📱 <b>Подтвердите номер телефона</b>\n\nДля покупки тарифа отправьте <b>свой</b> номер кнопкой ниже. Номер не сохраняется — только отметка страны (для правильной цены и безопасности). Для использования бота это не требуется.",
         "phone_verify_prompt_market": "📱 <b>Подтвердите номер телефона</b>\n\nЧтобы разместить объявление на рекламной бирже, отправьте <b>свой</b> номер кнопкой ниже: канал появится в списке вашей страны. Номер не сохраняется — только отметка страны.",
+        "tz_title": '🕒 <b>Ваш часовой пояс</b>\n\nСейчас: <b>{zone}</b> ({offset})\n\nПосты, расписание и отчёты — по этому времени. Выберите пояс вашей страны:',
+        "tz_offset_title": '🌍 <b>Выберите по UTC</b>\n\nЕсли вашего города нет в списке, выберите смещение UTC (например, Ташкент = UTC+5).',
+        "tz_btn_offset": '🌍 По UTC',
+        "tz_btn_auto": '🔁 Авто',
+        "tz_btn_back": '⬅️ Назад',
         "phone_verify_prompt_country": "📱 <b>Подтвердите номер телефона</b>\n\nДля списка каналов вашей страны отправьте <b>свой</b> номер кнопкой ниже. Номер не сохраняется — только отметка страны.",
         "phone_verify_ok": "✅ Номер подтверждён: {flag} {country}",
         "phone_verify_fail": "❌ Не подтверждено: номер должен быть корректным и <b>вашим</b>. Попробуйте ещё раз.",
@@ -4492,7 +4502,7 @@ def detect_language(telegram_language_code) -> str:
     return normalize_lang(telegram_language_code)
 
 
-def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
+def _get_text_core(key, lang=DEFAULT_LANG, **kwargs) -> str:
     """Lug'atdan matn olish — HECH QACHON ``KeyError`` bermaydi.
 
     Fallback zanjiri (3 pog'ona):
@@ -4549,6 +4559,23 @@ def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
                         return alt.format(**kwargs)
                     except (KeyError, IndexError, ValueError, TypeError, AttributeError) as _silent_exc:
                         log_silent_failure("locales.translations:get_text", _silent_exc, lang=lang)
+    return text
+
+
+_TZ_TOKEN = "[[TZ]]"
+
+
+def get_text(key, lang=DEFAULT_LANG, **kwargs) -> str:
+    """``_get_text_core`` + ``[[TZ]]`` belgisini joriy foydalanuvchi vaqt zonasi bilan almashtirish (masalan «Berlin (UTC+1)»)."""
+    text = _get_text_core(key, lang, **kwargs)
+    if _TZ_TOKEN in text:
+        try:
+            from services.user_timezone import city, offset_label, utz
+
+            zone = utz()
+            text = text.replace(_TZ_TOKEN, f"{city(zone.zone)} ({offset_label(zone)})")
+        except Exception:  # noqa: BLE001 — zona topilmasa belgini qoldirmaymiz
+            text = text.replace(_TZ_TOKEN, "UTC+5")
     return text
 
 

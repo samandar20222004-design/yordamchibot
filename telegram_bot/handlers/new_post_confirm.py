@@ -60,6 +60,7 @@ from handlers.new_post import (
 )
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 #: Kanal tanlanmagan va umuman kanal yo'q holatida ishlatiladigan sarlavha.
 DEFAULT_CHANNEL_TITLE = "Kanal"
@@ -191,7 +192,7 @@ async def persist_scheduled_posts(user_id: int, channels, payload: dict,
 
 async def find_next_available_slot(user_id: int, ch_id_for_q):
     """Navbat slotini izlaydi: bugun → ertaga → keyingi 2..7 kun."""
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     slots = await db.run_db(db.get_queue_slots, user_id)
     occupied = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q, now.date())
 
@@ -200,7 +201,7 @@ async def find_next_available_slot(user_id: int, ch_id_for_q):
         return slot_dt, label
 
     tomorrow = now + timedelta(days=1)
-    tomorrow_start = tashkent_tz.localize(
+    tomorrow_start = utz().localize(
         datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0)
     )
     occ_tom = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q,
@@ -213,7 +214,7 @@ async def find_next_available_slot(user_id: int, ch_id_for_q):
         future_date = now.date() + timedelta(days=day_off)
         occ = await db.run_db(db.get_queue_occupied_times, user_id, ch_id_for_q,
                               future_date)
-        future_start = tashkent_tz.localize(
+        future_start = utz().localize(
             datetime(future_date.year, future_date.month, future_date.day, 0, 0)
         )
         slot_dt, label = db.find_next_queue_slot(slots, occ, future_start)
@@ -391,7 +392,7 @@ async def handle_ok(query, context, user_id: int, is_admin: bool, lang: str):
     payload = post_payload(context)
     delete_after_hours = payload["delete_after_hours"]
 
-    post_time_tz = post_time.astimezone(tashkent_tz)
+    post_time_tz = post_time.astimezone(utz())
     channels = await target_channels(user_id, selected_channel_id, channel_title)
     ok_count = await persist_scheduled_posts(
         user_id, channels, payload, post_time_tz,

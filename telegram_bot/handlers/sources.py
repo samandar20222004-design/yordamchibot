@@ -109,6 +109,7 @@ from utils.silent_errors import log_silent_failure
 logger = logging.getLogger(__name__)
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # ============================================================
 # FSM HOLATLARI (530–539 — mavjud holatlar bilan to'qnashmaydi)
@@ -897,7 +898,7 @@ async def _write_post(user_id: int, channel_id: str, text: str,
     content = str(text or "").strip()
     if not content or not channel_id:
         return 0
-    moment = scheduled_time or datetime.now(tashkent_tz)
+    moment = scheduled_time or datetime.now(utz())
     try:
         post_id = await db.run_db(
             db.add_post,

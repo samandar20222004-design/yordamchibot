@@ -107,6 +107,7 @@ export function parseMe(v: unknown): Me {
       name: strOrNull(u.name, 'user.name'),
       username: strOrNull(u.username, 'user.username'),
       language: lang(u.language),
+      ...(typeof u.timezone === 'string' && u.timezone ? { timezone: u.timezone } : {}),
     },
     plan: parsePlan(o.plan),
     ...(o.pay_region === 'uz' || o.pay_region === 'intl' ? { pay_region: o.pay_region } : {}),

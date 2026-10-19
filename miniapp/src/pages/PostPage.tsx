@@ -16,7 +16,7 @@ import { useI18n, type MessageKey } from '../i18n'
 import { openBot } from '../telegram'
 import { toClientError } from '../hooks/useResource'
 import { defaultScheduleValue, isFutureEnough, isoToLocalInput, isUnlimited, localInputToIso, toLocalInputValue } from './format'
-import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, tashkentParts, type RepeatChoice } from './recurrence'
+import { DEFAULT_REPEAT, alignToWeekdays, buildRecurrence, choiceFromRecurrence, getAppTimezone, tashkentParts, type RepeatChoice } from './recurrence'
 import { compressImage } from './imageCompress'
 import { MEDIA_ACCEPT, prepareFiles } from './mediaUpload'
 import { MediaGrid, type LocalUpload } from '../components/MediaGrid'
@@ -323,7 +323,7 @@ export function PostPage() {
 
   const quick = quickTimes(nowDate)
   const deviceTz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return '' } })()
-  const showTz = deviceTz !== '' && deviceTz !== 'Asia/Tashkent'
+  const showTz = deviceTz !== '' && deviceTz !== getAppTimezone()
 
   /** Takrorlash tanlovi o'zgarganda: hafta kunlari bo'yicha birinchi chiqish mos kunga suriladi (server shuni talab qiladi). */
   const changeRepeat = (next: RepeatChoice) => {

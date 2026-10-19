@@ -107,6 +107,12 @@ def pay_region(account: dict) -> str:
     return "intl"
 
 
+def resolve_timezone(name, country) -> str:
+    from services.user_timezone import resolve
+
+    return resolve(name, country)
+
+
 def _language(account: dict) -> str:
     lang = (account.get("language_code") or "").lower()
     return lang if lang in SUPPORTED_LANGS else DEFAULT_LANG
@@ -149,7 +155,8 @@ class MiniAppService:
             return {
                 "user": {"id": account["user_id"], "name": account["full_name"],
                          "username": account["username"],
-                         "language": _language(account)},
+                         "language": _language(account),
+                         "timezone": resolve_timezone(account.get("timezone"), account.get("phone_country"))},
                 "plan": plan,
                 "pay_region": pay_region(account),
                 "tiers": tier_catalog(),

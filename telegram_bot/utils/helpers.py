@@ -14,6 +14,7 @@ from utils import telegram_sanitizer as _telegram_html
 from utils.silent_errors import log_silent_failure
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import shift_local, utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 
 def is_user_ad_free(user_id: int) -> bool:
@@ -866,7 +867,7 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
     """
     if not text:
         return None
-    tz = tashkent_tz
+    tz = utz()
     if now is None:
         now = datetime.now(tz)
     elif now.tzinfo is None:
@@ -1044,11 +1045,11 @@ def schedule_time_example(now: datetime = None) -> str:
     Namuna har doim Toshkent vaqtida va kelajakda bo'ladi — foydalanuvchi
     uni ko'chirib qo'ysa ham xato bo'lmaydi.
     """
-    base = now if isinstance(now, datetime) else datetime.now(tashkent_tz)
+    base = now if isinstance(now, datetime) else datetime.now(utz())
     if base.tzinfo is None:
-        base = tashkent_tz.localize(base)
+        base = utz().localize(base)
     else:
-        base = base.astimezone(tashkent_tz)
+        base = base.astimezone(utz())
     return (base + timedelta(days=1)).strftime("%d.%m.%Y 18:00")
 
 
@@ -1068,11 +1069,11 @@ def parse_schedule_input(text, now: datetime = None):
     o'tadi. Faqat shu funksiya ishlamagandagina qat'iy formatlar sinaladi.
     """
     if now is None:
-        now = datetime.now(tashkent_tz)
+        now = datetime.now(utz())
     elif now.tzinfo is None:
-        now = tashkent_tz.localize(now)
+        now = utz().localize(now)
     else:
-        now = now.astimezone(tashkent_tz)
+        now = now.astimezone(utz())
 
     if not isinstance(text, str):
         return None, SCHEDULE_ERR_EMPTY
@@ -1102,7 +1103,7 @@ def parse_schedule_input(text, now: datetime = None):
         except (ValueError, TypeError, OverflowError):
             continue
         try:
-            candidate = tashkent_tz.localize(naive)
+            candidate = utz().localize(naive)
         except Exception:
             continue
         return _finalize_schedule(candidate, now)
@@ -1112,11 +1113,11 @@ def parse_schedule_input(text, now: datetime = None):
     if only_time:
         hour, minute = int(only_time.group(1)), int(only_time.group(2))
         if 0 <= hour <= 23 and 0 <= minute <= 59:
-            candidate = tashkent_tz.localize(
+            candidate = utz().localize(
                 datetime(now.year, now.month, now.day, hour, minute)
             )
             if candidate <= now:
-                candidate = tashkent_tz.normalize(candidate + timedelta(days=1))
+                candidate = shift_local(candidate, days=1)
             return _finalize_schedule(candidate, now)
         # "25:99" kabi noto'g'ri sonlar — format xatosi (crash emas).
         return None, SCHEDULE_ERR_FORMAT
@@ -1154,7 +1155,7 @@ def _has_impossible_datetime_token(raw: str) -> bool:
 
     # --- DD.MM (yilsiz) ---
     for a, b in re.findall(r"(?<![\d.:/-])(\d{1,2})[./](\d{1,2})(?![\d.:/-])", text):
-        ref_year = datetime.now(tashkent_tz).year
+        ref_year = datetime.now(utz()).year
         if (_safe_calendar_date(ref_year, int(b), int(a)) is None
                 and _safe_calendar_date(ref_year, int(a), int(b)) is None):
             return True
@@ -1178,11 +1179,11 @@ def _finalize_schedule(candidate: datetime, now: datetime):
         return None, SCHEDULE_ERR_FORMAT
     if candidate.tzinfo is None:
         try:
-            candidate = tashkent_tz.localize(candidate)
+            candidate = utz().localize(candidate)
         except Exception:
             return None, SCHEDULE_ERR_FORMAT
     else:
-        candidate = candidate.astimezone(tashkent_tz)
+        candidate = candidate.astimezone(utz())
     if candidate <= now:
         return None, SCHEDULE_ERR_PAST
     return candidate, ""

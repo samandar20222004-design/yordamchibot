@@ -1,4 +1,5 @@
 import { config } from '../config'
+import { setAppTimezone } from '../pages/recurrence'
 import type { AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseAdminAdEnvelope, parseAdminAds, parseAdminMarket, parseAdminOverview, parseAdminSponsors,
@@ -152,7 +153,7 @@ export function createApiClient(opts: ClientOptions) {
   }
 
   return {
-    me: (signal?: AbortSignal): Promise<Me> => get('/me', parseMe, signal),
+    me: (signal?: AbortSignal): Promise<Me> => get('/me', parseMe, signal).then((m) => { setAppTimezone(m.user.timezone); return m }),
     channels: (signal?: AbortSignal): Promise<ChannelList> => get('/channels', parseChannels, signal),
     channelAnalytics: (channelId: string, signal?: AbortSignal): Promise<ChannelAnalytics> =>
       get(`/channels/${encodeURIComponent(channelId)}/analytics`, parseChannelAnalytics, signal),

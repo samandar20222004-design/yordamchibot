@@ -91,6 +91,7 @@ from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # Holat: butun enhancer oqimi bitta FSM holatida (qadamlar user_data ichida).
 # Eslatma: new_post 100-113, queue 200-201, pending 202-205 — 121 band emas.
@@ -1772,7 +1773,7 @@ async def _execute_send(update, context, query, enh):
         return ENH_POST
 
     # --- Reaksiya hisoblagichi uchun yozuv (tarix + react: callback ID) ---
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     first_btn = buttons[0] if buttons else None
     pid = await db.run_db(
         db.add_post,

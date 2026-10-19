@@ -1198,7 +1198,7 @@ def test_double_click_same_user_is_serialized_no_state_corruption():
 def test_main_uses_guarded_application_with_concurrent_updates():
     src = (ROOT / "main.py").read_text(encoding="utf-8")
     assert "class GuardedApplication" in src
-    assert "concurrent_updates(True)" in src
+    assert "concurrent_updates(TimezoneUpdateProcessor(256))" in src  # True bilan bir xil parallellik + foydalanuvchi vaqt zonasi
     assert "asyncio.Lock" in src
     assert "def get_update_lock_key" in src
 
