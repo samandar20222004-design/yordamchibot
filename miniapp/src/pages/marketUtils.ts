@@ -19,6 +19,13 @@ export function formatMoney(n: number): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 }
 
+/** ISO-2 -> bayroq emoji ('' / noma'lum -> 🌐). */
+export function countryFlag(iso: string | null | undefined): string {
+  const code = (iso ?? '').toUpperCase()
+  if (!/^[A-Z]{2}$/.test(code) || code === 'ZZ') return '🌐'
+  return String.fromCodePoint(...[...code].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65))
+}
+
 /** Kiritilgan narx matni -> butun son; bo'sh -> `null` (kelishiladi); yaroqsiz -> `undefined`. */
 export function parsePriceInput(text: string, min: number, max: number): number | null | undefined {
   const raw = text.trim().toLowerCase().replace(/[\s_]/g, '')

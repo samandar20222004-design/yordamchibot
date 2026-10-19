@@ -60,7 +60,7 @@ function parseTier(v: unknown, what: string): TierInfo {
     const p = rec(x, `${what}.periods.${i}`)
     return {
       months: int(p.months, `${what}.months`), days: int(p.days, `${what}.days`), uzs: int(p.uzs, `${what}.uzs`),
-      stars: int(p.stars, `${what}.stars`), save_pct: int(p.save_pct, `${what}.save_pct`),
+      stars: int(p.stars, `${what}.stars`), usd: typeof p.usd === 'number' && Number.isFinite(p.usd) ? p.usd : 0, save_pct: int(p.save_pct, `${what}.save_pct`),
     }
   })
   return { limits: parseLimits(rec(t.limits, `${what}.limits`)), price_from_uzs: int(t.price_from_uzs, `${what}.price`), periods }
@@ -107,8 +107,10 @@ export function parseMe(v: unknown): Me {
       name: strOrNull(u.name, 'user.name'),
       username: strOrNull(u.username, 'user.username'),
       language: lang(u.language),
+      ...(typeof u.timezone === 'string' && u.timezone ? { timezone: u.timezone } : {}),
     },
     plan: parsePlan(o.plan),
+    ...(o.pay_region === 'uz' || o.pay_region === 'intl' ? { pay_region: o.pay_region } : {}),
     ...(o.tiers === undefined ? {} : { tiers: {
       ...(rec(o.tiers, 'tiers').free === undefined ? {} : { free: parseTier(rec(o.tiers, 'tiers').free, 'tiers.free') }),
       pro: parseTier(rec(o.tiers, 'tiers').pro, 'tiers.pro'), ultra: parseTier(rec(o.tiers, 'tiers').ultra, 'tiers.ultra') } }),
@@ -390,6 +392,7 @@ export function parseMarketListing(v: unknown): MarketListing {
   return {
     id: int(o.id, 'listing.id'), title: str(o.title, 'listing.title'), username: str(o.username, 'listing.username'),
     category: category(o.category), price: intOrNull(o.price, 'listing.price'),
+    currency: o.currency === 'USD' ? 'USD' : 'UZS', country: typeof o.country === 'string' && o.country ? o.country : null,
     description: strOrNull(o.description, 'listing.description'),
     members: intOrNull(o.members, 'listing.members'), avg_views: intOrNull(o.avg_views, 'listing.avg_views'),
     er_percent: numOrNull(o.er_percent, 'listing.er_percent'), growth_30d: intOrNull(o.growth_30d, 'listing.growth_30d'),
@@ -408,6 +411,9 @@ export function parseMarketSummary(v: unknown): MarketSummary {
     listings: int(o.listings, 'market.listings'), inquiries: int(o.inquiries, 'market.inquiries'),
     categories: arr(o.categories, 'market.categories').map(category), max_listings: int(o.max_listings, 'market.max_listings'),
     price_min: int(o.price_min, 'market.price_min'), price_max: int(o.price_max, 'market.price_max'),
+    price_min_usd: typeof o.price_min_usd === 'number' ? o.price_min_usd : 1, price_max_usd: typeof o.price_max_usd === 'number' ? o.price_max_usd : 100000,
+    viewer: { country: typeof rec(o.viewer ?? {}, 'market.viewer').country === 'string' ? String(rec(o.viewer ?? {}, 'market.viewer').country) : '',
+      currency: rec(o.viewer ?? {}, 'market.viewer').currency === 'USD' ? 'USD' : 'UZS' },
     description_max: int(o.description_max, 'market.description_max'),
     message_min: int(o.message_min, 'market.message_min'), message_max: int(o.message_max, 'market.message_max'),
   }
@@ -418,6 +424,7 @@ export function parseMarketCatalog(v: unknown): MarketCatalog {
   return {
     items: arr(o.items, 'catalog.items').map(parseMarketListing), total: int(o.total, 'catalog.total'),
     page: int(o.page, 'catalog.page'), pages: int(o.pages, 'catalog.pages'), page_size: int(o.page_size, 'catalog.page_size'),
+    viewer_country: typeof o.viewer_country === 'string' ? o.viewer_country : '', filter: o.filter === 'mine' ? 'mine' : 'all',
   }
 }
 
@@ -498,6 +505,16 @@ export function parseAdminOverview(v: unknown): AdminOverview {
       pending_posts: count(s.pending_posts), stars_revenue: count(s.stars_revenue), sent: count(s.sent), failed: count(s.failed),
       cancelled: count(s.cancelled), sponsors: count(s.sponsors) },
     market: parseAdminTotals(o.market),
+    countries: (() => {
+      const c = rec(o.countries ?? {}, 'admin.countries')
+      return {
+        items: (Array.isArray(c.items) ? c.items : []).map((x) => {
+          const r = rec(x, 'country')
+          return { country: typeof r.country === 'string' ? r.country : '', users: count(r.users) }
+        }),
+        verified: count(c.verified), unverified: count(c.unverified), total: count(c.total),
+      }
+    })(),
   }
 }
 function parseAdminAd(v: unknown): AdminAd {

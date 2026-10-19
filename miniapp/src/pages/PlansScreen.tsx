@@ -11,6 +11,8 @@ const PERIOD_KEYS: Record<number, MessageKey> = { 1: 'plans.p1', 3: 'plans.p3', 
 const money = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 
 type TierId = 'free' | 'pro' | 'ultra'
+type Region = 'uz' | 'intl'
+const usd = (n: number) => `$${n.toFixed(2)}`
 
 /** Tariflar: davr tanlanadi (1 oy / 3 oy / 6 oy / 1 yil), kartalarda narx, Stars, tejam va haqiqiy limitlar. To'lov faqat botda. */
 export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
@@ -19,6 +21,8 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
   const tiers = me.tiers
   const periodsAvail = tiers?.pro.periods ?? []
   const [months, setMonths] = useState<number>(periodsAvail.find((p) => p.months === 1)?.months ?? periodsAvail[0]?.months ?? 1)
+  // Narx mintaqasi: serverdan (saqlangan tanlov yoki til); bu yerda faqat ko'rinish almashtiriladi (to'lov botda).
+  const [region, setRegion] = useState<Region>(me.pay_region ?? 'intl')
   const currentType = me.plan.type === 'ultra' ? 'ultra' : me.plan.type === 'enterprise' ? 'enterprise' : me.plan.is_pro ? 'pro' : 'free'
 
   const order: TierId[] = ['free', 'pro', 'ultra']
@@ -47,10 +51,14 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
           <p className="plan-price"><strong>{t('plans.price', { price: '0' })}</strong> <span className="muted">{t('plans.freeLine')}</span></p>
         ) : period ? (
           <div className="plan-price">
-            <strong>{t('plans.price', { price: money(period.uzs) })}</strong>
-            {period.months > 1 && <span className="muted"> {t('plans.perMonth', { price: money(Math.round(period.uzs / period.months)) })}</span>}
+            <strong>{region === 'intl' ? usd(period.usd) : t('plans.price', { price: money(period.uzs) })}</strong>
+            {period.months > 1 && (
+              <span className="muted"> {region === 'intl'
+                ? t('plans.perMonthUsd', { price: usd(period.usd / period.months) })
+                : t('plans.perMonth', { price: money(Math.round(period.uzs / period.months)) })}</span>
+            )}
             <div className="plan-sub">
-              <span className="chip">{t('plans.stars', { n: period.stars })}</span>
+              {region === 'intl' && <span className="chip">{t('plans.stars', { n: period.stars })}</span>}
               {period.save_pct > 0 && <span className="chip chip-save">{t('plans.save', { n: period.save_pct })}</span>}
             </div>
           </div>
@@ -69,6 +77,16 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
   return (
     <SubPage title={t('plans.title')} onBack={onBack}>
       <p className="muted">{t('plans.lead')}</p>
+      {me.pay_region === 'uz' && (
+        <div className="period-tabs" role="group" aria-label={t('plans.regionLabel')}>
+          {(['uz', 'intl'] as const).map((r) => (
+            <button key={r} type="button" aria-pressed={region === r} onClick={() => setRegion(r)}>
+              <span>{t(r === 'uz' ? 'plans.regionUz' : 'plans.regionIntl')}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="muted small">{t(region === 'uz' ? 'plans.regionNoteUz' : 'plans.regionNoteIntl')}</p>
       {periodsAvail.length > 0 && (
         <div className="period-tabs" role="group" aria-label={t('plans.periodLabel')}>
           {periodsAvail.map((p) => (

@@ -1681,7 +1681,7 @@ def get_intl_tariffs_keyboard(
     rows = [
         [InlineKeyboardButton(
             get_text("intl_tariff_tpl", lang, period=get_text(f"period_{key.lstrip('u')}", lang),
-                     stars=STARS_PLANS[f"stars_{key}"]["stars"]),
+                     stars=STARS_PLANS[f"stars_{key}"]["stars"], usd=STARS_PLANS[f"stars_{key}"]["usd"]),
             callback_data=cb(CB_PAY_INTL_PLAN, key),
         )]
         for key in plan_order

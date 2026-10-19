@@ -162,6 +162,7 @@ class AutopilotConfig:
 
 #: Yagona vaqt zonasi (scheduler bilan bir xil).
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 #: AI javobidagi maydon chegaralari (xavfsizlik/bounded).
 MAX_TOPIC_LENGTH = 200
@@ -473,14 +474,14 @@ def next_week_start(now: datetime | None = None, hour: int = DEFAULT_POST_HOUR,
     shu haftaning dushanbasi o'tib bo'lsa — KEYINGI hafta dushanbasidan
     boshlanadi, shunda hech bir post o'tmishga tushmaydi.
     """
-    reference = now if now is not None else datetime.now(tashkent_tz)
+    reference = now if now is not None else datetime.now(utz())
     if reference.tzinfo is None:
-        reference = tashkent_tz.localize(reference)
-    reference = reference.astimezone(tashkent_tz)
+        reference = utz().localize(reference)
+    reference = reference.astimezone(utz())
 
     days_to_monday = (0 - reference.weekday()) % 7
     monday = (reference + timedelta(days=days_to_monday)).date()
-    first = tashkent_tz.localize(
+    first = utz().localize(
         datetime(monday.year, monday.month, monday.day, int(hour) % 24,
                  int(minute) % 60))
     if first <= reference:
@@ -991,7 +992,7 @@ def build_week_plan(
                 log_silent_failure("services.autopilot.planner:build_week_plan", _silent_exc)
 
         day_date = monday_date + timedelta(days=day_idx)
-        moment = tashkent_tz.localize(
+        moment = utz().localize(
             datetime(
                 day_date.year,
                 day_date.month,

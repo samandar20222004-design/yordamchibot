@@ -26,7 +26,11 @@ def load_account(cur, user_id: int) -> dict | None:
                subscription_expires_at, role, COALESCE(ai_credits, 0),
                CASE WHEN last_limit_reset >= CURRENT_DATE
                     THEN COALESCE(ai_requests_today, 0) ELSE 0 END,
-               (deleted_at IS NOT NULL), NOW(), pro_legacy_until
+               (deleted_at IS NOT NULL), NOW(), pro_legacy_until, pay_region,
+               COALESCE(uz_verified, FALSE),
+               EXISTS (SELECT 1 FROM payments p WHERE p.user_id = users.user_id
+                        AND p.payment_method = 'uzcard_humo' AND p.status = 'succeeded'),
+               timezone, phone_country
           FROM users WHERE user_id = %s
         """,
         (user_id,),
@@ -41,6 +45,10 @@ def load_account(cur, user_id: int) -> dict | None:
         "ai_credits": int(row[7] or 0), "ai_requests_today": int(row[8] or 0),
         "deleted": bool(row[9]), "db_now": row[10],
         "pro_legacy_until": row[11] if len(row) > 11 else None,
+        "pay_region": row[12] if len(row) > 12 else None,
+        "uz_eligible": bool(len(row) > 13 and (row[13] or (len(row) > 14 and row[14]))),
+        "timezone": row[15] if len(row) > 15 else None,
+        "phone_country": row[16] if len(row) > 16 else None,
     }
 
 

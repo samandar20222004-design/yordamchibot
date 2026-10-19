@@ -14,6 +14,8 @@ export interface TierPeriod {
   days: number
   uzs: number
   stars: number
+  /** Xalqaro (dollar) narx; Telegram Stars shu narxga hisoblanadi. */
+  usd: number
   /** 1 oylikka nisbatan HAQIQIY tejam (butun foiz). */
   save_pct: number
 }
@@ -43,8 +45,10 @@ export type AiStyle = 'sales' | 'premium' | 'casual' | 'ads' | 'informative'
 export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads', 'informative']
 
 export interface Me {
-  user: { id: number; name: string | null; username: string | null; language: Lang }
+  user: { id: number; name: string | null; username: string | null; language: Lang; timezone?: string }
   plan: Plan
+  /** Narx mintaqasi: 'uz' (so'm) yoki 'intl' (dollar). Eski serverda yo'q = 'uz'. */
+  pay_region?: 'uz' | 'intl'
   tiers?: { free?: TierInfo; pro: TierInfo; ultra: TierInfo }
   usage: { channels: number; pending_posts: number; ai_requests_today: number; ai_credits: number }
   posts: PostCounts
@@ -146,7 +150,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
-  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'phone_required' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -258,8 +262,12 @@ export interface MarketListing {
   title: string
   username: string
   category: MarketCategory
-  /** so'm; `null` — kelishiladi */
+  /** `currency` birligida (so'm yoki dollar); `null` — kelishiladi */
   price: number | null
+  /** Narx valyutasi: egasi O'zbekiston raqami bilan tasdiqlangan bo'lsa 'UZS', aks holda 'USD'. */
+  currency: 'UZS' | 'USD'
+  /** E'lon mamlakati (ISO-2); eski e'londa `null` (faqat global ro'yxatda). */
+  country: string | null
   description: string | null
   members: number | null
   avg_views: number | null
@@ -282,6 +290,10 @@ export interface MarketSummary {
   max_listings: number
   price_min: number
   price_max: number
+  price_min_usd: number
+  price_max_usd: number
+  /** Ko'rayotgan foydalanuvchi: tasdiqlangan mamlakat ('' = tasdiqlanmagan) va u e'lon qo'yganda ishlatiladigan valyuta. */
+  viewer: { country: string; currency: 'UZS' | 'USD' }
   description_max: number
   message_min: number
   message_max: number
@@ -293,6 +305,8 @@ export interface MarketCatalog {
   page: number
   pages: number
   page_size: number
+  viewer_country: string
+  filter: 'all' | 'mine'
 }
 
 export interface MarketMineItem {
@@ -335,6 +349,8 @@ export interface AdminOverview {
   stats: { users: number; pro_subscribers: number; channels: number; posts_today: number; pending_posts: number
     stars_revenue: number; sent: number; failed: number; cancelled: number; sponsors: number }
   market: AdminMarketTotals
+  /** Foydalanuvchilar mamlakatlar bo'yicha (telefoni o'z kontakti orqali tasdiqlanganlar) va tasdiqlanmaganlar soni. */
+  countries: { items: Array<{ country: string; users: number }>; verified: number; unverified: number; total: number }
 }
 export interface AdminMarketTotals { active: number; paused: number; blocked: number; banned_users: number; open_inquiries: number }
 export type AdSupport = 'channel' | 'reply'

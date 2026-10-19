@@ -768,7 +768,7 @@ def test_parallel_payments() -> None:
 
     results, errors, elapsed = _run_threads(
         [lambda: PaymentService.process_stars_payment(
-            uid, charge, 115, f"sub_stars_1m_{uid}", "pro", 30) for _ in range(25)],
+            uid, charge, 195, f"sub_stars_1m_{uid}", "pro", 30) for _ in range(25)],
         workers=25, timeout=90.0)
     granted = [r for r in results if r.get("ok") and not r.get("duplicate")]
     dup = [r for r in results if r.get("ok") and r.get("duplicate")]
@@ -982,7 +982,7 @@ def test_mixed_workload_no_deadlock() -> None:
         jobs.append(lambda u=uid: _db.reserve_ai_request(u, "ai_studio", 1))
     for uid in pay_users:
         jobs.append(lambda u=uid: PaymentService.process_stars_payment(
-            u, f"mix39-{u}", 115, f"sub_stars_1m_{u}", "pro", 30))
+            u, f"mix39-{u}", 195, f"sub_stars_1m_{u}", "pro", 30))
     for uid in ref_users:
         jobs.append(lambda u=uid: ReferralService.register_new_user(
             u, f"load_{u}", "Load", referrer_id=referrer))

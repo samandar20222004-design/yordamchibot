@@ -66,7 +66,7 @@ def tier_catalog() -> dict:
             info = config.TARIFF_CATALOG[key]
             out.append({
                 "months": int(info["months"]), "days": int(info["days"]),
-                "uzs": int(info["uzs"]), "stars": int(info["stars"]),
+                "uzs": int(info["uzs"]), "stars": int(info["stars"]), "usd": float(info["usd"]),
                 "save_pct": int(config.plan_discount_percent(info["stars"], base["stars"], info["months"])),
             })
         return out
@@ -97,6 +97,20 @@ def resolve_plan(account: dict) -> dict:
         "expires_at": iso_utc(expires) if active else None,
         "limits": limits,
     }
+
+
+def pay_region(account: dict) -> str:
+    """Narx mintaqasi (bot bilan BIR qoida, TILGA BOG'LIQ EMAS): 'uz' (so'm) faqat tasdiqlangan +998 yoki avval mahalliy to'lagan
+    foydalanuvchiga va u o'zi dollarni tanlamagan bo'lsa; qolganlarga 'intl' (dollar)."""
+    if account.get("uz_eligible") and account.get("pay_region") != "intl":
+        return "uz"
+    return "intl"
+
+
+def resolve_timezone(name, country) -> str:
+    from services.user_timezone import resolve
+
+    return resolve(name, country)
 
 
 def _language(account: dict) -> str:
@@ -141,8 +155,10 @@ class MiniAppService:
             return {
                 "user": {"id": account["user_id"], "name": account["full_name"],
                          "username": account["username"],
-                         "language": _language(account)},
+                         "language": _language(account),
+                         "timezone": resolve_timezone(account.get("timezone"), account.get("phone_country"))},
                 "plan": plan,
+                "pay_region": pay_region(account),
                 "tiers": tier_catalog(),
                 "usage": {"channels": channels, "pending_posts": pending,
                           "ai_requests_today": account["ai_requests_today"],

@@ -14,6 +14,8 @@ import time
 from datetime import timezone
 from zoneinfo import ZoneInfo
 
+from services.user_timezone import utz
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ParseMode
 from telegram.error import BadRequest, Forbidden, TelegramError
@@ -23,6 +25,7 @@ import database as db
 from config import ADMIN_IDS_SET
 from repositories import ad_market_repository as repo
 from services import ad_market as svc
+from services.country import flag as country_flag, label as country_label
 from translations import market_t
 from utils.helpers import html_escape
 
@@ -107,17 +110,30 @@ def _fmt_when(dt) -> str:
         return "—"
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(_TZ).strftime("%d.%m %H:%M")
+    return dt.astimezone(utz()).strftime("%d.%m %H:%M")
 
 
 def _cat_label(key: str, lang: str) -> str:
     return market_t(f"mk_cat_{svc.normalize_category(key)}", lang)
 
 
-def _price_text(price, lang: str) -> str:
-    if price is None:
-        return market_t("mk_price_negotiable", lang)
-    return f"{svc.format_price(price, '')} {market_t('mk_currency', lang)}"
+def _price_text(price, lang: str, currency: str = "UZS") -> str:
+    return svc.format_money(price, currency, market_t("mk_currency", lang), market_t("mk_price_negotiable", lang))
+
+
+async def _viewer_country(user_id: int) -> str:
+    """Telefon bilan tasdiqlangan mamlakat (ISO-2) yoki ''."""
+    try:
+        return await db.run_db(repo.get_viewer_country, user_id) or ""
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _country_filter(context, country: str) -> str:
+    """Katalog filtri: 'mine' (o'z mamlakati) yoki 'all' (global). Mamlakat noma'lum bo'lsa — doim 'all'; standart — o'z mamlakati."""
+    if not country:
+        return "all"
+    return context.user_data.get("mk_cf") or "mine"
 
 
 def card_text(listing: dict, lang: str, *, owner_view: bool = False) -> str:
@@ -138,7 +154,8 @@ def card_text(listing: dict, lang: str, *, owner_view: bool = False) -> str:
         f"{t('mk_f_views')}: <b>{svc.format_count(views) if views is not None else t('mk_views_unknown')}</b>",
         f"{t('mk_f_er')}: <b>{f'{er}%' if er is not None else '—'}</b>",
         f"{t('mk_f_posts')}: <b>{listing.get('posts_30d') if listing.get('posts_30d') is not None else '—'}</b>",
-        f"{t('mk_f_price')}: <b>{_price_text(listing.get('price_post'), lang)}</b>",
+        f"{t('mk_f_price')}: <b>{_price_text(listing.get('price_post'), lang, listing.get('price_currency') or 'UZS')}</b>",
+        f"{t('mk_f_country')}: <b>{country_label(listing.get('country'))}</b>",
     ]
     badges = [t(f"mk_badge_{b}") for b in svc.listing_badges(listing)]
     if badges:
@@ -214,17 +231,26 @@ async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: s
     cat = cat if cat == "all" or cat in svc.CATEGORIES else "all"
     sort = sort if sort in ("m", "p", "e") else "m"
     page = max(0, page)
-    data = await db.run_db(repo.list_catalog, cat, sort, page)
+    country = await _viewer_country(update.effective_user.id)
+    cf = _country_filter(context, country)
+    only = country if cf == "mine" else None
+    context.user_data["mk_last"] = (cat, sort, page)
+    data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
     total, items = data["total"], data["items"]
     pages = max(1, -(-total // repo.PAGE_SIZE))
     if page >= pages:
         page = pages - 1
-        data = await db.run_db(repo.list_catalog, cat, sort, page)
+        data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
         items = data["items"]
     rows = []
     for it in items:
-        price = svc.format_count(it["price_post"]) if it["price_post"] is not None else market_t("mk_price_negotiable", lang)
-        label = f"{(it['title'] or it['username'])[:20]} · {svc.format_count(it['members'])} · {price}"
+        if it["price_post"] is None:
+            price = market_t("mk_price_negotiable", lang)
+        elif it.get("price_currency") == "USD":
+            price = f"${svc.format_count(it['price_post'])}"
+        else:
+            price = svc.format_count(it["price_post"])
+        label = f"{country_flag(it.get('country'))} {(it['title'] or it['username'])[:18]} · {svc.format_count(it['members'])} · {price}"
         rows.append([_btn(label, f"mk:v:{it['id']}")])
     sorts = [_btn(("• " if sort == k else "") + market_t(f"mk_sort_{k}", lang), f"mk:l:{cat}:{k}:0") for k in ("m", "p", "e")]
     rows.append(sorts)
@@ -234,10 +260,16 @@ async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: s
     if page + 1 < pages:
         nav.append(_btn("▶️", f"mk:l:{cat}:{sort}:{page + 1}"))
     rows.append(nav)
+    if country:  # 🌍 o'z mamlakati <-> global
+        rows.append([_btn(market_t("mk_btn_cf_all", lang) if cf == "mine" else market_t("mk_btn_cf_mine", lang, country=country_label(country)),
+                          "mk:cf:all" if cf == "mine" else "mk:cf:mine")])
+    else:  # mamlakat noma'lum: telefonni tasdiqlasa filtr ochiladi
+        rows.append([_btn(market_t("mk_btn_cf_verify", lang), "mk:cfv")])
     rows.append([_btn(market_t("mk_btn_back", lang), "mk:cat")])
     cat_label = market_t("mk_cat_all", lang) if cat == "all" else _cat_label(cat, lang)
     text = market_t("mk_list_title", lang, cat=cat_label, total=total, sort=market_t(f"mk_sort_{sort}", lang),
                     page=page + 1, pages=pages)
+    text += "\n" + market_t("mk_cf_showing_mine" if cf == "mine" else "mk_cf_showing_all", lang, country=country_label(country))
     if not items:
         text += "\n\n" + market_t("mk_list_empty", lang)
     await _toast(update)
@@ -546,6 +578,13 @@ async def _start_new_listing(update, context, channel: dict, lang: str) -> None:
     if await db.run_db(repo.count_owner_listings, user.id) >= repo.MAX_LISTINGS_PER_USER:
         await _toast(update, market_t("mk_err_limit", lang, limit=repo.MAX_LISTINGS_PER_USER), alert=True)
         return
+    country = await _viewer_country(user.id)
+    if not country:  # e'lon uchun telefon (mamlakat) tasdiqlanishi shart: kanal o'z mamlakati ro'yxatida ko'rinadi
+        from handlers.phone_verify import PURPOSE_MARKET, ask_phone_verification
+
+        await _toast(update)
+        await ask_phone_verification(update.effective_chat, context, lang, purpose=PURPOSE_MARKET)
+        return
     raw = channel["channel_id"]
     info = await svc.verify_channel_ownership(context.bot, user.id, raw)
     if not info["ok"]:
@@ -554,7 +593,8 @@ async def _start_new_listing(update, context, channel: dict, lang: str) -> None:
         return
     context.user_data["mk_new"] = {"channel_id": str(raw), "username": info["username"],
                                    "title": info["title"] or channel.get("title") or info["username"],
-                                   "members": info["members"], "ts": time.time()}
+                                   "members": info["members"], "ts": time.time(),
+                                   "country": country, "currency": svc.owner_currency(country)}
     cats = list(svc.CATEGORIES)
     rows = [[_btn(_cat_label(c, lang), f"mk:nc:{c}") for c in cats[i:i + 2]] for i in range(0, len(cats), 2)]
     rows.append([_btn(market_t("mk_btn_back", lang), "mk:my")])
@@ -572,7 +612,8 @@ async def market_new_category(update: Update, context: ContextTypes.DEFAULT_TYPE
     new["category"] = svc.normalize_category(category)
     _set_input(context, "price_new")
     await _toast(update)
-    await update.effective_chat.send_message(market_t("mk_price_prompt", lang), parse_mode=ParseMode.HTML)
+    key = "mk_price_prompt_usd" if new.get("currency") == "USD" else "mk_price_prompt"
+    await update.effective_chat.send_message(market_t(key, lang), parse_mode=ParseMode.HTML)
 
 
 def _manage_keyboard(listing: dict, lang: str) -> InlineKeyboardMarkup:
@@ -650,12 +691,13 @@ async def market_delete(update: Update, context: ContextTypes.DEFAULT_TYPE, list
 async def market_edit_start(update: Update, context: ContextTypes.DEFAULT_TYPE, listing_id: int, field: str) -> None:
     user = update.effective_user
     lang = await _lang(context, user.id)
-    if await db.run_db(repo.get_listing_for_owner, listing_id, user.id) is None:
+    row = await db.run_db(repo.get_listing_for_owner, listing_id, user.id)
+    if row is None:
         await _toast(update, market_t("mk_gone", lang), alert=True)
         return
     _set_input(context, "price_edit" if field == "price" else "desc_edit", listing_id=listing_id)
     await _toast(update)
-    key = "mk_price_prompt" if field == "price" else "mk_desc_prompt"
+    key = ("mk_price_prompt_usd" if row.get("price_currency") == "USD" else "mk_price_prompt") if field == "price" else "mk_desc_prompt"
     await update.effective_chat.send_message(market_t(key, lang, max=svc.DESCRIPTION_MAX), parse_mode=ParseMode.HTML)
 
 
@@ -673,22 +715,23 @@ async def market_edit_category(update: Update, context: ContextTypes.DEFAULT_TYP
     await market_manage(update, context, listing_id, prefix=market_t("mk_saved", lang))
 
 
-def _parse_price_input(text: str, lang: str):
-    status, value = svc.parse_price(text)
+def _parse_price_input(text: str, lang: str, currency: str = "UZS"):
+    status, value = svc.parse_price(text, currency)
     if status == "error":
-        return None, market_t("mk_price_bad", lang, min=svc.PRICE_MIN, max=svc.PRICE_MAX)
+        low, high = svc.price_range(currency)
+        return None, market_t("mk_price_bad_usd" if currency == "USD" else "mk_price_bad", lang, min=low, max=high)
     return ("ok", value), None
 
 
 async def _handle_price_new(update, context, text: str, lang: str) -> None:
-    parsed, err = _parse_price_input(text, lang)
-    if err:
-        await update.message.reply_text(err)
-        return
     new = context.user_data.get("mk_new")
     if not new:
         context.user_data.pop(INPUT_KEY, None)
         await update.message.reply_text(market_t("mk_stale", lang))
+        return
+    parsed, err = _parse_price_input(text, lang, new.get("currency", "UZS"))
+    if err:
+        await update.message.reply_text(err)
         return
     new["price"] = parsed[1]
     _set_input(context, "desc_new")
@@ -704,7 +747,7 @@ async def _handle_desc_new(update, context, text: str, lang: str) -> None:
         return
     desc = None if text.strip() in ("-", "—") else (svc.clean_text(text, svc.DESCRIPTION_MAX) or None)
     res = await db.run_db(repo.create_listing, user.id, new["channel_id"], new["username"], new["title"],
-                          new.get("category", "other"), new.get("price"), desc)
+                          new.get("category", "other"), new.get("price"), desc, new.get("country"), new.get("currency", "UZS"))
     context.user_data.pop("mk_new", None)
     if not res["ok"]:
         if res["reason"] == "exists":
@@ -721,7 +764,8 @@ async def _handle_desc_new(update, context, text: str, lang: str) -> None:
 
 
 async def _handle_price_edit(update, context, data: dict, text: str, lang: str) -> None:
-    parsed, err = _parse_price_input(text, lang)
+    row = await db.run_db(repo.get_listing_for_owner, data["listing_id"], update.effective_user.id)
+    parsed, err = _parse_price_input(text, lang, (row or {}).get("price_currency") or "UZS")
     if err:
         await update.message.reply_text(err)
         return
@@ -828,6 +872,16 @@ async def market_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         elif action == "l":
             await market_list(update, context, parts[2] if len(parts) > 2 else "all",
                               parts[3] if len(parts) > 3 else "m", _int(parts, 4))
+        elif action == "cf":
+            context.user_data["mk_cf"] = "all" if (parts[2] if len(parts) > 2 else "") == "all" else "mine"
+            cat, sort, page = context.user_data.get("mk_last", ("all", "m", 0))
+            await market_list(update, context, cat, sort, 0 if page is None else page)
+        elif action == "cfv":
+            from handlers.phone_verify import PURPOSE_COUNTRY, ask_phone_verification
+
+            await _toast(update)
+            await ask_phone_verification(update.effective_chat, context, await _lang(context, update.effective_user.id),
+                                         purpose=PURPOSE_COUNTRY)
         elif action == "v":
             await market_card(update, context, _int(parts, 2))
         elif action == "rp":

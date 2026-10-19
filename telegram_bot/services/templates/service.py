@@ -33,6 +33,7 @@ TEMPLATE_VARIABLES: tuple[str, ...] = (
 DATE_DEFAULT_FORMAT = "%d.%m.%Y"
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 #: ``{TITLE}`` kabi o'zgaruvchi qavslarini topish (faqat KATTA harflar).
 _VAR_RE = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
@@ -44,10 +45,10 @@ MAX_TEMPLATE_CONTENT = 4000
 
 def default_date_value(now: datetime | None = None) -> str:
     """``{DATE}`` o'zgaruvchisining standart qiymati — bugungi sana."""
-    moment = now if now is not None else datetime.now(tashkent_tz)
+    moment = now if now is not None else datetime.now(utz())
     if moment.tzinfo is None:
-        moment = tashkent_tz.localize(moment)
-    return moment.astimezone(tashkent_tz).strftime(DATE_DEFAULT_FORMAT)
+        moment = utz().localize(moment)
+    return moment.astimezone(utz()).strftime(DATE_DEFAULT_FORMAT)
 
 
 def extract_variables(content: Any) -> list[str]:

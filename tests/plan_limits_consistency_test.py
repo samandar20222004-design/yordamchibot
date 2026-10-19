@@ -114,11 +114,11 @@ try:
 finally:
     config.STARS_PLANS["stars_1m"].update(orig[0]); config.STARS_PLANS["stars_1y"].update(orig[1])
 labels = [b.text for row in get_intl_tariffs_keyboard("uz").inline_keyboard for b in row]
-check("standart narxlarda PRO Stars: 115★/300★/535★/970★, shablon qolmaydi",
-      all(any(f"{n}★" in t for t in labels) for n in (115, 300, 535, 970)) and not any("{" in t for t in labels), str(labels))
+check("standart narxlarda PRO Stars (xalqaro narx, O'zbekistondan 1,7x): 195★/510★/910★/1650★, shablon qolmaydi",
+      all(any(f"{n}★" in t for t in labels) for n in (195, 510, 910, 1650)) and not any("{" in t for t in labels), str(labels))
 ultra_labels = [b.text for row in get_intl_tariffs_keyboard("uz", plan_order=("u1m", "u3m", "u6m", "u1y")).inline_keyboard for b in row]
-check("standart narxlarda ULTRA Stars: 275★/695★/1330★/2460★",
-      all(any(f"{n}★" in t for t in ultra_labels) for n in (275, 695, 1330, 2460)), str(ultra_labels))
+check("standart narxlarda ULTRA Stars (xalqaro narx): 470★/1180★/2260★/4180★",
+      all(any(f"{n}★" in t for t in ultra_labels) for n in (470, 1180, 2260, 4180)), str(ultra_labels))
 
 # ---- Real PG: muddati o'tgan PRO navbat limiti ----
 if not URL:

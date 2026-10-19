@@ -48,6 +48,7 @@ from utils.date_format import format_datetime, format_time, weekday_label
 from utils.silent_errors import log_silent_failure
 
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import shift_local, utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 # Albom (media_group) yig'ish: bir nechta rasm/video bitta post bo'lishi uchun.
 #
@@ -1901,7 +1902,7 @@ async def auto_delete_received(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data["delete_after_hours"] = hours
 
     lang = get_lang(context)
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     example = schedule_time_example(now)
     await update.message.reply_text(
         get_text("np_time_ask", lang, example=example),
@@ -1918,7 +1919,7 @@ def _content_for_db(content, reaction_emojis):
 async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     text = update.message.text
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
 
     # Tayyor tugmalar UCHALA tilda taniyadi (MENU_TEXTS["np_time_*"]) —
     # klaviatura EN bo'lsa ham "⚡ 5 minutes" / "🔁 Daily" ishlaydi.
@@ -1985,12 +1986,12 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return DAILY_TIME
     hh, mm = parsed
 
-    now = datetime.now(tashkent_tz)
-    first_run = tashkent_tz.localize(
+    now = datetime.now(utz())
+    first_run = utz().localize(
         datetime(now.year, now.month, now.day, hh, mm)
     )
     if first_run <= now:
-        first_run = tashkent_tz.normalize(first_run + timedelta(days=1))
+        first_run = shift_local(first_run, days=1)
 
     context.user_data["rec_first_run"] = first_run
     context.user_data["rec_type"] = "daily"
@@ -2040,7 +2041,7 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return RECUR_TIME
     hh, mm = parsed
 
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     target_day = context.user_data.get("rec_day")
     if target_day is None:
         await update.message.reply_text(
@@ -2048,12 +2049,9 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         return RECUR_DAY
     days_ahead = (int(target_day) - now.weekday() + 7) % 7
     # Toshkent zonasida qayta localize qilinadi (UTC-ofset to'g'ri hisoblansin).
-    first_run = tashkent_tz.normalize(
-        tashkent_tz.localize(datetime(now.year, now.month, now.day, hh, mm))
-        + timedelta(days=days_ahead)
-    )
+    first_run = shift_local(utz().localize(datetime(now.year, now.month, now.day, hh, mm)), days=days_ahead)
     if first_run <= now:
-        first_run = tashkent_tz.normalize(first_run + timedelta(days=7))
+        first_run = shift_local(first_run, days=7)
 
     context.user_data["rec_first_run"] = first_run
     context.user_data["rec_type"] = "weekly"
@@ -2079,7 +2077,7 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def duration_chosen(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_lang(context)
     text = update.message.text
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     end_date = None
 
     if is_menu_text(text, "np_dur_1w"):
@@ -2219,7 +2217,7 @@ async def edit_confirm_field_callback(update: Update, context: ContextTypes.DEFA
         return EDIT_CONFIRM_FIELD
 
     if field == "time":
-        now = datetime.now(tashkent_tz)
+        now = datetime.now(utz())
         example = schedule_time_example(now)
         await query.message.reply_text(
             get_text("np_edit_time_ask", lang, example=example),
@@ -2270,7 +2268,7 @@ async def edit_confirm_message_received(update: Update, context: ContextTypes.DE
             await _show_confirmation(update.message, context)
             return CONFIRM_POST
 
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     if is_menu_text(text, "np_time_5m"):
         new_time = now + timedelta(minutes=5)
     elif is_menu_text(text, "np_time_15m"):

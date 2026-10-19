@@ -22,6 +22,8 @@ import os
 import re
 import time
 import uuid
+
+from services import user_timezone as _tzs
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import web
@@ -300,7 +302,8 @@ async def market_summary_handler(request: web.Request):
 async def market_catalog_handler(request: web.Request):
     page = _parse_int(request.query.get("page"), default=0, lo=0, hi=10000)
     data = await request.app[_K_MARKET].catalog(
-        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "m"), page=page)
+        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "m"), page=page,
+        country=request.query.get("country", "all"))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
@@ -537,6 +540,8 @@ async def _guarded(request: web.Request, handler):
         # 3) Foydalanuvchi bo'yicha limit.
         await limiter.hit("user", str(verified.user_id), limit=settings.rate_user_limit,
                           window=settings.rate_user_window)
+        # 4) Foydalanuvchi vaqt zonasi (kiritish/ko'rsatish shu zonada; xatoda Toshkent).
+        _tzs.set_current(_tzs.get_tz(_tzs.cached_name(verified.user_id) or await asyncio.to_thread(_tzs.tz_name_for, verified.user_id)))
 
     timeout = settings.request_timeout_seconds
     if getattr(route_handler, "miniapp_write", False):

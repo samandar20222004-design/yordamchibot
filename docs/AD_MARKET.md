@@ -76,6 +76,11 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 - `translations/ad_market.py` — uz/ru/en (paritet testda). Tugma yorlig'i ≤ 18 belgi.
 - Test: `tests/ad_market_test.py` (real PG: egalik, katalog, limitlar, parallel, blok, shikoyat, bot oqimi).
 
+## Mamlakat va valyuta
+- E'lon qo'yish uchun telefon (mamlakat) tasdiqlanadi (bir marta, raqam saqlanmaydi); /start'da so'ralmaydi.
+- E'londa `country` (ISO-2) va `price_currency`: UZ-tasdiqlangan egasi — so'm, boshqalar — USD.
+- Katalog standarti: ko'ruvchining o'z mamlakati; «🌍 Hammasi» — global. Mamlakati noma'lum ko'ruvchiga hammasi ko'rinadi, «o'z mamlakatim»ni tanlasa telefon so'raladi.
+
 ## Hali qilinmagan (keyingi bosqich)
 - Escrow/kafolatli to'lov, buyurtma holatlari (kelishildi / bajarildi / baho va sharh).
 - Kunlik snapshotni e'lonlar uchun majburiy qilish va ko'rsatkichlarni fon vazifasida yangilash (hozir kartani ochganda ≥6 soat eskirgan bo'lsa bazadan qayta hisoblanadi).

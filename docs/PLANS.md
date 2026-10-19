@@ -26,7 +26,25 @@ Majburlash: `check_channel_limit`, `reserve_ai_request` / `check_ai_limit` (atom
 `services/voice_schedule_quota.py` (atomik bron, STT'dan OLDIN; xatoda qaytariladi; DB xatosida fail-closed), AI xarajat byudjeti
 `services/ai/budget.py` (FREE/PRO/ULTRA alohida kunlik/oylik token va USD).
 
-## Narxlar (so'm · Stars) — 4 muddat: 1, 3, 6 oy va 1 yil (6 oy = 180 kun)
+## Narxlar — 4 muddat: 1, 3, 6 oy va 1 yil (6 oy = 180 kun)
+
+**Mintaqaga qarab (TILGA BOG'LIQ EMAS):** hamma uchun standart — **dollar** (Telegram Stars), O'zbekiston narxidan **1,7 baravar qimmat**
+(`INTL_PRICE_MULTIPLIER`; Stars 5 ga yaxlitlanadi, 1 ★ = 0,02 $). **So'm** (arzon; Uzcard/Humo/Payme) faqat O'zbekistonlik deb TASDIQLANGANlarga:
+* foydalanuvchi «🇺🇿 So'mda to'lash» bosadi va Telegram «kontakt ulashish» tugmasi bilan **o'z** telefonini yuboradi; raqam `+998` + 9 raqam
+  bo'lsa va kontakt egasi shu foydalanuvchining o'zi bo'lsa `users.uz_verified = TRUE` (raqamning o'zi SAQLANMAYDI);
+* yoki avval mahalliy karta/Payme orqali muvaffaqiyatli to'lagan (eski mijozlar qayta tasdiqlamaydi);
+* tasdiqlangan foydalanuvchi ko'rinishni dollarga/so'mga almashtira oladi (`users.pay_region`).
+Til (uz/ru/en) mintaqani belgilamaydi — chet ellik o'zbek tiliga o'tib arzon narx ola olmaydi. So'm rekvizitlari (karta/Payme) tasdiqlanmaganga berilmaydi;
+Stars esa har doim xalqaro narxda. Telegram mamlakatni bermaydi; telefon prefiksi mavjud eng ishonchli mezon (+998 SIM-kartali chet ellik ham so'm ola oladi — qabul qilingan xavf).
+
+| Muddat | PRO so'm | PRO $ (Stars) | ULTRA so'm | ULTRA $ (Stars) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 oy | 29 000 | $3.90 (195) | 69 000 | $9.40 (470) |
+| 3 oy | 75 000 | $10.20 (510) | 175 000 | $23.60 (1 180) |
+| 6 oy | 135 000 | $18.20 (910) | 335 000 | $45.20 (2 260) |
+| 1 yil | 245 000 | $33.00 (1 650) | 620 000 | $83.60 (4 180) |
+
+Quyidagi jadvaldagi «Stars» ustunlari — O'ZBEKISTON EKVIVALENTI (asos, `STARS_PRICE_*`); mijoz to'laydigan xalqaro Stars yuqoridagi jadvalda.
 
 | Muddat | PRO so'm | PRO tejam | PRO Stars | ULTRA so'm | ULTRA tejam | ULTRA Stars |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

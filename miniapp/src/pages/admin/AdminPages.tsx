@@ -8,6 +8,7 @@ import { ApiClientError } from '../../api/client'
 import { toClientError, useResource } from '../../hooks/useResource'
 import { useI18n, type MessageKey } from '../../i18n'
 import { haptic } from '../../telegram'
+import { countryFlag } from '../marketUtils'
 
 /** Bitta almashtirgich (switch) qatori — reklama yoqish/o'chirish. */
 function SwitchRow({ id, title, hint, on, disabled, onChange }: {
@@ -91,6 +92,16 @@ export function AdminOverviewPage() {
             <div className="adm-stat"><span className="stat-label">{t('adm.mkBlocked')}</span><strong className="stat-value">{d.market.blocked}</strong></div>
             <div className="adm-stat"><span className="stat-label">{t('adm.mkBanned')}</span><strong className="stat-value">{d.market.banned_users}</strong></div>
             <div className="adm-stat"><span className="stat-label">{t('adm.mkOpen')}</span><strong className="stat-value">{d.market.open_inquiries}</strong></div>
+          </div>
+          <h3 className="sec-label">{t('adm.secCountries', { v: d.countries.verified, total: d.countries.total })}</h3>
+          <div className="adm-grid">
+            {d.countries.items.slice(0, 12).map((c) => (
+              <div key={c.country} className="adm-stat">
+                <span className="stat-label">{countryFlag(c.country)} {c.country === 'ZZ' ? '—' : c.country}</span>
+                <strong className="stat-value">{c.users}</strong>
+              </div>
+            ))}
+            <div className="adm-stat"><span className="stat-label">{t('adm.unverified')}</span><strong className="stat-value">{d.countries.unverified}</strong></div>
           </div>
           <p className="muted small">{t('adm.sponsorsCount', { n: d.stats.sponsors })}</p>
         </>

@@ -1274,8 +1274,8 @@ def test_stars_payment_plans():
     from handlers.subscription import STARS_PLANS
 
     expected = {  # kalit: (Stars, kun)
-        "stars_1m": (115, 30), "stars_3m": (300, 90), "stars_6m": (535, 180), "stars_1y": (970, 365),
-        "stars_u1m": (275, 30), "stars_u3m": (695, 90), "stars_u6m": (1330, 180), "stars_u1y": (2460, 365),
+        "stars_1m": (195, 30), "stars_3m": (510, 90), "stars_6m": (910, 180), "stars_1y": (1650, 365),
+        "stars_u1m": (470, 30), "stars_u3m": (1180, 90), "stars_u6m": (2260, 180), "stars_u1y": (4180, 365),
     }
     for key, (stars, days) in expected.items():
         check(f"{key}: mavjud", key in STARS_PLANS)
@@ -1299,7 +1299,7 @@ def test_stars_keyboard():
         for key in keys:
             check(f"{tier} kb: {key} bor", f"sub_pay:stars_{key}" in cbs)
         check(f"{tier} kb: back bor", "sub_back" in cbs)
-        check(f"{tier} kb: 5 ta tugma", len(cbs) == 5)
+        check(f"{tier} kb: 6 ta tugma (4 muddat + mintaqa almashtirish + orqaga)", len(cbs) == 6)
         for price in prices:
             check(f"{tier} kb: {price} so'm label", any(price in t for t in labels))
 

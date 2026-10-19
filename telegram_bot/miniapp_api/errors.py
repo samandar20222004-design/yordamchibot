@@ -152,6 +152,11 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Лимит шаблонов исчерпан. Удалите ненужный и попробуйте снова.",
         "en": "The templates limit is reached. Delete one you no longer need and try again.",
     }),
+    "phone_required": (403, {
+        "uz": "Birjaga e'lon qo'yish uchun botda telefon raqamingizni tasdiqlang (raqam saqlanmaydi — faqat mamlakat belgisi).",
+        "ru": "Чтобы разместить объявление на бирже, подтвердите номер телефона в боте (номер не сохраняется — только отметка страны).",
+        "en": "To list a channel on the exchange, verify your phone number in the bot (the number is not stored — only a country mark).",
+    }),
     "market_private": (422, {
         "uz": "Kanalda username yo'q (yopiq kanal). Birjada faqat ochiq kanallar bo'ladi.",
         "ru": "У канала нет username (закрытый канал). На бирже только открытые каналы.",

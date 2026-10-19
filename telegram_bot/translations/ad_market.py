@@ -169,6 +169,14 @@ AD_MARKET_I18N = {
             "Kelishiladigan bo'lsa: «kelishiladi». Bekor qilish: /cancel"
         ),
         "mk_price_bad": "Narx tushunarsiz. Masalan: 50000, 50k yoki «kelishiladi» ({min}–{max} so'm).",
+        "mk_f_country": "🌍 Mamlakat",
+        "mk_price_prompt_usd": "💲 <b>1 ta post narxi</b> (dollarda)\n\nMasalan: <code>20</code>, <code>$20</code>, <code>1.5k</code> yoki «kelishiladi».",
+        "mk_price_bad_usd": "Narx tushunarsiz. Masalan: 20, $20, 1.5k yoki «kelishiladi» ({min}–{max} $).",
+        "mk_btn_cf_all": "🌍 Global",
+        "mk_btn_cf_mine": "{country} faqat",
+        "mk_btn_cf_verify": "📱 Mamlakatim",
+        "mk_cf_showing_mine": "📍 Faqat {country} kanallari. Hamma mamlakatlar uchun «🌍 Global» tugmasi.",
+        "mk_cf_showing_all": "🌍 Hamma mamlakatlar (global). Faqat o'z mamlakatingiz uchun pastdagi tugma.",
         "mk_desc_prompt": (
             "3/3 — kanal haqida qisqa tavsif (mavzu, auditoriya; {max} belgigacha). "
             "O'tkazib yuborish: «-». Bekor qilish: /cancel"
@@ -350,6 +358,14 @@ AD_MARKET_I18N = {
             "Если договорная: «договорная». Отмена: /cancel"
         ),
         "mk_price_bad": "Цена непонятна. Например: 50000, 50k или «договорная» ({min}–{max} сум).",
+        "mk_f_country": "🌍 Страна",
+        "mk_price_prompt_usd": "💲 <b>Цена 1 поста</b> (в долларах)\n\nНапример: <code>20</code>, <code>$20</code>, <code>1.5k</code> или «договорная».",
+        "mk_price_bad_usd": "Цена непонятна. Например: 20, $20, 1.5k или «договорная» ({min}–{max} $).",
+        "mk_btn_cf_all": "🌍 Все страны",
+        "mk_btn_cf_mine": "{country} только",
+        "mk_btn_cf_verify": "📱 Моя страна",
+        "mk_cf_showing_mine": "📍 Только каналы {country}. Для всех стран — кнопка «🌍 Все страны».",
+        "mk_cf_showing_all": "🌍 Все страны (глобально). Только своя страна — кнопка ниже.",
         "mk_desc_prompt": (
             "3/3 — короткое описание канала (тема, аудитория; до {max} символов). "
             "Пропустить: «-». Отмена: /cancel"
@@ -531,6 +547,14 @@ AD_MARKET_I18N = {
             "If negotiable: «negotiable». Cancel: /cancel"
         ),
         "mk_price_bad": "Can't read that price. For example: 50000, 50k or «negotiable» ({min}–{max} UZS).",
+        "mk_f_country": "🌍 Country",
+        "mk_price_prompt_usd": "💲 <b>Price per post</b> (in USD)\n\nFor example: <code>20</code>, <code>$20</code>, <code>1.5k</code> or «negotiable».",
+        "mk_price_bad_usd": "Can't read that price. For example: 20, $20, 1.5k or «negotiable» ({min}–{max} $).",
+        "mk_btn_cf_all": "🌍 Global",
+        "mk_btn_cf_mine": "{country} only",
+        "mk_btn_cf_verify": "📱 My country",
+        "mk_cf_showing_mine": "📍 Only {country} channels. Tap «🌍 Global» for all countries.",
+        "mk_cf_showing_all": "🌍 All countries (global). Use the button below for your own country only.",
         "mk_desc_prompt": (
             "3/3 — a short channel description (topic, audience; up to {max} characters). "
             "Skip: «-». Cancel: /cancel"

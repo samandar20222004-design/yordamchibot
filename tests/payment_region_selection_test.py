@@ -44,6 +44,18 @@ passed = 0
 LANGS = ("uz", "ru", "en")
 
 
+# 🇺🇿 So'm/to'lov mintaqasi TILGA BOG'LIQ EMAS: faqat tasdiqlangan (+998) foydalanuvchiga ochiladi. DB'siz sinov uchun holat qo'lda.
+import database as _dbm  # noqa: E402
+
+_UZ_STATE = {"verified": False, "phone": True}
+_dbm.get_pay_profile = lambda uid: {
+    "region": "uz" if _UZ_STATE["verified"] else "intl", "phone_verified": _UZ_STATE["phone"],
+    "country": ("UZ" if _UZ_STATE["verified"] else "US") if _UZ_STATE["phone"] else "", "uz_eligible": _UZ_STATE["verified"]}
+_dbm.get_pay_region = lambda uid: "uz" if _UZ_STATE["verified"] else "intl"
+_dbm.is_uz_eligible = lambda uid: _UZ_STATE["verified"]
+_dbm.set_pay_region = lambda uid, region: region == "intl" or _UZ_STATE["verified"]
+
+
 def check(name, cond, extra=""):
     global failures, passed
     if cond:
@@ -245,16 +257,19 @@ def test_region_buttons_all_languages():
 # ============================================================
 
 def test_ru_user_local_flow():
-    print("== 2. RU foydalanuvchi → 🇺🇿 Uzcard/Humo (mahalliy to'lov) ==")
+    print("== 2. RU foydalanuvchi (+998 tasdiqlangan) → 🇺🇿 Uzcard/Humo (mahalliy to'lov) ==")
 
-    bot, last_q, texts, markups, ctx = _run_region_flow(
-        "ru", ["sub_pay:stars_1m", "sub_region:uz:1m"]
-    )
+    _UZ_STATE["verified"] = True
+    try:
+        bot, last_q, texts, markups, ctx = _run_region_flow(
+            "ru", ["sub_pay:stars_1m", "sub_region:uz:1m"]
+        )
+    finally:
+        _UZ_STATE["verified"] = False
     joined = "\n".join(texts)
     first_screen = texts[0] + "\n" + (_kb_texts_kb(markups[0]) if markups else "")
-    check("Tarif tanlangach avval mintaqa menyusi (2 tugma) chiqadi",
-          "Выберите регион оплаты" in first_screen
-          and "Узбекистан" in first_screen and "Международная" in first_screen,
+    check("Tasdiqlangan foydalanuvchi: tarif tanlangach menyu so'ralmaydi, to'g'ridan-to'g'ri mahalliy ekran",
+          "8600 0609 5082 5589" in first_screen and "Выберите регион оплаты" not in first_screen,
           first_screen[:160])
     check("Tarif tanlashda REKVIZIT DARHOL chiqmaydi: mintaqa tanlovigacha invoice yo'q",
           not bot.invoices, bot.invoices)
@@ -314,17 +329,17 @@ def test_international_flow_hides_local_cards():
     bot2, q2, texts2, markups2, ctx2 = _run_region_flow("en", ["sub_region:intl:1y"])
     check("Intl plan tanlangach invoice YUBORILDI", len(bot2.invoices) == 1, bot2.invoices)
     inv = bot2.invoices[0] if bot2.invoices else {}
-    check("Invoice: valuta XTR (Stars), summa 970 (PRO 1 yil)",
+    check("Invoice: valuta XTR (Stars), summa 1650 (PRO 1 yil)",
           inv.get("currency") == "XTR" and inv.get("prices")
-          and inv["prices"][0].amount == 970, inv)
+          and inv["prices"][0].amount == 1650, inv)
     check("Invoice payload eski kontrakt bilan mos (sub_stars_<plan>_<uid>)",
           inv.get("payload") == "sub_stars_1y_555001", inv.get("payload"))
     check("Invoice sarlavha/tavsif foydalanuvchi TILIDA (en)",
           "1 year" in str(inv.get("title")) and "1 year" in str(inv.get("description")),
           f"{inv.get('title')} / {inv.get('description')}")
     joined2 = "\n".join(texts2)
-    check("Intl ekran: ekvivalent valyuta — Stars + ~$19.40 ko'rsatiladi",
-          "970 Stars" in joined2 and "$19.40" in joined2, joined2[:200])
+    check("Intl ekran: ekvivalent valyuta — Stars + $33.00 ko'rsatiladi",
+          "1650 Stars" in joined2 and "$33.00" in joined2, joined2[:200])
     kb_all2 = _kb_texts_kb(markups2[-1]) if markups2 else ""
     check("Intl to'lov ekranida ham Uzcard/Humo YO'Q",
           "Uzcard" not in joined2 + kb_all2 and "Humo" not in joined2 + kb_all2,
@@ -337,9 +352,9 @@ def test_international_flow_hides_local_cards():
     # 3.3 sub_intl_plan:3m ham invoice yuboradi (tanlagich tugmasi).
     bot3, _, texts3, _, _ = _run_region_flow("uz", ["sub_intl_plan:3m"])
     inv3 = bot3.invoices[0] if bot3.invoices else {}
-    check("sub_intl_plan:3m → 300 Stars XTR invoice",
+    check("sub_intl_plan:3m → 510 Stars XTR invoice",
           len(bot3.invoices) == 1 and inv3.get("prices")
-          and inv3["prices"][0].amount == 300 and inv3.get("currency") == "XTR",
+          and inv3["prices"][0].amount == 510 and inv3.get("currency") == "XTR",
           inv3)
     check("sub_intl_plan ekranida Uzcard/Humo yo'q",
           all("Uzcard" not in t and "Humo" not in t for t in texts3), texts3)
@@ -347,10 +362,10 @@ def test_international_flow_hides_local_cards():
     # 3.4 Stars invoice payload'i validator + servis kontraktidan o'tadi.
     from services.payment_service import PaymentService
     import handlers.subscription as sub
-    plan, err = PaymentService.validate_payload("sub_stars_3m_555001", 555001, 300, "XTR")
+    plan, err = PaymentService.validate_payload("sub_stars_3m_555001", 555001, 510, "XTR")
     check("validate_payload: intl invoice payload qabul qilindi",
           plan is not None and err is None, err)
-    vp, verr = sub._validate_stars_payload("sub_stars_3m_555001", 555001, 300, "XTR", "uz")
+    vp, verr = sub._validate_stars_payload("sub_stars_3m_555001", 555001, 510, "XTR", "uz")
     check("_validate_stars_payload: handler validatori ham qabul qiladi",
           vp is not None and verr is None, verr)
 
@@ -364,13 +379,14 @@ def test_international_flow_hides_local_cards():
     # 3.6 Obuna kartasidagi Stars tugmasi ENDI rekvizit emas, mintaqa menyusini
     # ochadi (to'lov rekvizitlari to'g'ridan-to'g'ri chiqmasligi sharti).
     bot5, q5, texts5, markups5, _ = _run_region_flow("en", ["sub_pay:stars_1m"])
-    screen5 = texts5[0] + "\n" + (_kb_texts_kb(markups5[0]) if markups5 else "")
-    check("Stars tarif tugmasi bosilganda invoice yo'q — avval mintaqa so'raladi",
-          not bot5.invoices and len(q5.edits) == 1
-          and "Select your payment region" in screen5
-          and "Uzbekistan — Uzcard / Humo" in screen5
-          and "International — Stars / Crypto" in screen5,
-          screen5[:160])
+    check("Tasdiqlanmagan foydalanuvchi (til qanday bo'lmasin): tarif tugmasi -> dollar/Stars invoice, so'm rekvizitlari YO'Q",
+          len(bot5.invoices) == 1 and bot5.invoices[0]["currency"] == "XTR"
+          and "8600" not in "\n".join(texts5), str((bot5.invoices, texts5[:1])))
+    # So'mni tanlash (menyu) tasdiqlanmagan foydalanuvchiga rekvizit BERMAYDI: avval +998 tasdiqlash so'raladi.
+    bot6, q6, texts6, markups6, ctx6 = _run_region_flow("uz", ["sub_region:uz:1m"])
+    check("Tasdiqlanmagan + so'm tanlandi: rekvizit/so'm to'lovi YO'Q, +998 tasdiqlash so'raladi",
+          "8600" not in "\n".join(texts6) and not bot6.invoices and any("+998" in t for t in texts6)
+          and "phone_verify" in ctx6.user_data, str(texts6[:2]))
 
 
 # ============================================================
@@ -422,12 +438,12 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur1)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res1 = ps.PaymentService.process_stars_payment(
-            777001, "ch_intl_1", 970, "sub_stars_1y_777001", "pro", 365)
+            777001, "ch_intl_1", 1650, "sub_stars_1y_777001", "pro", 365)
     check("Stars ledger yozuvi: XTR + international_stars parametrlari",
           res1.get("ok") is True and res1.get("payment_method") == "international_stars"
           and res1.get("currency") == "XTR"
           and any("INSERT INTO payments" in q for q in cur1.queries)
-          and cur1.params[-2] == (777001, 970, "XTR", "sub_stars_1y_777001",
+          and cur1.params[-2] == (777001, 1650, "XTR", "sub_stars_1y_777001",
                                   "ch_intl_1", "succeeded", "international_stars"),
           f"{res1} {cur1.params}")
     check("Stars to'lovi ham davomida GREATEST/COALESCE bilan uzaytiradi (regression)",
@@ -438,7 +454,7 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur2)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         ps.PaymentService.process_stars_payment(
-            777002, "ch_norm_1", 115, "sub_stars_1m_777002", "pro", 30,
+            777002, "ch_norm_1", 195, "sub_stars_1m_777002", "pro", 30,
             payment_method="BIT_NOTUSUV_USUL")
     check("Noma'lum usul ledger'da international_stars bo'lib qoladi",
           cur2.params[-2][-1] == "international_stars", cur2.params)
@@ -462,7 +478,7 @@ def test_ledger_method_currency_split():
     with patch.object(ps, "transaction", _tx_with(cur4)), \
          patch.object(ps, "_invalidate_user"), patch.object(ps, "_cache_clear"):
         res4 = ps.PaymentService.process_stars_payment(
-            777001, "ch_intl_1", 970, "sub_stars_1y_777001", "pro", 365)
+            777001, "ch_intl_1", 1650, "sub_stars_1y_777001", "pro", 365)
     check("Takroriy Stars to'lovi: duplicate=True, days=0",
           res4.get("ok") is True and res4.get("duplicate") is True
           and res4.get("days") == 0, res4)
@@ -538,8 +554,8 @@ def test_schema_and_database_additive():
     # ``idx_ai_reservations_user`` qo'shildi → 18 → 19; PHASE C refaktorida
     # ``idx_post_templates_user`` qo'shildi → 23 → 24; PHASE D (11, 12-bandlar)
     # da kontent manbalari indekslari qo'shildi → 24 → 28.
-    check("schema.sql: indekslar soni schema_test parallelligiga mos (38)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 38,
+    check("schema.sql: indekslar soni schema_test parallelligiga mos (39)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 39,
           schema.count("CREATE INDEX IF NOT EXISTS"))
     check("database.py: ichki fallback DDL ham payment_method'ni oladi",
           "payment_method VARCHAR(32) NOT NULL DEFAULT 'international_stars'"

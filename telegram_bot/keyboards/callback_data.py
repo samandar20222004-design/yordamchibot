@@ -329,6 +329,8 @@ REGISTERED_NAMESPACES = (
     "set_style:",
     # 💰 Reklama birjasi (handlers/ad_market.py): katalog, so'rov, yozishma, kanal egasi paneli.
     "mk:",
+    # 🕒 Vaqt mintaqasi tanlash (handlers/timezone_flow.py).
+    "tz:",
 )
 
 #: Payload'siz (aniq) kanonik callback tokenlari.

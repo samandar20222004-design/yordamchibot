@@ -47,6 +47,7 @@ from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 tashkent_tz = pytz.timezone("Asia/Tashkent")
+from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
 QUEUE_PAGE_SIZE = 5
 
@@ -111,7 +112,7 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
     icon = _post_type_icon(post_type)
     preview = _content_preview(content)
     time_str = format_list_datetime(
-        sched_time, lang=normalize_lang(lang), now=datetime.now(tashkent_tz)
+        sched_time, lang=normalize_lang(lang), now=datetime.now(utz())
     ) or "—"
     ch_display = html_escape(ch_title or ch_id or "?")
     # Matn qisqartmasi bo'lmasa (sof media post) — tur ikonkasining o'zi
@@ -517,20 +518,20 @@ async def queue_push_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return QUEUE_MENU
 
     ch_id = post[2]
-    now = datetime.now(tashkent_tz)
+    now = datetime.now(utz())
     slots = await db.run_db(db.get_queue_slots, user_id)
 
     # Hozirgi vaqtdan keyingi bo'sh slotni topish
     occupied = await db.run_db(db.get_queue_occupied_times, user_id, ch_id, now.date())
     # Hozirgi postning vaqtini occupied dan olib tashlash (chunki u suriladi)
-    current_time = post[11].astimezone(tashkent_tz)
+    current_time = post[11].astimezone(utz())
     occupied = [(h, m) for h, m in occupied if not (h == current_time.hour and m == current_time.minute)]
 
     slot_dt, label = db.find_next_queue_slot(slots, occupied, now)
     if not slot_dt:
         # Ertaga urinish
         tomorrow = now + timedelta(days=1)
-        tomorrow_start = tashkent_tz.localize(
+        tomorrow_start = utz().localize(
             datetime(tomorrow.year, tomorrow.month, tomorrow.day, 0, 0)
         )
         occ_tom = await db.run_db(db.get_queue_occupied_times, user_id, ch_id, tomorrow.date())

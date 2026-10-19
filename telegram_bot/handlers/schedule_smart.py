@@ -20,8 +20,8 @@ import database as db
 from config import ADMIN_IDS_SET
 from locales.translations import get_lang, get_text
 from services import voice_schedule_quota as voice_quota
-from services.recurrence import TASHKENT
 from services.schedule_nlp import parse_schedule_text
+from services.user_timezone import utz
 from translations import voice_t
 from utils.audio_transcriber import check_duration, check_size, transcribe_voice
 from utils.date_format import format_datetime
@@ -145,7 +145,7 @@ async def time_voice_received(update: Update, context: ContextTypes.DEFAULT_TYPE
         await msg.reply_text(voice_t(key, lang), parse_mode="HTML")
         return GET_TIME
 
-    parsed = parse_schedule_text(heard, datetime.now(TASHKENT))
+    parsed = parse_schedule_text(heard, datetime.now(utz()))
     if not parsed.get("ok"):
         await give_back()
         await msg.reply_text(

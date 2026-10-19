@@ -63,7 +63,7 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
   channelId: string; title: string; listing: MarketListing | null; summary: MarketSummary | null
   onBack: () => void; onChanged: () => void
 }) {
-  const { client, notify } = useAppData()
+  const { client, notify, botUsername } = useAppData()
   const { t } = useI18n()
   const [listing, setListing] = useState<MarketListing | null>(initial)
   const [category, setCategory] = useState<MarketCategory>(initial?.category ?? 'other')
@@ -73,8 +73,11 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
   const [error, setError] = useState<ApiClientError | null>(null)
   const [priceBad, setPriceBad] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  const min = summary?.price_min ?? 1000
-  const max = summary?.price_max ?? 1_000_000_000
+  // Valyuta: mavjud e'lonniki; yangi e'lon — egasining mamlakatiga qarab (O'zbekiston raqami -> so'm, boshqa -> dollar).
+  const currency = initial?.currency ?? summary?.viewer.currency ?? 'UZS'
+  const needPhone = !initial && summary !== null && summary.viewer.country === ''
+  const min = currency === 'USD' ? (summary?.price_min_usd ?? 1) : (summary?.price_min ?? 1000)
+  const max = currency === 'USD' ? (summary?.price_max_usd ?? 100000) : (summary?.price_max ?? 1_000_000_000)
   const descMax = summary?.description_max ?? 400
   const blocked = listing?.status === 'blocked'
 
@@ -149,13 +152,19 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
           {MARKET_CATEGORIES.map((c) => <option key={c} value={c}>{t(`mk.cat.${c}` as MessageKey)}</option>)}
         </select>
         <label className="field" htmlFor="mk-price">{t('mk.fPriceInput')}</label>
-        <input id="mk-price" className="input" inputMode="numeric" value={price} placeholder="50000" aria-invalid={priceBad || undefined}
+        <input id="mk-price" className="input" inputMode="numeric" value={price} placeholder={currency === 'USD' ? '$20' : '50000'} aria-invalid={priceBad || undefined}
           disabled={busy !== null} onChange={(e) => { setPrice(e.target.value); setPriceBad(false) }} />
-        <p className={priceBad ? 'field-error' : 'muted small'}>{t('mk.priceHint')}</p>
+        <p className={priceBad ? 'field-error' : 'muted small'}>{t(currency === 'USD' ? 'mk.priceHintUsd' : 'mk.priceHint')}</p>
         <label className="field" htmlFor="mk-desc">{t('mk.fDesc')}</label>
         <textarea id="mk-desc" className="input" rows={3} value={desc} maxLength={descMax} disabled={busy !== null}
           onChange={(e) => setDesc(e.target.value)} />
         <p className="muted small">{t('mk.descHint', { max: descMax })}</p>
+        {needPhone && (
+          <div className="banner banner-warn" role="status">
+            {t('mk.phoneNeeded')}{' '}
+            {openBotAvailable(botUsername) && <button type="button" className="btn btn-ghost" onClick={() => openBot(botUsername)}>{t('common.openBot')}</button>}
+          </div>
+        )}
         {error && <FormError error={error} />}
         <Button variant="primary" block icon={listing ? 'check' : 'sparkle'} busy={busy === 'save'} disabled={busy !== null && busy !== 'save'} onClick={save}>
           {listing ? t('mk.save') : t('mk.publish')}

@@ -16,6 +16,9 @@ MIN_POSTS_FOR_VIEWS = 3
 STATS_TTL_HOURS = 6
 PRICE_MIN = 1_000
 PRICE_MAX = 1_000_000_000
+PRICE_MIN_USD = 1
+PRICE_MAX_USD = 100_000
+CURRENCIES = ("UZS", "USD")
 DESCRIPTION_MAX = 400
 INQUIRY_MAX = 1000
 INQUIRY_MIN = 10
@@ -30,14 +33,36 @@ def normalize_category(value: str | None) -> str:
     return value if value in CATEGORIES else "other"
 
 
-def parse_price(text: str) -> tuple[str, int | None]:
-    """Narx matnini tahlil qiladi. Qaytadi ``("ok", so'm)`` | ``("negotiable", None)`` | ``("error", None)``.
+def owner_currency(country: str | None) -> str:
+    """E'lon narxi valyutasi: O'zbekiston raqami (+998) bilan tasdiqlangan egasi — so'm, boshqa davlatlar — AQSH dollari."""
+    return "UZS" if str(country or "").upper() == "UZ" else "USD"
 
-    «50000», «50 000», «50k», «50 ming», «1.5 mln», «kelishiladi», «0» qabul qilinadi.
+
+def price_range(currency: str) -> tuple[int, int]:
+    return (PRICE_MIN_USD, PRICE_MAX_USD) if currency == "USD" else (PRICE_MIN, PRICE_MAX)
+
+
+_USD_WORDS = re.compile(r"(\$|usd|dollar\w*|долл\w*|доллар\w*)", re.IGNORECASE)
+
+
+def parse_price(text: str, currency: str = "UZS") -> tuple[str, int | None]:
+    """Narx matnini tahlil qiladi. Qaytadi ``("ok", son)`` | ``("negotiable", None)`` | ``("error", None)``.
+
+    So'm: «50000», «50 000», «50k», «50 ming», «1.5 mln». Dollar: «20», «$20», «20 usd», «1.5k». «kelishiladi» / «0» — kelishiladi.
     """
     raw = (text or "").strip().lower()
     if raw in _NEGOTIABLE:
         return "negotiable", None
+    if currency == "USD":
+        compact = _USD_WORDS.sub("", raw).strip()
+        if compact in _NEGOTIABLE:
+            return "negotiable", None
+        m = _PRICE_RE.match(compact)
+        if not m:
+            return "error", None
+        value = int(round(float(m.group(1).replace(",", ".")) * _MULT.get((m.group(2) or "").lower(), 1)))
+        low, high = price_range("USD")
+        return ("ok", value) if low <= value <= high else ("error", None)
     compact = re.sub(r"(?<=\d)[  _](?=\d{3}\b)", "", raw)
     m = _PRICE_RE.match(compact)
     if not m:
@@ -70,6 +95,15 @@ def format_count(n: int | None) -> str:
 
 def format_price(price: int | None, negotiable_label: str) -> str:
     return negotiable_label if price is None else f"{int(price):,}".replace(",", " ")
+
+
+def format_money(price: int | None, currency: str, uzs_label: str, negotiable_label: str) -> str:
+    """«$20» yoki «60 000 so'm» (valyuta e'lon bilan birga saqlanadi: chet ellik so'mni tushunmaydi)."""
+    if price is None:
+        return negotiable_label
+    if currency == "USD":
+        return f"${int(price):,}".replace(",", " ")
+    return f"{format_price(price, '')} {uzs_label}"
 
 
 def compute_stats(*, live_members: int | None, history: list[dict], views: list[int], posts_30d: int) -> dict:

@@ -932,7 +932,7 @@ EN_OVERLAY = {
         "• <i>\"in 30 minutes\"</i>\n"
         "Or exact format: <code>DD.MM.YYYY HH:MM</code> "
         "(e.g. <code>30.08.2026 18:00</code>)\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "ai_time_detecting": "🤖 <i>Detecting time...</i>",
     "ai_full_post_text": "📝 <b>Post text (full):</b>\n\n{text}",
@@ -1077,7 +1077,7 @@ EN_OVERLAY = {
         "Format: <code>DD.MM.YYYY HH:MM</code>\n"
         "Example: <code>{example}</code>\n\n"
         "Or just say it in plain words, e.g. <i>every day at 12:00</i>, <i>every 2 days at 09:30</i>, <i>every weekend at 10:00</i>. 🎤 You can also send a voice message.\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "vs_limit_free": "🎤 <b>Free voice scheduling used.</b>\n\nThe free plan includes voice scheduling once. PRO allows up to {n} per day. You can type the time instead.",
     "vs_limit_pro": "🎤 <b>Voice scheduling limit reached.</b>\n\n{n} voice schedules used today. Try later or type the time.",
@@ -1108,6 +1108,32 @@ EN_OVERLAY = {
     "tl_usage": "📊 View AI and queue usage (bot and Mini App)",
     "tl_unlimited": "unlimited",
     "tier_prices_head": "💳 <b>Prices</b> (UZS · Stars)",
+    "tier_prices_head_uz": "💳 <b>Prices</b> (UZS)",
+    "tier_prices_head_usd": "💳 <b>Prices</b> (USD · Telegram Stars)",
+    "tier_price_line_uz": "• {period} — <b>{uzs}</b> UZS{save}",
+    "btn_share_phone": "📱 Share number",
+    "phone_verify_prompt_buy": "📱 <b>Verify your phone number</b>\n\nTo buy a plan, send <b>your own</b> number with the button below. The number is not stored — only a country mark (for the right price and security). You don't need this to use the bot.",
+    "phone_verify_prompt_market": "📱 <b>Verify your phone number</b>\n\nTo list a channel on the ad exchange, send <b>your own</b> number with the button below: your channel will appear in your country's list. The number is not stored — only a country mark.",
+    "tz_title": "🕒 <b>Your time zone</b>\n\nCurrent: <b>{zone}</b> ({offset})\n\nPosts, schedules and reports use this time. Pick your country's zone:",
+    "tz_offset_title": '🌍 <b>Pick by UTC offset</b>\n\nIf your city is not listed, choose the UTC offset (e.g. Tashkent = UTC+5).',
+    "tz_btn_offset": '🌍 By UTC offset',
+    "tz_btn_auto": '🔁 Auto',
+    "tz_btn_back": '⬅️ Back',
+    "phone_verify_prompt_country": "📱 <b>Verify your phone number</b>\n\nFor your country's channel list, send <b>your own</b> number with the button below. The number is not stored — only a country mark.",
+    "phone_verify_ok": "✅ Number verified: {flag} {country}",
+    "phone_verify_fail": "❌ Not verified: the number must be valid and <b>yours</b>. Please try again.",
+    "uz_only_note": "ℹ️ Paying in UZS is only for Uzbekistan numbers (+998). You see USD prices (Telegram Stars).",
+    "market_after_verify": "You can now list your channel on the exchange via /market.",
+    "uz_verify_prompt": "🇺🇿 <b>Paying in UZS</b> is only for users with an Uzbekistan number (+998).\n\nSend <b>your own</b> number with the button below. The number is not stored — only an “from Uzbekistan” mark is set.",
+    "uz_verify_ok": "✅ Uzbekistan number verified. Prices are now in UZS, payment via Uzcard/Humo.",
+    "uz_verify_fail": "❌ Not verified: the number must be Uzbek (+998) and <b>yours</b>. You can pay in USD (Telegram Stars).",
+    "tier_price_line_usd": "• {period} — <b>${usd}</b> · ⭐️ {stars}{save}",
+    "tier_region_note_uz": "🇺🇿 Prices in UZS — for users with a verified Uzbekistan number (+998) (Uzcard/Humo).",
+    "tier_region_note_usd": "🌍 Prices in USD (Telegram Stars). If you are in Uzbekistan — tap “Pay in UZS”: we verify your phone number (+998).",
+    "tariff_btn_usd_tpl": "{period} — ${usd}",
+    "price_uzs_tpl": "{uzs} UZS",
+    "btn_region_usd": "🌍 Prices in $",
+    "btn_region_uzs": "🇺🇿 Pay in UZS",
     "tier_price_line": "• {period} — <b>{uzs}</b> UZS · ⭐️ {stars}{save}",
     "tier_pick_period": "👇 Choose a period:",
     "tier_terms": "ℹ️ After a successful payment the plan turns on immediately and the period is ADDED to your current subscription. Each AI request uses 1 of your daily limit; when it runs out, credits on your balance are used.",
@@ -1115,20 +1141,20 @@ EN_OVERLAY = {
     "plan_card_expires": "📅 Subscription: <b>{when}</b>",
     "plan_card_ai_used": "🤖 AI requests today: <b>{used} / {max}</b>",
     "plan_card_legacy": "🎁 Your previous PRO terms (extended limits) are kept until <b>{until}</b> — the period you paid for is not shortened.",
-    "plan_card_upsell_free": "⭐️ <b>PRO</b> — from {pro_price} UZS/month: {pro_ch} channels, {pro_ai} AI per day, no signature in posts.\n👑 <b>ULTRA</b> — from {ultra_price} UZS/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue.",
-    "plan_card_upsell_pro": "👑 <b>ULTRA</b> — from {ultra_price} UZS/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue. If you move from PRO to ULTRA, your remaining PRO time continues as ULTRA too.",
+    "plan_card_upsell_free": "⭐️ <b>PRO</b> — from {pro_price}/month: {pro_ch} channels, {pro_ai} AI per day, no signature in posts.\n👑 <b>ULTRA</b> — from {ultra_price}/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue.",
+    "plan_card_upsell_pro": "👑 <b>ULTRA</b> — from {ultra_price}/month: {ultra_ch} channels, {ultra_ai} AI per day, {ultra_q} queue. If you move from PRO to ULTRA, your remaining PRO time continues as ULTRA too.",
     "plan_card_help": "🆘 Payment or plan questions: ⚙️ Settings → ❓ Help.",
     "plan_name_enterprise": "Enterprise (unlimited)",
     "sub_pay_success_v2": "✅ <b>Payment received!</b>\n\n{emoji} Plan: <b>{name}</b>\n📅 Valid until: <b>{when}</b>\n\nUnlocked:\n{limits}",
     "sub_inv_title_tpl": "⭐️ PostAssist {tier} ({period})",
     "sub_inv_desc_tpl": "{tier} plan — {period}. Channels: {ch}, AI: {ai}/day, queue: {q}.",
-    "intl_tariff_tpl": "⭐️ {period} — {stars}★",
+    "intl_tariff_tpl": "⭐️ {period} — ${usd} · {stars}★",
     "tariff_btn_tpl": "{period} — {uzs} UZS",
     "np_time_future": (
         "⚠️ <b>This time has already passed.</b>\n\n"
         "Please enter a time in the FUTURE.\n"
         "Example: <code>{example}</code>\n\n"
-        "🕒 <i>Now in Tashkent: {now}</i>"
+        "🕒 <i>Now: {now} · [[TZ]]</i>"
     ),
     "np_time_format_error": (
         "⚠️ <b>Time format not recognized.</b>\n\n"
@@ -1138,7 +1164,7 @@ EN_OVERLAY = {
         "• time only — <code>18:00</code> (today, or tomorrow if passed)\n"
         "• <code>tomorrow 18:00</code>\n"
         "• <code>in 2 hours</code>\n\n"
-        "🕒 <i>All times are Tashkent time (UTC+5).</i>"
+        "🕒 <i>All times use [[TZ]]. /timezone</i>"
     ),
     "np_time_set": (
         "🕒 Time set: {time}. You can still change reactions, link or settings."
@@ -1151,7 +1177,7 @@ EN_OVERLAY = {
         "⚠️ <b>Wrong time format.</b>\n\n"
         "Write only the time as <code>HH:MM</code>.\n"
         "Example: <code>10:00</code> or <code>18:30</code>\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     "np_weekday_ask": "📅 <b>Which weekday should it go out?</b>",
     "np_weekday_invalid": "⚠️ Pick one of the days:",
@@ -1161,7 +1187,7 @@ EN_OVERLAY = {
     ),
     "np_recur_time_format": (
         "⚠️ <b>Wrong format!</b> Write the time as <code>HH:MM</code>. "
-        "Example: <code>10:00</code> 🕒 <i>(Tashkent time, UTC+5)</i>"
+        "Example: <code>10:00</code> 🕒 <i>[[TZ]]</i>"
     ),
     "np_duration_ask_daily": "⏳ <b>How long should the post go out daily?</b>",
     "np_duration_ask_weekly": "⏳ <b>How long should this post keep going out?</b>",
@@ -1188,7 +1214,7 @@ EN_OVERLAY = {
         "limit only that much will show in the channel post. The full text is saved."
     ),
     "np_confirm_time_none": "⏰ Time not set",
-    "np_confirm_time_single": "⏰ {time} (Tashkent time)",
+    "np_confirm_time_single": "⏰ {time} · time zone: [[TZ]]",
     "np_confirm_time_daily": "🔁 Daily at {time}",
     "np_confirm_time_twice": "🔁 Daily at {time} and {time2}",
     "np_confirm_time_weekly": "📅 Every {day} at {time}",
@@ -1446,7 +1472,7 @@ EN_OVERLAY = {
         "⚠️ <b>Time format not recognized.</b>\n\n"
         "Correct format: <code>DD.MM.YYYY HH:MM</code>\n"
         "Example: <code>{example}</code> or time only — <code>18:00</code>\n\n"
-        "🕒 <i>Tashkent time (UTC+5).</i>"
+        "🕒 <i>Time zone: [[TZ]]. /timezone</i>"
     ),
     # ✏️ TASK 2: edit selection menu (p_edit: does not ask for text right away).
     "pend_edit_menu_title": (

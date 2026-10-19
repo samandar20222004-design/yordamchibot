@@ -96,7 +96,7 @@ def main() -> int:
     cleanup()
     try:
         for uid in IDS:
-            cur.execute("INSERT INTO users (user_id, username, full_name, language_code, plan_type) VALUES (%s,%s,%s,'uz','free')",
+            cur.execute("INSERT INTO users (user_id, username, full_name, language_code, plan_type, phone_country, uz_verified) VALUES (%s,%s,%s,'uz','free','UZ',TRUE)",
                         (uid, f"u{uid}", f"Name{uid}"))
         cur.execute("INSERT INTO channels (user_id, channel_id, channel_title, is_active) VALUES (%s,%s,'Birja kanal',TRUE),"
                     "(%s,%s,'Yopiq',TRUE),(%s,%s,'Admin emas',TRUE),(%s,%s,'Boshqa',TRUE)",
@@ -169,6 +169,18 @@ def main() -> int:
         T.check("katalog: noto'g'ri saralash/kategoriya -> 400", C("GET", "/market/listings?sort=z", ADV)[0] == 400
                 and C("GET", "/market/listings?category=zzz", ADV)[0] == 400)
         T.check("katalog: noto'g'ri sahifa -> 400", C("GET", "/market/listings?page=abc", ADV)[0] == 400)
+        st, cm = C("GET", "/market/listings?country=mine", ADV)
+        T.check("katalog country=mine: UZ ko'ruvchi o'z mamlakati e'lonini ko'radi", st == 200 and any(i["id"] == lid for i in cm["items"]) and cm["filter"] == "mine", str(cm)[:200])
+        T.check("katalog: e'londa mamlakat va valyuta (UZ/UZS)", any(i["id"] == lid and i["country"] == "UZ" and i["currency"] == "UZS" for i in cm["items"]))
+        cur.execute("UPDATE users SET phone_country='DE', uz_verified=FALSE WHERE user_id=%s", (ADV2,))
+        st, cd = C("GET", "/market/listings?country=mine", ADV2)
+        T.check("DE ko'ruvchi country=mine: UZ e'loni ko'rinmaydi", st == 200 and not any(i["id"] == lid for i in cd["items"]) and cd["viewer_country"] == "DE", str(cd)[:200])
+        st, ca = C("GET", "/market/listings?country=all", ADV2)
+        T.check("DE ko'ruvchi country=all (global): UZ e'loni ko'rinadi", st == 200 and any(i["id"] == lid for i in ca["items"]))
+        T.check("katalog: noto'g'ri country -> 400", C("GET", "/market/listings?country=zz", ADV)[0] == 400)
+        cur.execute("UPDATE users SET phone_country=NULL, uz_verified=FALSE WHERE user_id=%s", (STR,))
+        st, nr = C("POST", "/market/mine", STR, {**good, "channel_id": CH_OTHER})
+        T.check("telefonsiz e'lon qo'yish -> phone_required", nr.get("error", {}).get("code") == "phone_required", str(nr))
         st, card = C("GET", f"/market/listings/{lid}", ADV)
         T.check("karta: ommaviy ma'lumot, is_owner=False", st == 200 and card["is_owner"] is False and card["listing"]["price"] == 60000, str(card))
         st, card_o = C("GET", f"/market/listings/{lid}", OWN)

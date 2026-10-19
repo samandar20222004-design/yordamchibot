@@ -33,7 +33,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler, MessageHandler
 
 import database as db
-from config import ADMIN_IDS_SET
+from config import ADMIN_IDS_SET, BOT_USERNAME
 from keyboards.callback_data import CB_POST_SCORE_EVAL, cb
 from keyboards.default import get_cancel_keyboard
 from locales.translations import get_lang, safe_t
@@ -52,7 +52,7 @@ from services.delivery import delivery_service  # yagona delivery engine
 from utils.ai_agent import pick_supported_kwargs
 from utils.channel_labels import channel_label_html, sent_notice
 from utils.telegram_sanitizer import sanitize_html, TELEGRAM_CAPTION_LIMIT
-from utils.helpers import html_escape, telegram_html_payload, parse_schedule_input
+from utils.helpers import apply_post_watermark, html_escape, telegram_html_payload, parse_schedule_input
 from utils.vision_analyzer import (
     IMAGE_CATEGORY_PRODUCT,
     IMAGE_TYPE_EVENT,
@@ -998,6 +998,8 @@ async def _load_image_channels(user_id: int):
 async def _deliver_targets(query, context, targets: list) -> int:
     file_id = context.user_data.get("image_post_file_id")
     caption = context.user_data.get("image_post_text") or ""
+    # Bepul tarif nishoni (🤖 @bot) rejalangan post bilan bir xil qoida bo'yicha (PRO/admin — toza).
+    caption = await apply_post_watermark(caption, query.from_user.id, BOT_USERNAME)
     album_items = _image_album_items(context)
     sent = 0
     sent_labels = []

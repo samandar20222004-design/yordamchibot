@@ -781,6 +781,16 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_payments_telegram_charge_id
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS user_code VARCHAR(8) UNIQUE;
+-- To'lov mintaqasi ('uz' = so'm, 'intl' = dollar/Stars): foydalanuvchi tanlovi; NULL = tildan aniqlanadi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS pay_region VARCHAR(8);
+-- O'zbekiston raqami (+998) o'z kontakti orqali tasdiqlangan (so'mda to'lash/narx shu bilan ochiladi). Raqamning o'zi SAQLANMAYDI.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS uz_verified BOOLEAN NOT NULL DEFAULT FALSE;
+-- Telefon (o'z kontakti) tasdiqlangan mamlakat (ISO-2; ZZ = noma'lum prefiks): statistika, birja filtri va narx mintaqasi. Raqam saqlanmaydi.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_country VARCHAR(2);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_users_phone_country ON users (phone_country) WHERE phone_country IS NOT NULL;
+-- Foydalanuvchi vaqt mintaqasi (IANA). NULL bo'lsa telefon mamlakatining asosiy zonasi, u ham yo'q bo'lsa Asia/Tashkent.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_credits INTEGER DEFAULT 5;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS ad_free_posts INTEGER DEFAULT 0;
@@ -1288,6 +1298,9 @@ CREATE TABLE IF NOT EXISTS ad_market_listings (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- E'lon mamlakati (egasining telefon bilan tasdiqlangan mamlakati; NULL = eski e'lon, faqat global ro'yxatda) va narx valyutasi (UZS | USD).
+ALTER TABLE ad_market_listings ADD COLUMN IF NOT EXISTS country VARCHAR(2);
+ALTER TABLE ad_market_listings ADD COLUMN IF NOT EXISTS price_currency VARCHAR(3) NOT NULL DEFAULT 'UZS';
 CREATE INDEX IF NOT EXISTS idx_ad_market_listings_owner ON ad_market_listings (owner_id);
 CREATE INDEX IF NOT EXISTS idx_ad_market_listings_catalog ON ad_market_listings (status, category, members DESC);
 

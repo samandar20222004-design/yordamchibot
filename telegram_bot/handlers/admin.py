@@ -206,6 +206,9 @@ def _build_full_stats_text(stats: dict, lang: str = "uz") -> str:
         block = _build_launch_gauges_text(onboarding, lang)
         if block:
             text = f"{text}\n\n{block}"
+    countries = stats.get("countries") if isinstance(stats, dict) else None
+    if isinstance(countries, dict) and countries.get("total"):
+        text = f"{text}\n\n{_build_countries_text(countries, lang)}"
     return text
 
 
@@ -281,6 +284,15 @@ def _build_launch_gauges_text(report: dict, lang: str = "uz") -> str:
     return "\n".join(lines)
 
 
+def _build_countries_text(countries: dict, lang: str = "uz") -> str:
+    """🌍 Davlatlar bo'yicha foydalanuvchilar (telefoni o'z kontakti orqali tasdiqlanganlar) + tasdiqlanmaganlar soni."""
+    from services.country import label
+
+    top = ", ".join(f"{label(i['country'])} <b>{i['users']}</b>" for i in countries.get("items", [])[:12]) or "—"
+    return (admin_t("fs_countries_head", lang, verified=countries.get("verified", 0), total=countries.get("total", 0)) + "\n"
+            + top + "\n" + admin_t("fs_countries_unverified", lang, n=countries.get("unverified", 0)))
+
+
 async def enrich_stats_with_onboarding(stats: dict, lang: str = "uz") -> dict:
     """statistika lug'atiga ``onboarding`` hisobotini qo'shadi.
 
@@ -288,6 +300,12 @@ async def enrich_stats_with_onboarding(stats: dict, lang: str = "uz") -> dict:
     (statistika ekrani har doim chiqadi, gauge bloki shunchaki tushmaydi).
     """
     enriched = dict(stats or {})
+    try:  # 🌍 davlatlar statistikasi (best-effort, ixtiyoriy blok)
+        countries = await db.run_db(db.country_stats)
+        if isinstance(countries, dict) and countries.get("total"):
+            enriched["countries"] = countries
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Davlat statistikasi olinmadi: %s", e)
     if enriched.get("onboarding"):
         return enriched
     try:

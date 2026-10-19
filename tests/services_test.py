@@ -315,17 +315,17 @@ def test_payment_validate_payload_valid():
     print("== PaymentService.validate_payload (to'g'ri) ==")
     from services.payment_service import PaymentService
 
-    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 12345, 115, "XTR")
+    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 12345, 195, "XTR")
     check("valid: plan qaytdi", plan is not None)
     check("valid: err None", err is None)
     check("valid: plan_key stars_1m", plan["plan_key"] == "stars_1m")
-    check("valid: stars 115", plan["stars"] == 115)
+    check("valid: stars 195", plan["stars"] == 195)
     check("valid: days 30", plan["days"] == 30)
 
-    plan2, err2 = PaymentService.validate_payload("sub_stars_3m_99", 99, 300, "XTR")
+    plan2, err2 = PaymentService.validate_payload("sub_stars_3m_99", 99, 510, "XTR")
     check("valid: 3 oylik", plan2["days"] == 90 and err2 is None)
 
-    plan3, err3 = PaymentService.validate_payload("sub_stars_1y_77", 77, 970, "XTR")
+    plan3, err3 = PaymentService.validate_payload("sub_stars_1y_77", 77, 1650, "XTR")
     check("valid: 1 yillik", plan3["days"] == 365 and err3 is None)
 
 
@@ -334,7 +334,7 @@ def test_payment_validate_payload_wrong_user():
     print("== PaymentService.validate_payload (noto'g'ri user) ==")
     from services.payment_service import PaymentService
 
-    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 99999, 115, "XTR")
+    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 99999, 195, "XTR")
     check("wrong_user: plan None", plan is None)
     check("wrong_user: xato xabari", "mos emas" in err)
 
@@ -354,7 +354,7 @@ def test_payment_validate_payload_wrong_currency():
     print("== PaymentService.validate_payload (noto'g'ri valyuta) ==")
     from services.payment_service import PaymentService
 
-    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 12345, 115, "USD")
+    plan, err = PaymentService.validate_payload("sub_stars_1m_12345", 12345, 195, "USD")
     check("wrong_currency: plan None", plan is None)
     check("wrong_currency: xato xabari", "valyutasi" in err)
 
@@ -384,7 +384,7 @@ def test_payment_process_stars_payment():
          patch("services.payment_service._invalidate_user"), \
          patch("services.payment_service._cache_clear"):
         result = PaymentService.process_stars_payment(
-            12345, "charge_abc", 115, "sub_stars_1m_12345", "pro", 30
+            12345, "charge_abc", 195, "sub_stars_1m_12345", "pro", 30
         )
         check("stars: ok True", result["ok"] is True)
         check("stars: duplicate False", result["duplicate"] is False)
@@ -418,7 +418,7 @@ def test_payment_process_stars_duplicate():
     _reset_cur(rows=[(1,), (1,)])
     with patch("services.payment_service.db_cursor", _make_mock_dc()):
         result = PaymentService.process_stars_payment(
-            12345, "charge_dup", 115, "sub_stars_1m_12345", "pro", 30
+            12345, "charge_dup", 195, "sub_stars_1m_12345", "pro", 30
         )
         check("duplicate: ok True", result["ok"] is True)
         check("duplicate: duplicate True", result["duplicate"] is True)

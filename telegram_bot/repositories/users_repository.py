@@ -577,6 +577,140 @@ def get_user_language(user_id: int) -> str:
         return "uz"
 
 
+def get_pay_profile(user_id: int) -> dict:
+    """Narx/to'lov profili (BIR so'rov): ``region`` ('uz' so'm | 'intl' dollar), ``phone_verified``, ``country`` (ISO-2 yoki ''),
+    ``uz_eligible`` (so'mda to'lash mumkinmi).
+
+    Til BU YERDA hisobga olinmaydi (tilni istalgan odam almashtira oladi). ``'uz'``: ``uz_verified`` (o'z +998 kontakti) YOKI avval
+    mahalliy karta/Payme orqali muvaffaqiyatli to'lagan (eski mijoz) va u o'zi «dollar» ko'rinishini tanlamagan. Xatoda — xavfsiz tomon
+    (dollar, tasdiqlanmagan).
+    """
+    default = {"region": "intl", "phone_verified": False, "country": "", "uz_eligible": False}
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(uz_verified, FALSE), pay_region, phone_country, "
+                "EXISTS (SELECT 1 FROM payments p WHERE p.user_id = users.user_id AND p.payment_method = 'uzcard_humo' "
+                "        AND p.status = 'succeeded') "
+                "FROM users WHERE user_id = %s",
+                (int(user_id),),
+            )
+            row = cur.fetchone()
+        if not row:
+            return default
+        verified, chosen, country, paid_local = bool(row[0]), row[1], (row[2] or ""), bool(row[3])
+        eligible = verified or paid_local
+        return {"region": "uz" if eligible and chosen != "intl" else "intl", "phone_verified": bool(country),
+                "country": country, "uz_eligible": eligible}
+    except Exception as e:  # noqa: BLE001
+        logger.error("get_pay_profile xatosi: %s", type(e).__name__)
+        return default
+
+
+def get_pay_region(user_id: int) -> str:
+    """Narx mintaqasi: ``'uz'`` yoki ``'intl'`` (qarang ``get_pay_profile``)."""
+    return get_pay_profile(user_id)["region"]
+
+
+def is_uz_eligible(user_id: int) -> bool:
+    """So'mda to'lash/narx ochiq bo'lishi mumkinmi (tasdiqlangan +998 yoki avval mahalliy to'lov)? Ko'rinish tanlovidan mustaqil."""
+    return get_pay_profile(user_id)["uz_eligible"]
+
+
+def get_user_country(user_id: int) -> str:
+    """Telefon bilan tasdiqlangan mamlakat (ISO-2) yoki ``''``."""
+    return get_pay_profile(user_id)["country"]
+
+
+def set_pay_region(user_id: int, region: str) -> bool:
+    """Ko'rinish tanlovi: ``'intl'`` (dollar) har doim mumkin; ``'uz'`` (so'm) — FAQAT tasdiqlangan/eski mahalliy mijoz uchun."""
+    if region not in ("uz", "intl"):
+        return False
+    if region == "uz" and not is_uz_eligible(user_id):
+        return False
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("UPDATE users SET pay_region = %s WHERE user_id = %s", (region, int(user_id)))
+            return bool(cur.rowcount)
+    except Exception as e:  # noqa: BLE001
+        logger.error("set_pay_region xatosi: %s", type(e).__name__)
+        return False
+
+
+def verify_phone(user_id: int, phone_number: str, contact_user_id) -> str | None:
+    """O'z kontakti orqali telefonni tasdiqlaydi va mamlakatni belgilaydi. Raqam SAQLANMAYDI — faqat ISO-2 mamlakat.
+
+    Qabul: kontakt egasi shu foydalanuvchining o'zi (``contact_user_id == user_id``) va yaroqli raqam. O'zbekiston (+998) bo'lsa
+    ``uz_verified`` ham qo'yiladi (so'm narxi/to'lovi). Qaytadi: ISO-2 (noma'lum prefiks uchun ``ZZ``) yoki ``None`` (rad).
+    """
+    from services.country import UNKNOWN as UNKNOWN_COUNTRY, country_from_phone
+
+    try:
+        if int(contact_user_id) != int(user_id):
+            return None
+    except (TypeError, ValueError):
+        return None
+    country = country_from_phone(phone_number)
+    if not country:
+        return None
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute(
+                "UPDATE users SET phone_country = %s, phone_verified_at = NOW(), "
+                "uz_verified = (uz_verified OR %s), pay_region = CASE WHEN %s THEN 'uz' ELSE pay_region END, "
+                # bayram/mavsum eslatmalari: standart «UZ» bo'lib qolgan chet ellik o'z mamlakatiga o'tadi (qo'lda tanlangan saqlanadi)
+                "target_country = CASE WHEN %s AND COALESCE(target_country, 'UZ') = 'UZ' THEN %s ELSE target_country END "
+                "WHERE user_id = %s",
+                (country, country == "UZ", country == "UZ", country not in ("UZ", UNKNOWN_COUNTRY), country, int(user_id)),
+            )
+            ok = bool(cur.rowcount)
+        if ok:
+            from services.user_timezone import invalidate
+
+            invalidate(user_id)
+        return country if ok else None
+    except Exception as e:  # noqa: BLE001
+        logger.error("verify_phone xatosi: %s", type(e).__name__)
+        return None
+
+
+def get_timezone_row(user_id: int) -> tuple[str | None, str | None]:
+    """``(users.timezone, users.phone_country)`` — zonani ``services.user_timezone.resolve`` aniqlaydi."""
+    with db_cursor() as cur:
+        cur.execute("SELECT timezone, phone_country FROM users WHERE user_id = %s", (int(user_id),))
+        row = cur.fetchone()
+    return (row[0], row[1]) if row else (None, None)
+
+
+def set_user_timezone(user_id: int, tz_name: str | None) -> bool:
+    """Qo'lda tanlangan zonani saqlaydi (``None`` — avtomatik: telefon mamlakati zonasiga qaytadi)."""
+    from services.user_timezone import invalidate, valid_tz
+
+    if tz_name is not None and not valid_tz(tz_name):
+        return False
+    with db_cursor(commit=True) as cur:
+        cur.execute("UPDATE users SET timezone = %s WHERE user_id = %s", (tz_name, int(user_id)))
+        ok = bool(cur.rowcount)
+    invalidate(user_id)
+    return ok
+
+
+def country_stats(limit: int = 30) -> dict:
+    """Admin statistikasi: tasdiqlangan foydalanuvchilar mamlakatlar bo'yicha (``items``), tasdiqlanmagan soni va jami."""
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT phone_country, COUNT(*) FROM users WHERE phone_country IS NOT NULL AND deleted_at IS NULL "
+                "GROUP BY phone_country ORDER BY COUNT(*) DESC, phone_country LIMIT %s", (max(1, min(int(limit), 100)),))
+            items = [{"country": r[0], "users": int(r[1])} for r in cur.fetchall()]
+            cur.execute("SELECT COUNT(*) FILTER (WHERE phone_country IS NOT NULL), COUNT(*) FROM users WHERE deleted_at IS NULL")
+            verified, total = cur.fetchone()
+        return {"items": items, "verified": int(verified or 0), "unverified": int((total or 0) - (verified or 0)), "total": int(total or 0)}
+    except Exception as e:  # noqa: BLE001
+        logger.error("country_stats xatosi: %s", type(e).__name__)
+        return {"items": [], "verified": 0, "unverified": 0, "total": 0}
+
+
 def set_user_language(user_id: int, language_code: str) -> bool:
     """Foydalanuvchi tilini yangilaydi ('uz' | 'ru')."""
     lang = _normalize_language_code(language_code)

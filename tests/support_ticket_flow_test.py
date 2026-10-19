@@ -378,7 +378,7 @@ def _msg_update_real(text="Salom", user_id=USER_ID, reply_to_message_id=None,
 def _routed_names(app, update, groups_limit=1):
     """Update uchun mos keladigan handler callback nomlari (birinchi guruh)."""
     names = []
-    for group in sorted(app.handlers)[:groups_limit]:
+    for group in [g for g in sorted(app.handlers) if g >= 0][:groups_limit]:  # manfiy guruhlar (-5: telefon kontakti) oddiy marshrutlash emas
         for handler in app.handlers[group]:
             try:
                 if handler.check_update(update):

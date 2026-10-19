@@ -83,7 +83,7 @@ describe('Profil sahifasi', () => {
   })
 
   it('Tarif alohida ekranda: davr tanlanadi, PRO va ULTRA kartalarida HAQIQIY limitlar, narx va tejam; botda sotib olish', async () => {
-    mockApi()
+    mockApi({ ...ME, pay_region: 'uz' }) // +998 tasdiqlangan: so'm ko'rinadi
     await openMe()
     openRow(/^Tarif/)
     expect(await screen.findByRole('heading', { name: 'Tariflar' })).toBeTruthy()
@@ -101,11 +101,27 @@ describe('Profil sahifasi', () => {
     fireEvent.click(tabs.getByRole('button', { name: /1 yil/ }))
     expect(screen.getByText('245 000 so\'m')).toBeTruthy()
     expect(screen.getByText('620 000 so\'m')).toBeTruthy()
-    expect(screen.getByText('970 Stars')).toBeTruthy()
+    expect(screen.queryByText('1650 Stars')).toBeNull()      // so'm mintaqasida Stars ko'rsatilmaydi
     expect(screen.getAllByText('−30%').length).toBeGreaterThan(0)
+    // 🌍 xalqaro mintaqa: dollar narxi (O'zbekiston narxidan 1,7 baravar) va Stars
+    fireEvent.click(within(screen.getByRole('group', { name: 'Narx mintaqasi' })).getByRole('button', { name: /Dollar/ }))
+    expect(screen.getByText('$33.00')).toBeTruthy()
+    expect(screen.getByText('$83.60')).toBeTruthy()
+    expect(screen.getByText('1650 Stars')).toBeTruthy()
+    expect(screen.queryByText('245 000 so\'m')).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Botda sotib olish' })).toHaveLength(2) // PRO va ULTRA; to'lov tugmasi Mini App'da yo'q
     fireEvent.click(screen.getByRole('button', { name: 'Orqaga' }))
     expect(await screen.findByText(/@alice/)).toBeTruthy()
+  })
+
+  it('Tasdiqlanmagan (chet el) foydalanuvchi: faqat dollar, so\'m yo\'q, almashtirgich yo\'q', async () => {
+    mockApi() // pay_region yo'q = 'intl' (til hisobga olinmaydi)
+    await openMe()
+    openRow(/^Tarif/)
+    expect(await screen.findByText('$3.90')).toBeTruthy()
+    expect(screen.getByText('$9.40')).toBeTruthy()
+    expect(screen.queryByText('29 000 so\'m')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Narx mintaqasi' })).toBeNull()
   })
 
   it('PRO: Tarif ekranida PRO «Hozirgi tarif», muddat ko\'rsatiladi; ULTRA sotib olinadi, PRO emas', async () => {

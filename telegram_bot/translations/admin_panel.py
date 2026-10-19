@@ -53,6 +53,8 @@ ADMIN_PANEL_I18N = {
         "fs_sent": "✅ Yuborilgan postlar: <b>{sent} ta</b>",
         "fs_cancelled": "🚫 Bekor qilingan: <b>{cancelled} ta</b>",
         "fs_failed": "⚠️ Xatolik: <b>{failed} ta</b>",
+        "fs_countries_head": "🌍 <b>Davlatlar</b> (telefoni tasdiqlangan: {verified} / {total})",
+        "fs_countries_unverified": "❔ Tasdiqlanmagan: <b>{n}</b>",
 
         # --- 📋 Barcha postlar ---
         "posts_empty_title": "📋 <b>Barcha postlar</b>",
@@ -540,6 +542,8 @@ ADMIN_PANEL_I18N["ru"] = {
     "fs_sent": "✅ Отправленных постов: <b>{sent}</b>",
     "fs_cancelled": "🚫 Отменённых: <b>{cancelled}</b>",
     "fs_failed": "⚠️ Ошибок: <b>{failed}</b>",
+    "fs_countries_head": "🌍 <b>Страны</b> (телефон подтверждён: {verified} / {total})",
+    "fs_countries_unverified": "❔ Не подтверждено: <b>{n}</b>",
 
     # --- 📋 Все посты ---
     "posts_empty_title": "📋 <b>Все посты</b>",
@@ -1019,6 +1023,8 @@ ADMIN_PANEL_I18N["en"] = {
     "fs_sent": "✅ Sent posts: <b>{sent}</b>",
     "fs_cancelled": "🚫 Cancelled: <b>{cancelled}</b>",
     "fs_failed": "⚠️ Failed: <b>{failed}</b>",
+    "fs_countries_head": "🌍 <b>Countries</b> (phone verified: {verified} / {total})",
+    "fs_countries_unverified": "❔ Unverified: <b>{n}</b>",
 
     # --- 📋 All posts ---
     "posts_empty_title": "📋 <b>All posts</b>",
