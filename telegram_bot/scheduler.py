@@ -1654,22 +1654,21 @@ async def _build_send_payload(ctx: dict):
     # oldin olinadi. Kanalda faqat foydalanuvchining ASL matni qoladi.
     clean_content = sanitize_channel_content(clean_content)
 
-    # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish
-    watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME)
-    # Nishon (🤖 @bot) matndan ajratib olinadi va kesishdan KEYIN, eng oxirida
-    # qo'shiladi — Telegram limiti tufayli yo'qolib qolmaydi.
-    watermarked_content, watermark_tail = split_watermark_footer(
-        watermarked_content, BOT_USERNAME)
-
     # Telegram caption limiti 1024, oddiy matn limiti 4096 belgidan iborat.
-    # Limit compose_post_text ichida qo'llanadi — nishon kesishdan KEYIN
-    # qo'shiladi, shuning uchun u hech qachon kesilib ketmaydi.
     pt_for_limit = str(post_type).lower()
     text_limit = (
         TELEGRAM_CAPTION_LIMIT if pt_for_limit in
         ("photo", "video", "animation", "document", "audio", "voice", "album")
         else TELEGRAM_TEXT_LIMIT
     )
+    # WATERMARK: Bepul foydalanuvchilar postlariga bot username qo'shish (matn limitga to'lgan bo'lsa — qo'yilmaydi)
+    watermarked_content = await apply_post_watermark(clean_content, user_id, BOT_USERNAME, limit=text_limit)
+    # Nishon (🤖 @bot) matndan ajratib olinadi va kesishdan KEYIN, eng oxirida
+    # qo'shiladi — Telegram limiti tufayli yo'qolib qolmaydi.
+    watermarked_content, watermark_tail = split_watermark_footer(
+        watermarked_content, BOT_USERNAME)
+
+    # Limit compose_post_text ichida qo'llanadi.
     try:
         final_content = compose_post_text(
             watermarked_content, has_ad_free, channel_ad, brand_text, limit=text_limit,

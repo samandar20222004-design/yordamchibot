@@ -2478,7 +2478,7 @@ def test_queue_ui_helpers():
     print("== queue: UI helpers ==")
     from handlers.queue import (
         _post_type_icon, _content_preview, _format_queue_item,
-        _get_queue_list_keyboard, _get_slots_keyboard,
+        _get_queue_list_keyboard, _get_slots_keyboard, _get_post_detail_keyboard,
         QUEUE_PAGE_SIZE,
     )
     from database import DEFAULT_QUEUE_SLOTS
@@ -2507,9 +2507,10 @@ def test_queue_ui_helpers():
     posts = [row]
     kb = _get_queue_list_keyboard(posts, 0, 1)
     cbs = [b.callback_data for row in kb.inline_keyboard for b in row]
-    check("kb: view tugmasi", "qview:1" in cbs, str(cbs))
-    check("kb: delete tugmasi", "qdel:1" in cbs, str(cbs))
-    check("kb: push tugmasi", "qpush:1" in cbs, str(cbs))
+    check("kb: view tugmasi (post bitta qator, ochiladi)", "qview:1" in cbs, str(cbs))
+    check("kb: ro'yxatda amal tugmalari YO'Q (post ichida)", not any(c in cbs for c in ("qdel:1", "qpush:1", "p_edit:1", "p_time:1")), str(cbs))
+    dcbs = [b.callback_data for r in _get_post_detail_keyboard(1, "uz").inline_keyboard for b in r]
+    check("post ichida: tahrirlash/vaqt/tugma/surish/o'chirish", all(c in dcbs for c in ("p_edit:1", "p_time:1", "sched_br:1", "qpush:1", "qdel:1")), str(dcbs))
     check("kb: slots tugmasi", "qslots:show" in cbs, str(cbs))
     check("kb: close tugmasi", "qclose" in cbs, str(cbs))
 
@@ -7050,10 +7051,8 @@ def test_queue_i18n_suite():
     ru_cbs = [b.callback_data for r in kb_ru.inline_keyboard for b in r]
     uz_cbs = [b.callback_data for r in kb_uz.inline_keyboard for b in r]
     check("queue list kb: callback bir xil", ru_cbs == uz_cbs, str((ru_cbs, uz_cbs)))
-    check("queue list kb ru: ko'rish/o'chirish/surish",
-          get_text("queue_btn_view", "ru", id=1) in ru_labels
-          and get_text("queue_btn_delete", "ru") in ru_labels
-          and get_text("queue_btn_push", "ru") in ru_labels, str(ru_labels))
+    check("queue list kb ru: bitta post = bitta qator (1. 🕐 ...)",
+          ru_labels[0].startswith("1. 🕐") and get_text("queue_btn_delete", "ru") not in ru_labels, str(ru_labels))
     check("queue list kb ru: slotlar/yopish",
           get_text("queue_btn_slots", "ru") in ru_labels
           and get_text("queue_btn_close", "ru") in ru_labels)
@@ -7064,8 +7063,8 @@ def test_queue_i18n_suite():
     dk_ru_cbs = [b.callback_data for r in dk_ru.inline_keyboard for b in r]
     check("queue detail ru: orqaga",
           get_text("queue_btn_back", "ru") in dk_ru_labels)
-    check("queue detail ru: callback o'zgarmagan",
-          dk_ru_cbs == ["qdel:5", "qpush:5", "qpage:0"], str(dk_ru_cbs))
+    check("queue detail ru: callback'lar (tahrirlash, vaqt, tugma, surish, o'chirish, orqaga)",
+          dk_ru_cbs == ["p_edit:5", "p_time:5", "sched_br:5", "qpush:5", "qdel:5", "qpage:0"], str(dk_ru_cbs))
 
     # Slots keyboard
     sk_ru = _get_slots_keyboard(["09:00", "19:00"], "ru")
@@ -8236,7 +8235,7 @@ def test_floodwait_and_ai_timeout_protection():
     async def _inner_sleep(seconds):
         inner["sleeps"].append(float(seconds))
 
-    async def _no_watermark(content, user_id, username):
+    async def _no_watermark(content, user_id, username, limit=None):
         return content
 
     orig_run_db = sch.db.run_db

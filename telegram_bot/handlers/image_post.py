@@ -999,7 +999,7 @@ async def _deliver_targets(query, context, targets: list) -> int:
     file_id = context.user_data.get("image_post_file_id")
     caption = context.user_data.get("image_post_text") or ""
     # Bepul tarif nishoni (🤖 @bot) rejalangan post bilan bir xil qoida bo'yicha (PRO/admin — toza).
-    caption = await apply_post_watermark(caption, query.from_user.id, BOT_USERNAME)
+    caption = await apply_post_watermark(caption, query.from_user.id, BOT_USERNAME, limit=1024)
     album_items = _image_album_items(context)
     sent = 0
     sent_labels = []

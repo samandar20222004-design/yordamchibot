@@ -53,6 +53,9 @@ import database as db
 from keyboards.default import get_cancel_keyboard, get_main_keyboard
 from keyboards.inline import (
     CB_MANUAL_24H,
+    CB_MANUAL_MORE_BACK,
+    get_manual_compact_panel,
+    get_manual_more_panel,
     CB_MANUAL_CANCEL,
     CB_MANUAL_CHANNEL,
     CB_MANUAL_CH_SELECTOR,
@@ -74,7 +77,6 @@ from keyboards.inline import (
     btn_label,
     get_duplicate_warning_keyboard,
     get_manual_channel_keyboard,
-    get_manual_post_panel,
     get_manual_reaction_keyboard,
     is_emoji_token,
     manual_channel_from_callback,
@@ -129,9 +131,10 @@ MODE_24H = "24h"        # 🗑 24 soatlik e'lon
 MODE_REPEAT = "repeat"  # 🔄 Takroriy e'lon
 
 #: user_data kalitlari (bir joyda — testlar va handlerlar uchun yagona manba).
-from utils.delivery_options import DELIVERY_KEYS, delivery_labels, delivery_markup  # noqa: E402
+from utils.delivery_options import DELIVERY_KEYS  # noqa: E402
 
 UD_DELIVERY = "mnp_delivery"
+UD_DEL24 = "mnp_del24"          # 🗑 24 soatdan keyin avtomatik o'chirish (belgi; yuborish vaqti alohida tanlanadi)
 UD_CONTENT = "mnp_content"
 UD_POST_TYPE = "mnp_post_type"
 UD_FILE_ID = "mnp_file_id"
@@ -212,7 +215,7 @@ def _clear_manual_state(context) -> None:
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MEDIA_GROUP, UD_MODE, UD_WHEN,
                 UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
-                UD_URL_BTN_URL, UD_DELIVERY, UD_SELECTED_CHANNEL_ID,
+                UD_URL_BTN_URL, UD_DELIVERY, UD_DEL24, UD_SELECTED_CHANNEL_ID,
                 UD_SELECTED_CHANNEL_TITLE, UD_ALBUM_ITEMS, UD_ALBUM_GROUP):
         context.user_data.pop(key, None)
     user_id = _manual_user_id(context)
@@ -628,6 +631,16 @@ def _smart_parse_url_button(raw_text: str):
     if not raw:
         return None, None
 
+    # 0) «@kanal», «t.me/kanal», «sayt.uz» (sxemasiz) — normalizatsiya qilib qabul qilinadi.
+    from handlers.new_post import normalize_button_url, parse_url_button_line
+
+    single = normalize_button_url(raw)
+    if single and validate_button_url(single)[0]:
+        return _auto_button_text(single), single
+    one_liner = parse_url_button_line(raw)  # «Matn - @kanal», «Matn | sayt.uz»
+    if one_liner and validate_button_url(one_liner[1])[0] and validate_button_text(one_liner[0])[0]:
+        return one_liner
+
     # 1) Yakka URL holati — eng oddiy va keng tarqalgan xato manbasi
     ok_single, _ = validate_button_url(raw)
     if ok_single:
@@ -765,8 +778,7 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     reactions = _manual_reactions(context)
     if reactions:
         rows.extend(build_reaction_button_rows(None, reactions, preview=True))
-    rows.append([InlineKeyboardButton(delivery_labels(lang)["title"], callback_data="mnp_delivery")])
-    rows.extend(get_manual_post_panel(lang).inline_keyboard)
+    rows.extend(get_manual_compact_panel(lang).inline_keyboard)
     # 3-vazifa: agar vaqt belgilangan bo'lsa — yakunlash tugmasi
     if context.user_data.get(UD_WHEN) or context.user_data.get(UD_REPEAT_TIME):
         try:
@@ -789,6 +801,8 @@ def _manual_extras_text(context, lang: str) -> str:
         lines.append(manual_post_t(
             "mp_url_on", lang, text=html_escape(url_btn[0]),
             url=html_escape(url_btn[1])))
+    if context.user_data.get(UD_DEL24):
+        lines.append(manual_post_t("mp_del24_on", lang))
     # 🖼 ALBOM: nechta fayl bitta post bo'lishi preview'da aniq ko'rinadi
     # (foydalanuvchi "fayllarim saqlandimi?" degan savol bilan qolmaydi).
     if (context.user_data.get(UD_POST_TYPE) == "album"
@@ -1009,7 +1023,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
 
     now = datetime.now(utz())
 
-    delete_after_hours = 24 if mode == MODE_24H else 0
+    delete_after_hours = 24 if (mode == MODE_24H or context.user_data.get(UD_DEL24)) else 0
     recurrence_type = "daily" if mode == MODE_REPEAT else "none"
     recurrence_time = (
         f"{context.user_data.get(UD_REPEAT_TIME)}:00"
@@ -1071,28 +1085,69 @@ async def _publish(target_msg, context, user_id: int, channel_id,
         return ConversationHandler.END
 
     channel_safe = html_escape((channel_title or "").strip() or "Kanal")
+    deliver_now = False
     if mode == MODE_TIME:
         msg_key = "mp_scheduled"
         time_display = (
             format_datetime(scheduled_time, lang)
             or scheduled_time.strftime("%Y-%m-%d %H:%M")
         )
-    elif mode == MODE_24H:
-        msg_key = "mp_sent_24h"
-        time_display = ""
     elif mode == MODE_REPEAT:
         msg_key = "mp_repeat_ok"
         time_display = format_time(
             f"{context.user_data.get(UD_REPEAT_TIME)}:00", lang)
     else:
-        msg_key = "mp_sent_now"
+        # 🚀 Hozir yuborish: «yuborildi» DEB AYTISH faqat haqiqatan chiqqandan keyin (pastda tekshiriladi).
+        msg_key = "mp_sending"
         time_display = ""
+        deliver_now = True
+    note = manual_post_t("mp_del24_note", lang) if delete_after_hours == 24 else ""
 
-    await _finalize(
+    status_msg = await _finalize(
         target_msg, context, user_id, lang,
-        manual_post_t(msg_key, lang, channel=channel_safe, time=time_display),
+        manual_post_t(msg_key, lang, channel=channel_safe, time=time_display) + (note if not deliver_now else ""),
     )
+    if deliver_now:
+        from utils.handler_timeout import run_background_task
+
+        run_background_task(
+            _deliver_now_and_report(context.bot, user_id, lang, pid, channel_safe, status_msg, note),
+            name=f"manual:deliver_now:{pid}",
+        )
     return ConversationHandler.END
+
+
+_NOW_POLLS, _NOW_POLL_DELAY = 24, 0.5
+
+
+async def _deliver_now_and_report(bot, user_id: int, lang: str, post_id, channel_safe: str, status_msg, note: str = "") -> None:
+    """Postni DARHOL yuboradi (daqiqalik tick kutilmaydi) va haqiqiy natijani aytadi: yuborildi / navbatda / chiqmadi."""
+    import asyncio
+
+    status = ""
+    try:
+        from scheduler import deliver_due_posts_now
+
+        await deliver_due_posts_now(bot)
+        for _ in range(_NOW_POLLS):
+            status = await db.run_db(db.get_post_status, post_id, user_id)
+            if status not in ("pending", "processing"):
+                break
+            await asyncio.sleep(_NOW_POLL_DELAY)
+    except Exception:
+        logger.exception("Hozir yuborish: natijani aniqlab bo'lmadi (post=%s)", post_id)
+    if status == "posted":
+        text = manual_post_t("mp_sent_now", lang, channel=channel_safe) + note
+    elif status in ("failed", "dead_letter", "cancelled"):
+        text = manual_post_t("mp_send_failed", lang, channel=channel_safe)
+    else:  # pending/processing — navbatda (tungi soatlar, kanal sovutishi, qayta urinish) yoki noma'lum
+        text = manual_post_t("mp_queued", lang, channel=channel_safe) + note
+    if status_msg is None:
+        return
+    try:
+        await status_msg.edit_text(text, parse_mode="HTML")
+    except Exception:
+        logger.debug("Hozir yuborish natijasini yangilab bo'lmadi", exc_info=True)
 
 
 async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
@@ -1151,14 +1206,14 @@ async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
 
 
 async def _finalize(target_msg, context, user_id: int, lang: str,
-                    text: str) -> None:
+                    text: str):
     """Yakuniy xabar + asosiy menyu + holatni tozalash (yagona nuqta)."""
     clear_fsm_data(context)
     _clear_manual_state(context)
     if target_msg is None:
-        return
+        return None
     try:
-        await target_msg.reply_text(
+        return await target_msg.reply_text(
             text,
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
             parse_mode="HTML",
@@ -1166,6 +1221,7 @@ async def _finalize(target_msg, context, user_id: int, lang: str,
     except Exception:
         logger.debug("Oddiy post yakuniy xabarini yuborib bo'lmadi",
                      exc_info=True)
+        return None
 
 
 # ============================================================
@@ -1676,6 +1732,14 @@ async def manual_url_media_received(update: Update,
     return MANUAL_URL_INPUT
 
 
+async def _edit_markup(query, markup) -> None:
+    """Xabarning tugmalarini joyida almashtiradi («message is not modified» xatosi e'tiborsiz)."""
+    try:
+        await query.edit_message_reply_markup(reply_markup=markup)
+    except Exception as _silent_exc:  # noqa: BLE001
+        log_silent_failure("handlers.manual_post:_edit_markup", _silent_exc)
+
+
 async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Universal boshqaruv paneli tugmalari (``mnp_*`` callback'lari)."""
     query = update.callback_query
@@ -1698,13 +1762,18 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return ConversationHandler.END
 
     if data == "mnp_delivery" or data.startswith("mnp_delivery:"):
+        # ⚙️ Qo'shimcha (2-bosqich paneli); sozlamalar shu xabarning o'zida yangilanadi.
         options = context.user_data.setdefault(UD_DELIVERY, {})
         if ":" in data:
             key = data.split(":", 1)[1]
             if key not in DELIVERY_KEYS:
                 return MANUAL_PREVIEW
             options[key] = not options.get(key, False)
-        await query.edit_message_reply_markup(reply_markup=delivery_markup(options, lang))
+        await _edit_markup(query, get_manual_more_panel(options, bool(context.user_data.get(UD_DEL24)), lang))
+        return MANUAL_PREVIEW
+
+    if data == CB_MANUAL_MORE_BACK:
+        await _edit_markup(query, _manual_preview_markup(context, lang))
         return MANUAL_PREVIEW
 
     if data == CB_MANUAL_CANCEL:
@@ -1843,8 +1912,11 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return await _choose_channel_or_act(query.message, context, user_id, lang)
 
     if data == CB_MANUAL_24H:
-        context.user_data[UD_MODE] = MODE_24H
-        return await _choose_channel_or_act(query.message, context, user_id, lang)
+        # 🗑 24 soatlik e'lon — faqat BELGI (yoqish/o'chirish). Yuborish vaqti keyin «Hozir yuborish» / «Vaqt belgilash» bilan tanlanadi.
+        context.user_data[UD_DEL24] = not context.user_data.get(UD_DEL24)
+        await _edit_markup(query, get_manual_more_panel(
+            context.user_data.setdefault(UD_DELIVERY, {}), bool(context.user_data.get(UD_DEL24)), lang))
+        return MANUAL_PREVIEW
 
     # dublikat ogohlantirishi amallari (SPEKS: 3 tugma).
     if data == CB_MANUAL_DUP_FORCE:

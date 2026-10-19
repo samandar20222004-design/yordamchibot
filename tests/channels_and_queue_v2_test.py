@@ -569,12 +569,14 @@ def test_scheduled_list_format_and_actions():
 
     list_cbs = cb_flat(markup)
     for pid in (201, 202, 203):
-        check(f"ro'yxat kb: #{pid} uchun 3 amal bor",
-              f"{CB_SCHED_EDIT}{pid}" in list_cbs
-              and f"{CB_SCHED_TIME}{pid}" in list_cbs
-              and f"{CB_SCHED_DELETE}{pid}" in list_cbs, str(list_cbs))
-    check("ro'yxat kb: eski amallar (qview:/qpush:) saqlangan",
-          "qview:201" in list_cbs and "qpush:201" in list_cbs, str(list_cbs))
+        check(f"ro'yxat kb: #{pid} BITTA qator (qview:), amallar post ichida",
+              f"qview:{pid}" in list_cbs
+              and not any(c in list_cbs for c in (f"{CB_SCHED_EDIT}{pid}", f"{CB_SCHED_TIME}{pid}", f"{CB_SCHED_DELETE}{pid}", f"qpush:{pid}")),
+              str(list_cbs))
+        detail_cbs = cb_flat(Q._get_post_detail_keyboard(pid, "uz"))
+        check(f"post ichida #{pid}: tahrirlash, vaqt, o'chirish, surish bor",
+              all(c in detail_cbs for c in (f"{CB_SCHED_EDIT}{pid}", f"{CB_SCHED_TIME}{pid}", f"{CB_SCHED_DELETE}{pid}", f"qpush:{pid}")),
+              str(detail_cbs))
 
     # --- Bo'sh holat ---
     empty_text, empty_kb = _with_db(_FakeDB(posts=[]),
@@ -869,8 +871,8 @@ def test_regression_guards():
           "qslots:rm:0" in slot_cbs and "qslots:add" in slot_cbs
           and "qslots:reset" in slot_cbs and "qpage:0" in slot_cbs, str(slot_cbs))
     detail_cbs = cb_flat(Q._get_post_detail_keyboard(7, "uz"))
-    check("post kartochkasi: eski callback'lar o'zgarmagan",
-          detail_cbs == ["qdel:7", "qpush:7", "qpage:0"], str(detail_cbs))
+    check("post kartochkasi: barcha amallar shu yerda (tahrirlash, vaqt, tugma, surish, o'chirish, orqaga)",
+          detail_cbs == ["p_edit:7", "p_time:7", "sched_br:7", "qpush:7", "qdel:7", "qpage:0"], str(detail_cbs))
 
     # (7) i18n modul ro'yxatga olingan (syntax_test importi).
     syn_src = (ROOT.parent / "tests" / "syntax_test.py").read_text(encoding="utf-8")

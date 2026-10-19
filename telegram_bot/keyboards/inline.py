@@ -1442,6 +1442,71 @@ def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
     ])
 
 
+CB_MANUAL_MORE = "mnp_delivery"       # ⚙️ Qo'shimcha (2-bosqich paneli; eski «Qo'shimcha sozlamalar» callback'i)
+CB_MANUAL_MORE_BACK = "mnp_mback"     # ⬅️ Orqaga (shu xabarning o'zida asosiy panelga qaytish)
+
+
+def get_manual_compact_panel(lang: str = "uz") -> InlineKeyboardMarkup:
+    """✍️ Oddiy post: ASOSIY (ixcham) panel — faqat eng kerakli 3 qator::
+
+        [🚀 Hozir yuborish]   [📅 Vaqt belgilash]
+        [⚙️ Qo'shimcha]       [✏️ Tahrirlash]
+        [❌ Bekor qilish]
+
+    Reaksiya, havolali tugma, 24 soatlik e'lon, takrorlash va yuborish sozlamalari — «⚙️ Qo'shimcha» ichida
+    (:func:`get_manual_more_panel`): bir ekranda 11 ta tugma foydalanuvchini chalkashtirardi.
+    """
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_send_now", lang), callback_data=CB_MANUAL_NOW),
+            InlineKeyboardButton(manual_post_t("mp_btn_schedule", lang), callback_data=CB_MANUAL_TIME),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_more", lang), callback_data=CB_MANUAL_MORE),
+            InlineKeyboardButton(manual_post_t("mp_btn_edit", lang), callback_data=CB_MANUAL_EDIT),
+        ],
+        [InlineKeyboardButton(manual_post_t("mp_btn_cancel", lang), callback_data=CB_MANUAL_CANCEL)],
+    ])
+
+
+def get_manual_more_panel(options=None, delete_24h: bool = False, lang: str = "uz") -> InlineKeyboardMarkup:
+    """⚙️ Qo'shimcha (2-bosqich): post ko'rinishi va yuborish variantlari::
+
+        [❤️ Reaksiyalar]       [🔗 Havolali tugma]
+        [🗑 24 soatlik e'lon]  [🔄 Takroriy e'lon]      (24 soat: yoqilgan bo'lsa ✅)
+        [Ovozsiz yuborish: Yo'q]
+        [Forward/nusxa olishni taqiqlash: Yo'q]
+        [Avtomatik qadash: Yo'q]
+        [⬅️ Orqaga]
+
+    «24 soatlik e'lon» faqat belgi (yoqish/o'chirish): vaqtni keyin «Hozir yuborish» yoki «Vaqt belgilash» bilan tanlaysiz.
+    """
+    from translations import manual_post_t
+    from utils.delivery_options import DELIVERY_KEYS, delivery_labels
+
+    options = options or {}
+    labels = delivery_labels(lang)
+    rows = [
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_reactions", lang), callback_data=CB_MANUAL_REACT),
+            InlineKeyboardButton(manual_post_t("mp_btn_url_btn", lang), callback_data=CB_MANUAL_URL_BTN),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_24h_on" if delete_24h else "mp_btn_24h", lang), callback_data=CB_MANUAL_24H),
+            InlineKeyboardButton(manual_post_t("mp_btn_repeat", lang), callback_data=CB_MANUAL_REPEAT),
+        ],
+    ]
+    for key in DELIVERY_KEYS:
+        rows.append([InlineKeyboardButton(
+            f"{labels[key]}: {labels['yes'] if options.get(key) else labels['no']}",
+            callback_data=cb("mnp_delivery:", key),
+        )])
+    rows.append([InlineKeyboardButton(labels["back"], callback_data=CB_MANUAL_MORE_BACK)])
+    return InlineKeyboardMarkup(rows)
+
+
 def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeyboardMarkup:
     """❤️ Reaksiya tanlash klaviaturasi (oddiy post preview oqimi)::
 
