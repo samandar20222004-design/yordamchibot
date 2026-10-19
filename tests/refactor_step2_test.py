@@ -282,23 +282,28 @@ def test_unified_scheduled_screen():
     tz = pytz.timezone("Asia/Tashkent")
     row = (7, "Kanalim", "text", "Salom dunyo", tz.localize(datetime(2026, 9, 20, 10, 0)), 3, "-100123")
 
-    required = {
-        "ko'rish (qview:)": "qview:7",
+    # Ro'yxatda har post BITTA qator (qview:), qolgan 4 amal post ICHIDA (detail klaviatura) — chalkashlik kamaytirildi.
+    required_in_detail = {
         "tahrirlash (p_edit:)": "p_edit:7",
         "vaqt (p_time:)": "p_time:7",
         "tugma/reaksiya (sched_br:)": "sched_br:7",
         "o'chirish (qdel:)": "qdel:7",
+        "surish (qpush:)": "qpush:7",
     }
     for lang in LANGS:
         kb = queue_mod._get_queue_list_keyboard([row], 0, 1, lang)
         cbs = _cbs(kb)
-        labels = _labels(kb)
-        for label, cb_data in required.items():
-            check(f"[{lang}] yagona ro'yxatda amal bor: {label}",
-                  cb_data in cbs, str(cbs))
-        for icon in ("👁", "✏️", "⏰", "🔗", "🗑"):
+        check(f"[{lang}] ro'yxatda post ochish tugmasi: qview:7", "qview:7" in cbs, str(cbs))
+        check(f"[{lang}] ro'yxatda amal tugmalari yo'q (post ichida)",
+              not any(c in cbs for c in required_in_detail.values()), str(cbs))
+        dkb = queue_mod._get_post_detail_keyboard(7, lang)
+        dcbs = _cbs(dkb)
+        dlabels = _labels(dkb)
+        for label, cb_data in required_in_detail.items():
+            check(f"[{lang}] post ichida amal bor: {label}", cb_data in dcbs, str(dcbs))
+        for icon in ("✏️", "⏰", "🔗", "🗑"):
             check(f"[{lang}] amal yorlig'i ko'rinadi: {icon}",
-                  any(icon in lb for lb in labels), str(labels))
+                  any(icon in lb for lb in dlabels), str(dlabels))
 
     # Eski 3 tugmali shartnoma (kanal kartochkalari) O'ZGARMAGAN.
     for lang in LANGS:

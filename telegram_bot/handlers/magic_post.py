@@ -575,7 +575,7 @@ async def _magic_deliver_one(bot, chat_id, post_text: str, user_id: int | None =
     mumkin) — xato hanuz False sifatida qaytadi.
     """
     if user_id is not None:
-        post_text = await apply_post_watermark(post_text, user_id, BOT_USERNAME)
+        post_text = await apply_post_watermark(post_text, user_id, BOT_USERNAME, limit=4096)
     payload, parse_mode = telegram_html_payload(post_text)
     try:
         await delivery_service.send_message(

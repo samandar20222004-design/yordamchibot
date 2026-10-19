@@ -42,18 +42,18 @@ MANUAL_POST_I18N = {
         # --- Kontent qabul qilindi: preview sarlavhasi ---
         "mp_preview_title": "👀 <b>Post preview — tayyor!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>Endi nima qilamiz?</b>\n"
-            "🚀 Hozir yuborish — darhol kanalga chiqadi\n"
-            "📅 Vaqtni belgilash — masalan, 19:30 ga\n"
-            "❤️ Reaksiyalar — post tagiga emoji tugmalari qo'shiladi\n"
-            "🔗 Havolali tugma — post ostida havolali (URL) tugma chiqadi\n"
-            "🗑 24 soatlik e'lon — chiqadi va 24 soatdan keyin avtomatik "
-            "o'chadi\n"
-            "🔄 Takroriy e'lon — har kuni bitta vaqtda qayta chiqadi"
+            "\n\n<b>Keyingi qadam:</b> 🚀 Hozir yuborish yoki 📅 Vaqt belgilash.\n"
+            "Reaksiya, havolali tugma, 24 soatlik e'lon — ⚙️ Qo'shimcha ichida."
         ),
         # --- Universal boshqaruv paneli tugmalari ---
         "mp_btn_send_now": "🚀 Hozir yuborish",
-        "mp_btn_schedule": "📅 Vaqtni belgilash",
+        "mp_btn_schedule": "📅 Vaqt belgilash",
+        "mp_btn_more": "⚙️ Qo'shimcha",
+        "mp_btn_reactions_on": "✅ Reaksiyalar",
+        "mp_btn_url_btn_on": "✅ Havolali tugma",
+        "mp_btn_url_rm": "🗑 Havolani o'chir",
+        "mp_btn_react_rm": "🗑 Reaksiya o'chir",
+        "mp_btn_24h_on": "✅ 24 soatlik",
         "mp_btn_reactions": "❤️ Reaksiyalar",
         "mp_btn_url_btn": "🔗 Havolali tugma",
         "mp_btn_24h": "🗑 24 soatlik e'lon",
@@ -98,14 +98,16 @@ MANUAL_POST_I18N = {
         # --- 🔗 Havolali (URL) tugma oqimi ---
         "mp_url_prompt": (
             "🔗 <b>Havolali tugma.</b>\n\n"
-            "Tugma matni va havolani quyidagi formatda yuboring:\n"
-            "Masalan: <code>Batafsil - https://t.me/kanal</code>"
+            "Tugma matni va havolani yuboring:\n"
+            "<code>Batafsil - https://t.me/kanal</code>\n\n"
+            "Faqat havola yoki <code>@kanal</code> ham bo'ladi — tugma matni o'zi tanlanadi."
         ),
         "mp_url_invalid": (
-            "⚠️ Tushunmadim. Tugma matni va havolani quyidagi formatda "
-            "yuboring:\n<code>Batafsil - https://t.me/kanal</code>\n\n"
-            "Faqat <code>http://</code>, <code>https://</code> va "
-            "<code>tg://</code> havolalariga ruxsat beriladi."
+            "⚠️ Tushunmadim. Quyidagilardan birini yuboring:\n"
+            "• <code>Batafsil - https://t.me/kanal</code>\n"
+            "• <code>@kanal</code> yoki <code>sayt.uz</code>\n\n"
+            "Faqat <code>http://</code>, <code>https://</code>, <code>tg://</code>, "
+            "<code>@username</code> va <code>t.me/...</code> havolalariga ruxsat beriladi."
         ),
         "mp_url_on": "🔗 Tugma: {text} → {url}",
         # --- Kanal tanlash ---
@@ -141,6 +143,19 @@ MANUAL_POST_I18N = {
             "✅ <b>Post kanalga yuborildi!</b>\n\n"
             "📢 Kanal: <b>{channel}</b>"
         ),
+        "mp_sending": "⏳ <b>Yuborilmoqda…</b>\n\n📢 Kanal: <b>{channel}</b>",
+        "mp_queued": (
+            "⏳ <b>Post navbatga qo'yildi.</b>\n\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "Bir daqiqa ichida chiqadi. Chiqmasa, sababini sizga yozaman."
+        ),
+        "mp_send_failed": (
+            "❌ <b>Post kanalga chiqmadi.</b>\n\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "Botning kanalda admin ekanini va xabar yuborish huquqi borligini tekshiring, so'ng qayta urinib ko'ring."
+        ),
+        "mp_del24_on": "🗑 24 soatdan keyin kanaldan avtomatik o'chadi",
+        "mp_del24_note": "\n🗑 24 soatdan keyin avtomatik o'chadi.",
         "mp_scheduled": (
             "📅 <b>Post rejalashtirildi!</b>\n\n"
             "📢 Kanal: <b>{channel}</b>\n"
@@ -219,20 +234,21 @@ MANUAL_POST_I18N = {
         ),
         "mp_preview_title": "👀 <b>Предпросмотр поста — готово!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>Что делаем дальше?</b>\n"
-            "🚀 Отправить сейчас — сразу выйдет в канал\n"
-            "📅 Указать время — например, на 19:30\n"
-            "❤️ Реакции — эмодзи-кнопки под постом\n"
-            "🔗 Кнопка-ссылка — кнопка с URL под постом\n"
-            "🗑 Объявление на 24 часа — выйдет и удалится через 24 часа\n"
-            "🔄 Повторяемое объявление — выходит ежедневно в одно время"
+            "\n\n<b>Дальше:</b> 🚀 Отправить сейчас или 📅 Указать время.\n"
+            "Реакции, кнопка-ссылка, объявление на 24 часа — в ⚙️ Ещё."
         ),
         "mp_btn_send_now": "🚀 Отправить сейчас",
         "mp_btn_schedule": "📅 Указать время",
         "mp_btn_reactions": "❤️ Реакции",
         "mp_btn_url_btn": "🔗 Кнопка-ссылка",
-        "mp_btn_24h": "🗑 24 soat",
-        "mp_btn_repeat": "🔄 Takroriy",
+        "mp_btn_24h": "🗑 На 24 часа",
+        "mp_btn_24h_on": "✅ На 24 часа",
+        "mp_btn_more": "⚙️ Ещё",
+        "mp_btn_reactions_on": "✅ Реакции",
+        "mp_btn_url_btn_on": "✅ Кнопка-ссылка",
+        "mp_btn_url_rm": "🗑 Убрать ссылку",
+        "mp_btn_react_rm": "🗑 Убрать реакции",
+        "mp_btn_repeat": "🔄 Повтор",
         "mp_btn_edit": "✏️ Редактировать",
         "mp_btn_cancel": "❌ Отмена",
         "mp_btn_back_panel": "◀️ Назад",
@@ -270,14 +286,16 @@ MANUAL_POST_I18N = {
         # --- 🔗 Поток кнопки-ссылки ---
         "mp_url_prompt": (
             "🔗 <b>Кнопка-ссылка.</b>\n\n"
-            "Отправьте текст кнопки и ссылку в таком формате:\n"
-            "Например: <code>Подробнее - https://t.me/kanal</code>"
+            "Отправьте текст кнопки и ссылку:\n"
+            "<code>Подробнее - https://t.me/kanal</code>\n\n"
+            "Можно только ссылку или <code>@kanal</code> — текст кнопки подберётся сам."
         ),
         "mp_url_invalid": (
-            "⚠️ Не понял. Отправьте текст кнопки и ссылку в таком "
-            "формате:\n<code>Подробнее - https://t.me/kanal</code>\n\n"
-            "Разрешены только ссылки <code>http://</code>, "
-            "<code>https://</code> и <code>tg://</code>."
+            "⚠️ Не понял. Отправьте одно из:\n"
+            "• <code>Подробнее - https://t.me/kanal</code>\n"
+            "• <code>@kanal</code> или <code>sayt.uz</code>\n\n"
+            "Разрешены ссылки <code>http://</code>, <code>https://</code>, <code>tg://</code>, "
+            "<code>@username</code> и <code>t.me/...</code>."
         ),
         "mp_url_on": "🔗 Кнопка: {text} → {url}",
         "mp_choose_channel": "📢 <b>В какой канал публикуем?</b>",
@@ -307,6 +325,19 @@ MANUAL_POST_I18N = {
             "✅ <b>Пост отправлен в канал!</b>\n\n"
             "📢 Канал: <b>{channel}</b>"
         ),
+        "mp_sending": "⏳ <b>Отправляю…</b>\n\n📢 Канал: <b>{channel}</b>",
+        "mp_queued": (
+            "⏳ <b>Пост поставлен в очередь.</b>\n\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "Выйдет в течение минуты. Если не выйдет — напишу причину."
+        ),
+        "mp_send_failed": (
+            "❌ <b>Пост не вышел в канал.</b>\n\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "Проверьте, что бот — админ канала и может публиковать сообщения, затем повторите."
+        ),
+        "mp_del24_on": "🗑 Через 24 часа автоматически удалится из канала",
+        "mp_del24_note": "\n🗑 Через 24 часа удалится автоматически.",
         "mp_scheduled": (
             "📅 <b>Пост запланирован!</b>\n\n"
             "📢 Канал: <b>{channel}</b>\n"
@@ -379,20 +410,20 @@ MANUAL_POST_I18N = {
         ),
         "mp_preview_title": "👀 <b>Post preview — ready!</b>\n\n",
         "mp_preview_foot": (
-            "\n\n<b>What's next?</b>\n"
-            "🚀 Send now — published to the channel immediately\n"
-            "📅 Set time — for example, 19:30\n"
-            "❤️ Reactions — emoji buttons attached under the post\n"
-            "🔗 Link button — a URL button appears under the post\n"
-            "🗑 24-hour announcement — published, then auto-deleted after "
-            "24 hours\n"
-            "🔄 Recurring announcement — republished daily at the same time"
+            "\n\n<b>Next:</b> 🚀 Send now or 📅 Set time.\n"
+            "Reactions, link button, 24-hour post — under ⚙️ More."
         ),
         "mp_btn_send_now": "🚀 Send now",
         "mp_btn_schedule": "📅 Set time",
         "mp_btn_reactions": "❤️ Reactions",
         "mp_btn_url_btn": "🔗 Link button",
         "mp_btn_24h": "🗑 24-hour",
+        "mp_btn_24h_on": "✅ 24-hour",
+        "mp_btn_more": "⚙️ More",
+        "mp_btn_reactions_on": "✅ Reactions",
+        "mp_btn_url_btn_on": "✅ Link button",
+        "mp_btn_url_rm": "🗑 Remove link",
+        "mp_btn_react_rm": "🗑 Clear reactions",
         "mp_btn_repeat": "🔄 Recurring",
         "mp_btn_edit": "✏️ Edit",
         "mp_btn_cancel": "❌ Cancel",
@@ -431,14 +462,16 @@ MANUAL_POST_I18N = {
         # --- 🔗 URL button flow ---
         "mp_url_prompt": (
             "🔗 <b>Link button.</b>\n\n"
-            "Send the button text and the link in this format:\n"
-            "Example: <code>Read more - https://t.me/kanal</code>"
+            "Send the button text and the link:\n"
+            "<code>Read more - https://t.me/kanal</code>\n\n"
+            "A bare link or <code>@channel</code> works too — the button text is picked for you."
         ),
         "mp_url_invalid": (
-            "⚠️ I didn't get it. Send the button text and the link in this "
-            "format:\n<code>Read more - https://t.me/kanal</code>\n\n"
-            "Only <code>http://</code>, <code>https://</code> and "
-            "<code>tg://</code> links are allowed."
+            "⚠️ I didn't get it. Send one of:\n"
+            "• <code>Read more - https://t.me/kanal</code>\n"
+            "• <code>@channel</code> or <code>site.com</code>\n\n"
+            "Allowed: <code>http://</code>, <code>https://</code>, <code>tg://</code>, "
+            "<code>@username</code> and <code>t.me/...</code> links."
         ),
         "mp_url_on": "🔗 Button: {text} → {url}",
         "mp_choose_channel": "📢 <b>Which channel do we publish to?</b>",
@@ -468,6 +501,19 @@ MANUAL_POST_I18N = {
             "✅ <b>Post sent to the channel!</b>\n\n"
             "📢 Channel: <b>{channel}</b>"
         ),
+        "mp_sending": "⏳ <b>Sending…</b>\n\n📢 Channel: <b>{channel}</b>",
+        "mp_queued": (
+            "⏳ <b>Post queued.</b>\n\n"
+            "📢 Channel: <b>{channel}</b>\n"
+            "It will go out within a minute. If it doesn't, I'll tell you why."
+        ),
+        "mp_send_failed": (
+            "❌ <b>The post did not reach the channel.</b>\n\n"
+            "📢 Channel: <b>{channel}</b>\n"
+            "Make sure the bot is a channel admin with permission to post, then try again."
+        ),
+        "mp_del24_on": "🗑 Will be auto-deleted from the channel after 24 hours",
+        "mp_del24_note": "\n🗑 It will be deleted automatically after 24 hours.",
         "mp_scheduled": (
             "📅 <b>Post scheduled!</b>\n\n"
             "📢 Channel: <b>{channel}</b>\n"

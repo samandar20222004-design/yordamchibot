@@ -271,11 +271,19 @@ def main() -> int:
                 has = text.lstrip().startswith(LINE) and text.count(LINE) == 1
                 none = LINE not in text
                 check(f"rejalangan [{ptype}] {name}: nishon {'BOR, POST BOSHIDA (1 marta)' if expect else 'YO`Q'}", has if expect else none, text[:80])
-        long_text = "a" * 5000
-        out = payload_for(FREE, "text", long_text)["final_content"]
-        check("bepul: 5000 belgili matn kesilganda ham nishon saqlanadi", LINE in out and len(out) <= 4096 + 40, str(len(out)))
+        # QOIDA: matn limitga to'lgan bo'lsa nishon QO'YILMAYDI (matn nishon uchun kesilmaydi); sig'sa — post boshida.
+        out = payload_for(FREE, "text", "a" * 5000)["final_content"]
+        check("bepul: 5000 belgili matn (limitdan uzun) -> nishon qo'yilmaydi, matn faqat Telegram limitigacha", LINE not in out and len(out) <= 4096, str(len(out)))
+        out = payload_for(FREE, "text", "a" * 4090)["final_content"]
+        check("bepul: 4090 belgi (nishon sig'maydi) -> nishon yo'q, matn TO'LIQ saqlandi", LINE not in out and len(out) == 4090, str(len(out)))
+        out = payload_for(FREE, "text", "a" * 4000)["final_content"]
+        check("bepul: 4000 belgi (nishon sig'adi) -> nishon BOR, matn to'liq", out.startswith(LINE) and out.endswith("a" * 4000), str(len(out)))
         out = payload_for(FREE, "photo", "b" * 3000)["final_content"]
-        check("bepul: rasm izohi (1024) kesilganda ham nishon saqlanadi", LINE in out and len(out) <= 1100, str(len(out)))
+        check("bepul: 3000 belgili rasm izohi (limitdan uzun) -> nishon yo'q, <= 1024", LINE not in out and len(out) <= 1024, str(len(out)))
+        out = payload_for(FREE, "photo", "b" * 1020)["final_content"]
+        check("bepul: 1020 belgili rasm izohi -> nishon yo'q, izoh to'liq", LINE not in out and out.count("b") == 1020, str(len(out)))
+        out = payload_for(FREE, "photo", "b" * 900)["final_content"]
+        check("bepul: 900 belgili rasm izohi -> nishon BOR", out.startswith(LINE) and out.endswith("b" * 900) and len(out) == 900 + len(LINE) + 2, str(len(out)))
         check("bepul: bo'sh matnli postda ham nishon bor", LINE in payload_for(FREE, "photo", "")["final_content"])
 
         print("\n== 5b. To'g'ridan-to'g'ri yuborish yo'llari ==")

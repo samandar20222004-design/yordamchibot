@@ -636,7 +636,7 @@ async def image_photo_received(update: Update, context: ContextTypes.DEFAULT_TYP
     #   N ta alohida AI chaqiruvi va N ta uslub menyusi BO'LMAYDI;
     # * izoh (caption) butun albomga tegishli — yagona matn;
     # * natija preview'i va kanalga yuborish BITTA ko'p-mediali post bo'ladi.
-    album_items = _register_album_items(context, message)
+    _register_album_items(context, message)
     # file_id Vision natijasidan qat'i nazar saqlanadi — fallback'da ham
     # tayyor post AYNAN shu rasm bilan yuboriladi.
     context.user_data["image_post_file_id"] = getattr(media, "file_id", None)
@@ -999,7 +999,7 @@ async def _deliver_targets(query, context, targets: list) -> int:
     file_id = context.user_data.get("image_post_file_id")
     caption = context.user_data.get("image_post_text") or ""
     # Bepul tarif nishoni (🤖 @bot) rejalangan post bilan bir xil qoida bo'yicha (PRO/admin — toza).
-    caption = await apply_post_watermark(caption, query.from_user.id, BOT_USERNAME)
+    caption = await apply_post_watermark(caption, query.from_user.id, BOT_USERNAME, limit=1024)
     album_items = _image_album_items(context)
     sent = 0
     sent_labels = []

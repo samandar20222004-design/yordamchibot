@@ -278,18 +278,21 @@ def test_scheduler_ticks(db, total_posts):
     bot = FakeBot(delay=0.01)  # har bir yuborish ~10ms — haqiqiy tarmoqni taqlid qiladi
     start = time.perf_counter()
 
-    # POST_BATCH_SIZE=100 → 250 ta post uchun 3 tick kerak
+    # Tick navbat bo'shaguncha paket-paket (har biri POST_BATCH_SIZE) oladi:
+    # 250 post bitta tick'da ketadi, qolgan tick'lar bo'sh o'tadi.
     sent_after_ticks = []
-    for _ in range(4):
+    for _ in range(2):
         asyncio.run(check_and_send_posts(bot))
         sent_after_ticks.append(len(bot.sent))
 
     elapsed = time.perf_counter() - start
     check(f"barcha {total_posts} post yuborildi", len(bot.sent) == total_posts,
           f"sent={len(bot.sent)}")
-    check("tick'lar orasida batch qoidalari buzilmadi",
-          sent_after_ticks[0] <= 100 and sent_after_ticks[1] <= 200,
+    check("birinchi tick'da navbat bo'shadi (paket-paket, 100 chegarasiz)",
+          sent_after_ticks[0] == total_posts,
           f"progress={sent_after_ticks}")
+    check("keyingi tick dublikat yubormadi",
+          sent_after_ticks[1] == total_posts, f"progress={sent_after_ticks}")
     print(f"  ↳ {total_posts} ta post {elapsed:.2f}s da yuborildi "
           f"({total_posts / elapsed:.0f} post/s)")
 

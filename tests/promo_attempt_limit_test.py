@@ -48,7 +48,8 @@ check("uz/ru/en matnlari farq qiladi", len({get_text("sub_promo_blocked", lg, mi
 now = [1000.0]
 lim = PromoAttemptLimiter(max_fails=3, window=100, max_tracked=4, clock=lambda: now[0])
 check("boshida bloklanmagan", lim.retry_after(1) == 0)
-lim.record_failure(1); lim.record_failure(1)
+lim.record_failure(1)
+lim.record_failure(1)
 check("limitdan past: hali bloklanmagan", lim.retry_after(1) == 0)
 lim.record_failure(1)
 w = lim.retry_after(1)
@@ -58,7 +59,9 @@ now[0] += 60
 check("60 s o'tgach kutish kamaydi (~40 s)", 39 <= lim.retry_after(1) <= 41, str(lim.retry_after(1)))
 now[0] += 41
 check("oyna o'tgach (101 s) yana mumkin", lim.retry_after(1) == 0)
-lim.record_failure(1); lim.record_failure(1); lim.record_failure(1)
+lim.record_failure(1)
+lim.record_failure(1)
+lim.record_failure(1)
 lim.reset(1)
 check("reset (muvaffaqiyat) hisoblagichni nolga qaytaradi", lim.retry_after(1) == 0)
 for uid in range(10, 20):
@@ -128,7 +131,8 @@ state, calls, msg = attempt(503, "OXIRGI", FAIL)
 check("tozalangandan keyin yana to'liq limit beriladi (yana 1 ta urinish DB'ga bordi)", len(calls) == 1, str(calls))
 
 check("oyna konstantasi o'zgarmagan (600 s)", WINDOW_SECONDS == 600)
-SUB.promo_limiter.reset(501); SUB.promo_limiter.reset(503)
+SUB.promo_limiter.reset(501)
+SUB.promo_limiter.reset(503)
 
 print(f"\n JAMI: o'tdi={passed}, xato={failed}, skip=0")
 sys.exit(0 if failed == 0 else 1)

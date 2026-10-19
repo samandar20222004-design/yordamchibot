@@ -34,8 +34,11 @@ import database as db
 from keyboards.default import get_cancel_keyboard, is_menu_text
 from keyboards.callback_data import cb
 from keyboards.inline import (
+    CB_POST_VIEW,
+    CB_SCHED_BTN_REACT,
+    CB_SCHED_EDIT,
+    CB_SCHED_TIME,
     render_scheduled_actions,
-    render_scheduled_full_actions,
     scheduled_btn_react_keyboard,
 )
 from locales.translations import get_lang, get_text, normalize_lang
@@ -122,25 +125,29 @@ def _format_queue_item(row, index: int, lang: str = "uz") -> str:
 
 
 def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -> InlineKeyboardMarkup:
-    """📅 YAGONA Rejalashtirilgan ro'yxati uchun inline keyboard.
+    """📅 Rejalashtirilgan ro'yxati: har post uchun BITTA qator (ixcham), amallar post ichida.
 
-    2-qadam (B1): «Kutilayotgan postlar» va «Rejalashtirilgan
-    postlar» bitta ekranga birlashtirildi, shu sababli har bir post ostida
-    BARCHA amallar TO'LIQ jamlangan (``render_scheduled_full_actions``)::
+    Oldin har post ostida 6 ta amal tugmasi chiqardi (5 post = 30 tugma) — ekran chalkash edi. Endi::
 
-        [👁 Ko'rish]   [✏️ Tahrirlash]
-        [⏰ Vaqt]      [🔗 Tugma/Reaksiya]
-        [🗑 O'chirish] [⏩ Surish]
+        [1. 🕐 Bugun 18:00 · Mening kanalim]     ← bosilsa post ochiladi (✏️ ⏰ 🔗 ⏩ 🗑 shu yerda)
+        [2. 🕐 Ertaga 09:00 · Kanal B]
+        [⬅️ Oldingi] [Keyingi ➡️]
+        [⚙️ Slotlar]
+        [❌ Yopish]
 
-    ``⏩ Surish`` — eski (alias) amal, ro'yxat oxirida saqlanadi; barcha
-    callback'lar (``qview:`` / ``p_edit:`` / ``p_time:`` / ``sched_br:`` /
-    ``qdel:`` / ``qpush:`` / ``qpage:`` / ``qslots:`` / ``qclose``) chat
-    tarixidagi eski tugmalar bilan bir xil qoladi.
+    Callback'lar o'zgarmagan (``qview:`` / ``qpage:`` / ``qslots:`` / ``qclose``).
     """
     rows = []
-    for post in posts:
+    now = datetime.now(utz())
+    for n, post in enumerate(posts, start=1):
         pid = post[0]
-        rows.extend(render_scheduled_full_actions(pid, lang))
+        ch_title = post[1] if len(post) > 1 else ""
+        sched_time = post[4] if len(post) > 4 else None
+        time_str = format_list_datetime(sched_time, lang=normalize_lang(lang), now=now) or "—"
+        label = f"{offset + n}. 🕐 {time_str}"
+        if ch_title:
+            label += f" · {ch_title}"
+        rows.append([InlineKeyboardButton(label[:48], callback_data=cb(CB_POST_VIEW, pid))])
 
     # Pagination tugmalari
     nav = []
@@ -162,19 +169,26 @@ def _get_queue_list_keyboard(posts, offset: int, total: int, lang: str = "uz") -
 
 
 def _get_post_detail_keyboard(post_id: int, lang: str = "uz") -> InlineKeyboardMarkup:
-    """Bitta rejalashtirilgan postni ko'rish ekrani keyboardi.
+    """Bitta rejalashtirilgan post ichidagi amallar (ro'yxatdan ochiladi)::
 
-    ATAYLAB o'zgarishsiz qoldirildi (``qdel:`` / ``qpush:`` / ``qpage:0``):
-    kartochka ekrani chat tarixidagi eski xabarlarda ham yashaydi. Master
-    plan speksidagi 3 ta amal ([✏️ Tahrirlash] [⏰ Vaqtni o'zgartirish]
-    [🗑 O'chirish]) RO'YXAT ekranida har bir post ostida turadi
-    (:func:`_get_queue_list_keyboard`).
+        [✏️ Tahrirlash]        [⏰ Vaqt]
+        [🔗 Tugma/Reaksiya]    [⏩ Surish]
+        [🗑 O'chirish]
+        [⬅️ Ro'yxat]
+
+    Callback'lar mavjud, sinovdan o'tgan oqimlarga boradi: ``p_edit:`` / ``p_time:`` / ``sched_br:`` / ``qpush:`` /
+    ``qdel:`` / ``qpage:0``.
     """
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{post_id}")),
+            InlineKeyboardButton(channels_queue_t("cq_sch_btn_edit", lang), callback_data=cb(CB_SCHED_EDIT, post_id)),
+            InlineKeyboardButton(channels_queue_t("cq_sch_btn_time_short", lang), callback_data=cb(CB_SCHED_TIME, post_id)),
+        ],
+        [
+            InlineKeyboardButton(channels_queue_t("cq_sch_btn_btn_react", lang), callback_data=cb(CB_SCHED_BTN_REACT, post_id)),
             InlineKeyboardButton(get_text("queue_btn_push", lang), callback_data=cb(f"qpush:{post_id}")),
         ],
+        [InlineKeyboardButton(get_text("queue_btn_delete", lang), callback_data=cb(f"qdel:{post_id}"))],
         [InlineKeyboardButton(get_text("queue_btn_back", lang), callback_data="qpage:0")],
     ])
 

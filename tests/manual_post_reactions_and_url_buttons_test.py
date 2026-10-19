@@ -79,7 +79,7 @@ import handlers.manual_post as MP  # noqa: E402
 import database as db_mod  # noqa: E402
 from keyboards.inline import (  # noqa: E402
     CB_MANUAL_24H, CB_MANUAL_CANCEL, CB_MANUAL_EDIT, CB_MANUAL_NOW,
-    CB_MANUAL_REACT, CB_MANUAL_REACT_BACK, CB_MANUAL_REACT_CUSTOM,
+    CB_MANUAL_REACT, CB_MANUAL_REACT_BACK, CB_MANUAL_REACT_CUSTOM, CB_MANUAL_REACT_SAVE,
     CB_MANUAL_REACT_TOGGLE, CB_MANUAL_REPEAT, CB_MANUAL_TIME,
     CB_MANUAL_URL_BTN, build_reaction_button_rows, get_manual_post_panel,
     manual_reaction_toggle_callback,
@@ -379,10 +379,10 @@ def test_reactions_flow():
               ctx.user_data.get(MP.UD_REACTIONS) == ["🔥"],
               str(ctx.user_data.get(MP.UD_REACTIONS)))
 
-        # ◀️ Orqaga → preview YANGILANADI: reaksiya xulosasi + preview tugmalar.
-        q_back = _Query(CB_MANUAL_REACT_BACK, _Msg())
+        # ✅ Saqlash va davom etish → preview YANGILANADI: reaksiya xulosasi + preview tugmalar.
+        q_back = _Query(CB_MANUAL_REACT_SAVE, _Msg())
         st_back = _run(MP.manual_panel_callback(_update_query(q_back), ctx))
-        check("◀️ Orqaga → MANUAL_PREVIEW", st_back == MP.MANUAL_PREVIEW, str(st_back))
+        check("✅ Saqlash → MANUAL_PREVIEW", st_back == MP.MANUAL_PREVIEW, str(st_back))
         preview = q_back.message.sent[-1]
         check("preview matnida reaksiya xulosasi bor",
               manual_post_t("mp_reactions_on", "uz", emojis="🔥")
@@ -390,6 +390,12 @@ def test_reactions_flow():
         pv_cbs = _flat_cbs(preview["reply_markup"])
         check("preview markup'da reaksiya preview tugmalari bor",
               "enh:noop" in pv_cbs and CB_MANUAL_NOW in pv_cbs, str(pv_cbs))
+        # ◀️ Orqaga — shu ekrandagi o'zgarishlarni BEKOR qiladi (oldingi holat qaytadi).
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_REACT, _Msg())), ctx))
+        _run(MP.manual_panel_callback(_update_query(_Query(manual_reaction_toggle_callback("👏"), _Msg())), ctx))
+        check("Orqaga'dan oldin tanlov o'zgargan", "👏" in (ctx.user_data.get(MP.UD_REACTIONS) or []))
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_REACT_BACK, _Msg())), ctx))
+        check("◀️ Orqaga → o'zgarishlar bekor (oldingi tanlov qaytdi)", ctx.user_data.get(MP.UD_REACTIONS) == ["🔥"], str(ctx.user_data.get(MP.UD_REACTIONS)))
         pv_labels = [b.text for b in _flat_buttons(preview["reply_markup"])]
         check("preview markup'da 🔥 emoji tugmasi ko'rinadi",
               "🔥" in pv_labels, str(pv_labels))

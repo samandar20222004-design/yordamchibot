@@ -401,7 +401,7 @@ from handlers.payment_receipt import (
 # (stgs_* callback'lari); rewards/help hub callback'lari alohida patternlar
 # bilan ham ro'yxatdan o'tkaziladi — generic legacy aliaslar saqlanadi.
 from handlers.settings import (
-    cleaner_command,
+    cleaner_command,  # noqa: F401 — ichki mantiq saqlangan (tugma olib tashlangan)
     cleaner_signature_entry,
     settings_help_hub_callback,
     settings_menu_callback,
@@ -1462,6 +1462,7 @@ def _content_states(all_menu_jumps):
             MessageHandler(filters.ALL & ~filters.COMMAND, manual_time_received),
         ],
         MANUAL_EDIT_INPUT: all_menu_jumps + [
+            CallbackQueryHandler(manual_panel_callback, pattern=r"^mnp_"),
             MessageHandler(filters.ALL & ~filters.COMMAND, manual_edit_received),
         ],
         # ✍️ 2-qadam UI/UX polish: ❤️ reaksiya (qo'lda emoji) va

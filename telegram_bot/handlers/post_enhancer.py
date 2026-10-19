@@ -1762,9 +1762,9 @@ async def _execute_send(update, context, query, enh):
         channel_ad = (ad_info.get("text") or "").strip()
         ad_button = build_ad_button_row(ad_info)
         brand_text = (await db.run_db(db.get_setting, "post_tag_text", "") or "").strip()
-        watermarked = await apply_post_watermark(content, user_id, BOT_USERNAME)
-        watermarked, watermark_tail = split_watermark_footer(watermarked, BOT_USERNAME)
         text_limit = 4096 if ptype == "text" else 1024
+        watermarked = await apply_post_watermark(content, user_id, BOT_USERNAME, limit=text_limit)
+        watermarked, watermark_tail = split_watermark_footer(watermarked, BOT_USERNAME)
         final_content = compose_post_text(watermarked, has_ad_free, channel_ad, brand_text,
                                           limit=text_limit, footer=watermark_tail)
     except Exception:

@@ -173,3 +173,6 @@
   .tab-pill, .tab svg, .btn, .bot-tool, .tiles .tile { transition: none !important; }
 }
 .meter-bar span[data-level='ok'] { background: var(--grad-brand); }
+
+/* Suzuvchi dock ustida «Postni rejalashtirish» paneli dock bilan ustma-ust tushmasin */
+.submit-bar { bottom: calc(var(--dock-h) + 18px + var(--safe-bottom)); }

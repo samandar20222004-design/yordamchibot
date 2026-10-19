@@ -1442,6 +1442,82 @@ def get_manual_post_panel(lang: str = "uz") -> InlineKeyboardMarkup:
     ])
 
 
+CB_MANUAL_MORE = "mnp_delivery"       # ⚙️ Qo'shimcha (2-bosqich paneli; eski «Qo'shimcha sozlamalar» callback'i)
+CB_MANUAL_REACT_SAVE = "mnp_rsave"     # ✅ Saqlash va davom etish (reaksiyalar)
+CB_MANUAL_URL_RM = "mnp_urlrm"         # 🗑 Havolali tugmani olib tashlash
+CB_MANUAL_REACT_RM = "mnp_reactrm"     # 🗑 Reaksiyalarni tozalash
+CB_MANUAL_MORE_BACK = "mnp_mback"     # ⬅️ Orqaga (shu xabarning o'zida asosiy panelga qaytish)
+
+
+def get_manual_compact_panel(lang: str = "uz") -> InlineKeyboardMarkup:
+    """✍️ Oddiy post: ASOSIY (ixcham) panel — faqat eng kerakli 3 qator::
+
+        [🚀 Hozir yuborish]   [📅 Vaqt belgilash]
+        [⚙️ Qo'shimcha]       [✏️ Tahrirlash]
+        [❌ Bekor qilish]
+
+    Reaksiya, havolali tugma, 24 soatlik e'lon, takrorlash va yuborish sozlamalari — «⚙️ Qo'shimcha» ichida
+    (:func:`get_manual_more_panel`): bir ekranda 11 ta tugma foydalanuvchini chalkashtirardi.
+    """
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_send_now", lang), callback_data=CB_MANUAL_NOW),
+            InlineKeyboardButton(manual_post_t("mp_btn_schedule", lang), callback_data=CB_MANUAL_TIME),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_more", lang), callback_data=CB_MANUAL_MORE),
+            InlineKeyboardButton(manual_post_t("mp_btn_edit", lang), callback_data=CB_MANUAL_EDIT),
+        ],
+        [InlineKeyboardButton(manual_post_t("mp_btn_cancel", lang), callback_data=CB_MANUAL_CANCEL)],
+    ])
+
+
+def get_manual_more_panel(options=None, delete_24h: bool = False, lang: str = "uz",
+                          has_link: bool = False, has_reactions: bool = False) -> InlineKeyboardMarkup:
+    """⚙️ Qo'shimcha (2-bosqich): post ko'rinishi va yuborish variantlari::
+
+        [❤️ Reaksiyalar]       [🔗 Havolali tugma]
+        [🗑 24 soatlik e'lon]  [🔄 Takroriy e'lon]      (24 soat: yoqilgan bo'lsa ✅)
+        [Ovozsiz yuborish: Yo'q]
+        [Forward/nusxa olishni taqiqlash: Yo'q]
+        [Avtomatik qadash: Yo'q]
+        [⬅️ Orqaga]
+
+    «24 soatlik e'lon» faqat belgi (yoqish/o'chirish): vaqtni keyin «Hozir yuborish» yoki «Vaqt belgilash» bilan tanlaysiz.
+    """
+    from translations import manual_post_t
+    from utils.delivery_options import DELIVERY_KEYS, delivery_labels
+
+    options = options or {}
+    labels = delivery_labels(lang)
+    rows = [
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_reactions_on" if has_reactions else "mp_btn_reactions", lang),
+                                 callback_data=CB_MANUAL_REACT),
+            InlineKeyboardButton(manual_post_t("mp_btn_url_btn_on" if has_link else "mp_btn_url_btn", lang),
+                                 callback_data=CB_MANUAL_URL_BTN),
+        ],
+        [
+            InlineKeyboardButton(manual_post_t("mp_btn_24h_on" if delete_24h else "mp_btn_24h", lang), callback_data=CB_MANUAL_24H),
+            InlineKeyboardButton(manual_post_t("mp_btn_repeat", lang), callback_data=CB_MANUAL_REPEAT),
+        ],
+    ]
+    # Qo'shilgan narsani shu yerning o'zida olib tashlash mumkin (qayta boshlash shart emas).
+    if has_link:
+        rows.append([InlineKeyboardButton(manual_post_t("mp_btn_url_rm", lang), callback_data=CB_MANUAL_URL_RM)])
+    if has_reactions:
+        rows.append([InlineKeyboardButton(manual_post_t("mp_btn_react_rm", lang), callback_data=CB_MANUAL_REACT_RM)])
+    for key in DELIVERY_KEYS:
+        rows.append([InlineKeyboardButton(
+            f"{labels[key]}: {labels['yes'] if options.get(key) else labels['no']}",
+            callback_data=cb("mnp_delivery:", key),
+        )])
+    rows.append([InlineKeyboardButton(labels["back"], callback_data=CB_MANUAL_MORE_BACK)])
+    return InlineKeyboardMarkup(rows)
+
+
 def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeyboardMarkup:
     """❤️ Reaksiya tanlash klaviaturasi (oddiy post preview oqimi)::
 
@@ -1478,8 +1554,15 @@ def get_manual_reaction_keyboard(selected=None, lang: str = "uz") -> InlineKeybo
         "uz": "✅ Saqlash va davom etish",
         "ru": "✅ Сохранить и продолжить",
         "en": "✅ Save and continue",
-    }[normalize_lang(lang)], callback_data=CB_MANUAL_REACT_BACK)])
+    }[normalize_lang(lang)], callback_data=CB_MANUAL_REACT_SAVE)])
     return InlineKeyboardMarkup(rows)
+
+
+def get_manual_back_markup(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Matn kutilayotgan bosqichlarda (havola, vaqt, emoji, tahrir) «◀️ Orqaga» — postni YO'QOTMASDAN preview'ga qaytaradi."""
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([[InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang), callback_data=CB_MANUAL_PANEL)]])
 
 
 def get_duplicate_warning_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:

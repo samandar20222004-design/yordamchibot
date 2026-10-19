@@ -131,7 +131,23 @@ async def is_watermark_exempt(user_id: int) -> bool:
         return False
 
 
-async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> str:
+def watermark_fits(text: str, bot_username: str, limit) -> bool:
+    """Nishon (``🤖 @bot\n\n``) matn bilan birga Telegram chegarasiga (``limit``, UTF-16) sig'adimi?
+
+    ``limit`` yo'q/0 bo'lsa — doim ``True``. Matn limitga to'lgan bo'lsa nishon QO'YILMAYDI (foydalanuvchi matni kesilmaydi).
+    """
+    line = watermark_line(bot_username)
+    if not line or not limit or int(limit) <= 0:
+        return True
+    from utils.telegram_sanitizer import html_length
+
+    body = "" if text is None else str(text).strip()
+    if not body:
+        return True
+    return html_length(body) + len(line.encode("utf-16-le")) // 2 + 2 <= int(limit)
+
+
+async def apply_post_watermark(text: str, user_id: int, bot_username: str, limit=None) -> str:
     """Bepul foydalanuvchilar postlarining BOSHIGA ``🤖 @bot`` nishonini qo'yadi.
 
     Qoidalar:
@@ -141,6 +157,8 @@ async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> st
       - Matn allaqachon shu nishon bilan boshlansa, takrorlanmaydi.
       - Nishon BOSHDA bo'lgani uchun Telegram limiti (matn faqat OXIRIDAN
         kesiladi) uni hech qachon kesib tashlamaydi.
+      - ``limit`` berilsa va matn nishon bilan chegaraga sig'masa — nishon
+        QO'YILMAYDI (matn limitga to'lgan: foydalanuvchi matni kesilmaydi).
     """
     line = watermark_line(bot_username)
     if not line or await is_watermark_exempt(user_id):
@@ -150,6 +168,8 @@ async def apply_post_watermark(text: str, user_id: int, bot_username: str) -> st
     if not body.strip():
         return line
     if has_watermark_header(body, bot_username):
+        return body
+    if not watermark_fits(body, bot_username, limit):
         return body
     # Nishon BOSHIGA qo'yiladi — chetdagi ortiqcha bo'sh joylar (oldingi
     # ko'rinishda oxiridagilar tozalanardi) olib tashlanadi.

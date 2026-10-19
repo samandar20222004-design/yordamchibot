@@ -278,15 +278,15 @@ def test_direct_preview_without_ai():
                   preview_text[:80])
             # 1-vazifa: kanal tugmasi qo'shilgani uchun panel endi kengaytirilgan
             cbs = _panel_callbacks(msg.sent[0].get("reply_markup")) if msg.sent[0].get("reply_markup") else []
-            expected = [
-                      "mnp_delivery",
-                      CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_REACT,
-                      CB_MANUAL_URL_BTN, CB_MANUAL_24H,
-                      CB_MANUAL_REPEAT, CB_MANUAL_EDIT, CB_MANUAL_CANCEL]
-            check(f"[{lang}] preview'da universal panel bor",
+            # Asosiy panel IXCHAM (3 qator): Hozir/Vaqt, Qo'shimcha/Tahrirlash, Bekor. Qolganlari «⚙️ Qo'shimcha» ichida.
+            expected = ["mnp_delivery", CB_MANUAL_NOW, CB_MANUAL_TIME, CB_MANUAL_EDIT, CB_MANUAL_CANCEL]
+            hidden = [CB_MANUAL_REACT, CB_MANUAL_URL_BTN, CB_MANUAL_24H, CB_MANUAL_REPEAT]
+            check(f"[{lang}] preview'da ixcham asosiy panel bor",
                   msg.sent[0].get("reply_markup") is not None
                   and all(e in cbs for e in expected),
                   str(msg.sent[0].get("reply_markup")))
+            check(f"[{lang}] reaksiya/havola/24 soat/takror asosiy panelda YO'Q (⚙️ Qo'shimcha ichida)",
+                  not any(h in cbs for h in hidden), str(cbs))
             # AI chaqiruvi UMUMAN bo'lmadi.
             check(f"[{lang}] AI/analiz chaqiruvi YO'Q (DB faqat kanal o'qidi)",
                   all(n == "get_user_channels" for n, _k in fake.calls),
@@ -355,7 +355,15 @@ def test_send_now_flow():
             msg, state, fake = _start_manual_flow(ctx, [("-1001", "Kanal A")])
             check(f"[{lang}] preview tayyor", state == MP.MANUAL_PREVIEW, str(state))
             q = _Query(CB_MANUAL_NOW, msg)
-            final_state = _run(MP.manual_panel_callback(_update_query(q), ctx))
+            import utils.handler_timeout as _ht
+            _orig_bg = _ht.run_background_task
+            _bg = []
+            _ht.run_background_task = lambda coro, **k: (_bg.append(k.get("name")), coro.close())
+            try:
+                final_state = _run(MP.manual_panel_callback(_update_query(q), ctx))
+            finally:
+                _ht.run_background_task = _orig_bg
+            check(f"[{lang}] 🚀 → haqiqiy yuborish fon vazifasi ishga tushdi", len(_bg) == 1 and "deliver_now" in str(_bg[0]), str(_bg))
             check(f"[{lang}] 🚀 → post saqlandi (db.add_post)",
                   len(fake.calls_of("add_post")) == 1, str(fake.calls))
             kw = fake.calls_of("add_post")[0]
@@ -368,9 +376,10 @@ def test_send_now_flow():
                   sched is not None
                   and abs(_to_utc_naive(sched) - now) < timedelta(minutes=2),
                   str(sched))
-            check(f"[{lang}] 🚀 → yakuniy xabar mp_sent_now",
+            check(f"[{lang}] 🚀 → «yuborildi» DEMAYDI, «yuborilmoqda» (haqiqiy natija keyin)",
                   q.message.sent and q.message.sent[-1]["text"].startswith(
-                      manual_post_t("mp_sent_now", lang, channel="x").split("<b>")[0]),
+                      manual_post_t("mp_sending", lang, channel="x").split("<b>")[0])
+                  and "✅" not in q.message.sent[-1]["text"],
                   str(q.message.sent)[:120])
             check(f"[{lang}] 🚀 → END + asosiy menyu qaytdi",
                   final_state == ConversationHandler.END
@@ -493,21 +502,53 @@ def test_schedule_and_announcement_flows():
     finally:
         fake.restore()
 
-    # --- 🗑 24 soatlik e'lon: darhol chiqadi + delete_after_hours=24 ---
+    # --- 🗑 24 soatlik e'lon: faqat BELGI; yuborish vaqti keyin tanlanadi (oldin vaqt so'ramay yakunlab qo'yardi) ---
     ctx = _ctx("uz")
     try:
         msg, state, fake = _start_manual_flow(ctx, [("-1001", "Kanal A")])
         q = _Query(CB_MANUAL_24H, msg)
         st = _run(MP.manual_panel_callback(_update_query(q), ctx))
+        check("🗑 24 soatlik e'lon → yakunlamaydi: post SAQLANMAYDI, preview holati qoladi",
+              st == MP.MANUAL_PREVIEW and not fake.calls_of("add_post"), f"{st} {fake.calls}")
+        check("🗑 24 soatlik e'lon → belgi yoqildi va ✅ ko'rinadi",
+              ctx.user_data.get(MP.UD_DEL24) is True
+              and any("✅" in b.text for b in q.edits[-1]["reply_markup"].inline_keyboard[1]), str(q.edits)[:160])
+        q_off = _Query(CB_MANUAL_24H, msg)
+        _run(MP.manual_panel_callback(_update_query(q_off), ctx))
+        check("🗑 qayta bosilsa belgi o'chadi (toggle)", not ctx.user_data.get(MP.UD_DEL24))
+        _run(MP.manual_panel_callback(_update_query(_Query(CB_MANUAL_24H, msg)), ctx))
+        import utils.handler_timeout as _ht
+        _orig_bg = _ht.run_background_task
+        _ht.run_background_task = lambda coro, **k: coro.close()
+        try:
+            q_now = _Query(CB_MANUAL_NOW, msg)
+            st = _run(MP.manual_panel_callback(_update_query(q_now), ctx))
+        finally:
+            _ht.run_background_task = _orig_bg
         kw = fake.calls_of("add_post")[-1]
-        check("🗑 24 soatlik e'lon → delete_after_hours=24",
-              kw.get("delete_after_hours") == 24, str(kw))
-        check("🗑 24 soatlik e'lon → darhol chiqadi (scheduled_time≈hozir)",
-              abs(_to_utc_naive(kw.get("scheduled_time")) - datetime.utcnow())
-              < timedelta(minutes=2), str(kw.get("scheduled_time")))
-        check("🗑 24 soatlik e'lon → mp_sent_24h xabari + END",
-              st == ConversationHandler.END and q.message.sent
-              and "24" in q.message.sent[-1]["text"], str(q.message.sent)[:120])
+        check("🗑 + 🚀 Hozir yuborish → delete_after_hours=24, scheduled_time≈hozir",
+              kw.get("delete_after_hours") == 24
+              and abs(_to_utc_naive(kw.get("scheduled_time")) - datetime.utcnow()) < timedelta(minutes=2), str(kw))
+        check("🗑 + 🚀 → END", st == ConversationHandler.END, str(st))
+    finally:
+        fake.restore()
+
+    # --- ⚙️ Qo'shimcha paneli va «Orqaga» (shu xabarning o'zida) ---
+    ctx = _ctx("uz")
+    try:
+        msg, state, fake = _start_manual_flow(ctx, [("-1001", "Kanal A")])
+        q = _Query("mnp_delivery", msg)
+        st = _run(MP.manual_panel_callback(_update_query(q), ctx))
+        more_cbs = _panel_callbacks(q.edits[-1]["reply_markup"])
+        check("⚙️ Qo'shimcha → reaksiya, havola, 24 soat, takror va Orqaga bor",
+              st == MP.MANUAL_PREVIEW and all(c in more_cbs for c in (
+                  CB_MANUAL_REACT, CB_MANUAL_URL_BTN, CB_MANUAL_24H, CB_MANUAL_REPEAT, "mnp_mback")), str(more_cbs))
+        q2 = _Query("mnp_mback", msg)
+        st = _run(MP.manual_panel_callback(_update_query(q2), ctx))
+        back_cbs = _panel_callbacks(q2.edits[-1]["reply_markup"])
+        check("⬅️ Orqaga → asosiy ixcham panel (yangi xabarsiz)",
+              st == MP.MANUAL_PREVIEW and CB_MANUAL_NOW in back_cbs and CB_MANUAL_24H not in back_cbs and not q2.message.sent[len(msg.sent):],
+              str(back_cbs))
     finally:
         fake.restore()
 
@@ -602,8 +643,8 @@ def test_universal_panel_spec():
           and uz_labels[4].startswith("🗑") and uz_labels[5].startswith("🔄")
           and uz_labels[6].startswith("✏️") and uz_labels[7].startswith("❌"),
           str(uz_labels))
-    check("panel: «Hozir yuborish» va «Vaqtni belgilash» aniq",
-          "Hozir yuborish" in uz_labels[0] and "Vaqtni belgilash" in uz_labels[1],
+    check("panel: «Hozir yuborish» va «Vaqt belgilash» aniq",
+          "Hozir yuborish" in uz_labels[0] and "Vaqt belgilash" in uz_labels[1],
           str(uz_labels))
     check("panel: «Reaksiyalar» va «Havolali tugma» aniq",
           "Reaksiyalar" in uz_labels[2] and "Havolali tugma" in uz_labels[3],
@@ -893,11 +934,51 @@ def test_i18n_parity_and_guards():
 
 
 # ============================================================================
+# 🚀 Hozir yuborish: HAQIQIY natija (yuborildi / navbatda / chiqmadi)
+# ============================================================================
+def test_send_now_real_result():
+    print("\n== TEST 2b: 🚀 natija rostligi (yuborildi / navbatda / chiqmadi) ==")
+    import scheduler as sch
+
+    class _Status:
+        def __init__(self):
+            self.edits = []
+
+        async def edit_text(self, text, **kw):
+            self.edits.append(text)
+
+    orig_deliver = sch.deliver_due_posts_now
+    orig_polls = MP._NOW_POLLS
+    MP._NOW_POLLS = 2
+    delivered = []
+
+    async def _deliver(bot):
+        delivered.append(1)
+
+    sch.deliver_due_posts_now = _deliver
+    try:
+        for status, key in (("posted", "mp_sent_now"), ("failed", "mp_send_failed"), ("pending", "mp_queued")):
+            fake = _FakeDB(values={"get_post_status": status})
+            try:
+                st = _Status()
+                _run(MP._deliver_now_and_report(None, USER_ID, "uz", 7, "Kanal A", st, ""))
+            finally:
+                fake.restore()
+            head = manual_post_t(key, "uz", channel="Kanal A").split("<b>")[1].split("</b>")[0]
+            check(f"holat {status!r} -> {key} xabari", st.edits and head in st.edits[-1], str(st.edits))
+        check("yuborish daqiqalik tick'ni kutmasdan darhol ishga tushirildi", len(delivered) == 3, str(delivered))
+    finally:
+        sch.deliver_due_posts_now = orig_deliver
+        MP._NOW_POLLS = orig_polls
+
+
+# ============================================================================
 def main():
     print("=" * 70)
     print(" ✍️ ODDIY (AI'SIZ) POSTING + BIRLASHTIRILGAN MENYU — QABUL TESTI")
     print("=" * 70)
     test_direct_preview_without_ai()
+    test_send_now_real_result()
     test_send_now_flow()
     test_schedule_and_announcement_flows()
     test_universal_panel_spec()

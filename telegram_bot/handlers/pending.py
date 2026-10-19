@@ -402,10 +402,9 @@ async def edit_post_btn_received(update: Update, context: ContextTypes.DEFAULT_T
         parts = text.split("|", 1)
         btn_title = parts[0].strip()
         btn_link = parts[1].strip()
-        if btn_link.startswith("@"):
-            btn_link = f"https://t.me/{btn_link.lstrip('@')}"
-        elif not btn_link.startswith(("http://", "https://", "t.me/")):
-            btn_link = "https://" + btn_link
+        from handlers.new_post import normalize_button_url
+
+        btn_link = normalize_button_url(btn_link) or btn_link
         # havolali tugma manzili saqlashdan OLDIN qat'iy
         # tekshiriladi — javascript:/data: kabi xavfli sxemalar va ichki
         # tarmoq manzillari (localhost, 127.0.0.1, 10.*, 192.168.*,

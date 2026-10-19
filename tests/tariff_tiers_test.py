@@ -158,7 +158,11 @@ def fill(uid, channels=0, posts=0):
 cleanup()
 try:
     print("\n== Limitlar tarif bo'yicha (haqiqiy tekshiruvlar) ==")
-    seed(FREE, "free"); seed(PRO, "pro", 10); seed(ULTRA, "ultra", 10); seed(LEG, "pro", 10, legacy_days=10); seed(ENT, "enterprise", None)
+    seed(FREE, "free")
+    seed(PRO, "pro", 10)
+    seed(ULTRA, "ultra", 10)
+    seed(LEG, "pro", 10, legacy_days=10)
+    seed(ENT, "enterprise", None)
     seed(EXPU, "ultra", -1)
     for uid, n_ch in ((FREE, 3), (PRO, 10), (ULTRA, 30), (LEG, 30), (ENT, 40), (EXPU, 5)):
         fill(uid, channels=n_ch)
@@ -193,7 +197,9 @@ try:
           [db.get_plan_tier(u) for u in (FREE, PRO, ULTRA, ENT, EXPU)] == ["free", "pro", "ultra", "enterprise", "free"])
 
     print("\n== To'lov: tarif berish qoidalari ==")
-    seed(SUBS, "free"); seed(UP, "pro", 10); seed(DOWN, "ultra", 10)
+    seed(SUBS, "free")
+    seed(UP, "pro", 10)
+    seed(DOWN, "ultra", 10)
 
     def stars(uid, key, charge):
         info = config.TARIFF_CATALOG[key]
