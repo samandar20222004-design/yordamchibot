@@ -485,3 +485,8 @@ img.avatar-photo { object-fit: cover; background: var(--border); }
 .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 @supports (backdrop-filter: blur(1px)) { nav[aria-label], .tabbar { backdrop-filter: saturate(1.4) blur(14px); } }
 @media (prefers-reduced-motion: reduce) { .btn, .set-row, .mg-add, .tool { transition: none; } }
+.mg-removed img, .mg-removed video, .mg-removed .mg-ph { opacity: .35; filter: grayscale(1); }
+.mg-removed { outline: 2px dashed var(--danger, #d33); outline-offset: -2px; }
+.mg-undo { background: var(--accent, #2563eb); }
+.mg-staged { outline: 2px dashed var(--accent, #2563eb); outline-offset: -2px; }
+.mg-note { position: absolute; left: 4px; right: 4px; bottom: 4px; font-size: 10px; line-height: 1.2; text-align: center; color: #fff; background: rgba(0, 0, 0, .62); border-radius: 8px; padding: 2px 4px; }

@@ -3,7 +3,7 @@ import { useAppData } from '../AppData'
 import type { ApiClientError } from '../api/client'
 import type { MediaItem, PostFilter, ScheduledPost } from '../api/types'
 import { ConfirmDialog, Dialog } from '../components/Dialog'
-import { MediaGrid, type LocalUpload } from '../components/MediaGrid'
+import { MediaGrid, type StagedUpload } from '../components/MediaGrid'
 import { PostThumb } from '../components/PostThumb'
 import { RichTextField } from '../components/RichTextField'
 import { Page, PageHeader } from '../components/Shell'
@@ -80,9 +80,12 @@ function EditDialog({ post, onClose, onSaved }: {
   const [busy, setBusy] = useState(false)
   const [mediaBusy, setMediaBusy] = useState(false)
   const [mediaVersion, setMediaVersion] = useState(0)
-  const [hasMedia, setHasMedia] = useState(post.has_media)
   const [mediaItems, setMediaItems] = useState<MediaItem[]>(post.media_items ?? (post.has_media ? [{ type: post.post_type, previewable: true }] : []))
-  const [locals, setLocals] = useState<LocalUpload[]>([])
+  // Rasm/video o'zgarishlari FAQAT «Saqlash»da serverga yuboriladi: o'chirishga belgilangan indekslar va qo'shiladigan fayllar shu yerda turadi.
+  const [removed, setRemoved] = useState<Set<number>>(() => new Set())
+  const [staged, setStaged] = useState<StagedUpload[]>([])
+  const stagedRef = useRef<StagedUpload[]>([])
+  stagedRef.current = staged
   const [progress, setProgress] = useState<string | null>(null)
   const inFlight = useRef(false)
   const recurrence = post.recurrence ?? ''
@@ -90,6 +93,8 @@ function EditDialog({ post, onClose, onSaved }: {
   // Kun vaqtini (va kuniga ikkinchi vaqtni) faqat kunlik/ikki vaqtli postlarda o'zgartirish mumkin; boshqa turlarda — faqat birinchi vaqt.
   const dailyKind = recurrence === 'daily' || recurrence === 'twice'
   // Media postda matn = sarlavha (caption): Telegram 1024 dan kesadi, shuning uchun tahrirda ham shu chegara.
+  const keptServerMedia = mediaItems.length - removed.size
+  const hasMedia = keptServerMedia + staged.length > 0 // Saqlangandan keyingi holat
   const textMax = hasMedia ? config.maxCaptionChars : config.maxPostChars
   const originals = useRef({ text: '', btnText: '', btnUrl: '', when: isoToLocalInput(post.scheduled_time), time1: post.recurrence_time ?? '', time2: post.recurrence_time2 ?? null as string | null })
 
@@ -111,50 +116,69 @@ function EditDialog({ post, onClose, onSaved }: {
     return () => ctl.abort()
   }, [client, post.id])
 
-  const mediaAction = async (run: () => Promise<ScheduledPost>, doneKey: MessageKey) => {
-    setMediaBusy(true)
-    setError(null)
-    try {
-      const updated = await run()
-      setHasMedia(updated.has_media)
-      setMediaItems(updated.media_items ?? (updated.has_media ? [{ type: updated.post_type, previewable: true }] : []))
-      setMediaVersion((v) => v + 1)
-      notify(t(doneKey))
-      onSaved(false) // ro'yxat fonda yangilanadi, oyna ochiq qoladi
-    } catch (e) {
-      const err = toClientError(e)
-      const key = err.code === 'unsupported_media_type' ? 'media.errType' : err.code === 'payload_too_large' ? 'media.errSize'
-        : err.code === 'caption_too_long' ? 'media.errCaption' : errorMessageKey(err.code)
-      notify(t(key as MessageKey), 'error')
-      if (err.code === 'not_editable') onSaved()
-    } finally {
-      setMediaBusy(false)
-    }
-  }
+  useEffect(() => () => { for (const l of stagedRef.current) URL.revokeObjectURL(l.url) }, [])
+
+  const toggleRemove = (i: number) => setRemoved((prev) => { const next = new Set(prev); if (next.has(i)) next.delete(i); else next.add(i); return next })
+  const unstage = (id: string) => setStaged((prev) => {
+    const gone = prev.find((l) => l.id === id)
+    if (gone) URL.revokeObjectURL(gone.url)
+    return prev.filter((l) => l.id !== id)
+  })
   const addFiles = async (picked: File[]) => {
-    if (mediaBusy || picked.length === 0) return
-    const prepared = prepareFiles(picked, mediaItems, config.maxAlbumItems)
+    if (mediaBusy || busy || picked.length === 0) return
+    const existing: MediaItem[] = [
+      ...mediaItems.filter((_, i) => !removed.has(i)),
+      ...staged.map((l) => ({ type: l.video ? 'video' : 'photo', previewable: true })),
+    ]
+    const prepared = prepareFiles(picked, existing, config.maxAlbumItems)
     if (prepared.errors.includes('type')) notify(t('media.errType'), 'error')
     else if (prepared.errors.includes('size')) notify(t('media.errSize'), 'error')
     else if (prepared.errors.includes('mixed')) notify(t('media.errMixed'), 'error')
     if (prepared.skippedFull > 0) notify(t('media.errAlbumFull', { n: prepared.skippedFull, max: config.maxAlbumItems }), 'error')
     if (prepared.accepted.length === 0) return
     if (text.length > config.maxCaptionChars) { notify(t('media.errCaption'), 'error'); return }
-    let done = 0
-    for (const original of prepared.accepted) {
-      setProgress(t('media.progress', { i: done + 1, n: prepared.accepted.length }))
-      const file = await compressImage(original)
-      const id = `${Date.now()}-${done}`
-      if (typeof URL.createObjectURL === 'function') setLocals((prev) => [...prev, { id, url: URL.createObjectURL(file), video: file.type.startsWith('video/') }])
-      try {
-        // Bo'sh postga birinchi fayl "almashtirish" bilan, keyingilari albomga qo'shiladi.
-        await mediaAction(() => (mediaItems.length === 0 && done === 0 ? client.replacePostMedia(post.id, file) : client.addPostMedia(post.id, file)), 'edit.mediaSaved')
+    setMediaBusy(true)
+    try {
+      let done = 0
+      for (const original of prepared.accepted) {
+        setProgress(t('media.progress', { i: done + 1, n: prepared.accepted.length }))
+        const file = await compressImage(original)
+        const id = `${Date.now()}-${done}`
+        const url = typeof URL.createObjectURL === 'function' ? URL.createObjectURL(file) : ''
+        setStaged((prev) => [...prev, { id, url, video: file.type.startsWith('video/'), file }])
         done += 1
-      } finally {
-        setLocals((prev) => { const gone = prev.find((l) => l.id === id); if (gone) URL.revokeObjectURL(gone.url); return prev.filter((l) => l.id !== id) })
       }
+    } finally {
+      setProgress(null)
+      setMediaBusy(false)
     }
-    setProgress(null)
+  }
+
+  /** Server xatosini foydalanuvchiga ko'rsatiladigan shaklga keltiradi (media xatolari alohida matnlar bilan). */
+  const showSaveError = (e: unknown) => {
+    const err = toClientError(e)
+    // Fayl turi/hajmi xatolari faqat media amallarida bo'ladi — ular alohida matn bilan; qolganlari oldingidek formada.
+    const key = err.code === 'unsupported_media_type' ? 'media.errType' : err.code === 'payload_too_large' ? 'media.errSize' : null
+    if (key) notify(t(key as MessageKey), 'error')
+    else setError(err)
+    return err
+  }
+  /** Qisman saqlanib qolgan bo'lsa ham oyna haqiqiy holatni ko'rsatsin (belgilangan o'chirishlar/qo'shishlar qayta hisoblanadi). */
+  const resync = async () => {
+    try {
+      const p = await client.post(post.id)
+      const body = p.text ?? p.preview
+      setFull(p)
+      setMediaItems(p.media_items ?? (p.has_media ? [{ type: p.post_type, previewable: true }] : []))
+      setRemoved(new Set())
+      for (const l of stagedRef.current) URL.revokeObjectURL(l.url)
+      setStaged([])
+      setMediaVersion((v) => v + 1)
+      setText(body)
+      setBtnText(p.button_text ?? '')
+      setBtnUrl(p.button_url ?? '')
+      originals.current = { ...originals.current, text: body, btnText: p.button_text ?? '', btnUrl: p.button_url ?? '' }
+    } catch { /* tarmoq xatosi: eski holat qoladi, xato xabari allaqachon ko'rsatilgan */ }
   }
 
   const save = async () => {
@@ -172,24 +196,42 @@ function EditDialog({ post, onClose, onSaved }: {
     const btnChanged = btnText.trim() !== o.btnText || btnUrl.trim() !== o.btnUrl
     if (btnChanged && (btnText.trim() !== '' || btnUrl.trim() !== '')
       && (!btnText.trim() || btnText.trim().length > config.maxButtonTextChars || !isValidLinkInput(btnUrl))) { setInvalid('button'); return }
-    if (!textChanged && !timeChanged && !recChanged && !btnChanged) { onClose(); return }
+    const mediaChanged = removed.size > 0 || staged.length > 0
+    if (!textChanged && !timeChanged && !recChanged && !btnChanged && !mediaChanged) { onClose(); return }
     inFlight.current = true
     setBusy(true)
     setError(null)
     setInvalid(null)
     try {
-      await client.updatePost(post.id, {
+      const fields = {
         ...(textChanged ? { text: trimmed } : {}),
         ...(timeChanged ? { scheduled_at: localInputToIso(when) ?? '' } : {}),
         ...(recChanged ? { recurrence_time: time1, ...(dailyKind && time2 ? { recurrence_time2: time2 } : {}) } : {}),
         ...(btnChanged ? { button_text: btnText.trim(), button_url: normalizeLink(btnUrl) } : {}),
-      })
+      }
+      const applyFields = async () => { if (Object.keys(fields).length > 0) await client.updatePost(post.id, fields) }
+      const applyMedia = async () => {
+        if (!mediaChanged) return
+        let toAdd = [...staged]
+        if (keptServerMedia === 0 && toAdd.length > 0) {
+          // Hammasi olib tashlanib yangisi qo'yilsa: birinchi fayl butun mediani almashtiradi, qolganlari albomga qo'shiladi.
+          await client.replacePostMedia(post.id, toAdd[0].file)
+          toAdd = toAdd.slice(1)
+        } else {
+          // Indekslar siljimasligi uchun oxiridan boshlab o'chiriladi.
+          for (const i of [...removed].sort((x, y) => y - x)) await client.deletePostMedia(post.id, i)
+        }
+        for (const l of toAdd) await client.addPostMedia(post.id, l.file)
+      }
+      // Server qoidalari: sarlavha (caption) chegarasi media bor postda 1024; media olib tashlash uchun postda matn bo'lishi shart.
+      // Shu sababli: media qoladigan/qo'shiladigan bo'lsa — avval matn, aks holda (eski matn bor) — avval media.
+      if (hasMedia || o.text.trim() === '') { await applyFields(); await applyMedia() } else { await applyMedia(); await applyFields() }
       notify(t('schedule.saved'))
       onSaved()
     } catch (e) {
-      const err = toClientError(e)
-      setError(err)
+      const err = showSaveError(e)
       if (err.code === 'not_editable') onSaved() // holat o'zgargan: ro'yxatni yangilash
+      else { await resync(); onSaved(false) } // qisman saqlangan bo'lishi mumkin — oyna va ro'yxat haqiqiy holatni ko'rsatadi
     } finally {
       inFlight.current = false
       setBusy(false)
@@ -202,10 +244,10 @@ function EditDialog({ post, onClose, onSaved }: {
         <>
           <h3 className="edit-sec">{t('media.title')}</h3>
           <MediaGrid items={mediaItems} version={String(mediaVersion)} load={(i, signal) => client.postMedia(post.id, signal, i)}
-            busy={mediaBusy} uploading={mediaBusy} locals={locals} max={config.maxAlbumItems} accept={MEDIA_ACCEPT} progress={progress}
-            onAdd={(files) => void addFiles(files)}
-            onRemove={(i) => void mediaAction(() => client.deletePostMedia(post.id, i), 'edit.mediaRemoved')} />
-          {mediaItems.length >= 2 && (btnText.trim() !== '' || btnUrl.trim() !== '') && <p className="muted small" role="note">{t('post.albumButtonNote')}</p>}
+            busy={busy} uploading={mediaBusy} locals={[]} max={config.maxAlbumItems} accept={MEDIA_ACCEPT} progress={progress}
+            onAdd={(files) => void addFiles(files)} removed={removed} staged={staged} onUnstage={unstage}
+            onRemove={toggleRemove} />
+          {keptServerMedia + staged.length >= 2 && (btnText.trim() !== '' || btnUrl.trim() !== '') && <p className="muted small" role="note">{t('post.albumButtonNote')}</p>}
 
           <h3 className="edit-sec">{t('post.text')}</h3>
           <RichTextField id="edit-text" value={text} onChange={(v) => { setText(v); setInvalid(null) }} maxLength={textMax} rows={8} invalid={invalid === 'text'} />
