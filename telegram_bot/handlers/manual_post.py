@@ -1280,6 +1280,47 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MANUAL_AWAIT_CONTENT
 
 
+async def manual_post_from_snapshot(update: Update, context: ContextTypes.DEFAULT_TYPE, snap: dict):
+    """Aqlli qabuldan («📝 Post qilish») keladi: xabar O'ZGARTIRILMASDAN preview'ga.
+
+    Foydalanuvchi allaqachon kontentni yuborgan — "yuboring" deb qayta
+    so'ralmaydi. AI ishlamaydi. Kanal bo'lmasa — oddiy ``mp_no_channels``.
+    """
+    query = getattr(update, "callback_query", None)
+    msg = getattr(query, "message", None) or getattr(update, "effective_message", None)
+    if msg is None:
+        return ConversationHandler.END
+    clear_fsm_data(context)
+    _clear_manual_state(context)
+    user_id = getattr(getattr(update, "effective_user", None), "id", 0) or 0
+    lang = get_lang(context)
+    from handlers.navigation import SECTION_CONTENT, remember_section
+    remember_section(context, SECTION_CONTENT)
+
+    channels = await db.run_db(db.get_user_channels, user_id)
+    if not channels:
+        await msg.reply_text(
+            manual_post_t("mp_no_channels", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+    if len(channels) == 1:
+        _set_selected_channel(context, channels[0][0], channels[0][1])
+
+    album = snap.get("album")
+    if album:
+        context.user_data[UD_ALBUM_GROUP] = getattr(snap.get("message"), "media_group_id", None)
+        _manual_album_store(context, [dict(i) for i in album])
+    else:
+        context.user_data[UD_CONTENT] = snap.get("text") or ""
+        context.user_data[UD_POST_TYPE] = snap.get("post_type") or "text"
+        context.user_data[UD_FILE_ID] = snap.get("file_id")
+        context.user_data[UD_MEDIA_GROUP] = False
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
 async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Tayyor kontent qabul qilindi → DARHOL preview (AI savollarsiz).
 
