@@ -124,25 +124,93 @@ describe('To\'liq tahrirlash oynasi', () => {
     expect(calls(f, 'PATCH', /\/posts\//)).toHaveLength(0)
   })
 
-  it('albomga fayl qo\'shish va bittasini olib tashlash (ro\'yxat fonda yangilanadi, oyna ochiq)', async () => {
+  it('albomga fayl qo\'shish: FAQAT «Saqlash»da serverga ketadi', async () => {
     const f = mockApi()
     const dialog = await openEdit(0)
     await within(dialog).findByLabelText('Post matni')
     const input = dialog.querySelector('input[type=file]') as HTMLInputElement
-    const file = new File([new Uint8Array(50)], 'a.mp4', { type: 'video/mp4' })
-    fireEvent.change(input, { target: { files: [file] } })
-    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array(50)], 'a.mp4', { type: 'video/mp4' })] } })
     expect(await within(screen.getByRole('dialog')).findByText('2 / 10 ta')).toBeTruthy()
-    expect(screen.getByRole('dialog')).toBeTruthy()
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '1-mediani olib tashlash' }))
-    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media\?i=0$/)).toHaveLength(1))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '1-mediani olib tashlash' }))
-    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media\?i=0$/)).toHaveLength(2))
-    await waitFor(() => expect(screen.queryByRole('button', { name: '1-mediani olib tashlash' })).toBeNull())
-    expect(screen.getByText('Galereyadan rasm yoki videolarni tanlang (10 tagacha)')).toBeTruthy()
+    expect(within(screen.getByRole('dialog')).getByText("Saqlaganda qo'shiladi")).toBeTruthy()
+    expect(calls(f, 'POST', /\/posts\/1\/media/)).toHaveLength(0) // saqlashgacha serverga tegilmaydi
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Saqlash' }))
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
+    expect(calls(f, 'DELETE', /\/media/)).toHaveLength(0)
   })
 
-  it('mediasiz postga birinchi fayl «almashtirish» yo\'li bilan, keyingilari albomga qo\'shiladi', async () => {
+  it('rasmni olib tashlash: belgi qo\'yiladi, so\'rov FAQAT «Saqlash»da ketadi', async () => {
+    const f = mockApi()
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    fireEvent.click(within(dialog).getByRole('button', { name: '1-mediani olib tashlash' }))
+    expect(within(dialog).getByText("Saqlaganda o'chiriladi")).toBeTruthy()
+    expect(calls(f, 'DELETE', /\/posts\/1\/media/)).toHaveLength(0)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
+    await waitFor(() => expect(calls(f, 'DELETE', /\/posts\/1\/media\?i=0$/)).toHaveLength(1))
+  })
+
+  it('rasmni olib tashlab «Bekor qilish» bossa — rasm serverda QOLADI (hech qanday so\'rov ketmaydi)', async () => {
+    const f = mockApi()
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    fireEvent.click(within(dialog).getByRole('button', { name: '1-mediani olib tashlash' }))
+    expect(within(dialog).getByText("Saqlaganda o'chiriladi")).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bekor' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls(f, 'DELETE', /\/media/)).toHaveLength(0)
+    expect(calls(f, 'PATCH', /\/posts\//)).toHaveLength(0)
+    // Qayta ochilganda media joyida va belgisiz.
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Tahrirlash' }))[0]!)
+    const again = await screen.findByRole('dialog')
+    await within(again).findByLabelText('Post matni')
+    expect(within(again).getByRole('button', { name: '1-mediani olib tashlash' })).toBeTruthy()
+    expect(within(again).queryByText("Saqlaganda o'chiriladi")).toBeNull()
+  })
+
+  it('o\'chirishga belgilangan rasmni «qaytarish» mumkin — Saqlashda o\'zgarish bo\'lmaydi', async () => {
+    const f = mockApi()
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    fireEvent.click(within(dialog).getByRole('button', { name: '1-mediani olib tashlash' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: '1-mediani qaytarish' }))
+    expect(within(dialog).queryByText("Saqlaganda o'chiriladi")).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls(f, 'DELETE', /\/media/)).toHaveLength(0)
+    expect(calls(f, 'PATCH', /\/posts\//)).toHaveLength(0)
+  })
+
+  it('yangi fayl tanlab «Bekor qilish» bossa — hech narsa yuklanmaydi; qo\'shilmaydigan qilib olib tashlash ham mumkin', async () => {
+    const f = mockApi()
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    const input = dialog.querySelector('input[type=file]') as HTMLInputElement
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array(50)], 'a.mp4', { type: 'video/mp4' })] } })
+    expect(await within(dialog).findByText("Saqlaganda qo'shiladi")).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: "Qo'shilmasin 1" }))
+    expect(within(dialog).queryByText("Saqlaganda qo'shiladi")).toBeNull()
+    fireEvent.change(input, { target: { files: [new File([new Uint8Array(50)], 'b.mp4', { type: 'video/mp4' })] } })
+    expect(await within(dialog).findByText("Saqlaganda qo'shiladi")).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Bekor' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(calls(f, 'POST', /\/media/)).toHaveLength(0)
+  })
+
+  it('hamma mediani olib tashlab yangisini qo\'ysa — birinchi fayl «almashtirish», keyingilari albomga (o\'chirish so\'rovi kerak emas)', async () => {
+    const f = mockApi()
+    const dialog = await openEdit(0)
+    await within(dialog).findByLabelText('Post matni')
+    fireEvent.click(within(dialog).getByRole('button', { name: '1-mediani olib tashlash' }))
+    const mk = (n: string) => new File([new Uint8Array(50)], n, { type: 'image/jpeg' })
+    fireEvent.change(dialog.querySelector('input[type=file]') as HTMLInputElement, { target: { files: [mk('a.jpg'), mk('b.jpg')] } })
+    expect(await within(dialog).findAllByText("Saqlaganda qo'shiladi")).toHaveLength(2)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media$/)).toHaveLength(1))
+    await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
+    expect(calls(f, 'DELETE', /\/media/)).toHaveLength(0)
+  })
+
+  it('mediasiz postga birinchi fayl «almashtirish» yo\'li bilan, keyingilari albomga qo\'shiladi (Saqlashda)', async () => {
     const f = mockApi((url, init) => init.method === 'GET' && /\/posts\/1$/.test(url)
       ? jsonResponse({ post: { ...ONCE, has_media: false, post_type: 'text', media_items: [] } }) : undefined)
     const dialog = await openEdit(0)
@@ -150,6 +218,9 @@ describe('To\'liq tahrirlash oynasi', () => {
     const input = dialog.querySelector('input[type=file]') as HTMLInputElement
     const mk = (n: string) => new File([new Uint8Array(50)], n, { type: 'video/mp4' })
     fireEvent.change(input, { target: { files: [mk('a.mp4'), mk('b.mp4')] } })
+    await within(dialog).findAllByText("Saqlaganda qo'shiladi")
+    expect(calls(f, 'POST', /\/media/)).toHaveLength(0)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Saqlash' }))
     await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media$/)).toHaveLength(1))
     await waitFor(() => expect(calls(f, 'POST', /\/posts\/1\/media\?add=1$/)).toHaveLength(1))
   })
