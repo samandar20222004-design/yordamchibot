@@ -4,7 +4,10 @@ import { DEFAULT_APPEARANCE, applyAppearance, loadCloudIfNewer, loadLocal, sanit
 import { hideBoot } from './boot'
 import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
+import { WorkspaceBanner } from './components/WorkspaceBanner'
 import { Toast } from './components/Dialog'
+import { RoleWelcome } from './pages/TeamScreen'
+import { getInitialWorkspace, saveWorkspace } from './workspace'
 import { EmptyState, LoadingBlock } from './components/ui'
 import { I18nProvider, normalizeLang, useI18n } from './i18n'
 import { useResource } from './hooks/useResource'
@@ -55,11 +58,33 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
     toastTimer.current = setTimeout(() => setToast(null), 4500)
   }, [])
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current) }, [])
-  const client = useMemo(() => createApiClient({ getInitData, language: getLanguageHint }), [])
+  // 👥 Ish joyi (yordamchi): egasi ID'si ref orqali har so'rovga `X-Workspace` sifatida qo'shiladi (server tekshiradi).
+  const [wsOwner, setWsOwner] = useState<number | null>(() => getInitialWorkspace())
+  const wsRef = useRef<number | null>(wsOwner)
+  const client = useMemo(() => createApiClient({ getInitData, language: getLanguageHint, workspace: () => wsRef.current }), [])
   const me = useResource((s) => client.me(s), true)
   const channels = useResource((s) => client.channels(s), tab === 'me' || tab === 'post')
   const draft = useResource(async (s) => ({ draft: await client.draft(s) }), true)
   const feed = useScheduleFeed(client, tab === 'schedule')
+  const team = useResource((s) => client.team(s), true)
+  const workspace = useMemo(() => team.data?.workspaces.find((w) => w.owner_id === wsOwner && !w.suspended) ?? null, [team.data, wsOwner])
+  const setWorkspace = useCallback((owner: number | null) => {
+    wsRef.current = owner
+    setWsOwner(owner)
+    saveWorkspace(owner)
+  }, [])
+  // Ish joyi o'zgarsa, kanallar va rejalar QAYTA yuklanadi (boshqa egasining ma'lumoti avvalgisi bilan aralashmasin).
+  const wsSeen = useRef(wsOwner)
+  useEffect(() => {
+    if (wsSeen.current === wsOwner) return
+    wsSeen.current = wsOwner
+    channels.reload()
+    feed.reload()
+  }, [wsOwner]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Tanlangan ish joyi yopilgan/o'chirilgan bo'lsa (egasi olib tashlagan, tarif tugagan) — o'z ish joyiga qaytamiz.
+  useEffect(() => {
+    if (wsOwner && team.data && !team.data.workspaces.some((w) => w.owner_id === wsOwner && !w.suspended)) setWorkspace(null)
+  }, [team.data, wsOwner, setWorkspace])
   const botUsername = me.data?.bot.username ?? null
   // 💰 Birja: o'qilmagan xabarlar (tab nishoni). Har daqiqada va ilova qayta ko'ringanda yangilanadi.
   const unreadRes = useResource((s) => client.marketUnread(s).then((n) => ({ n })), true)
@@ -86,10 +111,18 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
   }, [hasDraft])
 
   const adminMode = adminWanted && me.data?.is_admin === true
+  // «Men kimman?»: rol hali tanlanmagan (server `work_mode: null` qaytargan) bo'lsa bir marta so'raladi; «Keyinroq» shu sessiyada eslab qolinadi.
+  const [welcomed, setWelcomed] = useState<boolean>(() => { try { return sessionStorage.getItem('postassist.welcome') === '1' } catch { return false } })
+  const showWelcome = me.data?.work_mode === null && !welcomed && !adminMode
+  const closeWelcome = useCallback((mode: 'owner' | 'helper' | null) => {
+    setWelcomed(true)
+    try { sessionStorage.setItem('postassist.welcome', '1') } catch { /* e'tiborsiz */ }
+    if (mode === 'helper') setTab('me')
+  }, [])
   const setAdminMode = useCallback((on: boolean) => { setAdminWanted(on); saveAdminMode(on) }, [])
   const value = useMemo<AppData>(
-    () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang, adminMode, setAdminMode }),
-    [client, me, channels, draft, feed, unread, reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, onLang, adminMode, setAdminMode],
+    () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang, adminMode, setAdminMode, team, workspace, setWorkspace }),
+    [client, me, channels, draft, feed, unread, reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, onLang, adminMode, setAdminMode, team, workspace, setWorkspace],
   )
 
   // Yuklash ekrani (#boot, index.html) /me kelguncha turadi; keyin (yoki xatoda) bir marta yashiriladi.
@@ -102,6 +135,7 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
       {adminMode ? <Suspense fallback={<LoadingBlock />}><AdminShell /></Suspense> : (
       <div className="shell">
         <OfflineBanner />
+        <WorkspaceBanner />
         {tab === 'home' && <HomePage />}
         {tab === 'post' && <PostPage />}
         {tab === 'schedule' && <SchedulePage />}
@@ -110,6 +144,7 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
         <TabBar active={tab} onChange={setTab} badges={{ market: unread }} tabs={appearance.tabs} />
       </div>
       )}
+      {showWelcome && <RoleWelcome onDone={closeWelcome} />}
       {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
     </AppDataContext.Provider>
   )

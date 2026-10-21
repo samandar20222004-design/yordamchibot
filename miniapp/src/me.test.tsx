@@ -78,7 +78,7 @@ describe('Profil sahifasi', () => {
     expect(screen.getByText('1 / 5')).toBeTruthy()     // AI (bugun)
     expect(screen.getByText('3 / 5')).toBeTruthy()     // navbat
     const rows = Array.from(document.querySelectorAll('.set-row .set-label')).map((e) => e.textContent)
-    expect(rows).toEqual(['Tarif', 'Til', 'Ko\'rinish', 'Bildirishnomalar', 'Kanallarim', 'Botga o\'tish', 'Do\'stlarni taklif qilish', 'Yordam va qo\'llanma', 'Ilovani yopish'])
+    expect(rows).toEqual(['Tarif', 'Til', 'Ko\'rinish', 'Bildirishnomalar', 'Jamoa va rol', 'Kanallarim', 'Botga o\'tish', 'Do\'stlarni taklif qilish', 'Yordam va qo\'llanma', 'Ilovani yopish'])
     expect(screen.queryByText(/Cheksiz/)).toBeNull()   // "cheksiz" va'dasi yo'q
   })
 

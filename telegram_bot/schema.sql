@@ -106,6 +106,28 @@ CREATE INDEX IF NOT EXISTS idx_channel_members_channel
 CREATE INDEX IF NOT EXISTS idx_channel_members_user
     ON channel_members (user_id, channel_id);
 
+-- ============================================================
+-- JAMOA: yordamchi taklif havolalari va foydalanuvchi ish rejimi
+-- ------------------------------------------------------------
+-- Token faqat HASH ko'rinishida saqlanadi (bir martalik, muddatli).
+-- ULTRA: egasi + ``TIER_LIMITS[...]['team_seats']`` ta yordamchi; PRO/FREE — bitta odam.
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS work_mode VARCHAR(10);
+CREATE TABLE IF NOT EXISTS team_invites (
+    id BIGSERIAL PRIMARY KEY,
+    token_hash CHAR(64) UNIQUE NOT NULL,
+    owner_id BIGINT NOT NULL,
+    channel_id VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_by BIGINT,
+    used_at TIMESTAMPTZ,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT chk_team_invites_role CHECK (role IN ('editor', 'scheduler', 'analyst'))
+);
+CREATE INDEX IF NOT EXISTS idx_team_invites_owner ON team_invites (owner_id, channel_id);
+
 CREATE TABLE IF NOT EXISTS sponsor_channels (
     id SERIAL PRIMARY KEY,
     channel_id BIGINT UNIQUE,

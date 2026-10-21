@@ -533,11 +533,11 @@ def test_index_tuning():
           total == idempotent and total >= 40, f"{idempotent}/{total}")
 
     # Tarixiy hisoblagichlar O'ZGARMAGAN (tests/schema_test.py bilan bir xil).
-    check("schema.sql hisoblagichi o'zgarmadi: 39 jadval (32 + 7 reklama birjasi)",
-          schema.count("CREATE TABLE IF NOT EXISTS") == 39,
+    check("schema.sql hisoblagichi o'zgarmadi: 40 jadval (32 + 7 reklama birjasi + 1 jamoa takliflari)",
+          schema.count("CREATE TABLE IF NOT EXISTS") == 40,
           str(schema.count("CREATE TABLE IF NOT EXISTS")))
-    check("schema.sql hisoblagichi o'zgarmadi: 39 indeks (33 + 5 reklama birjasi + 1 phone_country)",
-          schema.count("CREATE INDEX IF NOT EXISTS") == 39,
+    check("schema.sql hisoblagichi o'zgarmadi: 40 indeks (33 + 5 reklama birjasi + 1 phone_country + 1 jamoa takliflari)",
+          schema.count("CREATE INDEX IF NOT EXISTS") == 40,
           str(schema.count("CREATE INDEX IF NOT EXISTS")))
 
     # Idempotentlik: ikki marta qo'llash xavfsiz + bir xil DDL.

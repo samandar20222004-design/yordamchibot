@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamRole, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -51,6 +51,7 @@ function parseLimits(l: Rec): PlanLimits {
     daily_ai_requests: int(l.daily_ai_requests, 'limits.daily_ai_requests'),
     queued_posts: int(l.queued_posts, 'limits.queued_posts'),
     ...(l.voice_daily === undefined ? {} : { voice_daily: int(l.voice_daily, 'limits.voice_daily') }),
+    ...(l.team_seats === undefined ? {} : { team_seats: int(l.team_seats, 'limits.team_seats') }),
   }
 }
 
@@ -125,6 +126,7 @@ export function parseMe(v: unknown): Me {
     next_post_at: strOrNull(o.next_post_at, 'next_post_at'),
     bot: { username: strOrNull(bot.username, 'bot.username') },
     ...(o.is_admin === true ? { is_admin: true } : {}),
+    ...(o.work_mode === 'owner' || o.work_mode === 'helper' || o.work_mode === null ? { work_mode: o.work_mode } : {}),
   }
 }
 
@@ -610,4 +612,59 @@ export function parseAdminRoles(v: unknown): AdminRoles {
     const r = rec(x, 'role')
     return { user_id: count(r.user_id), role: str(r.role ?? '', 'role.role') }
   }), choices: arr(o.choices ?? [], 'roles.choices').map((c) => str(c, 'role.choice')) }
+}
+
+// --- 👥 Jamoa va ish joyi ---
+const teamRole = (v: unknown, what: string): TeamRole => {
+  if (v === 'editor' || v === 'scheduler' || v === 'analyst') return v
+  throw new ShapeError(`${what}: noma'lum rol`)
+}
+function parseTeamChannel(v: unknown): TeamChannel {
+  const c = rec(v, 'team.channel')
+  return {
+    channel_id: str(c.channel_id, 'team.channel_id'), title: str(c.title ?? '', 'team.title'),
+    members: arr(c.members ?? [], 'team.members').map((x) => {
+      const m = rec(x, 'team.member')
+      return { user_id: int(m.user_id, 'member.user_id'), name: str(m.name ?? '', 'member.name'), username: str(m.username ?? '', 'member.username'),
+        role: teamRole(m.role, 'member.role'), active: m.active !== false, since: typeof m.since === 'string' ? m.since : null }
+    }),
+    invites: arr(c.invites ?? [], 'team.invites').map((x) => {
+      const i = rec(x, 'team.invite')
+      return { id: int(i.id, 'invite.id'), role: teamRole(i.role, 'invite.role'), expires_at: typeof i.expires_at === 'string' ? i.expires_at : null }
+    }),
+  }
+}
+function parseWorkspace(v: unknown): Workspace {
+  const w = rec(v, 'workspace')
+  return {
+    owner_id: int(w.owner_id, 'workspace.owner_id'), owner_name: str(w.owner_name ?? '', 'workspace.owner_name'), suspended: w.suspended === true,
+    channels: arr(w.channels ?? [], 'workspace.channels').map((x) => {
+      const c = rec(x, 'workspace.channel')
+      return { channel_id: str(c.channel_id, 'ws.channel_id'), title: str(c.title ?? '', 'ws.title'), role: teamRole(c.role, 'ws.role') }
+    }),
+  }
+}
+export function parseTeam(v: unknown): TeamOverview {
+  const o = rec(v, 'team')
+  const s = rec(o.seats, 'team.seats')
+  return {
+    mode: o.mode === 'owner' || o.mode === 'helper' ? o.mode : null,
+    seats: { plan: str(s.plan ?? 'free', 'seats.plan'), limit: count(s.limit), used: count(s.used), pending: count(s.pending), free: count(s.free) },
+    can_invite: o.can_invite === true,
+    channels: arr(o.channels ?? [], 'team.channels').map(parseTeamChannel),
+    workspaces: arr(o.workspaces ?? [], 'team.workspaces').map(parseWorkspace),
+  }
+}
+export function parseTeamInvite(v: unknown): TeamInviteCreated {
+  const o = rec(v, 'team.invite')
+  return { id: int(o.id, 'invite.id'), token: str(o.token, 'invite.token'), role: teamRole(o.role, 'invite.role'),
+    channel_id: str(o.channel_id, 'invite.channel_id'), expires_at: typeof o.expires_at === 'string' ? o.expires_at : null }
+}
+export function parseTeamMode(v: unknown): { mode: 'owner' | 'helper' } {
+  const o = rec(v, 'team.mode')
+  if (o.mode !== 'owner' && o.mode !== 'helper') throw new ShapeError('mode')
+  return { mode: o.mode }
+}
+export function parseAck(v: unknown): Record<string, unknown> {
+  return rec(v, 'ack')
 }

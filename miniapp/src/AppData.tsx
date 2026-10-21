@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { ApiClient } from './api/client'
-import type { ChannelList, Draft, Lang, Me } from './api/types'
+import type { ChannelList, Draft, Lang, Me, TeamOverview, Workspace } from './api/types'
 import type { Appearance } from './appearance'
 import type { Tab } from './components/Shell'
 import type { Resource } from './hooks/useResource'
@@ -27,6 +27,11 @@ export interface AppData {
   /** Super admin: rejim yoqilganmi va uni almashtirish (faqat `me.is_admin` bo'lganda ishlaydi). */
   adminMode: boolean
   setAdminMode: (on: boolean) => void
+  /** 👥 Jamoa: o'rindiqlar, a'zolar va ish joylari (yordamchi uchun). */
+  team: Resource<TeamOverview>
+  /** Faol ish joyi (yordamchi rejimi) yoki `null` — o'z ish joyi. Almashtirilganda kanallar va rejalar qayta yuklanadi. */
+  workspace: Workspace | null
+  setWorkspace: (ownerId: number | null) => void
   /** Interfeys tilini darhol almashtirish (server saqlagandan keyin). */
   setLang: (lang: Lang) => void
 }

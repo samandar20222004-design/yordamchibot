@@ -44,7 +44,8 @@ def plan_limits() -> dict:
     out = {}
     for name, lim in config.TIER_LIMITS.items():
         out[name] = {"max_channels": int(lim["max_channels"]), "daily_ai_requests": int(lim["daily_ai_requests"]),
-                     "queued_posts": int(lim["queued_posts"]), "voice_daily": int(lim["voice_daily"])}
+                     "queued_posts": int(lim["queued_posts"]), "voice_daily": int(lim["voice_daily"]),
+                     "team_seats": int(lim.get("team_seats", 0) or 0)}
     out["pro"] = dict(out["pro"])
     return out
 
@@ -152,7 +153,14 @@ class MiniAppService:
                 notifications = prefs.read_notifications(cur, user_id)
             except Exception:  # noqa: BLE001 — jadval yo'q/xato: standart qiymatlar (profil ochilishi to'xtamasin)
                 notifications = dict(prefs.NOTIFICATION_DEFAULTS)
+            try:
+                cur.execute("SELECT work_mode FROM users WHERE user_id = %s", (user_id,))
+                row = cur.fetchone()
+                work_mode = row[0] if row and row[0] in ("owner", "helper") else None
+            except Exception:  # noqa: BLE001 — ustun hali yo'q (migratsiyadan oldin): rejim tanlanmagan
+                work_mode = None
             return {
+                "work_mode": work_mode,
                 "user": {"id": account["user_id"], "name": account["full_name"],
                          "username": account["username"],
                          "language": _language(account),

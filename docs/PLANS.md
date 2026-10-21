@@ -97,3 +97,9 @@ imkoniyati sifatida yozilmaydi.
 Hozirgi referal: do'st birinchi postini yaratgach kredit (`services/referral_service.py`). «Do'st birinchi marta PRO/ULTRA xarid qilsa taklif
 qiluvchiga kredit/bonus» va yangi mijozga 5% birinchi xarid chegirmasi — keyingi bosqich (`docs/GROWTH_PLAN.md`): chegirma muddati, tariflar va
 promo/yillik chegirmalar bilan qo'shilish qoidasi oldindan belgilanadi.
+
+## Jamoa (yordamchilar)
+
+- FREE/PRO: yordamchi yo'q (`team_seats` = 0) — hamma kanalni bitta odam boshqaradi.
+- ULTRA: egasi + `ULTRA_TEAM_SEATS` (2) yordamchi = 3 akkaunt, narx o'zgarmagan; akkauntga o'rtacha narx = oylik narx / 3 (Mini App tarif kartasida ko'rsatiladi).
+- Enterprise (muddatsiz): `ENTERPRISE_TEAM_SEATS` (5). Batafsil — `docs/TEAM.md`.

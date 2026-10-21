@@ -252,6 +252,26 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Бот не админ в этом канале. Сначала добавьте бота админом.",
         "en": "The bot is not an admin of this channel. Add the bot as an admin first.",
     }),
+    "workspace_denied": (403, {
+        "uz": "Bu amal uchun ruxsatingiz yo'q. Kanal egasidan rolingizni o'zgartirishni so'rang.",
+        "ru": "Для этого действия нет доступа. Попросите владельца канала изменить вашу роль.",
+        "en": "You don't have access for this action. Ask the channel owner to change your role.",
+    }),
+    "team_no_seats": (403, {
+        "uz": "Jamoa faqat ULTRA tarifda: egasi + 2 yordamchi. PRO da hammasini bir kishi boshqaradi.",
+        "ru": "Команда доступна только в ULTRA: владелец + 2 помощника. В PRO всем управляет один человек.",
+        "en": "Teams are ULTRA only: the owner + 2 helpers. On PRO one person manages everything.",
+    }),
+    "team_seats_full": (409, {
+        "uz": "Yordamchi o'rindiqlari to'lgan. Avval birortasini olib tashlang.",
+        "ru": "Места для помощников заняты. Сначала уберите кого-нибудь.",
+        "en": "All helper seats are taken. Remove someone first.",
+    }),
+    "invite_invalid": (404, {
+        "uz": "Taklif topilmadi, muddati o'tgan yoki ishlatilgan.",
+        "ru": "Приглашение не найдено, истекло или уже использовано.",
+        "en": "The invitation was not found, has expired or was already used.",
+    }),
     "promo_exists": (409, {
         "uz": "Bunday promo-kod allaqachon mavjud.",
         "ru": "Такой промо-код уже существует.",

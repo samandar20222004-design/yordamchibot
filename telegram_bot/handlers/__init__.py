@@ -385,6 +385,7 @@ from handlers.statistics import show_user_statistics
 # 10. SUBSCRIPTION MODULI
 from handlers.phone_verify import phone_contact_callback
 from handlers.timezone_flow import timezone_callback, timezone_command
+from handlers.team_ui import team_callback, team_command
 from handlers.admin_promos import (
     promos_command, promo_detail_command, promo_off_command, promo_on_command, admin_help_command,
 )
@@ -2302,6 +2303,7 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("cancel", cancel_handler))
     app.add_handler(CommandHandler("grant_pro", grant_pro_command))
     app.add_handler(CommandHandler("create_promo", create_promo_command))
+    app.add_handler(CommandHandler("team", team_command))
     app.add_handler(CommandHandler("promos", promos_command))
     app.add_handler(CommandHandler("promo", promo_detail_command))
     app.add_handler(CommandHandler("promo_off", promo_off_command))
@@ -2513,6 +2515,8 @@ def _register_settings_and_support_callbacks(app):
     # stgs_rewards va stgs_help_hub alohida handler sifatida ro'yxatda;
     # boshqa stgs_* callback'lar hamda eski callback aliaslari generic
     # settings handler orqali xavfsiz yo'naltiriladi.
+    # 👥 Jamoa va rol: Sozlamalar tugmasi (stgs_team) va ichki ekranlar (tm_*) — generic stgs_ dan OLDIN.
+    app.add_handler(CallbackQueryHandler(team_callback, pattern=r"^(tm_[a-z]+(:|$)|stgs_team$)"))
     app.add_handler(CallbackQueryHandler(
         settings_rewards_callback, pattern=r"^stgs_rewards$",
     ))

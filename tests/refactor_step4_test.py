@@ -472,7 +472,7 @@ def test_navigation_stack_settings_tools_back():
     check("Orqaga → six-button Settings root (not main-menu callbacks)",
           back_cbs == [
               "stgs_lang", "stgs_notif",
-              "sub_open", "stgs_referral", "stgs_help_hub",
+              "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
           ]
           and "close_msg" not in back_cbs and "stgs_back" not in back_cbs,
           str(back_cbs))

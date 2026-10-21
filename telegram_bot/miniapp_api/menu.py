@@ -62,7 +62,7 @@ def miniapp_webapp_url(env=None):
 
 
 MINIAPP_TABS = ("home", "post", "schedule", "market", "me", "admin")
-MINIAPP_EXTRA_KEYS = ("thread",)
+MINIAPP_EXTRA_KEYS = ("thread", "ws")
 
 
 def miniapp_tab_url(tab: str | None = None, env=None, extra: dict | None = None):

@@ -39,6 +39,8 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
       t('me.tierAi', { n: limits.daily_ai_requests }),
       t('me.tierQueue', { n: limits.queued_posts }),
       ...(limits.voice_daily ? [t('me.tierVoice', { n: limits.voice_daily })] : []),
+      ...(id === 'ultra' && (limits.team_seats ?? 0) > 0 ? [t('me.tierTeam', { n: limits.team_seats ?? 0, total: (limits.team_seats ?? 0) + 1 })] : []),
+      ...(id === 'pro' ? [t('me.tierSolo')] : []),
     ]
     return (
       <article key={id} className={`plan-card plan-${id}${isCurrent ? ' is-current' : ''}`} aria-label={nameOf(id)}>
@@ -56,6 +58,9 @@ export function PlansScreen({ me, onBack }: { me: Me; onBack: () => void }) {
               <span className="muted"> {region === 'intl'
                 ? t('plans.perMonthUsd', { price: usd(period.usd / period.months) })
                 : t('plans.perMonth', { price: money(Math.round(period.uzs / period.months)) })}</span>
+            )}
+            {id === 'ultra' && (limits.team_seats ?? 0) > 0 && (
+              <div className="muted small">{t('plans.perAccount', { price: region === 'intl' ? usd(period.usd / period.months / ((limits.team_seats ?? 0) + 1)) : t('plans.price', { price: money(Math.round(period.uzs / period.months / ((limits.team_seats ?? 0) + 1))) }) })}</div>
             )}
             <div className="plan-sub">
               {region === 'intl' && <span className="chip">{t('plans.stars', { n: period.stars })}</span>}

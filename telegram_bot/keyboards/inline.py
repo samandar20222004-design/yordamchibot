@@ -1114,6 +1114,8 @@ def get_settings_profile_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
                                  callback_data="stgs_referral"),
         ],
         [
+            InlineKeyboardButton(settings_stats_t("ss_btn_team", lang),
+                                 callback_data="stgs_team"),
             InlineKeyboardButton(settings_stats_t("ss_btn_help", lang),
                                  callback_data="stgs_help_hub"),
         ],

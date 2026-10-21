@@ -22,6 +22,7 @@ Muhim cheklovlar (kod izohi va hujjat bilan mos):
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import logging
 import threading
 
@@ -96,7 +97,8 @@ class ReadOnlyRunner:
             raise ApiError("service_unavailable", retry_after=2)
         loop = asyncio.get_running_loop()
         try:
-            future = loop.run_in_executor(None, self._work, fn, loop)
+            # ContextVar'lar (ish joyi chegarasi, vaqt zonasi) thread'ga ham o'tsin.
+            future = loop.run_in_executor(None, contextvars.copy_context().run, self._work, fn, loop)
         except BaseException:
             self._gate.release()  # thread boshlanmadi
             raise

@@ -787,7 +787,7 @@ def test_profile_cleanup():
     print("\n== TEST 6: ⚙️ Sozlamalar primary grid — 6 tugma (3×2) ==")
     expected_settings_cbs = [
         "stgs_lang", "stgs_notif",
-        "sub_open", "stgs_referral", "stgs_help_hub",
+        "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
     ]
     for lang in LANGS:
         cbs = [b.callback_data for row in
@@ -804,7 +804,7 @@ def test_profile_cleanup():
         check(f"[{lang}] Settings grid: PRO and referral are second row",
               labels and labels[2].startswith("💎") and labels[3].startswith("👥"), str(labels))
         check(f"[{lang}] Settings grid: help is third row",
-              labels and labels[4].startswith("ℹ️") and len(labels) == 5, str(labels))
+              labels and labels[5].startswith("ℹ️") and labels[4].startswith("👥") and len(labels) == 6, str(labels))
         check(f"[{lang}] profil: dublikat yo'q",
               len(labels) == len(set(labels)), str(labels))
 

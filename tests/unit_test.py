@@ -1136,7 +1136,7 @@ def test_main_menu_layout_v2():
          ("🔔 Bildirishnomalar", "stgs_notif")],
         [("💎 PRO va Tariflar", "sub_open"),
          ("👥 Do'stlarni taklif", "stgs_referral")],
-        [("ℹ️ Yordam va Qo'llanma", "stgs_help_hub")],
+        [("👥 Jamoa va rol", "stgs_team"), ("ℹ️ Yordam va Qo'llanma", "stgs_help_hub")],
     ]
     check("kabinet tartibi", cab == expected, str(cab))
     check("kabinet: cab_lang tugmasi YO'Q",
@@ -6156,12 +6156,12 @@ def test_cabinet_i18n_suite():
     check("Settings inline ru: six primary labels are localized",
           all(settings_stats_t(key, "ru") in cab_texts for key in
               ("ss_btn_lang", "ss_btn_notif",
-               "ss_btn_pro_plans", "ss_rewards_referral", "ss_btn_help")),
+               "ss_btn_pro_plans", "ss_rewards_referral", "ss_btn_team", "ss_btn_help")),
           str(cab_texts))
     check("kabinet inline ru: six-button callback_data",
           cab_cbs == [
               "stgs_lang", "stgs_notif",
-              "sub_open", "stgs_referral", "stgs_help_hub",
+              "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
           ],
           str(cab_cbs))
     check("kabinet inline uz: default",

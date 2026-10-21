@@ -12,10 +12,11 @@ import { AppearanceScreen } from './AppearanceScreen'
 import { LanguageScreen } from './LanguageScreen'
 import { NOTIFICATION_DEFAULTS, NotificationsScreen, enabledCount } from './NotificationsScreen'
 import { PlansScreen } from './PlansScreen'
+import { TeamScreen } from './TeamScreen'
 
 export { initialOf }
 
-type Screen = null | 'plans' | 'lang' | 'channels' | 'notif' | 'look'
+type Screen = null | 'plans' | 'lang' | 'channels' | 'notif' | 'look' | 'team'
 const FLAGS = { uz: '🇺🇿', ru: '🇷🇺', en: '🇬🇧' } as const
 
 function Row({ icon, tone, label, value, onClick }: { icon: IconName; tone: string; label: string; value?: string; onClick: () => void }) {
@@ -45,6 +46,7 @@ export function MePage() {
   if (screen === 'lang') return <LanguageScreen current={user.language} onBack={() => setScreen(null)} />
   if (screen === 'channels') return <ChannelsScreen onBack={() => setScreen(null)} />
   if (screen === 'look') return <AppearanceScreen onBack={() => setScreen(null)} />
+  if (screen === 'team') return <TeamScreen onBack={() => setScreen(null)} />
   const notifications = me.data.settings?.notifications ?? NOTIFICATION_DEFAULTS
   if (screen === 'notif') return <NotificationsScreen current={notifications} onBack={() => setScreen(null)} />
 
@@ -88,6 +90,7 @@ export function MePage() {
         <Row icon="globe" tone="blue" label={t('me.rowLang')} value={`${FLAGS[user.language]} ${t(`lang.${user.language}`)}`} onClick={() => setScreen('lang')} />
         <Row icon="sparkle" tone="violet" label={t('me.rowLook')} onClick={() => setScreen('look')} />
         <Row icon="bell" tone="rose" label={t('me.rowNotif')} value={t('me.notifValue', { n: enabledCount(notifications), total: 4 })} onClick={() => setScreen('notif')} />
+        <Row icon="user" tone="blue" label={t('me.rowTeam')} value={me.data.work_mode === 'helper' ? t('team.modeHelper') : me.data.work_mode === 'owner' ? t('team.modeOwner') : undefined} onClick={() => setScreen('team')} />
         <Row icon="megaphone" tone="green" label={t('me.rowChannels')} value={String(usage.channels)} onClick={() => setScreen('channels')} />
       </section>
 

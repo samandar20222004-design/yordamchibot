@@ -123,8 +123,8 @@ def test_schema_file_tables():
     # Indekslar soni: 31 → 33 (channel_dna uchun 2 yangi indeks).
     # admin xabar ID'si bo'yicha qidiruv UNIQUE constraint'ning implicit
     # indeksi orqali ishlaydi.
-    check("jadvallar soni 39",
-          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 39,
+    check("jadvallar soni 40 (39 + team_invites)",
+          SCHEMA.count("CREATE TABLE IF NOT EXISTS") == 40,
           f"topildi: {SCHEMA.count('CREATE TABLE IF NOT EXISTS')}")
 
 
@@ -157,8 +157,8 @@ def test_schema_file_indexes():
     for index in EXPECTED_INDEXES:
         check(f"indeks: {index}", f"CREATE INDEX IF NOT EXISTS {index}" in SCHEMA)
     # PHASE E + FAZA 8,9,22: team membership + aggregate comment insight + channel_dna indexes → 33, +5 (reklama birjasi) +1 (phone_country) = 39.
-    check("indekslar soni 39",
-          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 39,
+    check("indekslar soni 40 (39 + idx_team_invites_owner)",
+          SCHEMA.count("CREATE INDEX IF NOT EXISTS") == 40,
           f"topildi: {SCHEMA.count('CREATE INDEX IF NOT EXISTS')}")
     # 5-bosqich: kompozit indekslar scheduler/bot tezligi uchun
     for name, columns in (

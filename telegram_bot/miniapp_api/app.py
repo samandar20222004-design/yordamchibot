@@ -38,7 +38,9 @@ from .repository import MAX_OFFSET
 from .service import MiniAppService
 from .settings import MiniAppSettings, load_settings
 from .static import register_static_routes
+from . import workspace
 from .admin import AdminApi
+from .team import TeamApi
 from .market import MarketApi
 from .writes import PostWriter, read_json_object
 
@@ -55,6 +57,7 @@ _K_CLOCK = web.AppKey("miniapp_clock", object)
 _K_WRITER = web.AppKey("miniapp_writer", PostWriter)
 _K_MARKET = web.AppKey("miniapp_market", MarketApi)
 _K_ADMIN = web.AppKey("miniapp_admin", AdminApi)
+_K_TEAM = web.AppKey("miniapp_team", TeamApi)
 
 
 def _public(handler):
@@ -80,6 +83,31 @@ def _upload(handler):
     handler.miniapp_write = True
     handler.miniapp_upload = True
     return handler
+
+
+_ws = workspace.mark  # «ish joyi» sarlavhasini hisobga oladigan marshrut (miniapp_api/workspace.py)
+
+#: PATCH /posts/{id} da faqat shu kalitlar bo'lsa — bu «vaqtni o'zgartirish» (scheduler roli ham qila oladi).
+_RESCHEDULE_KEYS = frozenset({"scheduled_at", "recurrence_time", "recurrence_time2"})
+
+
+def _post_channel_sync(owner_id: int, post_id: int):
+    from database import db_cursor
+
+    with db_cursor() as cur:
+        cur.execute("SELECT channel_id FROM scheduled_posts WHERE id = %s AND user_id = %s", (post_id, owner_id))
+        row = cur.fetchone()
+    return None if row is None else str(row[0])
+
+
+async def _ws_post_check(request: web.Request, post_id: int, action: str) -> None:
+    """Ish joyida: post kanali ruxsat doirasida va rol amalga yetarli. Oddiy rejimda — hech narsa."""
+    if request.get("ws_access") is None:
+        return
+    channel = await asyncio.to_thread(_post_channel_sync, request["user_id"], post_id)
+    if channel is None:
+        raise ApiError("not_found")
+    workspace.require_action(request, action, channel)
 
 
 def _post_id(request: web.Request) -> int:
@@ -112,6 +140,7 @@ async def me_handler(request: web.Request):
     return web.json_response(data)
 
 
+@_ws
 async def channels_handler(request: web.Request):
     data = await request.app[_K_SERVICE].channels(request["user_id"])
     return web.json_response(data)
@@ -124,11 +153,13 @@ def _channel_id(request: web.Request) -> str:
     return raw
 
 
+@_ws
 async def channel_analytics_handler(request: web.Request):
     data = await request.app[_K_SERVICE].channel_analytics(request["user_id"], _channel_id(request))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
+@_ws
 async def scheduled_handler(request: web.Request):
     settings = request.app[_K_SETTINGS]
     limit = _parse_int(request.query.get("limit"), default=20, lo=1, hi=settings.max_page_size)
@@ -157,6 +188,7 @@ def _parse_instant(raw: str | None) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+@_ws
 async def calendar_handler(request: web.Request):
     start = _parse_instant(request.query.get("from"))
     end = _parse_instant(request.query.get("to"))
@@ -166,6 +198,7 @@ async def calendar_handler(request: web.Request):
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
+@_ws
 async def post_detail_handler(request: web.Request):
     data = await request.app[_K_SERVICE].post(request["user_id"], _post_id(request))
     return web.json_response({"post": data})
@@ -201,7 +234,9 @@ async def draft_delete_handler(request: web.Request):
     return web.json_response(data)
 
 
+@_ws
 async def post_media_handler(request: web.Request):
+    await _ws_post_check(request, _post_id(request), "view")
     data, mime = await request.app[_K_WRITER].post_media(
         request["user_id"], _post_id(request), media_items.parse_index(request.query.get("i")))
     return web.Response(body=data, content_type=mime, headers={
@@ -210,14 +245,18 @@ async def post_media_handler(request: web.Request):
 
 
 @_upload
+@_ws
 async def post_media_upload_handler(request: web.Request):
+    await _ws_post_check(request, _post_id(request), "edit")
     data = await request.app[_K_WRITER].upload_post_media(
         request["user_id"], _post_id(request), request, add=request.query.get("add") == "1")
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
 @_write
+@_ws
 async def post_media_delete_handler(request: web.Request):
+    await _ws_post_check(request, _post_id(request), "edit")
     index = request.query.get("i")
     data = await request.app[_K_WRITER].delete_post_media(
         request["user_id"], _post_id(request), None if index in (None, "") else media_items.parse_index(index))
@@ -225,21 +264,31 @@ async def post_media_delete_handler(request: web.Request):
 
 
 @_write
+@_ws
 async def post_create_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    if request.get("ws_access") is not None:
+        # Ish joyida: egasining qoralamasi o'qilmaydi/o'chirilmaydi; kanal va rol tekshiriladi.
+        if body.get("use_draft"):
+            raise ApiError("invalid_input", field="use_draft")
+        workspace.require_action(request, "create", str(body.get("channel_id")))
     data = await request.app[_K_WRITER].create_post(request["user_id"], body)
     return web.json_response(data, status=201 if data["created"] else 200)
 
 
 @_write
+@_ws
 async def post_update_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    await _ws_post_check(request, _post_id(request), "reschedule" if body and set(body) <= _RESCHEDULE_KEYS else "edit")
     data = await request.app[_K_WRITER].update_post(request["user_id"], _post_id(request), body)
     return web.json_response(data)
 
 
 @_write
+@_ws
 async def post_delete_handler(request: web.Request):
+    await _ws_post_check(request, _post_id(request), "delete")
     data = await request.app[_K_WRITER].cancel_post(request["user_id"], _post_id(request))
     return web.json_response(data)
 
@@ -509,6 +558,46 @@ async def admin_role_set_handler(request: web.Request):
     return web.json_response(await request.app[_K_ADMIN].set_role(request["user_id"], body))
 
 
+# ------------------------------------------------------------ jamoa
+async def team_handler(request: web.Request):
+    return web.json_response(await request.app[_K_TEAM].overview(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def team_mode_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].set_mode(request["user_id"], body))
+
+
+@_write
+async def team_invite_create_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].create_invite(request["user_id"], body), status=201)
+
+
+@_write
+async def team_invite_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_TEAM].revoke_invite(request["user_id"], _admin_id(request)))
+
+
+@_write
+async def team_member_update_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].update_member(request["user_id"], body))
+
+
+@_write
+async def team_member_remove_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].remove_member(request["user_id"], body))
+
+
+@_write
+async def team_leave_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].leave(request["user_id"], body))
+
+
 # -------------------------------------------------------------- middleware
 @web.middleware
 async def api_middleware(request: web.Request, handler):
@@ -593,6 +682,20 @@ async def _guarded(request: web.Request, handler):
         # 4) Foydalanuvchi vaqt zonasi (kiritish/ko'rsatish shu zonada; xatoda Toshkent).
         _tzs.set_current(_tzs.get_tz(_tzs.cached_name(verified.user_id) or await asyncio.to_thread(_tzs.tz_name_for, verified.user_id)))
 
+    ws_token = None
+    if not is_public and getattr(route_handler, "miniapp_ws", False):
+        ws_owner = workspace.parse_header(request.headers.get("X-Workspace"))
+        if ws_owner is not None and ws_owner != verified.user_id:
+            from services import team_invites
+
+            access = await asyncio.to_thread(team_invites.workspace_access, verified.user_id, ws_owner)
+            if not access:
+                raise ApiError("workspace_denied")
+            request["acting_user"] = verified.user_id
+            request["user_id"] = ws_owner  # egasining tarifi, kvotasi va kanallari; yozuv/AI limiti yordamchiga hisoblanadi
+            request["ws_access"] = access
+            ws_token = workspace.activate(access)
+
     timeout = settings.request_timeout_seconds
     if getattr(route_handler, "miniapp_write", False):
         await limiter.hit("write", str(verified.user_id), limit=settings.rate_write_limit,
@@ -605,12 +708,16 @@ async def _guarded(request: web.Request, handler):
         await limiter.hit("ai", str(verified.user_id), limit=settings.rate_ai_limit,
                           window=settings.rate_ai_window)
         timeout = max(timeout, settings.ai_timeout_seconds)
-    return await asyncio.wait_for(handler(request), timeout)
+    try:
+        return await asyncio.wait_for(handler(request), timeout)
+    finally:
+        if ws_token is not None:
+            workspace.reset(ws_token)
 
 
 # ------------------------------------------------------------ ulash nuqtasi
 def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock=time.time,
-                  service=None, writer=None, market=None, admin=None) -> web.Application:
+                  service=None, writer=None, market=None, admin=None, team=None) -> web.Application:
     api = web.Application(middlewares=[api_middleware])
     runner = runner or ReadOnlyRunner(
         statement_timeout_ms=settings.db_statement_timeout_ms,
@@ -625,6 +732,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api[_K_WRITER] = writer or PostWriter(api[_K_SERVICE], settings)
     api[_K_MARKET] = market or MarketApi(api[_K_SERVICE], settings)
     api[_K_ADMIN] = admin or AdminApi(api[_K_SERVICE], settings)
+    api[_K_TEAM] = team or TeamApi(api[_K_SERVICE], settings)
 
     async def _close_writer(app: web.Application) -> None:
         closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
@@ -689,6 +797,13 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/admin/market", admin_market_handler)
     api.router.add_post("/admin/market/listings/{item_id}/status", admin_market_status_handler)
     api.router.add_post("/admin/market/users/{item_id}/ban", admin_market_ban_handler)
+    api.router.add_get("/team", team_handler)
+    api.router.add_patch("/team/mode", team_mode_handler)
+    api.router.add_post("/team/invites", team_invite_create_handler)
+    api.router.add_delete("/team/invites/{item_id}", team_invite_delete_handler)
+    api.router.add_patch("/team/members", team_member_update_handler)
+    api.router.add_post("/team/members/remove", team_member_remove_handler)
+    api.router.add_post("/team/leave", team_leave_handler)
     api.router.add_get("/admin/promos", admin_promos_handler)
     api.router.add_post("/admin/promos", admin_promo_create_handler)
     api.router.add_get("/admin/promos/{code}", admin_promo_detail_handler)

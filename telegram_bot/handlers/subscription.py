@@ -598,6 +598,7 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz", region: str = PA
         pro_ch=TIER_LIMITS[PLAN_PRO]["max_channels"], pro_ai=TIER_LIMITS[PLAN_PRO]["daily_ai_requests"],
         ultra_ch=TIER_LIMITS[PLAN_ULTRA]["max_channels"], ultra_ai=TIER_LIMITS[PLAN_ULTRA]["daily_ai_requests"],
         ultra_q=TIER_LIMITS[PLAN_ULTRA]["queued_posts"],
+        ultra_team=TIER_LIMITS[PLAN_ULTRA].get("team_seats", 0), ultra_accounts=TIER_LIMITS[PLAN_ULTRA].get("team_seats", 0) + 1,
     )
     if plan == "free":
         lines.extend(["", get_text("plan_card_upsell_free", lang, **ctx)])

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 import time
 from telegram import Update, InlineKeyboardMarkup
 from telegram.error import TelegramError, Forbidden
@@ -295,6 +296,9 @@ async def _warm_user_stats(user_id: int) -> None:
         logger.debug("Statistika keshini isitib bo'lmadi (user=%s)", user_id)
 
 
+_TEAM_INVITE_ARG = re.compile(r"^team_([A-Za-z0-9_-]{8,64})$")
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     clear_fsm_data(context)
     user = update.effective_user
@@ -302,9 +306,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     referrer_id = None
     go_target = None
+    team_token = None
     if context.args and len(context.args) > 0:
         arg = context.args[0]
-        if arg in MINIAPP_GO_TARGETS:  # Mini App tugmalari: qat'iy ruxsat ro'yxati (boshqa payload e'tiborsiz)
+        team_match = _TEAM_INVITE_ARG.match(arg)
+        if team_match:  # yordamchi taklifi (token — bir martalik, bazada hash bilan tekshiriladi)
+            team_token = team_match.group(1)
+        elif arg in MINIAPP_GO_TARGETS:  # Mini App tugmalari: qat'iy ruxsat ro'yxati (boshqa payload e'tiborsiz)
             go_target = MINIAPP_GO_TARGETS[arg]
         elif arg.startswith("ref_"):
             try:
@@ -337,6 +345,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not lang:
             lang = detected if is_new else await db.run_db(db.get_user_language, user.id)
     set_lang_cache(context, lang)
+
+    if team_token:
+        from handlers.team_ui import accept_team_invite
+
+        try:
+            await accept_team_invite(update, context, team_token, lang)
+        except Exception:  # noqa: BLE001 — taklif xatosi /start ni buzmasin
+            logger.exception("team invite qabul qilishda xato")
 
     is_admin = (user.id in ADMIN_IDS_SET)
 

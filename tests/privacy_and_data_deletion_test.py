@@ -204,7 +204,7 @@ def test_3_keyboards():
         check(f"[{lang}] primary Settings stays at six actions (and includes Help hub)",
               primary_cbs == [
                   "stgs_lang", "stgs_notif",
-                  "sub_open", "stgs_referral", "stgs_help_hub",
+                  "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
               ],
               str(primary_cbs))
         check(f"[{lang}] Help submenu owns privacy and deletion",
