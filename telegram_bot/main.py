@@ -35,6 +35,7 @@ from config import (
 from utils.telegram_delivery import create_safe_bot
 from utils.handler_timeout import await_with_timeout
 from utils.callback_ack import schedule_early_ack, cancel_early_ack
+from utils import slow_notice
 import database as db
 from handlers import register_all_handlers
 from scheduler import (
@@ -276,10 +277,14 @@ class GuardedApplication(Application):
         # oldinroq javob bersa, ack vazifasi bekor qilinadi.
         ack_task = schedule_early_ack(getattr(update, "callback_query", None))
         started = time.monotonic()
+        # ⏳ ~2 s jim qolsa «tahlil qilinmoqda» yozuvi (utils/slow_notice.py).
+        notice_task, notice_token = slow_notice.start(
+            update, getattr(self, "bot", None), self._resolve_user_language)
         try:
             return await self._process_update_guarded(update)
         finally:
             cancel_early_ack(ack_task)
+            await slow_notice.stop(notice_task, notice_token)
             _log_if_slow(update, time.monotonic() - started)
 
     async def _process_update_guarded(self, update):
