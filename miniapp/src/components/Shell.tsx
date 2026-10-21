@@ -1,9 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useEffect, useState } from 'react'
+import { useAppData } from '../AppData'
 import { useI18n, type MessageKey } from '../i18n'
+import { tierOf } from '../tier'
 import { haptic } from '../telegram'
 import { Icon, type IconName } from './Icon'
-import { Button } from './ui'
+import { Button, TierMark } from './ui'
 
 export type Tab = 'home' | 'post' | 'schedule' | 'market' | 'me'
 
@@ -50,9 +52,10 @@ export function TabBar({ active, onChange, badges = {}, tabs }: {
 
 export function PageHeader({ title, onRefresh, refreshing }: { title: string; onRefresh?: () => void; refreshing?: boolean }) {
   const { t } = useI18n()
+  const tier = tierOf(useAppData().me.data?.plan)
   return (
     <div className="page-head">
-      <h1>{title}</h1>
+      <h1>{title}{tier !== 'free' && <> <TierMark tier={tier} /></>}</h1>
       {onRefresh && (
         <Button icon="refresh" busy={refreshing} onClick={onRefresh} aria-label={t('common.refresh')} title={t('common.refresh')} />
       )}

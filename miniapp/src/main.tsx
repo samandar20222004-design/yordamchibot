@@ -8,6 +8,7 @@ import './styles/tokens.css'
 import './styles/base.css'
 import './styles/wow.css'
 import './styles/market.css'
+import './styles/premium.css'
 import './styles/appearance.css'
 
 // Saqlangan ko'rinish birinchi kadrdan qo'llanadi (rang/fon miltillamaydi).
