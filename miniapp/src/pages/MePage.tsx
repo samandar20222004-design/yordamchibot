@@ -90,7 +90,7 @@ export function MePage() {
         <Row icon="globe" tone="blue" label={t('me.rowLang')} value={`${FLAGS[user.language]} ${t(`lang.${user.language}`)}`} onClick={() => setScreen('lang')} />
         <Row icon="sparkle" tone="violet" label={t('me.rowLook')} onClick={() => setScreen('look')} />
         <Row icon="bell" tone="rose" label={t('me.rowNotif')} value={t('me.notifValue', { n: enabledCount(notifications), total: 4 })} onClick={() => setScreen('notif')} />
-        <Row icon="user" tone="blue" label={t('me.rowTeam')} value={me.data.work_mode === 'helper' ? t('team.modeHelper') : me.data.work_mode === 'owner' ? t('team.modeOwner') : undefined} onClick={() => setScreen('team')} />
+        <Row icon="user" tone="blue" label={t('me.rowTeam')} value={(plan.limits.team_seats ?? 0) > 0 ? t('team.seatsMax', { n: plan.limits.team_seats ?? 0 }) : undefined} onClick={() => setScreen('team')} />
         <Row icon="megaphone" tone="green" label={t('me.rowChannels')} value={String(usage.channels)} onClick={() => setScreen('channels')} />
       </section>
 

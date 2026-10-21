@@ -3,7 +3,7 @@
 **Qoida:** PRO — bitta odam hamma kanalni boshqaradi. ULTRA — egasi + 2 yordamchi (jami 3 akkaunt) bitta tarifda, narx o'zgarmagan.
 
 ## Rol va ruxsatlar
-- **Men kimman?** (`users.work_mode`: `owner` / `helper`) FAQAT sozlamada tanlanadi (Men → Jamoa va rol; botda Sozlamalar → Jamoa va rol, `/team`) — ochilganda hech qachon so'ralmaydi.
+- **Rol tanlash ekrani YO'Q** (oldin «Men kimman?» kartalari edi — soddaligi uchun olib tashlandi). Rol o'zi aniqlanadi: kimdir sizni yordamchi qilib qo'shsa, ish joyingiz Mini App'da (Men → Jamoa va rol) paydo bo'ladi. `users.work_mode` ichki belgi sifatida qoladi (ish joyiga o'zi kirish uchun).
   Super admin uchun shu ro'yxatda 3-variant — «Super admin» (admin rejimi). Yordamchi bo'lib qo'shilgan odam ish joyiga o'zi kiradi (o'z kanali bo'lmasa yoki rejimi «yordamchi» bo'lsa).
 - **Ruxsatlar** (egasi HAR yordamchiga alohida beradi; `channel_members.perms`): `create` (post yaratish/rejalash, media bilan), `edit` (matn/tugma/media tahriri),
   `reschedule` (vaqt va takror), `delete` (bekor qilish), `send_now` (darhol yuborish), `analytics` (statistika), `ai` (AI, EGASI kvotasidan). «Ko'rish» har doim bor.
@@ -12,7 +12,11 @@
 - **Limit egasidan:** yordamchi egasining tarifi ichida ishlaydi. Post egasi nomidan (`scheduled_posts.user_id` = egasi) saqlanadi, navbat limiti, AI kvotasi/krediti egasiniki;
   yordamchining o'z limiti sarflanmaydi (faqat so'rov tezligi cheklovi yordamchiga hisoblanadi).
 
-## Taklif
+## Yordamchi qo'shish (asosiy yo'l)
+Mini App: Men → Jamoa va rol → «Yordamchi qo'shish». 1) `@username` (kamida 3 belgi, prefiks) yoki Telegram ID yozasiz — botdan foydalangan odamlar topiladi (`GET /team/people?q=`, ism bo'yicha EMAS — maxfiylik; natija 6 tagacha). 2) Odamni tanlaysiz → kanallar va **huquqlar** (Telegram adminlaridagi kabi yoqish/o'chirish tugmalari + tayyor shablonlar) → «Qo'shish» (`POST /team/invites` `user_id` bilan). Odam darhol yordamchi bo'ladi va bot unga xabar yuboradi (xohlasa u «Chiqish»ni bosadi). Kuniga ko'pi bilan 10 ta qo'shish (`MAX_JOINS_PER_DAY`).
+**Kontaktlardan tanlash:** Mini App'dan kontakt ro'yxatini o'qib bo'lmaydi, shuning uchun «Kontaktlardan tanlash» botni ochadi (`?start=go_team`): bot Telegram'ning o'z odam tanlagichini (`request_users`) ko'rsatadi, tanlangach huquqlar ekrani (tugmalar bilan) chiqadi (`handlers/team_ui.team_users_shared`). Odam botda bo'lmasa — shu huquqlar bilan bir martalik havola yaratiladi.
+
+## Taklif havolasi (botdan foydalanmaydigan odam uchun)
 Egasi bir yoki bir nechta kanal + ruxsatlar tanlaydi → bir martalik havola `https://t.me/<bot>?start=team_<token>` (7 kun). Token bazada FAQAT sha256 hash (`team_invites`).
 Yordamchi havolani botda ochadi → `/start` taklifni qabul qiladi (`handlers/team_ui.accept_team_invite`), egasiga xabar boradi. Egasi bekor qiladi / a'zoni olib tashlaydi / rolni o'zgartiradi.
 

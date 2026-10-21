@@ -571,6 +571,11 @@ async def team_handler(request: web.Request):
     return web.json_response(await request.app[_K_TEAM].overview(request["user_id"]), headers={"Cache-Control": "no-store"})
 
 
+async def team_people_handler(request: web.Request):
+    return web.json_response(await request.app[_K_TEAM].people(request["user_id"], request.query.get("q", "")),
+                             headers={"Cache-Control": "no-store"})
+
+
 @_write
 async def team_mode_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
@@ -752,7 +757,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
         closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
         if closer is not None:
             await closer()
-        for key in (_K_MARKET, _K_ADMIN):
+        for key in (_K_MARKET, _K_ADMIN, _K_TEAM):
             closer2 = getattr(app[key], "aclose", None)
             if closer2 is not None:
                 await closer2()
@@ -812,6 +817,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/admin/market/listings/{item_id}/status", admin_market_status_handler)
     api.router.add_post("/admin/market/users/{item_id}/ban", admin_market_ban_handler)
     api.router.add_get("/team", team_handler)
+    api.router.add_get("/team/people", team_people_handler)
     api.router.add_patch("/team/mode", team_mode_handler)
     api.router.add_post("/team/invites", team_invite_create_handler)
     api.router.add_delete("/team/invites/{item_id}", team_invite_delete_handler)

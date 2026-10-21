@@ -72,11 +72,11 @@ def test_start_payload_behaviour():
     T.check("start() ichida payload orqali /newpost yoki PRO ga yo'naltirish YO'Q", not routed, str(routed))
     T.check("start() `ref_` prefiksini va `go_` ruxsat ro'yxatini (MINIAPP_GO_TARGETS) tanlaydi",
             src.count("arg.startswith(") == 1 and "arg in MINIAPP_GO_TARGETS" in src and not re.search(r"\barg\s*(==|!=)", src))
-    T.check("go_ ruxsat ro'yxati faqat plans/settings/help/channels/invite",
-            sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_channels", "go_help", "go_invite", "go_plans", "go_settings"])
+    T.check("go_ ruxsat ro'yxati faqat plans/settings/help/channels/invite/team",
+            sorted(start_mod.MINIAPP_GO_TARGETS) == ["go_channels", "go_help", "go_invite", "go_plans", "go_settings", "go_team"])
     go_src = inspect.getsource(start_mod._open_go_target)
     for target, handler in (("plans", "send_subscription_card"), ("settings", "user_cabinet_menu"), ("help", "help_command"),
-                            ("channels", "channels_menu"), ("invite", "user_invite_menu")):
+                            ("channels", "channels_menu"), ("invite", "user_invite_menu"), ("team", "team_command")):
         T.check(f"go_{target} -> botdagi haqiqiy ekran ({handler})",
                 f'target == "{target}"' in go_src and f"await {handler}(" in go_src)
     tg = (SRC / "telegram.ts").read_text(encoding="utf8")
@@ -93,6 +93,7 @@ def test_go_targets_runtime():
     start_mod = importlib.import_module("handlers.start")
     channels_mod = importlib.import_module("handlers.channels")
     sub_mod = importlib.import_module("handlers.subscription")
+    team_mod = importlib.import_module("handlers.team_ui")
     called = []
 
     def fake(name):
@@ -101,14 +102,14 @@ def test_go_targets_runtime():
         return _f
 
     patches = [(start_mod, "user_cabinet_menu"), (start_mod, "help_command"), (start_mod, "user_invite_menu"),
-               (channels_mod, "channels_menu"), (sub_mod, "send_subscription_card")]
+               (channels_mod, "channels_menu"), (sub_mod, "send_subscription_card"), (team_mod, "team_command")]
     saved = [(m, n, getattr(m, n)) for m, n in patches]
     try:
         for m, n in patches:
             setattr(m, n, fake(n))
         upd = SimpleNamespace(message=object(), effective_user=SimpleNamespace(id=1))
         expected = {"plans": "send_subscription_card", "settings": "user_cabinet_menu", "help": "help_command",
-                    "channels": "channels_menu", "invite": "user_invite_menu"}
+                    "channels": "channels_menu", "invite": "user_invite_menu", "team": "team_command"}
         for target, handler in expected.items():
             called.clear()
             asyncio.run(start_mod._open_go_target(upd, SimpleNamespace(), target, "uz"))

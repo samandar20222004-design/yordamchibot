@@ -417,4 +417,6 @@ export interface TeamOverview {
   channels: TeamChannel[]
   workspaces: Workspace[]
 }
+export interface TeamPerson { user_id: number; name: string; username: string; member: boolean }
+export interface TeamAdded { user_id: number; name: string; perms: TeamPerm[]; channel_ids: string[]; notified: boolean }
 export interface TeamInviteCreated { id: number; token: string; perms: TeamPerm[]; channel_ids: string[]; expires_at: string | null }

@@ -260,7 +260,7 @@ def test_all_routes_require_auth():
                  ("GET", "/api/v1/admin/features"), ("GET", "/api/v1/admin/system"), ("GET", "/api/v1/admin/roles"),
                  ("POST", "/api/v1/admin/roles")]
     # 👥 Jamoa (miniapp_api/team.py): har biri auth talab qiladi; egalik serverda (services/team_invites).
-    expected += [("GET", "/api/v1/team"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
+    expected += [("GET", "/api/v1/team"), ("GET", "/api/v1/team/people"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
                  ("DELETE", "/api/v1/team/invites/{item_id}"), ("PATCH", "/api/v1/team/members"), ("PATCH", "/api/v1/team/helpers"),
                  ("POST", "/api/v1/team/members/remove"), ("POST", "/api/v1/team/leave")]
     expected.sort()

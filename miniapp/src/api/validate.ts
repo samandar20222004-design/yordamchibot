@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { TeamAdded, TeamPerson, TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -657,6 +657,18 @@ export function parseTeam(v: unknown): TeamOverview {
     channels: arr(o.channels ?? [], 'team.channels').map(parseTeamChannel),
     workspaces: arr(o.workspaces ?? [], 'team.workspaces').map(parseWorkspace),
   }
+}
+export function parseTeamPeople(v: unknown): TeamPerson[] {
+  const o = rec(v, 'team.people')
+  return arr(o.items ?? [], 'team.people.items').map((x) => {
+    const p = rec(x, 'team.person')
+    return { user_id: int(p.user_id, 'person.user_id'), name: str(p.name ?? '', 'person.name'), username: str(p.username ?? '', 'person.username'), member: p.member === true }
+  })
+}
+export function parseTeamAdded(v: unknown): TeamAdded {
+  const o = rec(v, 'team.added')
+  return { user_id: int(o.user_id, 'added.user_id'), name: str(o.name ?? '', 'added.name'), perms: teamPerms(o.perms, 'added.perms'),
+    channel_ids: arr(o.channel_ids, 'added.channel_ids').map((c) => str(c, 'added.channel')), notified: o.notified === true }
 }
 export function parseTeamInvite(v: unknown): TeamInviteCreated {
   const o = rec(v, 'team.invite')
