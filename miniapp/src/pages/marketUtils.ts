@@ -36,3 +36,12 @@ export function parsePriceInput(text: string, min: number, max: number): number 
   const value = Math.round(Number(m[1].replace(',', '.')) * mult)
   return value >= min && value <= max ? value : undefined
 }
+
+/** Hudud nomi: «ZZ» -> «🌍 Global»; davlat -> bayroq + til bo'yicha nomi (Intl.DisplayNames bo'lmasa — kod). */
+export function regionLabel(code: string, lang: string, globalLabel: string): string {
+  const c = code.toUpperCase()
+  if (c === 'ZZ') return `🌍 ${globalLabel}`
+  let name = c
+  try { name = new Intl.DisplayNames([lang], { type: 'region' }).of(c) ?? c } catch { /* eski brauzer */ }
+  return `${countryFlag(c)} ${name}`
+}

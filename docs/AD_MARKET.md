@@ -85,3 +85,21 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 - Escrow/kafolatli to'lov, buyurtma holatlari (kelishildi / bajarildi / baho va sharh).
 - Kunlik snapshotni e'lonlar uchun majburiy qilish va ko'rsatkichlarni fon vazifasida yangilash (hozir kartani ochganda ≥6 soat eskirgan bo'lsa bazadan qayta hisoblanadi).
 - Haftalik hisobot kanal egasiga («kartangiz N marta ko'rildi, M so'rov») — o'sish uchun foydali.
+
+## Kanal hududi: davlat yoki Global (qanday aniqlanadi)
+- E'lon qo'yayotganda egasi faqat **davlatni** tanlaydi (yoki «🌍 Global» — hamma uchun). Bot: mavzudan keyin hudud ekrani, tavsiya kanal tiliga qarab birinchi tugmada; Mini App: «Kanal hududi» ro'yxati (davlatlar, mashhurlari boshida). Standart — egasining tasdiqlangan telefon mamlakati.
+- **Til tekshiruvi** (`services/channel_region.py`): kanal nomi + tavsifi + e'lon matni tili (uz/ru/en/tr/ar/uk/kk) aniqlanadi va tanlangan davlatning tabiiy tillari bilan solishtiriladi (UZ: o'zbek+rus, RU: rus, TR: turk, AE/SA..: arab, US/GB..: ingliz). Mos kelmasa — ogohlantirish va tavsiya (masalan UZ + inglizcha matn -> Global), QAROR egasiniki. Noaniq matn (qisqa, aralash, noma'lum lotin tili) yoki til xaritasi yo'q davlat — ogohlantirish YO'Q (chet ellik foydalanuvchilar bexuda to'silmaydi).
+- Saqlanadi: `ad_market_listings.country` = ISO-2 yoki `ZZ` (global). Valyuta hududga qarab: UZ — so'm, boshqa/global — dollar. Katalog «o'z mamlakati» filtrida global kanallar ham ko'rinadi.
+- Mini App: `GET /market/region-check?channel_id=&region=&d=` (faqat o'qish), `POST /market/mine` `region` maydoni bilan; kartada «Mahalliy / Xalqaro / Global» belgisi (ko'ruvchi mamlakati bilan solishtiriladi). Test: `tests/channel_region_test.py`, `ad_market_test`, `miniapp_market_test`.
+- Cheklov: til faqat nom/tavsif/e'lon matnidan aniqlanadi (postlar tahlil qilinmaydi); hudud e'londan keyin o'zgartirilmaydi (valyuta bog'liq) — o'chirib qayta qo'yiladi.
+
+## Mini App ko'rinishi (ixcham)
+Sarlavha qatori + statistika, bitta asboblar paneli (mamlakat · saralash), bir qatorli mavzu chiplari, 2 qatorli kartalar (nom + belgi / 👥 📈 💲 mavzu). Yo'riqnoma (qanday ishlaydi) pastda yig'ilgan.
+
+## Katalog tartibi («⭐ Tavsiya» — standart)
+Avval **hudud yaqinligi**, keyin **sifat ballı**:
+- «Hammasi» ko'rinishi (ko'ruvchi mamlakati X): 1) X ga YAQIN davlatlar (chegaradosh + bir til/madaniyat guruhi: `channel_region.near_countries`; UZ uchun KZ, KG, TJ, TM, RU...) → 2) Global (`ZZ`) → 3) boshqa davlatlar → 4) o'z mamlakati kanallari ENG PASTDA (ular «o'z mamlakati» ro'yxatida ko'rinadi).
+- «O'z mamlakati» ko'rinishi: avval o'z davlat kanallari, keyin global.
+- Bir hudud ichida sifat ballı (0..1): ER 50% (30% da to'yinadi) + obunachi 30% (logarifmik, 1M da to'yinadi) + o'sish 20% (30 kunda +10% da to'yinadi); ko'rsatkichi hali yo'q kanal ×0,5, ma'lumoti 7 kundan eski ×0,85 (`ad_market_repository._QUALITY`).
+- Aniq saralash (Obunachi / Narx / Faollik) tanlansa — qat'iy shu bo'yicha, yaqinlik e'tiborsiz.
+- Kanal egasiga maslahat: «🔄 Yangilash» bilan ko'rsatkichlarni yangi tuting (7 kundan eskirsa pastga tushadi), ER (post ko'rishlari) va o'sish yuqori bo'lsin, davlatni to'g'ri tanlang.

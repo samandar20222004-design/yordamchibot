@@ -240,7 +240,7 @@ def test_all_routes_require_auth():
                 ("POST", "/api/v1/templates")]
     # 💰 Reklama birjasi (miniapp_api/market.py): har biri auth talab qiladi, yozuvchilari yozuv-limiti bilan.
     expected += [("DELETE", "/api/v1/market/mine/{item_id}"), ("GET", "/api/v1/market/listings"), ("GET", "/api/v1/market/listings/{item_id}"),
-                 ("GET", "/api/v1/market/mine"), ("GET", "/api/v1/market/summary"), ("GET", "/api/v1/market/threads"),
+                 ("GET", "/api/v1/market/mine"), ("GET", "/api/v1/market/region-check"), ("GET", "/api/v1/market/summary"), ("GET", "/api/v1/market/threads"),
                  ("GET", "/api/v1/market/threads/{item_id}"), ("PATCH", "/api/v1/market/mine/{item_id}"),
                  ("POST", "/api/v1/market/listings/{item_id}/inquiries"), ("POST", "/api/v1/market/listings/{item_id}/report"),
                  ("POST", "/api/v1/market/mine"), ("POST", "/api/v1/market/mine/{item_id}/refresh"),
@@ -256,11 +256,11 @@ def test_all_routes_require_auth():
                  ("POST", "/api/v1/admin/market/users/{item_id}/ban"), ("POST", "/api/v1/admin/sponsors")]
     # 🎁 Promo-kodlar, tarif berish, tizim, rollar (har biri auth + RBAC).
     expected += [("GET", "/api/v1/admin/promos"), ("POST", "/api/v1/admin/promos"), ("GET", "/api/v1/admin/promos/{code}"),
-                 ("PATCH", "/api/v1/admin/promos/{code}"), ("POST", "/api/v1/admin/grant"), ("GET", "/api/v1/admin/audit"),
+                 ("PATCH", "/api/v1/admin/promos/{code}"), ("DELETE", "/api/v1/admin/promos/{code}"), ("POST", "/api/v1/admin/grant"), ("GET", "/api/v1/admin/audit"),
                  ("GET", "/api/v1/admin/features"), ("GET", "/api/v1/admin/system"), ("GET", "/api/v1/admin/roles"),
                  ("POST", "/api/v1/admin/roles")]
     # 👥 Jamoa (miniapp_api/team.py): har biri auth talab qiladi; egalik serverda (services/team_invites).
-    expected += [("GET", "/api/v1/team"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
+    expected += [("GET", "/api/v1/team"), ("GET", "/api/v1/team/people"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
                  ("DELETE", "/api/v1/team/invites/{item_id}"), ("PATCH", "/api/v1/team/members"), ("PATCH", "/api/v1/team/helpers"),
                  ("POST", "/api/v1/team/members/remove"), ("POST", "/api/v1/team/leave")]
     expected.sort()
@@ -274,7 +274,7 @@ def test_all_routes_require_auth():
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 42, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 43, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,

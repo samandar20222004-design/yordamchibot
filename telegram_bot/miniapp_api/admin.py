@@ -407,6 +407,16 @@ class AdminApi:
             raise ApiError("not_found")
         return await self.promo_detail(user_id, code)
 
+    async def delete_promo(self, user_id: int, code: str) -> dict:
+        from services.promo_service import PromoService, normalize_promo_input
+        from services.rbac_service import PERM_MANAGE_PROMOS
+
+        await self._require_perm(user_id, PERM_MANAGE_PROMOS)
+        wanted = normalize_promo_input(code)
+        if not wanted or not await self._blocking(PromoService.delete_promo, wanted, user_id):
+            raise ApiError("not_found")
+        return {"code": wanted, "deleted": True}
+
     # ---------------------------------------------------------------- tarif berish (/grant_pro)
     async def grant_plan(self, user_id: int, body: dict) -> dict:
         writes._only_keys(body, ("user_id", "days", "plan"))

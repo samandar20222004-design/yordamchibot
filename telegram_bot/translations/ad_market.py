@@ -83,6 +83,7 @@ AD_MARKET_I18N = {
             "Bu mavzuda hozircha kanal yo'q.\n"
             "Birinchi bo'lib kanalingizni qo'ying — reklama beruvchilar sizni birinchi ko'radi! 📢"
         ),
+        "mk_sort_r": "⭐ Tavsiya",
         "mk_sort_m": "👥 Obunachi",
         "mk_sort_p": "💲 Narx",
         "mk_sort_e": "📈 Faollik",
@@ -275,6 +276,7 @@ AD_MARKET_I18N = {
             "В этой теме пока нет каналов.\n"
             "Разместите канал первым — рекламодатели увидят вас раньше всех! 📢"
         ),
+        "mk_sort_r": "⭐ Лучшие",
         "mk_sort_m": "👥 Подписчики",
         "mk_sort_p": "💲 Цена",
         "mk_sort_e": "📈 Вовлечённость",
@@ -464,6 +466,7 @@ AD_MARKET_I18N = {
             "No channels in this topic yet.\n"
             "List yours first — advertisers will see you before anyone else! 📢"
         ),
+        "mk_sort_r": "⭐ Best",
         "mk_sort_m": "👥 Subscribers",
         "mk_sort_p": "💲 Price",
         "mk_sort_e": "📈 Engagement",
@@ -586,6 +589,42 @@ AD_MARKET_I18N = {
 
 AD_MARKET_KEYS = tuple(AD_MARKET_I18N["uz"])
 
+
+
+_REGION = {
+    "uz": {
+        "mk_region_pick": "🌍 <b>Kanal qaysi hudud uchun?</b>\n\nKanal auditoriyasi davlatini tanlang yoki «Global» (hamma uchun). Reklama beruvchilar kanalni shu bo'yicha topadi.{note}",
+        "mk_region_detected": "\n🔎 Kanal tili: <b>{lang_name}</b> — tavsiya birinchi tugmada.",
+        "mk_region_global": "🌍 Global",
+        "mk_region_mismatch": "⚠️ Kanal matni <b>{lang_name}</b> tilida ko'rinadi — {chosen} uchun odatiy emas.\nMosroq: <b>{suggested}</b>. Qaysi birini qoldiramiz?",
+        "mk_btn_use": "👍 {name}",
+        "mk_btn_keep": "✅ {name} qolsin",
+        "mk_lang_uz": "o'zbek", "mk_lang_ru": "rus", "mk_lang_en": "ingliz", "mk_lang_tr": "turk", "mk_lang_ar": "arab",
+        "mk_lang_uk": "ukrain", "mk_lang_kk": "qozoq",
+    },
+    "ru": {
+        "mk_region_pick": "🌍 <b>Для какого региона канал?</b>\n\nВыберите страну аудитории канала или «Глобально» (для всех). Рекламодатели будут находить канал по этому признаку.{note}",
+        "mk_region_detected": "\n🔎 Язык канала: <b>{lang_name}</b> — рекомендация в первой кнопке.",
+        "mk_region_global": "🌍 Глобально",
+        "mk_region_mismatch": "⚠️ Текст канала похож на <b>{lang_name}</b> язык — для {chosen} это необычно.\nЛучше подходит: <b>{suggested}</b>. Что оставить?",
+        "mk_btn_use": "👍 {name}",
+        "mk_btn_keep": "✅ Оставить {name}",
+        "mk_lang_uz": "узбекский", "mk_lang_ru": "русский", "mk_lang_en": "английский", "mk_lang_tr": "турецкий", "mk_lang_ar": "арабский",
+        "mk_lang_uk": "украинский", "mk_lang_kk": "казахский",
+    },
+    "en": {
+        "mk_region_pick": "🌍 <b>Which region is the channel for?</b>\n\nPick the country of the channel's audience or «Global» (for everyone). Advertisers find the channel by this.{note}",
+        "mk_region_detected": "\n🔎 Channel language: <b>{lang_name}</b> — the recommendation is the first button.",
+        "mk_region_global": "🌍 Global",
+        "mk_region_mismatch": "⚠️ The channel text looks <b>{lang_name}</b> — unusual for {chosen}.\nA better fit: <b>{suggested}</b>. Which one to keep?",
+        "mk_btn_use": "👍 {name}",
+        "mk_btn_keep": "✅ Keep {name}",
+        "mk_lang_uz": "Uzbek", "mk_lang_ru": "Russian", "mk_lang_en": "English", "mk_lang_tr": "Turkish", "mk_lang_ar": "Arabic",
+        "mk_lang_uk": "Ukrainian", "mk_lang_kk": "Kazakh",
+    },
+}
+for _code, _d in _REGION.items():
+    AD_MARKET_I18N[_code].update(_d)
 
 def market_t(key: str, lang: str = "uz", **kwargs) -> str:
     """Kalitni til bo'yicha qaytaradi (topilmasa — ``uz``, keyin asosiy lug'at; ``KeyError`` ko'tarilmaydi)."""

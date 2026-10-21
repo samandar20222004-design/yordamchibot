@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, KeyboardButtonRequestUsers, ReplyKeyboardMarkup,
+                      ReplyKeyboardRemove, Update)
 from telegram.ext import ContextTypes
 
 import database as db
@@ -71,17 +72,110 @@ async def _show(update: Update, text: str, markup: InlineKeyboardMarkup) -> None
     await update.effective_message.reply_text(text, reply_markup=markup, parse_mode="HTML")
 
 
+
+TEAM_PICK_REQUEST_ID = 7701
+UD_TEAM_ADD = "team_add"
+_ADD_ERRORS = {"no_team": "tm_err_no_team", "seats_full": "tm_err_seats_full", "too_many_pending": "tm_err_daily", "self": "tm_pick_self"}
+
+
+async def _add_screen(update: Update, lang: str, st: dict) -> None:
+    """Huquqlar ekrani: tayyor shablonlar + har bir huquq alohida yoqish/o'chirish + kanallar (bir nechta bo'lsa)."""
+    rows = [[_btn(team_t(key, lang), f"tm_apr:{preset}") for preset, key in PRESET_BUTTONS[:3]],
+            [_btn(team_t(key, lang), f"tm_apr:{preset}") for preset, key in PRESET_BUTTONS[3:]]]
+    rows += [[_btn(("✅ " if p in st["perms"] else "⬜ ") + team_t(f"tm_perm_{p}", lang), f"tm_ap:{p}")] for p in TI.PERMS]
+    if len(st["all"]) > 1:
+        rows += [[_btn(("✅ " if c["id"] in st["chans"] else "⬜ ") + (c["title"] or c["id"])[:30], f"tm_ac:{i}")] for i, c in enumerate(st["all"][:10])]
+    rows.append([_btn(team_t("tm_btn_add_go", lang), "tm_ago")])
+    rows.append(_back(lang, "tm_inv"))
+    note = "" if st["known"] else team_t("tm_perm_unknown", lang)
+    await _show(update, team_t("tm_perm_screen", lang, name=html_escape(st["name"]), note=note), InlineKeyboardMarkup(rows))
+
+
+async def notify_helper_added(bot, owner_id: int, member_id: int, channel_ids: list, perms: list) -> bool:
+    """Qo'shilgan yordamchiga bot orqali xabar. Yetkazilmasa ``False`` (qo'shish bekor bo'lmaydi).
+
+    ``bot`` — Bot obyekti yoki uni qaytaruvchi async funksiya (Mini App API botni faqat kerak bo'lganda ochadi).
+    """
+    try:
+        lang = await db.run_db(db.get_user_language, member_id) or "uz"
+        info = await db.run_db(TI.workspaces_for, member_id)
+        ws = next((w for w in info if w["owner_id"] == owner_id), None) or {}
+        titles = {c["channel_id"]: c["title"] for c in ws.get("channels", [])}
+        title = html_escape(", ".join(titles.get(c) or c for c in channel_ids))
+        owner = html_escape(ws.get("owner_name") or str(owner_id))
+        if callable(bot):
+            bot = await bot()
+        await bot.send_message(chat_id=member_id, text=team_t("tm_added_you", lang, owner=owner, title=title, role=perms_text(perms, lang)),
+                               parse_mode="HTML", disable_web_page_preview=True)
+        return True
+    except Exception as exc:  # noqa: BLE001
+        log_silent_failure("handlers.team_ui:notify_added", exc)
+        return False
+
+
+async def _add_commit(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, lang: str, st: dict) -> None:
+    back = InlineKeyboardMarkup([_back(lang)])
+    if st["known"]:
+        res = await db.run_db(TI.add_helper, user_id, st["uid"], st["chans"], st["perms"])
+        if res.get("ok"):
+            context.user_data.pop(UD_TEAM_ADD, None)
+            sent = await notify_helper_added(context.bot, user_id, st["uid"], res["channel_ids"], res["perms"])
+            key = "tm_added_ok" if sent else "tm_added_ok_silent"
+            return await _show(update, team_t(key, lang, name=html_escape(st["name"]), role=perms_text(res["perms"], lang)), back)
+        if res.get("error") != "user_unknown":
+            return await _show(update, team_t(_ADD_ERRORS.get(res.get("error"), "tm_err_generic"), lang), back)
+    res = await db.run_db(TI.create_invite, user_id, st["chans"], st["perms"])
+    if not res.get("ok"):
+        return await _show(update, team_t(_ADD_ERRORS.get(res.get("error"), "tm_err_generic"), lang), back)
+    context.user_data.pop(UD_TEAM_ADD, None)
+    username = getattr(await context.bot.get_me(), "username", None)
+    if not username:
+        return await _show(update, team_t("tm_inv_no_username", lang), back)
+    link = f"https://t.me/{username}?start=team_{res['token']}"
+    from urllib.parse import quote
+
+    share = f"https://t.me/share/url?url={quote(link, safe='')}&text={quote(team_t('tm_share_text', lang))}"
+    title = ", ".join(next((c["title"] for c in st["all"] if c["id"] == cid), cid) or cid for cid in st["chans"])
+    text = team_t("tm_inv_ready", lang, title=html_escape(title), role=perms_text(st["perms"], lang), days=TI.INVITE_TTL_DAYS, link=link)
+    markup = InlineKeyboardMarkup([[InlineKeyboardButton(team_t("tm_btn_share", lang), url=share)],
+                                   [_btn(team_t("tm_btn_revoke", lang), f"tm_rv:{res['id']}")], _back(lang)])
+    return await _show(update, text, markup)
+
+
+async def team_users_shared(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """«👤 Kontakt tanlash» natijasi: tanlangan odam -> huquqlar ekrani. Faqat shu oqim so'ragan tanlov qabul qilinadi."""
+    msg = update.effective_message
+    shared = getattr(msg, "users_shared", None)
+    user = update.effective_user
+    if shared is None or user is None or shared.request_id != TEAM_PICK_REQUEST_ID or not shared.users:
+        return
+    lang = await _lang(context, user.id)
+    await msg.reply_text(team_t("tm_pick_got", lang), reply_markup=ReplyKeyboardRemove())
+    uid = int(shared.users[0].user_id)
+    if uid == user.id:
+        await msg.reply_text(team_t("tm_pick_self", lang))
+        return
+    team = await db.run_db(TI.list_team, user.id)
+    if team["seats"]["limit"] <= 0 or not team["channels"]:
+        await msg.reply_text(team_t("tm_err_no_team" if team["seats"]["limit"] <= 0 else "tm_inv_no_channels", lang), parse_mode="HTML")
+        return
+    found = await db.run_db(TI.search_people, user.id, str(uid))
+    shown = getattr(shared.users[0], "first_name", None) or getattr(shared.users[0], "username", None)
+    name = (found[0]["name"] or (f"@{found[0]['username']}" if found[0]["username"] else "")) if found else ""
+    st = {"uid": uid, "name": name or shown or str(uid), "known": bool(found), "perms": list(TI.PRESETS["full"]),
+          "all": [{"id": c["channel_id"], "title": c["title"]} for c in team["channels"]], "chans": [c["channel_id"] for c in team["channels"]]}
+    context.user_data[UD_TEAM_ADD] = st
+    await _add_screen(update, lang, st)
+
+
 # ------------------------------------------------------------------ bosh ekran
 async def build_home(user_id: int, lang: str):
     from config import ULTRA_TEAM_SEATS
 
     team = await db.run_db(TI.list_team, user_id)
     workspaces = await db.run_db(TI.workspaces_for, user_id)
-    mode = await db.run_db(TI.get_mode, user_id)
     seats = team["seats"]
     lines = [team_t("tm_title", lang), ""]
-    lines.append(team_t({"owner": "tm_role_owner", "helper": "tm_role_helper"}.get(mode, "tm_role_none"), lang))
-    lines.append("")
     if seats["limit"] > 0:
         pending = team_t("tm_seats_pending", lang, n=seats["pending"]) if seats["pending"] else ""
         lines.append(team_t("tm_seats", lang, used=seats["used"], limit=seats["limit"], pending=pending, total=seats["limit"] + 1))
@@ -96,7 +190,7 @@ async def build_home(user_id: int, lang: str):
             else:
                 chs = ", ".join(f"{html_escape(c['title'] or c['channel_id'])} ({perms_text(c['perms'], lang)})" for c in ws["channels"])
                 lines.append(team_t("tm_ws_row", lang, owner=owner, chs=chs))
-    rows = [[_btn(team_t("tm_btn_role", lang), "tm_mode")]]
+    rows = []
     if seats["limit"] > 0:
         rows.append([_btn(team_t("tm_btn_invite", lang), "tm_inv"), _btn(team_t("tm_btn_members", lang), "tm_mem")])
     else:
@@ -155,18 +249,55 @@ async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text, markup = await build_home(user_id, lang)
         return await _show(update, text, markup)
 
-    if action == "tm_mode":
-        markup = InlineKeyboardMarkup([[_btn(team_t("tm_btn_owner", lang), "tm_set:owner"), _btn(team_t("tm_btn_helper", lang), "tm_set:helper")],
-                                       _back(lang)])
-        return await _show(update, team_t("tm_mode_title", lang), markup)
-
-    if action == "tm_set" and len(parts) == 2 and parts[1] in TI.MODES:
-        ok = await db.run_db(TI.set_mode, user_id, parts[1])
-        key = "tm_mode_owner_ok" if parts[1] == "owner" else "tm_mode_helper_ok"
-        markup = InlineKeyboardMarkup([_back(lang)])
-        return await _show(update, team_t(key if ok else "tm_err_generic", lang), markup)
-
     if action == "tm_inv":
+        team = await db.run_db(TI.list_team, user_id)
+        if team["seats"]["limit"] <= 0:
+            return await _show(update, team_t("tm_err_no_team", lang), InlineKeyboardMarkup([[_btn(team_t("tm_btn_ultra", lang), "sub_open")], _back(lang)]))
+        if not team["channels"]:
+            return await _show(update, team_t("tm_inv_no_channels", lang), InlineKeyboardMarkup([_back(lang)]))
+        markup = InlineKeyboardMarkup([[_btn(team_t("tm_btn_pick", lang), "tm_pk"), _btn(team_t("tm_btn_link", lang), "tm_il")], _back(lang)])
+        return await _show(update, team_t("tm_add_title", lang), markup)
+
+    if action == "tm_pk":
+        kb = ReplyKeyboardMarkup(
+            [[KeyboardButton(team_t("tm_pick_reply_btn", lang), request_users=KeyboardButtonRequestUsers(TEAM_PICK_REQUEST_ID, user_is_bot=False, max_quantity=1))]],
+            resize_keyboard=True, one_time_keyboard=True)
+        context.user_data.pop(UD_TEAM_ADD, None)
+        await query.message.reply_text(team_t("tm_pick_prompt", lang), reply_markup=kb)
+        return None
+
+    if action == "tm_apr" and len(parts) == 2 and parts[1] in dict(PRESET_BUTTONS):
+        st = context.user_data.get(UD_TEAM_ADD)
+        if not st:
+            return await _show(update, team_t("tm_pick_expired", lang), InlineKeyboardMarkup([_back(lang)]))
+        st["perms"] = [] if parts[1] == "view" else list(TI.PRESETS[parts[1]])
+        return await _add_screen(update, lang, st)
+
+    if action == "tm_ap" and len(parts) == 2 and parts[1] in TI.PERMS:
+        st = context.user_data.get(UD_TEAM_ADD)
+        if not st:
+            return await _show(update, team_t("tm_pick_expired", lang), InlineKeyboardMarkup([_back(lang)]))
+        st["perms"] = [p for p in TI.PERMS if (p in st["perms"]) != (p == parts[1])]
+        return await _add_screen(update, lang, st)
+
+    if action == "tm_ac" and len(parts) == 2 and parts[1].isdigit():
+        st = context.user_data.get(UD_TEAM_ADD)
+        idx = int(parts[1])
+        if not st or idx >= len(st["all"]):
+            return await _show(update, team_t("tm_pick_expired", lang), InlineKeyboardMarkup([_back(lang)]))
+        cid = st["all"][idx]["id"]
+        st["chans"] = [c for c in st["chans"] if c != cid] if cid in st["chans"] else st["chans"] + [cid]
+        return await _add_screen(update, lang, st)
+
+    if action == "tm_ago":
+        st = context.user_data.get(UD_TEAM_ADD)
+        if not st:
+            return await _show(update, team_t("tm_pick_expired", lang), InlineKeyboardMarkup([_back(lang)]))
+        if not st["chans"]:
+            return await query.answer(team_t("tm_pick_no_channel", lang), show_alert=True)
+        return await _add_commit(update, context, user_id, lang, st)
+
+    if action == "tm_il":
         team = await db.run_db(TI.list_team, user_id)
         if team["seats"]["limit"] <= 0:
             return await _show(update, team_t("tm_err_no_team", lang), InlineKeyboardMarkup([[_btn(team_t("tm_btn_ultra", lang), "sub_open")], _back(lang)]))

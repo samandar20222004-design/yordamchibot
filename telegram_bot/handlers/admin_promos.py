@@ -160,6 +160,30 @@ async def promo_on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _toggle(update, context, True)
 
 
+async def promo_del_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """``/promo_del KOD`` — ogohlantirish; ``/promo_del KOD ok`` — butunlay o'chirish (tarix ham)."""
+    user_id = update.effective_user.id
+    if not _allowed(user_id):
+        return
+    lang = get_lang(context)
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(admin_t("pr_usage_del", lang))
+        return
+    item = await _find(args[0])
+    if item is None:
+        await update.message.reply_text(admin_t("pr_not_found", lang))
+        return
+    code = html_escape(item["code"])
+    if len(args) < 2 or args[1].lower() != "ok":
+        await update.message.reply_text(admin_t("pr_del_ask", lang, code=code, used=item["current_uses"]), parse_mode="HTML")
+        return
+    if not await db.run_db(PromoService.delete_promo, item["code"], user_id):
+        await update.message.reply_text(admin_t("pr_not_found", lang))
+        return
+    await update.message.reply_text(admin_t("pr_deleted", lang, code=code), parse_mode="HTML")
+
+
 async def admin_help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_admin(update.effective_user.id):
         return

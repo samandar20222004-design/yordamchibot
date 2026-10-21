@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { MarketRegionCheck, TeamAdded, TeamPerson, TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -416,9 +416,18 @@ export function parseMarketSummary(v: unknown): MarketSummary {
     price_min_usd: typeof o.price_min_usd === 'number' ? o.price_min_usd : 1, price_max_usd: typeof o.price_max_usd === 'number' ? o.price_max_usd : 100000,
     viewer: { country: typeof rec(o.viewer ?? {}, 'market.viewer').country === 'string' ? String(rec(o.viewer ?? {}, 'market.viewer').country) : '',
       currency: rec(o.viewer ?? {}, 'market.viewer').currency === 'USD' ? 'USD' : 'UZS' },
+    regions: Array.isArray(o.regions) ? o.regions.filter((x): x is string => typeof x === 'string' && /^[A-Z]{2}$/.test(x)) : [],
+    global_region: typeof o.global_region === 'string' ? o.global_region : 'ZZ',
     description_max: int(o.description_max, 'market.description_max'),
     message_min: int(o.message_min, 'market.message_min'), message_max: int(o.message_max, 'market.message_max'),
   }
+}
+
+export function parseMarketRegionCheck(v: unknown): MarketRegionCheck {
+  const o = rec(v, 'market.region')
+  const code = (x: unknown) => (typeof x === 'string' && /^[A-Z]{2}$/.test(x) ? x : null)
+  return { language: typeof o.language === 'string' ? o.language : null, fits: typeof o.fits === 'boolean' ? o.fits : null,
+    suggested: code(o.suggested), recommended: code(o.recommended), currency: o.currency === 'USD' ? 'USD' : 'UZS' }
 }
 
 export function parseMarketCatalog(v: unknown): MarketCatalog {
@@ -657,6 +666,18 @@ export function parseTeam(v: unknown): TeamOverview {
     channels: arr(o.channels ?? [], 'team.channels').map(parseTeamChannel),
     workspaces: arr(o.workspaces ?? [], 'team.workspaces').map(parseWorkspace),
   }
+}
+export function parseTeamPeople(v: unknown): TeamPerson[] {
+  const o = rec(v, 'team.people')
+  return arr(o.items ?? [], 'team.people.items').map((x) => {
+    const p = rec(x, 'team.person')
+    return { user_id: int(p.user_id, 'person.user_id'), name: str(p.name ?? '', 'person.name'), username: str(p.username ?? '', 'person.username'), member: p.member === true }
+  })
+}
+export function parseTeamAdded(v: unknown): TeamAdded {
+  const o = rec(v, 'team.added')
+  return { user_id: int(o.user_id, 'added.user_id'), name: str(o.name ?? '', 'added.name'), perms: teamPerms(o.perms, 'added.perms'),
+    channel_ids: arr(o.channel_ids, 'added.channel_ids').map((c) => str(c, 'added.channel')), notified: o.notified === true }
 }
 export function parseTeamInvite(v: unknown): TeamInviteCreated {
   const o = rec(v, 'team.invite')

@@ -162,6 +162,33 @@ def main() -> int:
         st, mine = C("GET", "/market/mine", OWN)
         T.check("mine: 3 kanal, bittasida e'lon", st == 200 and len(mine["items"]) == 3 and sum(1 for i in mine["items"] if i["listing"]) == 1, str(mine))
 
+        print("\n== 2b. Hudud (davlat/global): tanlash va kanal tilini tekshirish ==")
+        T.check("region-check: auth'siz 401; noto'g'ri hudud 422; begona kanal 404",
+                C("GET", f"/market/region-check?channel_id={CH_OK}&region=UZ", OWN, auth=False)[0] == 401
+                and C("GET", f"/market/region-check?channel_id={CH_OK}&region=XX", OWN)[0] == 422
+                and C("GET", f"/market/region-check?channel_id={CH_OTHER}&region=UZ", OWN)[0] == 404)
+        st, rc = C("GET", f"/market/region-check?channel_id={CH_OK}&region=UZ", OWN)
+        T.check("til noaniq (qisqa nom) -> ogohlantirish YO'Q (fits=null), valyuta so'm", st == 200 and rc["fits"] is None and rc["currency"] == "UZS", str(rc))
+        FakeBot.chats[CH_OK].description = "The best daily news and free tips for you"
+        st, rc = C("GET", f"/market/region-check?channel_id={CH_OK}&region=UZ", OWN)
+        T.check("kanal tavsifi inglizcha, hudud UZ -> fits=false, tavsiya Global (ZZ)", st == 200 and rc["fits"] is False and rc["language"] == "en" and rc["suggested"] == "ZZ", str(rc))
+        st, rc = C("GET", f"/market/region-check?channel_id={CH_OK}&region=ZZ", OWN)
+        T.check("Global tanlansa hamma til mos, valyuta dollar", st == 200 and rc["fits"] is True and rc["currency"] == "USD", str(rc))
+        FakeBot.chats[CH_OK].description = ""
+        st, sm = C("GET", "/market/summary", OWN)
+        T.check("summary: davlatlar ro'yxati (UZ boshida) va global belgisi", st == 200 and sm["regions"][0] == "UZ" and "RU" in sm["regions"] and "ZZ" not in sm["regions"] and sm["global_region"] == "ZZ")
+        T.check("noto'g'ri hudud bilan e'lon -> 422 (field=region)", (lambda r: r[0] == 422 and r[1]["error"]["field"] == "region")(C("POST", "/market/mine", OWN, {**good, "region": "XX"})))
+        T.check("e'lon: hudud davlat bo'lishi kerak (ZZ yoki ISO-2), kichik harf ham yaroqsiz tur emas", C("POST", "/market/mine", OWN, {**good, "region": 5})[0] == 422)
+        C("DELETE", f"/market/mine/{lid}", OWN)  # birinchi e'lon o'chiriladi; keyin Global bilan, so'ng qaytadan standart bilan
+        st, glob = C("POST", "/market/mine", OWN, {**good, "region": "zz", "price": 20})
+        T.check("Global e'lon: country=ZZ, valyuta USD (dollarda narx 20)", st == 201 and glob["listing"]["country"] == "ZZ" and glob["listing"]["currency"] == "USD" and glob["listing"]["price"] == 20, str(glob))
+        st, cm0 = C("GET", "/market/listings?country=mine", ADV)
+        T.check("UZ ko'ruvchi «o'z mamlakati» filtrida GLOBAL kanalni ham ko'radi", st == 200 and any(i["id"] == glob["listing"]["id"] for i in cm0["items"]), str(cm0)[:200])
+        C("DELETE", f"/market/mine/{glob['listing']['id']}", OWN)
+        st, pub = C("POST", "/market/mine", OWN, good)
+        lid = pub["listing"]["id"]
+        T.check("region berilmasa — egasining telefon mamlakati (UZ/UZS)", pub["listing"]["country"] == "UZ" and pub["listing"]["currency"] == "UZS", str(pub))
+
         print("\n== 3. Katalog va karta ==")
         st, cat = C("GET", "/market/listings?category=tech&sort=m&page=0", ADV)
         T.check("katalog: e'lon bor, ichki maydonlarsiz", st == 200 and any(i["id"] == lid for i in cat["items"])

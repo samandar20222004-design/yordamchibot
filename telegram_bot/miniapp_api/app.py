@@ -359,7 +359,7 @@ async def market_summary_handler(request: web.Request):
 async def market_catalog_handler(request: web.Request):
     page = _parse_int(request.query.get("page"), default=0, lo=0, hi=10000)
     data = await request.app[_K_MARKET].catalog(
-        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "m"), page=page,
+        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "r"), page=page,
         country=request.query.get("country", "all"))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
@@ -379,6 +379,12 @@ async def market_inquire_handler(request: web.Request):
 @_write
 async def market_report_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].report(request["user_id"], _market_id(request)))
+
+
+async def market_region_check_handler(request: web.Request):
+    q = request.query
+    return web.json_response(await request.app[_K_MARKET].region_check(request["user_id"], q.get("channel_id"), q.get("region"), q.get("d", "")),
+                             headers={"Cache-Control": "no-store"})
 
 
 async def market_mine_handler(request: web.Request):
@@ -533,6 +539,11 @@ async def admin_promo_create_handler(request: web.Request):
 
 
 @_write
+async def admin_promo_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].delete_promo(request["user_id"], request.match_info["code"]))
+
+
+@_write
 async def admin_promo_active_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
     return web.json_response(await request.app[_K_ADMIN].set_promo_active(request["user_id"], request.match_info["code"], body))
@@ -569,6 +580,11 @@ async def admin_role_set_handler(request: web.Request):
 # ------------------------------------------------------------ jamoa
 async def team_handler(request: web.Request):
     return web.json_response(await request.app[_K_TEAM].overview(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def team_people_handler(request: web.Request):
+    return web.json_response(await request.app[_K_TEAM].people(request["user_id"], request.query.get("q", "")),
+                             headers={"Cache-Control": "no-store"})
 
 
 @_write
@@ -752,7 +768,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
         closer = getattr(app[_K_WRITER], "aclose", None)  # sinov uchun almashtirilgan writer'da bo'lmasligi mumkin
         if closer is not None:
             await closer()
-        for key in (_K_MARKET, _K_ADMIN):
+        for key in (_K_MARKET, _K_ADMIN, _K_TEAM):
             closer2 = getattr(app[key], "aclose", None)
             if closer2 is not None:
                 await closer2()
@@ -787,6 +803,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/market/listings/{item_id}", market_listing_handler)
     api.router.add_post("/market/listings/{item_id}/inquiries", market_inquire_handler)
     api.router.add_post("/market/listings/{item_id}/report", market_report_handler)
+    api.router.add_get("/market/region-check", market_region_check_handler)
     api.router.add_get("/market/mine", market_mine_handler)
     api.router.add_post("/market/mine", market_publish_handler)
     api.router.add_patch("/market/mine/{item_id}", market_update_handler)
@@ -812,6 +829,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/admin/market/listings/{item_id}/status", admin_market_status_handler)
     api.router.add_post("/admin/market/users/{item_id}/ban", admin_market_ban_handler)
     api.router.add_get("/team", team_handler)
+    api.router.add_get("/team/people", team_people_handler)
     api.router.add_patch("/team/mode", team_mode_handler)
     api.router.add_post("/team/invites", team_invite_create_handler)
     api.router.add_delete("/team/invites/{item_id}", team_invite_delete_handler)
@@ -823,6 +841,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/admin/promos", admin_promo_create_handler)
     api.router.add_get("/admin/promos/{code}", admin_promo_detail_handler)
     api.router.add_patch("/admin/promos/{code}", admin_promo_active_handler)
+    api.router.add_delete("/admin/promos/{code}", admin_promo_delete_handler)
     api.router.add_post("/admin/grant", admin_grant_handler)
     api.router.add_get("/admin/audit", admin_audit_handler)
     api.router.add_get("/admin/features", admin_features_handler)

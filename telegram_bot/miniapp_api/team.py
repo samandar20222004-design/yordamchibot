@@ -27,10 +27,24 @@ def _iso(value):
 
 
 class TeamApi:
-    def __init__(self, service, settings: MiniAppSettings) -> None:
+    def __init__(self, service, settings: MiniAppSettings, *, bot_factory=None) -> None:
         self._service = service
         self._settings = settings
         self._gate = asyncio.Semaphore(settings.max_inflight_db)
+        self._bot_holder = writes.MediaFetcher(settings.bot_token, bot_factory)
+
+    async def aclose(self) -> None:
+        await self._bot_holder.aclose()
+
+    async def _notify_added(self, owner_id: int, member_id: int, channel_ids: list, perms: list) -> bool:
+        """Qo'shilgan yordamchiga bot orqali xabar (yetkazilmasa ham qo'shish bekor bo'lmaydi)."""
+        try:
+            from handlers.team_ui import notify_helper_added
+
+            return await notify_helper_added(self._bot_holder.get_bot, owner_id, member_id, channel_ids, perms)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("miniapp team: xabar yetkazilmadi (%s)", type(exc).__name__)
+            return False
 
     async def _blocking(self, fn, *args):
         try:
@@ -96,7 +110,39 @@ class TeamApi:
             raise ApiError("invalid_input", field="perms")
         return got
 
+    async def people(self, user_id: int, query: str) -> dict:
+        """Yordamchi qo'shish uchun qidiruv: @username (prefiks) yoki Telegram ID bo'yicha botdagi foydalanuvchilar."""
+        if not isinstance(query, str) or len(query) > 64:
+            raise ApiError("invalid_input", field="q")
+        await self._service.authorize(user_id)
+        from services import team_invites as TI
+
+        return {"items": await self._blocking(TI.search_people, user_id, query)}
+
+    async def add_helper(self, user_id: int, body: dict) -> dict:
+        raw_ids = body.get("channel_ids")
+        if not isinstance(raw_ids, list) or not 1 <= len(raw_ids) <= 10:
+            raise ApiError("invalid_input", field="channel_ids")
+        member = body.get("user_id")
+        if isinstance(member, bool) or not isinstance(member, int) or member <= 0:
+            raise ApiError("invalid_input", field="user_id")
+        channel_ids = [writes.parse_channel_id(c) for c in raw_ids]
+        perms = self._parse_perms(body)
+        await self._service.authorize(user_id)
+        from services import team_invites as TI
+
+        res = await self._blocking(TI.add_helper, user_id, member, channel_ids, perms)
+        if not res.get("ok"):
+            err = res.get("error")
+            code = _ERRORS.get(err) or {"self": "invalid_input", "user_unknown": "user_unknown"}.get(err, "save_failed")
+            raise ApiError(code, **({"field": "channel_ids"} if err == "not_owner" else {"field": "user_id"} if err in ("self", "user_unknown") else {}))
+        notified = await self._notify_added(user_id, member, channel_ids, perms)
+        return {"user_id": member, "name": res["name"], "perms": perms, "channel_ids": channel_ids, "notified": notified}
+
     async def create_invite(self, user_id: int, body: dict) -> dict:
+        if "user_id" in body:  # tanlangan odamni to'g'ridan-to'g'ri qo'shish (havolasiz)
+            writes._only_keys(body, ("user_id", "channel_ids", "perms", "role"))
+            return await self.add_helper(user_id, body)
         writes._only_keys(body, ("channel_id", "channel_ids", "perms", "role"))
         raw_ids = body.get("channel_ids") if "channel_ids" in body else [body.get("channel_id")]
         if not isinstance(raw_ids, list) or not 1 <= len(raw_ids) <= 10:

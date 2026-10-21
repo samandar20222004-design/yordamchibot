@@ -176,6 +176,34 @@ def main() -> int:
         T.check("eski a'zo (perms NULL) — rol shablonidan: scheduler = create+reschedule", TI.workspace_access(HC, OWN)[CH1]["perms"] == ["create", "reschedule"])
         TI.leave(HC, OWN)
 
+        print("\n== Z. Qidirish va to'g'ridan-to'g'ri qo'shish (kontakt / @username) ==")
+        cur.execute("DELETE FROM channel_members WHERE channel_id = ANY(%s)", ([CH1, CH2],))
+        cur.execute("DELETE FROM team_invites WHERE owner_id = %s", (OWN,))
+        T.check("qidiruv: @username prefiksi (>=3 belgi) topadi", [p["user_id"] for p in TI.search_people(OWN, "@u98000000")] and all(p["user_id"] != OWN for p in TI.search_people(OWN, "u98000000")))
+        T.check("qidiruv: aniq username", [p["user_id"] for p in TI.search_people(OWN, f"u{HA}")] == [HA])
+        T.check("qidiruv: Telegram ID bo'yicha aniq", [p["user_id"] for p in TI.search_people(OWN, str(HA))] == [HA])
+        T.check("qidiruv: 3 belgidan qisqa/bo'sh/juda uzun -> bo'sh", TI.search_people(OWN, "u9") == [] and TI.search_people(OWN, "  ") == [] and TI.search_people(OWN, "x" * 80) == [])
+        T.check("qidiruv: egasining o'zi chiqmaydi, % va _ belgilar shablon emas", TI.search_people(OWN, str(OWN)) == [] and TI.search_people(OWN, "%%%") == [] and TI.search_people(OWN, "u_9800") == [])
+        T.check("qidiruv: ism bo'yicha EMAS (maxfiylik)", TI.search_people(OWN, "Name9800000003") == [])
+        r = TI.add_helper(OWN, HA, [CH1, CH2], ["create", "analytics"])
+        T.check("add_helper: ikki kanalga qo'shildi, ruxsatlar to'g'ri", r["ok"] and r["perms"] == ["create", "analytics"] and set(TI.workspace_access(HA, OWN)) == {CH1, CH2} and TI.workspace_access(HA, OWN)[CH1]["perms"] == ["create", "analytics"], str(r))
+        T.check("add_helper: o'rindiq band, qidiruvda «member» belgisi", TI.seat_status(OWN)["used"] == 1 and TI.search_people(OWN, str(HA))[0]["member"] is True)
+        T.check("add_helper: mavjud yordamchiga qayta — huquqlar yangilanadi, o'rindiq oshmaydi", TI.add_helper(OWN, HA, [CH1], ["ai"])["ok"] and TI.seat_status(OWN)["used"] == 1 and TI.workspace_access(HA, OWN)[CH1]["perms"] == ["ai"])
+        T.check("add_helper: o'zini qo'shib bo'lmaydi", TI.add_helper(OWN, OWN, [CH1], ["create"])["error"] == "self")
+        T.check("add_helper: botda yo'q odam -> user_unknown", TI.add_helper(OWN, 9_899_999_999, [CH1], ["create"])["error"] == "user_unknown")
+        T.check("add_helper: begona kanal -> not_owner, noto'g'ri huquq -> bad_role", TI.add_helper(OWN, HB, [CHP], ["create"])["error"] == "not_owner" and TI.add_helper(OWN, HB, [CH1], ["hack"])["error"] == "bad_role")
+        T.check("add_helper: PRO egasi -> no_team", TI.add_helper(PRO, HB, [CHP], ["create"])["error"] == "no_team")
+        T.check("add_helper: ikkinchi yordamchi sig'adi, uchinchisi -> seats_full", TI.add_helper(OWN, HB, [CH1], ["create"])["ok"] and TI.add_helper(OWN, HC, [CH1], ["create"])["error"] == "seats_full")
+        cur.execute("DELETE FROM channel_members WHERE channel_id = ANY(%s)", ([CH1, CH2],))
+        cur.execute("DELETE FROM team_invites WHERE owner_id = %s", (OWN,))
+        old_cap = TI.MAX_JOINS_PER_DAY
+        TI.MAX_JOINS_PER_DAY = 1
+        try:
+            T.check("kunlik chegara: birinchi qo'shish o'tadi, ikkinchi yangi odam -> too_many_pending", TI.add_helper(OWN, HA, [CH1], ["create"])["ok"] and TI.add_helper(OWN, HB, [CH1], ["create"])["error"] == "too_many_pending")
+        finally:
+            TI.MAX_JOINS_PER_DAY = old_cap
+        T.check("qo'shilgan odam yordamchi sifatida ish joyini ko'radi (workspaces_for)", [w["owner_id"] for w in TI.workspaces_for(HA)] == [OWN])
+
     finally:
         config.TIER_LIMITS["ultra"]["team_seats"] = old_seats
         cleanup()

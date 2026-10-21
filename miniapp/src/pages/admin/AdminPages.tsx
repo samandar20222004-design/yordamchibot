@@ -201,30 +201,43 @@ function AdSideCard({ scope, enabled, interval, ads, reload }: {
   )
 }
 
+type AdsSection = 'subs' | 'channel' | 'reply'
+const ADS_SECTIONS: ReadonlyArray<{ id: AdsSection; label: MessageKey }> = [
+  { id: 'subs', label: 'adm.subs' }, { id: 'channel', label: 'adm.adChannel' }, { id: 'reply', label: 'adm.adReply' },
+]
+
+/** Bitta «Reklama» bo'limi: avval majburiy obuna, keyin qolgan reklamalar (kanal postlari, bot javoblari). */
 export function AdminAdsPage() {
   const { client, botUsername } = useAppData()
   const { t } = useI18n()
+  const [section, setSection] = useState<AdsSection>('subs')
   const res = useResource((s) => client.adminAds(s), true)
   const d = res.data
   return (
     <Page>
       <PageHeader title={t('adm.ads')} onRefresh={res.reload} refreshing={res.refreshing} />
-      {res.loading && <LoadingBlock rows={4} />}
-      {!d && res.error && <ErrorState error={res.error} onRetry={res.reload} botUsername={botUsername} />}
-      {d && (
-        <>
-          <AdSideCard key={`c-${d.settings.channel.enabled}-${d.settings.channel.interval}`} scope="channel" enabled={d.settings.channel.enabled}
-            interval={d.settings.channel.interval} ads={d.items.channel} reload={res.reload} />
-          <AdSideCard key={`r-${d.settings.reply.enabled}-${d.settings.reply.interval}`} scope="reply" enabled={d.settings.reply.enabled}
-            interval={d.settings.reply.interval} ads={d.items.reply} reload={res.reload} />
-        </>
+      <div className="chips" role="group" aria-label={t('adm.ads')}>
+        {ADS_SECTIONS.map((x) => (
+          <button key={x.id} type="button" className="chip" aria-pressed={section === x.id} onClick={() => setSection(x.id)}>{t(x.label)}</button>
+        ))}
+      </div>
+      {section === 'subs' && <SponsorsSection />}
+      {section !== 'subs' && res.loading && <LoadingBlock rows={4} />}
+      {section !== 'subs' && !d && res.error && <ErrorState error={res.error} onRetry={res.reload} botUsername={botUsername} />}
+      {section === 'channel' && d && (
+        <AdSideCard key={`c-${d.settings.channel.enabled}-${d.settings.channel.interval}`} scope="channel" enabled={d.settings.channel.enabled}
+          interval={d.settings.channel.interval} ads={d.items.channel} reload={res.reload} />
+      )}
+      {section === 'reply' && d && (
+        <AdSideCard key={`r-${d.settings.reply.enabled}-${d.settings.reply.interval}`} scope="reply" enabled={d.settings.reply.enabled}
+          interval={d.settings.reply.interval} ads={d.items.reply} reload={res.reload} />
       )}
     </Page>
   )
 }
 
 // ----------------------------------------------------------------- Majburiy obuna
-export function AdminSponsorsPage() {
+function SponsorsSection() {
   const { client, botUsername } = useAppData()
   const { t } = useI18n()
   const res = useResource((s) => client.adminSponsors(s), true)
@@ -236,9 +249,8 @@ export function AdminSponsorsPage() {
     if (ok) { setValue(''); res.reload() }
   }
   return (
-    <Page>
-      <PageHeader title={t('adm.subs')} onRefresh={res.reload} refreshing={res.refreshing} />
-      <p className="muted">{t('adm.subsHint')}</p>
+    <>
+      <p className="muted small">{t('adm.subsHint')}</p>
       <section className="card adm-card">
         <label className="field">{t('adm.subsAdd')}
           <input className="input" value={value} maxLength={80} autoCapitalize="none" autoCorrect="off" placeholder="@kanal"
@@ -269,7 +281,7 @@ export function AdminSponsorsPage() {
           confirmLabel={t('adm.delete')} danger busy={busy} onClose={() => setRemoving(null)}
           onConfirm={() => { void run(() => client.adminSponsorDelete(removing.id), 'adm.deleted').then((ok) => { if (ok) { setRemoving(null); res.reload() } }) }} />
       )}
-    </Page>
+    </>
   )
 }
 

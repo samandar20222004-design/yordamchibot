@@ -5,14 +5,13 @@ import { OfflineBanner } from '../../components/Shell'
 import { useI18n, type MessageKey } from '../../i18n'
 import { haptic } from '../../telegram'
 import { AdminToolsPage } from './AdminTools'
-import { AdminAdsPage, AdminMarketPage, AdminOverviewPage, AdminSponsorsPage } from './AdminPages'
+import { AdminAdsPage, AdminMarketPage, AdminOverviewPage } from './AdminPages'
 
-type AdminTab = 'overview' | 'ads' | 'subs' | 'market' | 'tools'
+type AdminTab = 'overview' | 'ads' | 'market' | 'tools'
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; icon: IconName; label: MessageKey }> = [
   { id: 'overview', icon: 'shield', label: 'adm.tabOverview' },
   { id: 'ads', icon: 'megaphone', label: 'adm.tabAds' },
-  { id: 'subs', icon: 'bell', label: 'adm.tabSubs' },
   { id: 'market', icon: 'market', label: 'adm.tabMarket' },
   { id: 'tools', icon: 'sparkle', label: 'adm.tabTools' },
 ]
@@ -29,7 +28,6 @@ export function AdminShell() {
       <div className="adm-banner" role="status"><Icon name="shield" size={16} /> {t('adm.modeBanner')}</div>
       {tab === 'overview' && <AdminOverviewPage />}
       {tab === 'ads' && <AdminAdsPage />}
-      {tab === 'subs' && <AdminSponsorsPage />}
       {tab === 'market' && <AdminMarketPage />}
       {tab === 'tools' && <AdminToolsPage />}
       <nav className="tabbar tabbar-admin" aria-label={t('adm.navLabel')}

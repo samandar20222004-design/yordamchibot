@@ -238,18 +238,49 @@ _SORTS = {
 }
 
 
+#: «Tavsiya» tartibi (0..1): ER 50% (30% da to'yinadi) + obunachi 30% (logarifmik, 1M da to'yinadi) + o'sish 20% (30 kunda +10% da to'yinadi);
+#: ko'rsatkichi hali yo'q kanal ×0,5 (noma'lum — pastroq), ma'lumoti 7 kundan eski ×0,85. Soxta ER/kichik kanal tepaga chiqmaydi.
+_QUALITY = (
+    "((0.5 * LEAST(COALESCE(l.er_percent, 0), 30) / 30.0 "
+    "+ 0.3 * LEAST(LN(COALESCE(l.members, 0) + 1) / LN(1000000.0), 1) "
+    "+ 0.2 * LEAST(GREATEST(COALESCE(l.growth_30d, 0), 0)::float / GREATEST(COALESCE(l.members, 1), 1) * 10, 1)) "
+    "* CASE WHEN l.avg_views IS NULL THEN 0.5 ELSE 1 END "
+    "* CASE WHEN l.stats_updated_at IS NULL OR l.stats_updated_at < NOW() - INTERVAL '7 days' THEN 0.85 ELSE 1 END)"
+)
+
+
 def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, page_size: int = PAGE_SIZE,
-                 country: str | None = None) -> dict:
-    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``. ``country`` (ISO-2) berilsa — faqat shu mamlakat e'lonlari."""
+                 country: str | None = None, viewer: str | None = None) -> dict:
+    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``. ``country`` (ISO-2) berilsa — shu mamlakat va global («ZZ») e'lonlari.
+
+    ``sort="r"`` (tavsiya): avval hudud yaqinligi, keyin sifat ballı (``_QUALITY``). ``viewer`` — ko'ruvchi mamlakati:
+    «o'z mamlakati» ko'rinishida o'z davlat kanallari global'dan OLDIN; «hammasi» ko'rinishida YAQIN davlatlar, keyin global,
+    keyin boshqa davlatlar, o'z mamlakati kanallari ENG PASTDA (ularni ko'ruvchi «mahalliy» ro'yxatda ko'radi).
+    """
     where = ["l.status = 'active'"]
     params: list = []
     if category and category != "all":
         where.append("l.category = %s")
         params.append(category)
-    if country:
-        where.append("l.country = %s")
+    if country:  # o'z mamlakati + global («ZZ») e'lonlar hamma uchun ko'rinadi
+        where.append("(l.country = %s OR l.country = 'ZZ')")
         params.append(str(country).upper()[:2])
-    order = _SORTS.get(sort, _SORTS["m"])
+    order_params: list = []
+    if sort == "r":
+        v = str(viewer or country or "").upper()[:2]
+        if country:
+            prox = "CASE WHEN l.country = %s THEN 0 ELSE 1 END"
+            order_params = [str(country).upper()[:2]]
+        elif v and v != "ZZ":
+            from services.channel_region import near_countries
+
+            prox = "CASE WHEN l.country = %s THEN 3 WHEN l.country = ANY(%s) THEN 0 WHEN l.country = 'ZZ' THEN 1 ELSE 2 END"
+            order_params = [v, near_countries(v)]
+        else:
+            prox = "0::int"
+        order = f"{prox}, {_QUALITY} DESC, l.members DESC NULLS LAST, l.id DESC"
+    else:
+        order = _SORTS.get(sort, _SORTS["m"])
     size = max(1, min(int(page_size), 20))
     offset = max(0, int(page)) * size
     with db_cursor() as cur:
@@ -260,7 +291,7 @@ def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, pa
         cur.execute(
             f"SELECT {_LISTING_COLS} FROM ad_market_listings l {_LIVE_JOIN} "  # nosec B608 — faqat modul konstantalari/oq ro'yxat; qiymatlar %s bilan
             f"WHERE {' AND '.join(where)} ORDER BY {order} LIMIT %s OFFSET %s",
-            params + [size, offset],
+            params + order_params + [size, offset],
         )
         items = [_listing(r) for r in cur.fetchall()]
     return {"items": items, "total": total}

@@ -278,6 +278,43 @@ def main() -> int:
         pend_owner = cur.fetchone()[0]
         cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s", (ED,))
         T.check("yordamchi nomidan post YO'Q — hammasi egasining navbatida (limit egasidan)", cur.fetchone()[0] == 0 and pend_owner >= 3)
+        print("\n== Z. Qidirish va to'g'ridan-to'g'ri qo'shish (kontakt / @username) ==")
+        import handlers.team_ui as team_ui_mod
+
+        sent = []
+
+        async def fake_notify(bot, owner_id, member_id, channel_ids, perms):
+            sent.append((owner_id, member_id, list(channel_ids), list(perms)))
+            return True
+
+        real_notify = team_ui_mod.notify_helper_added
+        team_ui_mod.notify_helper_added = fake_notify
+        try:
+            cur.execute("DELETE FROM channel_members WHERE channel_id = ANY(%s)", ([CH1, CH2, CH3],))
+            cur.execute("DELETE FROM team_invites WHERE owner_id = %s", (OWN,))
+            st, res = C("GET", f"/team/people?q=u{OUT}", OWN)
+            T.check("GET /team/people: username bo'yicha topadi (member=false)", st == 200 and [x["user_id"] for x in res["items"]] == [OUT] and res["items"][0]["member"] is False, str(res))
+            T.check("qisqa so'rov -> bo'sh ro'yxat; auth'siz 401", C("GET", "/team/people?q=u9", OWN)[1]["items"] == [] and run(client.request("GET", "/api/v1/team/people?q=abcd")).status == 401)
+            T.check("juda uzun so'rov -> 422", C("GET", "/team/people?q=" + "x" * 80, OWN)[0] == 422)
+            st, add = C("POST", "/team/invites", OWN, {"user_id": OUT, "channel_ids": [CH1, CH2], "perms": ["create", "analytics"]})
+            T.check("tanlangan odam to'g'ridan-to'g'ri qo'shildi (201), unga xabar ketdi", st == 201 and add["user_id"] == OUT and add["perms"] == ["create", "analytics"] and add["notified"] is True
+                    and sent == [(OWN, OUT, [CH1, CH2], ["create", "analytics"])], str((st, add, sent)))
+            st, ov = C("GET", "/team", OWN)
+            T.check("a'zo har ikki kanalda ruxsatlari bilan ko'rinadi", sum(1 for c in ov["channels"] for m in c["members"] if m["user_id"] == OUT and m["perms"] == ["create", "analytics"]) == 2)
+            st, res = C("GET", f"/team/people?q={OUT}", OWN)
+            T.check("endi qidiruvda member=true", res["items"][0]["member"] is True)
+            T.check("qo'shilgan yordamchi ish joyiga kira oladi (X-Workspace)", C("GET", "/channels", OUT, ws=OWN)[0] == 200)
+            T.check("o'zini qo'shish -> 422", C("POST", "/team/invites", OWN, {"user_id": OWN, "channel_ids": [CH1], "perms": ["create"]})[0] == 422)
+            T.check("botda yo'q odam -> 404 user_unknown", code(C("POST", "/team/invites", OWN, {"user_id": 9_899_999_999, "channel_ids": [CH1], "perms": ["create"]})) == "user_unknown")
+            T.check("begona kanal -> 404 channel_not_found", code(C("POST", "/team/invites", OWN, {"user_id": ED, "channel_ids": [CHP], "perms": ["create"]})) == "channel_not_found")
+            for bad in ({"user_id": ED, "channel_ids": [CH1], "perms": ["hack"]}, {"user_id": ED, "channel_ids": []}, {"user_id": "x", "channel_ids": [CH1]}, {"user_id": ED, "channel_ids": [CH1], "z": 1}, {"user_id": True, "channel_ids": [CH1]}):
+                T.check(f"noto'g'ri qo'shish -> 422: {bad}", C("POST", "/team/invites", OWN, bad)[0] == 422)
+            T.check("PRO egasi qo'sha olmaydi -> team_no_seats", code(C("POST", "/team/invites", PROU, {"user_id": ED, "channel_ids": [CHP], "perms": ["create"]})) == "team_no_seats")
+            T.check("yordamchi boshqani qo'sha olmaydi (o'z kanali yo'q) -> channel_not_found", code(C("POST", "/team/invites", OUT, {"user_id": ED, "channel_ids": [CH1], "perms": ["create"]})) == "channel_not_found")
+            C("POST", "/team/invites", OWN, {"user_id": ED, "channel_ids": [CH1], "perms": ["create"]})
+            T.check("o'rindiqlar to'lgach yana qo'shish -> team_seats_full", code(C("POST", "/team/invites", OWN, {"user_id": SCH, "channel_ids": [CH1], "perms": ["create"]})) == "team_seats_full")
+        finally:
+            team_ui_mod.notify_helper_added = real_notify
         T.check("oddiy foydalanuvchi /team auth'siz -> 401", run(client.request("GET", "/api/v1/team")).status == 401)
         run(client.close())
         _ = config

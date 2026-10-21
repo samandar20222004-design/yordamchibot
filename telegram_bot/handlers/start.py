@@ -461,7 +461,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # Mini App -> bot: `https://t.me/<bot>?start=go_<bo'lim>`. FAQAT shu ro'yxat; boshqa payload e'tiborsiz.
 MINIAPP_GO_TARGETS = {
     "go_plans": "plans", "go_settings": "settings", "go_help": "help",
-    "go_channels": "channels", "go_invite": "invite",
+    "go_channels": "channels", "go_invite": "invite", "go_team": "team",
 }
 
 
@@ -482,6 +482,10 @@ async def _open_go_target(update: Update, context: ContextTypes.DEFAULT_TYPE, ta
             await channels_menu(update, context)
         elif target == "invite":
             await user_invite_menu(update, context)
+        elif target == "team":
+            from handlers.team_ui import team_command
+
+            await team_command(update, context)
     except Exception:  # noqa: BLE001
         logger.warning("Mini App deep-link bo'limi ochilmadi (%s)", target, exc_info=True)
 

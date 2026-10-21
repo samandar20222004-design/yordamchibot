@@ -42,7 +42,7 @@ for lang, label in (("uz", "👥 Jamoa va rol"), ("ru", "👥 Команда и 
     btn = next(b for r in get_settings_profile_keyboard(lang).inline_keyboard for b in r if b.callback_data == "stgs_team")
     check(f"[{lang}] hub tugmasi ≤18 belgi", btn.text == label and len(btn.text) <= 18, btn.text)
 
-STATE = {"mode": None, "seats": 2, "revoked": [], "removed": [], "perms": [], "left": [], "invites": []}
+STATE = {"added": [], "mode": None, "seats": 2, "revoked": [], "removed": [], "perms": [], "left": [], "invites": []}
 MEMBER_PERMS = ["create", "edit"]
 CH = {"channel_id": "-100111", "title": "Kanal <A>"}
 
@@ -123,23 +123,17 @@ try:
     text = q.edits[-1][0]
     cbs = [b.callback_data for b in buttons(q)]
     check("ULTRA: o'rindiqlar 1/2 va kutilayotgan taklif", "1/2" in text and "+1" in text, text)
-    check("ULTRA: Yordamchi/A'zolar/Ish joylarim/Rol/Orqaga tugmalari", {"tm_mode", "tm_inv", "tm_mem", "tm_ws", "stgs_hub"} <= set(cbs), str(cbs))
+    check("ULTRA: Yordamchi/A'zolar/Ish joylarim/Orqaga tugmalari (rol tanlash tugmasi YO'Q)", {"tm_inv", "tm_mem", "tm_ws", "stgs_hub"} <= set(cbs) and "tm_mode" not in cbs, str(cbs))
     check("ish joyi ko'rinadi (Ega — Boshqa (Tahlilchi))", "Ega" in text and "Boshqa" in text)
     STATE["seats"] = 0
     q, _ = press("tm_home")
     check("PRO: jamoa yo'q — ULTRA taklifi va «bitta odam» matni", "ULTRA" in q.edits[-1][0] and "sub_open" in [b.callback_data for b in buttons(q)] and "tm_inv" not in [b.callback_data for b in buttons(q)], q.edits[-1][0])
     STATE["seats"] = 2
 
-    print("== Rol tanlash ==")
-    q, _ = press("tm_mode")
-    check("ikki variant: o'zim / yordamchiman", {b.callback_data for b in buttons(q)} >= {"tm_set:owner", "tm_set:helper"})
-    q, _ = press("tm_set:helper")
-    check("yordamchi rejimi saqlandi va yo'riqnoma", STATE["mode"] == "helper" and "taklif havolasi" in q.edits[-1][0])
-    q, _ = press("tm_set:admin")
-    check("noto'g'ri rejim e'tiborsiz (bosh ekran)", STATE["mode"] == "helper")
-
     print("== Taklif ==")
     q, _ = press("tm_inv")
+    check("«Yordamchi» avval usul tanlatadi: kontakt / havola", {"tm_pk", "tm_il"} <= {b.callback_data for b in buttons(q)}, str([b.callback_data for b in buttons(q)]))
+    q, _ = press("tm_il")
     check("kanallar ro'yxati", "tm_ic:-100111" in [b.callback_data for b in buttons(q)])
     q, _ = press("tm_ic:-100111")
     check("5 shablon tugmasi (hammasi / muharrir / rejalovchi / tahlilchi / faqat ko'rish)",
@@ -163,6 +157,74 @@ try:
     fake[TI.create_invite] = lambda uid, ch, perms: {"ok": False, "error": "seats_full"}
     q, _ = press("tm_ir:-100111:editor")
     check("o'rindiq to'lgan xabari", "o'rindiq" in q.edits[-1][0])
+
+    print("== Kontakt tanlash -> huquqlar (Telegram adminlari kabi) ==")
+    fake[TI.search_people] = lambda uid, q: PEOPLE.get(q, [])
+    fake[TI.add_helper] = lambda uid, m, chans, perms: STATE["added"].append((m, list(chans), list(perms))) or {"ok": True, "channel_ids": list(chans), "perms": list(perms), "name": "Vali", "new": True}
+    PEOPLE = {"88": [{"user_id": 88, "name": "Vali", "username": "vali", "member": False}]}
+    STATE["added"] = []
+    q, ctx_pick = press("tm_pk")
+    kb = q.message.sent[-1][1]["reply_markup"]
+    req = kb.keyboard[0][0].request_users
+    check("«Kontakt tanlash»: Telegram odam tanlagichi (request_users, bot emas, bitta odam)", req is not None and req.user_is_bot is False and req.max_quantity == 1 and req.request_id == UI.TEAM_PICK_REQUEST_ID)
+
+    class PickMsg(Msg):
+        def __init__(self, uid, request_id=UI.TEAM_PICK_REQUEST_ID):
+            super().__init__()
+            self.users_shared = SimpleNamespace(request_id=request_id, users=[SimpleNamespace(user_id=uid, first_name="Vali", username=None)])
+
+    def shared(uid, ctx, request_id=UI.TEAM_PICK_REQUEST_ID, me=5):
+        m = PickMsg(uid, request_id)
+        asyncio.run(UI.team_users_shared(SimpleNamespace(callback_query=None, effective_message=m, effective_user=SimpleNamespace(id=me)), ctx))
+        return m
+
+    def tap(data, ctx):
+        qq = Query(data)
+        asyncio.run(UI.team_callback(SimpleNamespace(callback_query=qq, effective_user=qq.from_user, effective_message=qq.message), ctx))
+        return qq
+
+    ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=Bot())
+    m = shared(88, ctx)
+    check("tanlangach huquqlar ekrani (odam nomi + 7 ta yoqish/o'chirish + «Qo'shish»)",
+          "Vali" in m.sent[-1][0] and any(b.callback_data == "tm_ago" for r in m.sent[-1][1]["reply_markup"].inline_keyboard for b in r)
+          and {f"tm_ap:{p}" for p in TI.PERMS} <= {b.callback_data for r in m.sent[-1][1]["reply_markup"].inline_keyboard for b in r}, str(m.sent[-1]))
+    st = ctx.user_data[UI.UD_TEAM_ADD]
+    check("standart: hamma huquq + hamma kanal, odam botda bor", st["perms"] == list(TI.PERMS) and st["chans"] == ["-100111"] and st["known"] is True)
+    qq = tap("tm_ap:send_now", ctx)
+    check("huquq o'chirildi (⬜), qolganlari yoniq", "send_now" not in st["perms"] and len(st["perms"]) == 6 and any(b.text.startswith("⬜") and "Darhol" in b.text for r in qq.edits[-1][1]["reply_markup"].inline_keyboard for b in r))
+    tap("tm_apr:analyst", ctx)
+    check("shablon: Tahlilchi -> faqat statistika", st["perms"] == ["analytics"], str(st["perms"]))
+    tap("tm_ap:ai", ctx)
+    check("shablon ustiga alohida huquq qo'shildi", st["perms"] == ["analytics", "ai"], str(st["perms"]))
+    tap("tm_ap:hack", ctx)
+    check("noto'g'ri huquq kaliti e'tiborsiz", st["perms"] == ["analytics", "ai"])
+    qq = tap("tm_ago", ctx)
+    check("«Qo'shish»: add_helper tanlangan odam, kanal va huquqlar bilan", STATE["added"] == [(88, ["-100111"], ["analytics", "ai"])], str(STATE["added"]))
+    check("natija: holat tozalandi, egasiga «xabar yuborildi»", UI.UD_TEAM_ADD not in ctx.user_data and "Unga xabar yuborildi" in qq.edits[-1][0], qq.edits[-1][0])
+    check("yordamchiga bot xabari (egasi, kanal, huquqlar)", ctx.bot.sent and ctx.bot.sent[-1]["chat_id"] == 88 and "Statistika" in ctx.bot.sent[-1]["text"], str(ctx.bot.sent))
+    qq = tap("tm_ago", ctx)
+    check("seans tugagach «Qo'shish» takror bosilsa ikkinchi marta qo'shilmaydi", len(STATE["added"]) == 1 and "qaytadan" in qq.edits[-1][0], qq.edits[-1][0])
+    ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=Bot())
+    shared(5, ctx)
+    check("o'zini tanlab bo'lmaydi", UI.UD_TEAM_ADD not in ctx.user_data)
+    shared(88, ctx, request_id=999)
+    check("boshqa request_id (begona oqim) e'tiborsiz", UI.UD_TEAM_ADD not in ctx.user_data)
+    PEOPLE.clear()
+    fake[TI.create_invite] = lambda uid, chans, perms: STATE["invites"].append((chans, perms)) or {"ok": True, "token": "tok_zzzzzzzzzzzzzzzz", "id": 7, "expires_at": None}
+    m = shared(99, ctx)
+    check("botni ishga tushirmagan odam: havola yaratilishi aytiladi", "havola" in m.sent[-1][0].lower() and ctx.user_data[UI.UD_TEAM_ADD]["known"] is False)
+    qq = tap("tm_ago", ctx)
+    check("bot foydalanuvchisi bo'lmasa — taklif havolasi (share) yaratiladi, add_helper chaqirilmaydi", "start=team_tok_zzzzzzzzzzzzzzzz" in qq.edits[-1][0] and len(STATE["added"]) == 1, qq.edits[-1][0])
+    fake[TI.add_helper] = lambda uid, m, chans, perms: {"ok": False, "error": "seats_full"}
+    PEOPLE["88"] = [{"user_id": 88, "name": "Vali", "username": "vali", "member": False}]
+    ctx = SimpleNamespace(user_data={"lang": "uz"}, bot=Bot())
+    shared(88, ctx)
+    qq = tap("tm_ago", ctx)
+    check("o'rindiq to'lgan: tushunarli xabar", "o'rindiq" in qq.edits[-1][0], qq.edits[-1][0])
+    fake[TI.add_helper] = lambda uid, m, chans, perms: {"ok": False, "error": "too_many_pending"}
+    shared(88, ctx)
+    qq = tap("tm_ago", ctx)
+    check("kunlik chegara: tushunarli xabar", "ertaga" in qq.edits[-1][0].lower(), qq.edits[-1][0])
 
     print("== A'zolar ==")
     q, _ = press("tm_mem")

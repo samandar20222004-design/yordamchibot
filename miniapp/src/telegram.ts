@@ -90,8 +90,8 @@ export function isValidBotUsername(username: string | null | undefined): usernam
 }
 
 /** Botdagi bo'lim (deep-link). Bot `/start go_<bo'lim>` ni FAQAT shu ro'yxat bo'yicha tanlaydi (qat'iy ruxsat ro'yxati). */
-export type BotSection = 'plans' | 'settings' | 'help' | 'channels' | 'invite'
-const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help', 'channels', 'invite']
+export type BotSection = 'plans' | 'settings' | 'help' | 'channels' | 'invite' | 'team'
+const BOT_SECTIONS: readonly BotSection[] = ['plans', 'settings', 'help', 'channels', 'invite', 'team']
 
 /**
  * Botni Telegram ichida ochadi: `https://t.me/<username>`; `section` berilsa `?start=go_<bo'lim>` qo'shiladi va bot

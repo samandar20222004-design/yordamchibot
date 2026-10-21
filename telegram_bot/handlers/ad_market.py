@@ -25,6 +25,7 @@ import database as db
 from config import ADMIN_IDS_SET
 from repositories import ad_market_repository as repo
 from services import ad_market as svc
+from services import channel_region as region_mod
 from services.country import flag as country_flag, label as country_label
 from translations import market_t
 from utils.helpers import html_escape
@@ -155,7 +156,7 @@ def card_text(listing: dict, lang: str, *, owner_view: bool = False) -> str:
         f"{t('mk_f_er')}: <b>{f'{er}%' if er is not None else '—'}</b>",
         f"{t('mk_f_posts')}: <b>{listing.get('posts_30d') if listing.get('posts_30d') is not None else '—'}</b>",
         f"{t('mk_f_price')}: <b>{_price_text(listing.get('price_post'), lang, listing.get('price_currency') or 'UZS')}</b>",
-        f"{t('mk_f_country')}: <b>{country_label(listing.get('country'))}</b>",
+        f"{t('mk_f_country')}: <b>{_region_name(str(listing.get('country') or ''), lang) if listing.get('country') else country_label(None)}</b>",
     ]
     badges = [t(f"mk_badge_{b}") for b in svc.listing_badges(listing)]
     if badges:
@@ -229,18 +230,18 @@ async def market_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: str, sort: str, page: int) -> None:
     lang = await _lang(context, update.effective_user.id)
     cat = cat if cat == "all" or cat in svc.CATEGORIES else "all"
-    sort = sort if sort in ("m", "p", "e") else "m"
+    sort = sort if sort in ("r", "m", "p", "e") else "r"
     page = max(0, page)
     country = await _viewer_country(update.effective_user.id)
     cf = _country_filter(context, country)
     only = country if cf == "mine" else None
     context.user_data["mk_last"] = (cat, sort, page)
-    data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
+    data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only, country or None)
     total, items = data["total"], data["items"]
     pages = max(1, -(-total // repo.PAGE_SIZE))
     if page >= pages:
         page = pages - 1
-        data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
+        data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only, country or None)
         items = data["items"]
     rows = []
     for it in items:
@@ -250,9 +251,9 @@ async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: s
             price = f"${svc.format_count(it['price_post'])}"
         else:
             price = svc.format_count(it["price_post"])
-        label = f"{country_flag(it.get('country'))} {(it['title'] or it['username'])[:18]} · {svc.format_count(it['members'])} · {price}"
+        label = f"{_flag(it.get('country'))} {(it['title'] or it['username'])[:18]} · {svc.format_count(it['members'])} · {price}"
         rows.append([_btn(label, f"mk:v:{it['id']}")])
-    sorts = [_btn(("• " if sort == k else "") + market_t(f"mk_sort_{k}", lang), f"mk:l:{cat}:{k}:0") for k in ("m", "p", "e")]
+    sorts = [_btn(("• " if sort == k else "") + market_t(f"mk_sort_{k}", lang), f"mk:l:{cat}:{k}:0") for k in ("r", "m", "p", "e")]
     rows.append(sorts)
     nav = []
     if page > 0:
@@ -593,8 +594,8 @@ async def _start_new_listing(update, context, channel: dict, lang: str) -> None:
         return
     context.user_data["mk_new"] = {"channel_id": str(raw), "username": info["username"],
                                    "title": info["title"] or channel.get("title") or info["username"],
-                                   "members": info["members"], "ts": time.time(),
-                                   "country": country, "currency": svc.owner_currency(country)}
+                                   "members": info["members"], "ts": time.time(), "about": info.get("description", ""),
+                                   "owner_country": country, "country": country, "currency": svc.owner_currency(country)}
     cats = list(svc.CATEGORIES)
     rows = [[_btn(_cat_label(c, lang), f"mk:nc:{c}") for c in cats[i:i + 2]] for i in range(0, len(cats), 2)]
     rows.append([_btn(market_t("mk_btn_back", lang), "mk:my")])
@@ -610,9 +611,57 @@ async def market_new_category(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _toast(update, market_t("mk_stale", lang), alert=True)
         return
     new["category"] = svc.normalize_category(category)
+    await _toast(update)
+    await _show_region_pick(update, new, lang)
+
+
+def _flag(code) -> str:
+    return "🌍" if str(code or "").upper() == region_mod.GLOBAL else country_flag(code)
+
+
+def _region_name(code: str, lang: str) -> str:
+    return market_t("mk_region_global", lang) if code == region_mod.GLOBAL else country_label(code)
+
+
+async def _show_region_pick(update: Update, new: dict, lang: str) -> None:
+    """Kanal hududi: egasi faqat DAVLATni (yoki Global) tanlaydi; tavsiya kanal tiliga qarab aniqlanadi."""
+    res = region_mod.assess(new.get("owner_country"), new.get("title"), new.get("about"))
+    rec = res["recommended"] or new.get("owner_country") or region_mod.GLOBAL
+    popular = [c for c in region_mod.POPULAR if c != rec]
+    rows = [[_btn(f"✅ {_region_name(rec, lang)}", f"mk:nr:{rec}")]]
+    if rec != region_mod.GLOBAL:
+        rows[0].append(_btn(market_t("mk_region_global", lang), f"mk:nr:{region_mod.GLOBAL}"))
+    rows += [[_btn(country_label(c), f"mk:nr:{c}") for c in popular[i:i + 4]] for i in range(0, len(popular), 4)]
+    rows.append([_btn(market_t("mk_btn_back", lang), "mk:my")])
+    note = market_t("mk_region_detected", lang, lang_name=market_t(f"mk_lang_{res['language']}", lang)) if res["language"] else ""
+    await _show(update, market_t("mk_region_pick", lang, note=note), _kb(rows))
+
+
+async def market_new_region(update: Update, context: ContextTypes.DEFAULT_TYPE, code: str, confirmed: bool = False) -> None:
+    user = update.effective_user
+    lang = await _lang(context, user.id)
+    new = context.user_data.get("mk_new")
+    if not new or time.time() - new["ts"] > INPUT_TTL:
+        await _toast(update, market_t("mk_stale", lang), alert=True)
+        return
+    code = code.upper()
+    if not region_mod.valid_region(code):
+        await _toast(update)
+        return
+    res = region_mod.assess(code, new.get("title"), new.get("about"))
+    if res["fits"] is False and not confirmed:  # kanal matni boshqa tilda: tavsiya, lekin qaror egasiniki
+        sug = res["suggested"] or region_mod.GLOBAL
+        await _toast(update)
+        await _show(update, market_t("mk_region_mismatch", lang, lang_name=market_t(f"mk_lang_{res['language']}", lang),
+                                     chosen=_region_name(code, lang), suggested=_region_name(sug, lang)),
+                    _kb([[_btn(market_t("mk_btn_use", lang, name=_region_name(sug, lang)), f"mk:nk:{sug}")],
+                         [_btn(market_t("mk_btn_keep", lang, name=_region_name(code, lang)), f"mk:nk:{code}")]]))
+        return
+    new["country"] = code
+    new["currency"] = svc.owner_currency(code)
     _set_input(context, "price_new")
     await _toast(update)
-    key = "mk_price_prompt_usd" if new.get("currency") == "USD" else "mk_price_prompt"
+    key = "mk_price_prompt_usd" if new["currency"] == "USD" else "mk_price_prompt"
     await update.effective_chat.send_message(market_t(key, lang), parse_mode=ParseMode.HTML)
 
 
@@ -871,10 +920,10 @@ async def market_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await market_categories(update, context)
         elif action == "l":
             await market_list(update, context, parts[2] if len(parts) > 2 else "all",
-                              parts[3] if len(parts) > 3 else "m", _int(parts, 4))
+                              parts[3] if len(parts) > 3 else "r", _int(parts, 4))
         elif action == "cf":
             context.user_data["mk_cf"] = "all" if (parts[2] if len(parts) > 2 else "") == "all" else "mine"
-            cat, sort, page = context.user_data.get("mk_last", ("all", "m", 0))
+            cat, sort, page = context.user_data.get("mk_last", ("all", "r", 0))
             await market_list(update, context, cat, sort, 0 if page is None else page)
         elif action == "cfv":
             from handlers.phone_verify import PURPOSE_COUNTRY, ask_phone_verification
@@ -906,6 +955,8 @@ async def market_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await market_my(update, context)
         elif action == "lc":
             await market_channel_entry(update, context, ":".join(parts[2:]))
+        elif action in ("nr", "nk") and len(parts) > 2:
+            await market_new_region(update, context, parts[2], confirmed=action == "nk")
         elif action == "nc":
             await market_new_category(update, context, parts[2] if len(parts) > 2 else "other")
         elif action == "m":

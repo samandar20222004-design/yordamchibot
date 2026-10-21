@@ -26,6 +26,8 @@ MODES = ("owner", "helper")
 INVITE_TTL_DAYS = 7
 MAX_PENDING_INVITES = 10
 MAX_INVITE_CHANNELS = 10
+MAX_JOINS_PER_DAY = 10  # kuniga egasi qo'sha oladigan yordamchilar (havola + to'g'ridan-to'g'ri): spamga qarshi
+MIN_SEARCH_CHARS = 3
 
 #: Yordamchi ruxsatlari (egasi har biriga alohida beradi). «Ko'rish» har doim bor.
 #: create — yangi post yaratish/rejalash; edit — matn, tugma, media tahriri; reschedule — vaqtni o'zgartirish;
@@ -178,6 +180,86 @@ def create_invite(owner_id: int, channel_ids, perms=None) -> dict:
         return {"ok": True, "token": token, "id": int(row[0]), "expires_at": row[1]}
     except Exception as exc:  # noqa: BLE001
         logger.error("team create_invite xatosi: %s", type(exc).__name__)
+        return {"ok": False, "error": "failed"}
+
+
+def search_people(owner_id: int, query: str, limit: int = 6) -> list[dict]:
+    """Botdan foydalanuvchini @username (prefiks, kamida 3 belgi) yoki Telegram ID (aniq) bo'yicha topadi.
+
+    Faqat botni ishga tushirganlar topiladi (ularga xabar yuborish mumkin). Egasining o'zi chiqmaydi.
+    Natija: ``[{user_id, name, username, member}]`` (``member`` — allaqachon shu eganing yordamchisi).
+    """
+    q = (query or "").strip().lstrip("@").strip()
+    if not q or len(q) > 64:
+        return []
+    with db_cursor() as cur:
+        if q.isdigit():
+            if len(q) < 5 or len(q) > 15:
+                return []
+            cur.execute("SELECT user_id, full_name, username FROM users WHERE user_id = %s AND user_id <> %s", (int(q), owner_id))
+        else:
+            if len(q) < MIN_SEARCH_CHARS:
+                return []
+            like = q.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+            cur.execute("SELECT user_id, full_name, username FROM users WHERE LOWER(username) LIKE %s AND user_id <> %s "
+                        "ORDER BY LOWER(username) LIMIT %s", (like, owner_id, int(limit)))
+        rows = cur.fetchall()
+        helpers = set(_helpers(cur, owner_id))
+    return [{"user_id": int(r[0]), "name": r[1] or "", "username": r[2] or "", "member": int(r[0]) in helpers} for r in rows]
+
+
+def add_helper(owner_id: int, member_id: int, channel_ids, perms) -> dict:
+    """Foydalanuvchini to'g'ridan-to'g'ri yordamchi qiladi (qidiruv/kontakt orqali tanlangan odam).
+
+    Taklif havolasidan farqi: odam allaqachon botda; unga xabar boradi va u istalgan vaqt chiqib keta oladi.
+    Natija ``{"ok": True, channel_ids, perms, name}`` yoki ``{"ok": False, "error"}``: ``bad_role``, ``not_owner``, ``self``,
+    ``user_unknown`` (botni ishga tushirmagan), ``no_team``, ``seats_full``, ``too_many_pending`` (kunlik chegara).
+    """
+    chans = _as_channel_list(channel_ids)
+    got = normalize_perms(perms)
+    if got is None:
+        return {"ok": False, "error": "bad_role"}
+    if int(member_id) == int(owner_id):
+        return {"ok": False, "error": "self"}
+    if not chans or len(chans) > MAX_INVITE_CHANNELS:
+        return {"ok": False, "error": "not_owner"}
+    try:
+        with db_cursor(commit=True) as cur:
+            cur.execute("SELECT full_name, username FROM users WHERE user_id = %s", (int(member_id),))
+            who = cur.fetchone()
+            if not who:
+                return {"ok": False, "error": "user_unknown"}
+            cur.execute("SELECT channel_id FROM channels WHERE user_id = %s AND channel_id = ANY(%s) AND is_active = TRUE "
+                        "AND deleted_at IS NULL", (owner_id, chans))
+            if {str(r[0]) for r in cur.fetchall()} != set(chans):
+                return {"ok": False, "error": "not_owner"}
+            limit = _seat_limit(cur, owner_id)
+            if limit <= 0:
+                return {"ok": False, "error": "no_team"}
+            helpers = _helpers(cur, owner_id)
+            is_new = int(member_id) not in helpers
+            if is_new:
+                if len(helpers) + _pending(cur, owner_id) >= limit:
+                    return {"ok": False, "error": "seats_full"}
+                cur.execute("SELECT COUNT(*) FROM team_invites WHERE owner_id = %s AND used_at > NOW() - INTERVAL '1 day'", (owner_id,))
+                if int(cur.fetchone()[0]) >= MAX_JOINS_PER_DAY:
+                    return {"ok": False, "error": "too_many_pending"}
+            base_role = role_for_perms(got)
+            for ch in chans:
+                cur.execute("INSERT INTO channel_members (channel_id, user_id, role, perms) VALUES (%s, %s, %s, %s) "
+                            "ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role, perms = EXCLUDED.perms",
+                            (ch, int(member_id), base_role, ",".join(got)))
+            if is_new:  # kunlik chegara hisobi uchun iz (token tasodifiy, ishlatib bo'lingan)
+                cur.execute("INSERT INTO team_invites (token_hash, owner_id, channel_id, role, perms, channel_ids, expires_at, used_by, used_at) "
+                            "VALUES (%s, %s, %s, %s, %s, %s, NOW(), %s, NOW())",
+                            (_hash(secrets.token_urlsafe(16)), owner_id, chans[0], base_role, ",".join(got), ",".join(chans), int(member_id)))
+            cur.execute("UPDATE users SET work_mode = COALESCE(work_mode, 'helper') WHERE user_id = %s", (int(member_id),))
+        _invalidate_user(int(member_id))
+        for ch in chans:
+            _drop_rbac_cache(member_id, ch)
+        return {"ok": True, "channel_ids": chans, "perms": got, "name": who[0] or who[1] or "", "new": is_new}
+    except Exception as exc:  # noqa: BLE001
+        logger.error("team add_helper xatosi: %s", type(exc).__name__)
         return {"ok": False, "error": "failed"}
 
 
