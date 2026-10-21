@@ -7,7 +7,7 @@ export const WORKDAYS_MASK = 1 | 2 | 4 | 8 | 16
 export const ALL_MASK = 127
 export const TASHKENT_TZ = 'Asia/Tashkent'
 
-const makeFmt = (tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const makeFmt = (tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 let appTz = TASHKENT_TZ
 let DAY_FMT = makeFmt(appTz)
 
@@ -22,11 +22,11 @@ export function getAppTimezone(): string { return appTz }
 const WEEKDAY_INDEX: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
 
 /** Instantning foydalanuvchi zonasidagi (standart Toshkent) hafta kuni (Du=0), soat va daqiqasi. Takrorlanish qoidalari server tomonida shu zonada hisoblanadi. */
-export function tashkentParts(date: Date): { weekday: number; time: string } {
+export function tashkentParts(date: Date): { weekday: number; time: string; day: number } {
   const parts = DAY_FMT.formatToParts(date)
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
   const hour = get('hour') === '24' ? '00' : get('hour')
-  return { weekday: WEEKDAY_INDEX[get('weekday')] ?? 0, time: `${hour}:${get('minute')}` }
+  return { weekday: WEEKDAY_INDEX[get('weekday')] ?? 0, time: `${hour}:${get('minute')}`, day: Number(get('day')) || 1 }
 }
 
 export function maskOf(days: number[]): number {
@@ -49,7 +49,7 @@ export function alignToWeekdays(date: Date, mask: number): Date {
 
 /** UI tanlovi -> serverga yuboriladigan takrorlanish (yoki null). Vaqt va kun `scheduledAt` ning Toshkent ko'rinishidan olinadi. */
 export interface RepeatChoice {
-  kind: 'none' | 'daily' | 'interval' | 'weekdays'
+  kind: 'none' | 'daily' | 'interval' | 'weekdays' | 'monthly'
   interval: number
   mask: number
   /** Kuniga IKKI vaqt (faqat `daily`): ikkinchi vaqt HH:MM (ertalab va kechqurun); null = bitta vaqt. */
@@ -65,7 +65,8 @@ export function suggestSecondTime(first: string): string {
 }
 
 export function buildRecurrence(choice: RepeatChoice, scheduledAt: Date): RecurrenceInput | null {
-  const { time } = tashkentParts(scheduledAt)
+  const { time, day } = tashkentParts(scheduledAt)
+  if (choice.kind === 'monthly') return { type: 'monthly', day, time } // oyning kuni — tanlangan sanadan
   if (choice.kind === 'daily') {
     if (choice.time2 && choice.time2 !== time) return { type: 'twice', day: null, time, time2: choice.time2 }
     return { type: 'daily', day: null, time }
@@ -91,6 +92,7 @@ export function choiceFromRecurrence(r: RecurrenceInput | null): RepeatChoice {
   if (r.type === 'daily') return { ...DEFAULT_REPEAT, kind: 'daily' }
   if (r.type === 'twice') return { ...DEFAULT_REPEAT, kind: 'daily', time2: r.time2 ?? null }
   if (r.type === 'interval') return { ...DEFAULT_REPEAT, kind: 'interval', interval: r.day ?? 2 }
+  if (r.type === 'monthly') return { ...DEFAULT_REPEAT, kind: 'monthly' }
   if (r.type === 'weekly') return { ...DEFAULT_REPEAT, kind: 'weekdays', mask: 1 << (r.day ?? 0) }
   return { ...DEFAULT_REPEAT, kind: 'weekdays', mask: r.day ?? WEEKEND_MASK }
 }
@@ -107,6 +109,7 @@ export function describeRecurrence(
   if (r.type === 'daily') return t('rec.daily', { time })
   if (r.type === 'twice' && r.time2) return t('rec.twice', { time, time2: r.time2 })
   if (r.type === 'interval' && r.day) return t('rec.interval', { n: r.day, time })
+  if (r.type === 'monthly' && r.day) return t('rec.monthly', { day: r.day, time })
   if (r.type === 'weekly' && r.day != null && r.day >= 0 && r.day <= 6) return t('rec.days', { days: t(WEEKDAY_KEYS[r.day]!), time })
   if (r.type === 'weekdays' && r.day) {
     if (r.day === WEEKEND_MASK) return t('rec.weekends', { time })

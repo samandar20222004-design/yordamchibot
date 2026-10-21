@@ -10,11 +10,11 @@ const THU = new Date('2026-10-15T07:00:00Z')
 
 describe('Toshkent vaqti qismlari', () => {
   it('hafta kuni (Du=0) va HH:MM', () => {
-    expect(tashkentParts(THU)).toEqual({ weekday: 3, time: '12:00' })
-    expect(tashkentParts(new Date('2026-10-17T07:30:00Z'))).toEqual({ weekday: 5, time: '12:30' })
+    expect(tashkentParts(THU)).toEqual({ weekday: 3, time: '12:00', day: 15 })
+    expect(tashkentParts(new Date('2026-10-17T07:30:00Z'))).toEqual({ weekday: 5, time: '12:30', day: 17 })
   })
   it('qurilma zonasidan mustaqil: 19:00 UTC = ertasi 00:00 Toshkent (kun almashadi)', () => {
-    expect(tashkentParts(new Date('2026-10-15T19:00:00Z'))).toEqual({ weekday: 4, time: '00:00' })
+    expect(tashkentParts(new Date('2026-10-15T19:00:00Z'))).toEqual({ weekday: 4, time: '00:00', day: 16 })
   })
 })
 
@@ -83,7 +83,7 @@ describe('describeRecurrence (3 til)', () => {
     const t = tr('uz')
     expect(describeRecurrence({ type: 'daily', time: null }, t)).toBeNull()
     expect(describeRecurrence({ type: 'interval', day: null, time: '12:00' }, t)).toBeNull()
-    expect(describeRecurrence({ type: 'monthly', day: 1, time: '12:00' }, t)).toBeNull()
+    expect(describeRecurrence({ type: 'yearly', day: 1, time: '12:00' }, t)).toBeNull()
     expect(describeRecurrence({ type: 'weekly', day: 9, time: '12:00' }, t)).toBeNull()
   })
 })
@@ -103,5 +103,20 @@ describe('kuniga ikki vaqt (ertalab va kechqurun)', () => {
   it('suggestSecondTime: ertalab -> 18:00, kech -> 09:00', () => {
     expect(suggestSecondTime('09:00')).toBe('18:00')
     expect(suggestSecondTime('19:30')).toBe('09:00')
+  })
+})
+
+describe('oyda bir marta (monthly)', () => {
+  it('buildRecurrence: oyning kuni va vaqti tanlangan sanadan olinadi (Toshkent)', () => {
+    expect(buildRecurrence({ ...DEFAULT_REPEAT, kind: 'monthly' }, THU)).toEqual({ type: 'monthly', day: 15, time: '12:00' })
+    // 19:00 UTC = ertasi 00:00 Toshkent: oyning kuni ham Toshkent bo'yicha (16)
+    expect(buildRecurrence({ ...DEFAULT_REPEAT, kind: 'monthly' }, new Date('2026-10-15T19:00:00Z'))).toEqual({ type: 'monthly', day: 16, time: '00:00' })
+  })
+  it('serverdagi/taklifdagi monthly -> UI tanlovi va o\'qiladigan tavsif (uz/ru/en)', () => {
+    expect(choiceFromRecurrence({ type: 'monthly', day: 15, time: '10:00' })).toMatchObject({ kind: 'monthly' })
+    const rec = { type: 'monthly', day: 15, time: '10:00' }
+    expect(describeRecurrence(rec, (k, v) => translate('uz', k, v))).toBe('Har oyning 15-kuni 10:00')
+    expect(describeRecurrence(rec, (k, v) => translate('ru', k, v))).toBe('Каждый месяц, 15 числа, 10:00')
+    expect(describeRecurrence(rec, (k, v) => translate('en', k, v))).toBe('Monthly on day 15, 10:00')
   })
 })

@@ -1347,6 +1347,7 @@ CB_MANUAL_REPEAT = "mnp_repeat"      # 🔄 Takroriy e'lon (manual_recurring)
 CB_MANUAL_EDIT = "mnp_edit"          # ✏️ Tahrirlash (manual_edit)
 CB_MANUAL_CANCEL = "mnp_cancel"      # ❌ Bekor qilish (manual_cancel)
 CB_MANUAL_PANEL = "mnp_panel"        # ◀️ Orqaga (kanal tanlashdan panelga)
+CB_MANUAL_RK = "mnp_rk:"             # 🔄 Takrorlash turi tez tugmasi: mnp_rk:daily|weekly|monthly
 CB_MANUAL_CHANNEL = "mnp_ch:"        # mnp_ch:<channel_id> — kanal tanlash
 # preview panelini boyitish (reaksiyalar + URL tugma):
 # barcha yangi callback'lar ham ``mnp_`` prefiksida — global stale handler
@@ -1563,6 +1564,18 @@ def get_manual_back_markup(lang: str = "uz") -> InlineKeyboardMarkup:
     from translations import manual_post_t
 
     return InlineKeyboardMarkup([[InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang), callback_data=CB_MANUAL_PANEL)]])
+
+
+def get_manual_repeat_markup(lang: str = "uz") -> InlineKeyboardMarkup:
+    """Takroriy e'lon: [Har kuni] [Haftada bir] [Oyda bir] + «◀️ Orqaga» (postni yo'qotmaydi)."""
+    from translations import manual_post_t
+
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(manual_post_t("mp_btn_rk_daily", lang), callback_data=CB_MANUAL_RK + "daily"),
+         InlineKeyboardButton(manual_post_t("mp_btn_rk_weekly", lang), callback_data=CB_MANUAL_RK + "weekly")],
+        [InlineKeyboardButton(manual_post_t("mp_btn_rk_monthly", lang), callback_data=CB_MANUAL_RK + "monthly")],
+        [InlineKeyboardButton(manual_post_t("mp_btn_back_panel", lang), callback_data=CB_MANUAL_PANEL)],
+    ])
 
 
 def get_duplicate_warning_keyboard(lang: str = "uz") -> InlineKeyboardMarkup:
