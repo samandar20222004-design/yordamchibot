@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { parseAdminAds, parseAdminMarket, ShapeError } from './api/validate'
+import { parseAdminAds, parseAdminMarket, parseAdminPromos, ShapeError } from './api/validate'
 import { ME, PAGE, errorBody, jsonResponse } from './test/helpers'
 
 const ADS = {
@@ -12,6 +12,13 @@ const ADS = {
 const MARKET = {
   totals: { active: 2, paused: 0, blocked: 1, banned_users: 1, open_inquiries: 4 },
   items: [{ id: 5, title: 'Texno', username: 'texno', owner_id: 99, category: 'tech', status: 'active', members: 1200, view_count: 10, inquiry_count: 2, reports: 2, owner_banned: false }],
+}
+const PROMOS = {
+  totals: { total: 2, active: 1, used_up: 1, expired: 0, disabled: 0, redemptions: 12, remaining_uses: 38, unlimited: 0 },
+  items: [
+    { code: 'MAXSUS30', plan: 'pro', days: 30, max_uses: 50, used: 12, left: 38, status: 'active', is_active: true, expires_at: null, created_at: '2026-10-01T00:00:00' },
+    { code: 'ESKI10', plan: 'pro', days: 10, max_uses: 5, used: 5, left: 0, status: 'used_up', is_active: true, expires_at: null, created_at: '2026-09-01T00:00:00' },
+  ],
 }
 type Call = { url: string; method: string; body: unknown }
 
@@ -30,6 +37,10 @@ function setup(opts: { admin: boolean; search?: string; deny?: boolean }) {
     if (url.includes('/admin/ads/settings')) return jsonResponse({ ...ADS, settings: { ...ADS.settings, reply: { enabled: true, interval: 4 } } })
     if (url.includes('/admin/ads')) return jsonResponse(ADS)
     if (url.includes('/admin/sponsors')) return jsonResponse({ items: [{ id: 1, channel_id: '-1001', title: 'Homiy', username: 'homiy', invite_link: '' }] })
+    if (url.includes('/admin/promos/MAXSUS30') && method === 'PATCH') return jsonResponse({ promo: { ...PROMOS.items[0], is_active: false, status: 'disabled' }, redeemers: [] })
+    if (url.includes('/admin/promos/')) return jsonResponse({ promo: PROMOS.items[0], redeemers: [{ user_id: 777, at: '2026-10-02T10:00:00' }] })
+    if (url.includes('/admin/promos') && method === 'POST') return jsonResponse({ promo: { ...PROMOS.items[0], code: 'YANGI1' }, redeemers: [] }, 201)
+    if (url.includes('/admin/promos')) return jsonResponse(PROMOS)
     if (url.includes('/admin/market/listings/5/status')) return jsonResponse({ id: 5, status: 'blocked' })
     if (url.includes('/admin/market')) return jsonResponse(MARKET)
     if (url.includes('/market/unread')) return jsonResponse({ unread: 0 })
@@ -60,7 +71,7 @@ describe('Super admin rejimi (Mini App)', () => {
     fireEvent.click(await screen.findByText('Super admin rejimi'))
     expect(await screen.findByText('Umumiy ko\'rinish')).toBeTruthy()
     expect(await screen.findByText('120')).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: 'Super admin bo\'limlari' }).querySelectorAll('button')).toHaveLength(5)
+    expect(screen.getByRole('navigation', { name: 'Super admin bo\'limlari' }).querySelectorAll('button')).toHaveLength(6)
     fireEvent.click(screen.getByText('Oddiy'))
     expect(await screen.findByText('Super admin rejimi')).toBeTruthy()
   })
@@ -98,5 +109,43 @@ describe('Super admin rejimi (Mini App)', () => {
     expect(() => parseAdminAds({ settings: {}, items: {} })).toThrow(ShapeError)
     expect(parseAdminMarket(MARKET).items[0].reports).toBe(2)
     expect(() => parseAdminMarket({ totals: {}, items: [{ id: 'x' }] })).toThrow(ShapeError)
+  })
+
+  it('Boshqaruv: promo-kodlar ro\'yxati ishlatilgan/qolgan soni bilan ko\'rinadi', async () => {
+    setup({ admin: true, search: '?tab=admin' })
+    render(<App />)
+    fireEvent.click(await screen.findByText('Boshqaruv', { selector: 'nav span' }))
+    expect(await screen.findByText('MAXSUS30')).toBeTruthy()
+    expect(screen.getByText(/ishlatilgan 12\/50 · qolgan 38/)).toBeTruthy()
+    expect(screen.getByText('ESKI10')).toBeTruthy()
+    expect(screen.getByText('tugagan', { selector: '.chip' })).toBeTruthy()
+  })
+
+  it('Boshqaruv: yangi promo-kod POST bilan yaratiladi', async () => {
+    const calls = setup({ admin: true, search: '?tab=admin' })
+    render(<App />)
+    fireEvent.click(await screen.findByText('Boshqaruv', { selector: 'nav span' }))
+    fireEvent.click(await screen.findByText('Yangi promo-kod', { selector: 'button *, button' }))
+    fireEvent.change(screen.getByLabelText(/Kod \(harf/), { target: { value: 'yangi1' } })
+    fireEvent.change(screen.getByLabelText(/Necha marta/), { target: { value: '20' } })
+    fireEvent.click(screen.getByText('Yaratish'))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/admin/promos')
+      && JSON.stringify(c.body) === '{"code":"yangi1","days":30,"max_uses":20,"plan":"pro"}')).toBe(true))
+  })
+
+  it('Boshqaruv: promo-kodni o\'chirish PATCH yuboradi va kim ishlatgani ko\'rinadi', async () => {
+    const calls = setup({ admin: true, search: '?tab=admin' })
+    render(<App />)
+    fireEvent.click(await screen.findByText('Boshqaruv', { selector: 'nav span' }))
+    fireEvent.click(await screen.findByText('MAXSUS30'))
+    expect(await screen.findByText('777')).toBeTruthy()
+    fireEvent.click(screen.getByText('O\'chirish', { selector: 'button' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'PATCH' && c.url.endsWith('/admin/promos/MAXSUS30') && JSON.stringify(c.body) === '{"is_active":false}')).toBe(true))
+  })
+
+  it('promo validatori: noto\'g\'ri shakl rad etiladi, noma\'lum holat «active» bo\'ladi', () => {
+    expect(parseAdminPromos(PROMOS).items[1].left).toBe(0)
+    expect(() => parseAdminPromos({ totals: {}, items: [{ code: 5 }] })).toThrow(ShapeError)
+    expect(parseAdminPromos({ totals: {}, items: [{ code: 'A', status: 'zzz' }] }).items[0].status).toBe('active')
   })
 })

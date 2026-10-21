@@ -252,6 +252,16 @@ _CATALOG: dict[str, tuple[int, dict[str, str]]] = {
         "ru": "Бот не админ в этом канале. Сначала добавьте бота админом.",
         "en": "The bot is not an admin of this channel. Add the bot as an admin first.",
     }),
+    "promo_exists": (409, {
+        "uz": "Bunday promo-kod allaqachon mavjud.",
+        "ru": "Такой промо-код уже существует.",
+        "en": "This promo code already exists.",
+    }),
+    "user_unknown": (404, {
+        "uz": "Foydalanuvchi topilmadi. ID ni tekshiring.",
+        "ru": "Пользователь не найден. Проверьте ID.",
+        "en": "User not found. Check the ID.",
+    }),
     "save_failed": (503, {
         "uz": "Saqlab bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
         "ru": "Не удалось сохранить. Попробуйте чуть позже.",

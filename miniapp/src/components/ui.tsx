@@ -128,6 +128,8 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   admin_only: 'err.admin_only',
   sponsor_not_found: 'err.sponsor_not_found',
   sponsor_not_admin: 'err.sponsor_not_admin',
+  promo_exists: 'err.promo_exists',
+  user_unknown: 'err.user_unknown',
   bad_request: 'err.bad_request',
   not_found: 'err.not_found',
   method_not_allowed: 'err.method_not_allowed',

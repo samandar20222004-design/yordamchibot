@@ -150,7 +150,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
-  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'phone_required' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'phone_required' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin' | 'promo_exists' | 'user_unknown'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -364,3 +364,21 @@ export interface AdminListing {
 }
 export interface AdminMarket { totals: AdminMarketTotals; items: AdminListing[] }
 export interface AdminAdInput { scope: AdSupport; text: string; button_text?: string; button_url?: string }
+
+// --- 👑 Super admin: promo-kodlar va boshqaruv ---
+export type AdminPromoStatus = 'active' | 'used_up' | 'expired' | 'disabled'
+export interface AdminPromo {
+  code: string; plan: string; days: number; max_uses: number | null; used: number; left: number | null
+  status: AdminPromoStatus; is_active: boolean; expires_at: string | null; created_at: string | null
+}
+export interface AdminPromoTotals {
+  total: number; active: number; used_up: number; expired: number; disabled: number; redemptions: number; remaining_uses: number; unlimited: number
+}
+export interface AdminPromos { totals: AdminPromoTotals; items: AdminPromo[] }
+export interface AdminPromoDetail { promo: AdminPromo; redeemers: Array<{ user_id: number; at: string | null }> }
+export interface AdminPromoInput { code: string; days: number; max_uses: number | null; plan: 'pro' | 'ultra' }
+export interface AdminAuditItem { admin_id: number | null; action: string; target_type: string; target_id: string; at: string | null }
+export interface AdminFeatureRow { name: string; count: number; users: number; rate: number }
+export interface AdminFeatures { total_users: number | null; most_used: AdminFeatureRow[]; least_used: AdminFeatureRow[] }
+export interface AdminHealth { ready: boolean; checks: Record<string, string>; uptime: string }
+export interface AdminRoles { items: Array<{ user_id: number; role: string }>; choices: string[] }

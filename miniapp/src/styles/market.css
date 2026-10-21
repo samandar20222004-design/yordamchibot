@@ -101,6 +101,7 @@
 .adm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s3); align-items: center; }
 .adm-row-main { display: grid; gap: 2px; min-width: 0; }
 .adm-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-row-btn { width: 100%; text-align: left; background: none; border: 0; color: inherit; padding: 0; font: inherit; cursor: pointer; }
 .adm-listing { gap: var(--s2); }
 .chip-warn { background: color-mix(in srgb, var(--danger, #dc2626) 14%, var(--bg)); }
 .adm-switch { border-color: color-mix(in srgb, #7c3aed 45%, var(--border)); }

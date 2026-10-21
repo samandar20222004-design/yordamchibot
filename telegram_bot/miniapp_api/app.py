@@ -459,6 +459,56 @@ async def admin_market_ban_handler(request: web.Request):
     return web.json_response(await request.app[_K_ADMIN].set_user_ban(request["user_id"], _admin_id(request), body))
 
 
+async def admin_promos_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].promos(request["user_id"], request.query.get("status")),
+                             headers={"Cache-Control": "no-store"})
+
+
+async def admin_promo_detail_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].promo_detail(request["user_id"], request.match_info["code"]),
+                             headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def admin_promo_create_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].create_promo(request["user_id"], body), status=201)
+
+
+@_write
+async def admin_promo_active_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].set_promo_active(request["user_id"], request.match_info["code"], body))
+
+
+@_write
+async def admin_grant_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].grant_plan(request["user_id"], body))
+
+
+async def admin_audit_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].audit(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def admin_features_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].feature_usage(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def admin_health_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].system_health(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+async def admin_roles_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].roles(request["user_id"]), headers={"Cache-Control": "no-store"})
+
+
+@_write
+async def admin_role_set_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_ADMIN].set_role(request["user_id"], body))
+
+
 # -------------------------------------------------------------- middleware
 @web.middleware
 async def api_middleware(request: web.Request, handler):
@@ -639,6 +689,16 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/admin/market", admin_market_handler)
     api.router.add_post("/admin/market/listings/{item_id}/status", admin_market_status_handler)
     api.router.add_post("/admin/market/users/{item_id}/ban", admin_market_ban_handler)
+    api.router.add_get("/admin/promos", admin_promos_handler)
+    api.router.add_post("/admin/promos", admin_promo_create_handler)
+    api.router.add_get("/admin/promos/{code}", admin_promo_detail_handler)
+    api.router.add_patch("/admin/promos/{code}", admin_promo_active_handler)
+    api.router.add_post("/admin/grant", admin_grant_handler)
+    api.router.add_get("/admin/audit", admin_audit_handler)
+    api.router.add_get("/admin/features", admin_features_handler)
+    api.router.add_get("/admin/system", admin_health_handler)
+    api.router.add_get("/admin/roles", admin_roles_handler)
+    api.router.add_post("/admin/roles", admin_role_set_handler)
     return api
 
 

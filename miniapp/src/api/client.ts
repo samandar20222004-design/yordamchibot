@@ -1,7 +1,8 @@
 import { config } from '../config'
 import { setAppTimezone } from '../pages/recurrence'
-import type { AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
+  parseAdminAudit, parseAdminFeatures, parseAdminHealth, parseAdminPromoDetail, parseAdminPromos, parseAdminRoles,
   parseAdminAdEnvelope, parseAdminAds, parseAdminMarket, parseAdminOverview, parseAdminSponsors,
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
   parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketSummary, parseMarketThread, parseMarketThreads,
@@ -17,7 +18,7 @@ const KNOWN_CODES: readonly string[] = [
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
   'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
   'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy', 'phone_required',
-  'admin_only', 'sponsor_not_found', 'sponsor_not_admin',
+  'admin_only', 'sponsor_not_found', 'sponsor_not_admin', 'promo_exists', 'user_unknown',
 ]
 
 /** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
@@ -292,6 +293,18 @@ export function createApiClient(opts: ClientOptions) {
       get(`/admin/market${status === 'all' ? '' : `?status=${status}`}`, parseAdminMarket, signal),
     adminListingStatus: (id: number, status: 'active' | 'blocked'): Promise<void> =>
       send('POST', `/admin/market/listings/${id}/status`, { status }, () => undefined),
+    adminPromos: (signal?: AbortSignal): Promise<AdminPromos> => get('/admin/promos', parseAdminPromos, signal),
+    adminPromoDetail: (code: string, signal?: AbortSignal): Promise<AdminPromoDetail> =>
+      get(`/admin/promos/${encodeURIComponent(code)}`, parseAdminPromoDetail, signal),
+    adminPromoCreate: (input: AdminPromoInput): Promise<AdminPromoDetail> => send('POST', '/admin/promos', input, parseAdminPromoDetail),
+    adminPromoActive: (code: string, is_active: boolean): Promise<AdminPromoDetail> =>
+      send('PATCH', `/admin/promos/${encodeURIComponent(code)}`, { is_active }, parseAdminPromoDetail),
+    adminGrant: (input: { user_id: number; days: number; plan: 'pro' | 'ultra' }): Promise<void> => send('POST', '/admin/grant', input, () => undefined),
+    adminAudit: (signal?: AbortSignal): Promise<{ items: AdminAuditItem[] }> => get('/admin/audit', parseAdminAudit, signal),
+    adminFeatures: (signal?: AbortSignal): Promise<AdminFeatures> => get('/admin/features', parseAdminFeatures, signal),
+    adminHealth: (signal?: AbortSignal): Promise<AdminHealth> => get('/admin/system', parseAdminHealth, signal),
+    adminRoles: (signal?: AbortSignal): Promise<AdminRoles> => get('/admin/roles', parseAdminRoles, signal),
+    adminRoleSet: (input: { user_id: number; role: string }): Promise<AdminRoles> => send('POST', '/admin/roles', input, parseAdminRoles),
     adminUserBan: (userId: number, banned: boolean): Promise<void> =>
       send('POST', `/admin/market/users/${userId}/ban`, { banned }, () => undefined),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>

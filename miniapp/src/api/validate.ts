@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -556,4 +556,58 @@ export function parseAdminMarket(v: unknown): AdminMarket {
       members: intOrNull(r.members, 'listing.members'), view_count: count(r.view_count), inquiry_count: count(r.inquiry_count),
       reports: count(r.reports), owner_banned: r.owner_banned === true }
   }) }
+}
+
+// --- 👑 Super admin: promo-kodlar va boshqaruv ---
+function parseAdminPromo(v: unknown): AdminPromo {
+  const o = rec(v, 'promo')
+  const st = o.status
+  const status = st === 'used_up' || st === 'expired' || st === 'disabled' ? st : 'active'
+  return { code: str(o.code, 'promo.code'), plan: str(o.plan ?? 'pro', 'promo.plan'), days: count(o.days),
+    max_uses: typeof o.max_uses === 'number' ? o.max_uses : null, used: count(o.used),
+    left: typeof o.left === 'number' ? o.left : null, status, is_active: o.is_active !== false,
+    expires_at: typeof o.expires_at === 'string' ? o.expires_at : null, created_at: typeof o.created_at === 'string' ? o.created_at : null }
+}
+export function parseAdminPromos(v: unknown): AdminPromos {
+  const o = rec(v, 'admin.promos')
+  const t = rec(o.totals ?? {}, 'promos.totals')
+  return { totals: { total: count(t.total), active: count(t.active), used_up: count(t.used_up), expired: count(t.expired), disabled: count(t.disabled),
+    redemptions: count(t.redemptions), remaining_uses: count(t.remaining_uses), unlimited: count(t.unlimited) },
+  items: arr(o.items, 'promos.items').map(parseAdminPromo) }
+}
+export function parseAdminPromoDetail(v: unknown): AdminPromoDetail {
+  const o = rec(v, 'admin.promo')
+  return { promo: parseAdminPromo(o.promo), redeemers: arr(o.redeemers ?? [], 'promo.redeemers').map((x) => {
+    const r = rec(x, 'redeemer')
+    return { user_id: count(r.user_id), at: typeof r.at === 'string' ? r.at : null }
+  }) }
+}
+export function parseAdminAudit(v: unknown): { items: AdminAuditItem[] } {
+  return { items: arr(rec(v, 'admin.audit').items, 'audit.items').map((x) => {
+    const r = rec(x, 'audit')
+    return { admin_id: typeof r.admin_id === 'number' ? r.admin_id : null, action: str(r.action ?? '', 'audit.action'),
+      target_type: str(r.target_type ?? '', 'audit.target_type'), target_id: str(r.target_id ?? '', 'audit.target_id'),
+      at: typeof r.at === 'string' ? r.at : null }
+  }) }
+}
+export function parseAdminFeatures(v: unknown): AdminFeatures {
+  const o = rec(v, 'admin.features')
+  const rows = (x: unknown) => arr(x ?? [], 'features.rows').map((y) => {
+    const r = rec(y, 'feature')
+    return { name: str(r.name ?? '', 'feature.name'), count: count(r.count), users: count(r.users), rate: count(r.rate) }
+  })
+  return { total_users: typeof o.total_users === 'number' ? o.total_users : null, most_used: rows(o.most_used), least_used: rows(o.least_used) }
+}
+export function parseAdminHealth(v: unknown): AdminHealth {
+  const o = rec(v, 'admin.health')
+  const checks: Record<string, string> = {}
+  for (const [k, val] of Object.entries(rec(o.checks ?? {}, 'health.checks'))) checks[k] = typeof val === 'string' ? val : String(val)
+  return { ready: o.ready === true, checks, uptime: typeof o.uptime === 'string' ? o.uptime : '' }
+}
+export function parseAdminRoles(v: unknown): AdminRoles {
+  const o = rec(v, 'admin.roles')
+  return { items: arr(o.items ?? [], 'roles.items').map((x) => {
+    const r = rec(x, 'role')
+    return { user_id: count(r.user_id), role: str(r.role ?? '', 'role.role') }
+  }), choices: arr(o.choices ?? [], 'roles.choices').map((c) => str(c, 'role.choice')) }
 }
