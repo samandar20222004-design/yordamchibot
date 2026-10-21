@@ -929,6 +929,14 @@ def test_unknown_fallback_replies_in_user_language_with_main_menu():
             return results
         for lang, sent in _asyncio.run(run()):
             assert len(sent) == 1, sent
+            if "in_post" in str(sent[0].get("reply_markup")):
+                # Hujjat: aqlli qabul «Bu bilan nima qilamiz?» (AI ishlamaydi);
+                # AI tugmasi yo'q — faqat post qilish / yopish.
+                from translations import content_menu_t
+                assert sent[0]["text"] == content_menu_t("in_offer_media", lang)
+                cbs = [b.callback_data for r in sent[0]["reply_markup"].inline_keyboard for b in r]
+                assert cbs == ["in_post", "in_close"], cbs
+                continue
             assert sent[0]["text"] == get_text("unknown_message_fallback", lang)
             kb = sent[0]["reply_markup"]
             assert isinstance(kb, ReplyKeyboardMarkup)

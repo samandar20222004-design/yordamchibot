@@ -219,9 +219,9 @@ export interface UpdatePostInput {
   recurrence_time2?: string
 }
 
-export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays' | 'twice'
+export type RecurrenceType = 'daily' | 'weekly' | 'interval' | 'weekdays' | 'twice' | 'monthly'
 
-/** `time` — Toshkent vaqti (HH:MM); `day`: daily -> null, weekly -> 0..6, interval -> 2..30, weekdays -> bitmask 1..127 (Du=1). */
+/** `time` — Toshkent vaqti (HH:MM); `day`: daily -> null, weekly -> 0..6, interval -> 2..30, weekdays -> bitmask 1..127 (Du=1), monthly -> oyning kuni 1..31. */
 export interface RecurrenceInput {
   type: RecurrenceType
   day: number | null

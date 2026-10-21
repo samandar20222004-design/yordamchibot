@@ -764,17 +764,18 @@ def test_action_first_entry_points():
               len(rec.sent) == 1 and rec.sent[0]["text"] == expected,
               str(rec.sent)[:160])
 
-        # b) Xom matn → «✨ Magic Post» taklifi (inline tugmalar bilan).
+        # b) Xom matn → aqlli qabul: «Bu bilan nima qilamiz?» (AI ishlamaydi).
         H._UNKNOWN_FALLBACK_LAST.clear()
         H_remembered = _Rec(text=material)
         asyncio.run(H.unknown_message_fallback(_update_msg(H_remembered), _ctx(lang)))
         sent = H_remembered.sent
-        check(f"[{lang}] xom matn → Magic Post taklifi chiqdi", len(sent) == 1, str(sent)[:200])
+        check(f"[{lang}] xom matn → aqlli qabul taklifi chiqdi", len(sent) == 1, str(sent)[:200])
         check(f"[{lang}] taklif matni tarjimaga mos",
-              sent and content_menu_t("cm_offer_text", lang) == sent[0]["text"],
+              sent and content_menu_t("in_offer_text", lang) == sent[0]["text"],
               sent[0]["text"][:60] if sent else "")
         cbs = [b.callback_data for row in sent[0]["reply_markup"].inline_keyboard for b in row]
-        check(f"[{lang}] taklif tugmalari: cc_magic + cc_menu", cbs == [CC_MAGIC, CC_MENU], str(cbs))
+        check(f"[{lang}] taklif tugmalari: post + AI + yopish",
+              cbs == ["in_post", "in_ai", "in_close"], str(cbs))
 
         # c) Taklifni bosish → Magic Post uslub tanlash ekrani (matn yo'qolmaydi).
         CC_MOD._DIRECT_TEXT.clear()
@@ -782,11 +783,12 @@ def test_action_first_entry_points():
         H_remembered2 = _Rec(text=material)
         asyncio.run(H.unknown_message_fallback(_update_msg(H_remembered2), _ctx(lang)))
         ctx = _ctx(lang)
-        query = _Query(CC_MAGIC, _Rec())
-        res = asyncio.run(content_offer_callback(_update_query(query), ctx))
-        check(f"[{lang}] cc_magic → MAGIC_STYLE_SELECT holati",
+        query = _Query("in_ai", _Rec())
+        from handlers.smart_intake import intake_callback
+        res = asyncio.run(intake_callback(_update_query(query), ctx))
+        check(f"[{lang}] in_ai → MAGIC_STYLE_SELECT holati",
               res == MAGIC_STYLE_SELECT, str(res))
-        check(f"[{lang}] cc_magic: xom matn Magic sessiyasiga o'tdi",
+        check(f"[{lang}] in_ai: xom matn Magic sessiyasiga o'tdi",
               ctx.user_data.get("magic_raw_text") == material,
               str(ctx.user_data.get("magic_raw_text"))[:60])
 
@@ -860,7 +862,8 @@ def test_regression_guards():
     check("voice entry point himoyasi saqlangan",
           "VoiceEntryHandler(VOICE_MESSAGE_FILTER, voice_message_received)" in body)
     check("image entry point himoyasi saqlangan",
-          "ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received)" in body)
+          "ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, photo_intake_entry)" in body
+          and "intake_handler()" in body)
 
     # ✍️ Oddiy post FSM holatlari mavjud holatlar bilan TO'QNASHMAYDI.
     import handlers.ai_assistant as ai

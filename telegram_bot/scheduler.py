@@ -664,8 +664,8 @@ def calculate_next_time(recurrence_type, recurrence_day, recurrence_time, curren
             return next_twice_occurrence(recurrence_time, recurrence_day, now)
         except (TypeError, ValueError):
             return None
-    elif recurrence_type in ("interval", "weekdays"):
-        # Mini App / AI rejalash: har N kunda, tanlangan hafta kunlari (services/recurrence.py).
+    elif recurrence_type in ("interval", "weekdays", "monthly"):
+        # Mini App / AI / bot rejalash: har N kunda, tanlangan hafta kunlari, har oyning kuni (services/recurrence.py).
         if recurrence_day is None:
             return None
         try:

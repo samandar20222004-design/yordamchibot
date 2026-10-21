@@ -239,7 +239,7 @@ export function parseScheduled(v: unknown): ScheduledPage {
   }
 }
 
-const REC_TYPES = ['daily', 'weekly', 'interval', 'weekdays', 'twice'] as const
+const REC_TYPES = ['daily', 'weekly', 'interval', 'weekdays', 'twice', 'monthly'] as const
 
 function parseRecurrence(v: unknown): RecurrenceInput | null {
   if (v === null || v === undefined) return null

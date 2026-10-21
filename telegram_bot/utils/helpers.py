@@ -851,6 +851,9 @@ def format_schedule_line(s_time, recurrence_type, recurrence_day, recurrence_tim
     elif recurrence_type == 'weekdays' and recurrence_day:
         return get_text("pend_schedule_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                         time=format_time(recurrence_time, lang))
+    elif recurrence_type == 'monthly' and recurrence_day:
+        return get_text("pend_schedule_monthly", lang, day=int(recurrence_day),
+                        time=format_time(recurrence_time, lang))
     elif recurrence_type == 'twice' and recurrence_day is not None:
         from services.recurrence import minutes_to_time
 
@@ -919,6 +922,9 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
     month_names = {
         "yanvar": 1, "fevral": 2, "mart": 3, "aprel": 4, "may": 5, "iyun": 6,
         "iyul": 7, "avgust": 8, "sentyabr": 9, "oktyabr": 10, "noyabr": 11, "dekabr": 12,
+        "sentabr": 9, "oktabr": 10,
+        "january": 1, "february": 2, "march": 3, "april": 4, "june": 6, "july": 7,
+        "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
         "январ": 1, "феврал": 2, "март": 3, "апрел": 4, "июн": 6, "июл": 7,
         "август": 8, "сентябр": 9, "октябр": 10, "ноябр": 11, "декабр": 12,
     }
@@ -939,6 +945,7 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
     m_dmy = re.search(r"\b(\d{1,2})[:\-/](\d{1,2})[:\-/](\d{2,4})\b", t)
     m_mon = re.search(r"\b(\d{1,2})[-\s]+([a-zа-я]{3,12})\b", t)
     m_dm = re.search(r"\b(\d{1,2})[:\-/](\d{1,2})\b", t)
+    m_mon2 = re.search(r"\b([a-zа-я]{3,12})[-\s]+(\d{1,2})(?:st|nd|rd|th)?\b", t)
 
     if m_full:
         parsed_date = _safe_date(int(m_full.group(1)), int(m_full.group(2)), int(m_full.group(3)))
@@ -963,6 +970,16 @@ def parse_future_time(text: str, now: datetime = None) -> datetime | None:
                 cand = _safe_date(now.year + 1, mo, d)
             parsed_date = cand
             t_time = t[:m_mon.start()] + " " + t[m_mon.end():]
+    if parsed_date is None and m_mon2 and not m_full and not m_dmy:
+        # «october 25» / «oktabr 25»: oy nomi avval, kun keyin (faqat oy nomi tanilsa).
+        mo = next((num for name, num in month_names.items() if m_mon2.group(1).startswith(name[:5])), 0)
+        if mo:
+            d = int(m_mon2.group(2))
+            cand = _safe_date(now.year, mo, d)
+            if cand and cand < now.date() and day_offset == 0:
+                cand = _safe_date(now.year + 1, mo, d)
+            parsed_date = cand
+            t_time = t[:m_mon2.start()] + " " + t[m_mon2.end():]
     if parsed_date is None and m_dm:
         a, b = int(m_dm.group(1)), int(m_dm.group(2))
         # O'zbekistonda sana kun.oy tartibida yoziladi (DD.MM): 05.09 → 5-sentyabr.

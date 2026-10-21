@@ -306,7 +306,15 @@ async def content_offer_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     if data != CC_MAGIC:
         return ConversationHandler.END
+    return await open_magic_style_menu(query, context, user_id, lang)
 
+
+async def open_magic_style_menu(query, context, user_id: int, lang: str):
+    """✨ Magic Post — saqlangan xom matn bilan uslub tanlash ekranini ochadi.
+
+    ``content_offer_callback`` (cc_magic) va aqlli qabul (``in_ai``) umumiy
+    yo'li: AI faqat shu yerdan KEYIN, uslub tanlanganda ishga tushadi.
+    """
     # ✨ Magic Post — xom matn stil tanlash ekraniga o'tadi.
     # Lokal import: modul sikli (handlers/__init__ ↔ magic_post) oldini oladi.
     from handlers.magic_post import (

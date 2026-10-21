@@ -5,8 +5,10 @@ import { ALL_MASK, WEEKEND_MASK, WORKDAYS_MASK, suggestSecondTime, type RepeatCh
 const DAY_KEYS = [1, 2, 3, 4, 5, 6, 7].map((n) => `cal.w${n}` as MessageKey)
 
 /** Qo'lda takrorlash tanlovi: takrorlanmaydi / har kuni / har N kunda / tanlangan hafta kunlari (dam olish, ish kunlari...). */
-export function RepeatPicker({ value, onChange, showTz, firstTime = '09:00' }: {
+export function RepeatPicker({ value, onChange, showTz, firstTime = '09:00', firstDay }: {
   value: RepeatChoice; onChange: (next: RepeatChoice) => void; showTz: boolean; firstTime?: string
+  /** Birinchi chiqish sanasining oy kuni — «oyda bir» uchun ko'rsatiladi. */
+  firstDay?: number
 }) {
   const { t } = useI18n()
   // Yozish paytida maydon BO'SH bo'la oladi (o'chirib yangi raqam yozish uchun); chegara (2..30) fokus ketganda qo'llanadi.
@@ -28,7 +30,10 @@ export function RepeatPicker({ value, onChange, showTz, firstTime = '09:00' }: {
         <option value="daily">{t('rep.daily')}</option>
         <option value="interval">{t('rep.interval')}</option>
         <option value="weekdays">{t('rep.weekdays')}</option>
+        <option value="monthly">{t('rep.monthly')}</option>
       </select>
+
+      {value.kind === 'monthly' && <p className="muted small" role="note">{firstDay ? t('rep.monthlyHint', { day: firstDay }) : t('rep.monthlyHintNoDay')}</p>}
 
       {value.kind === 'daily' && (
         <div className="repeat-twice">

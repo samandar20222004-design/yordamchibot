@@ -68,7 +68,7 @@ check("weekdays: dam olish maskasi saqlanadi", normalize_recurrence("weekdays", 
 check("weekdays: bitta kun -> weekly; 7 kun -> daily",
       normalize_recurrence("weekdays", 1 << 2, "12:00") == ("weekly", 2, T12) and normalize_recurrence("weekdays", ALL_DAYS_MASK, "12:00")[0] == "daily")
 bad = [("interval", 0, "12:00"), ("interval", 31, "12:00"), ("interval", True, "12:00"), ("interval", "2", "12:00"), ("weekly", 7, "12:00"),
-       ("weekly", -1, "12:00"), ("weekdays", 0, "12:00"), ("weekdays", 128, "12:00"), ("weekdays", None, "12:00"), ("monthly", 1, "12:00"),
+       ("weekly", -1, "12:00"), ("weekdays", 0, "12:00"), ("weekdays", 128, "12:00"), ("weekdays", None, "12:00"), ("yearly", 1, "12:00"),
        ("daily", None, "25:00"), ("daily", None, "12:60"), ("daily", None, None), ("daily", None, "abc"), (5, None, "12:00")]
 for args in bad:
     try:
@@ -114,7 +114,7 @@ check("scheduler: interval", sched.calculate_next_time("interval", 2, T12, THU) 
 check("scheduler: weekdays (dam olish)", sched.calculate_next_time("weekdays", WEEKEND_MASK, T12, THU) == at(2026, 10, 17, 12, 0))
 check("scheduler: interval kunsiz -> None (yiqilmaydi)", sched.calculate_next_time("interval", None, T12, THU) is None)
 check("scheduler: weekdays buzuq maska -> None (yiqilmaydi)", sched.calculate_next_time("weekdays", "x", T12, THU) is None)
-check("scheduler: noma'lum tur -> None", sched.calculate_next_time("monthly", 1, T12, THU) is None)
+check("scheduler: noma'lum tur -> None", sched.calculate_next_time("yearly", 1, T12, THU) is None)
 
 # --- yuborilgan marker: keyingi vaqt va end_date ---
 orig_now = sched.now_tashkent

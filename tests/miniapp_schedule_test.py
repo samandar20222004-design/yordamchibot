@@ -168,7 +168,7 @@ def main() -> int:
         ai.reserved.clear()
         ai.released.clear()
         for label, result in (("o'tmish vaqti", {"start": "2026-10-14T09:00", "recurrence": None}),
-                              ("yaroqsiz takrorlanish turi", {"start": "2026-10-16T09:00", "recurrence": {"type": "monthly", "day": 1, "time": "09:00"}}),
+                              ("yaroqsiz takrorlanish turi", {"start": "2026-10-16T09:00", "recurrence": {"type": "yearly", "day": 1, "time": "09:00"}}),
                               ("start yo'q (AI tushunmadi)", {"start": None, "recurrence": None}),
                               ("matn (JSON emas)", "Mana javob: ertaga ertalab"),
                               ("takrorlanish vaqti start bilan mos emas-ligi tekshiruvi emas, lekin kun yaroqsiz", {"start": "2026-10-16T09:00", "recurrence": {"type": "interval", "day": 99, "time": "09:00"}})):
@@ -246,7 +246,7 @@ def main() -> int:
             "vaqt mos emas (12:00 emas)": ({"type": "weekdays", "day": 96, "time": "13:00"}, sat),
             "kun mos emas (juma, maska dam olish)": ({"type": "weekdays", "day": 96, "time": "12:00"}, "2026-10-16T07:00:00Z"),
             "weekly kun mos emas": ({"type": "weekly", "day": 0, "time": "12:00"}, sat),
-            "noma'lum tur": ({"type": "monthly", "day": 1, "time": "12:00"}, sat),
+            "noma'lum tur": ({"type": "yearly", "day": 1, "time": "12:00"}, sat),
             "interval 99": ({"type": "interval", "day": 99, "time": "12:00"}, sat),
             "ortiqcha kalit": ({"type": "daily", "time": "12:00", "x": 1}, sat),
             "dict emas": ("daily", sat),

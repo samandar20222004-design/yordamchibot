@@ -11,14 +11,16 @@
 ``interval``       2..30                                           har N kunda (``recurrence_time`` da)
 ``twice``          0..1439 (ikkinchi vaqt, kun boshidan daqiqa)    har kuni IKKI vaqtda: ``recurrence_time`` (erta) va ``recurrence_day`` (kech)
 ``weekdays``       1..127 bitmask (bit i = hafta kuni i)           tanlangan hafta kunlari (dam olish, ish kunlari...)
+``monthly``        1..31 (oyning kuni)                             har oyning shu kunida; oyda shu kun bo'lmasa (31-fevral) — oyning oxirgi kuni
 =================  ==============================================  =====================================
 
-``daily``/``weekly`` eski kod bilan to'liq mos; ``interval``/``weekdays`` faqat yangi (Mini App/AI rejalash) yo'lidan yaratiladi.
+``daily``/``weekly`` eski kod bilan to'liq mos; ``interval``/``weekdays``/``monthly`` faqat yangi (Mini App/AI/bot rejalash) yo'lidan yaratiladi.
 Normalizatsiya: ``interval`` N=1 -> ``daily``; ``weekdays`` bitta kun -> ``weekly``, barcha 7 kun -> ``daily``.
 Hamma hisob Asia/Tashkent vaqtida (Toshkentda yozgi vaqt yo'q, lekin kod ofsetni baribir qayta normallashtiradi).
 """
 from __future__ import annotations
 
+import calendar
 from datetime import datetime, time, timedelta
 
 import pytz
@@ -26,7 +28,7 @@ import pytz
 TASHKENT = pytz.timezone("Asia/Tashkent")
 from services.user_timezone import utz  # noqa: E402 — foydalanuvchi vaqt zonasi (default Toshkent)
 
-RECURRING_TYPES = ("daily", "weekly", "interval", "weekdays", "twice")
+RECURRING_TYPES = ("daily", "weekly", "interval", "weekdays", "twice", "monthly")
 INTERVAL_MIN_DAYS = 2
 INTERVAL_MAX_DAYS = 30
 WEEKEND_MASK = (1 << 5) | (1 << 6)            # shanba + yakshanba
@@ -83,6 +85,10 @@ def normalize_recurrence(rtype, rday, rtime):
         if isinstance(rday, bool) or not isinstance(rday, int) or not 0 <= rday <= 6:
             raise ValueError("day")
         return "weekly", rday, t
+    if rtype == "monthly":
+        if isinstance(rday, bool) or not isinstance(rday, int) or not 1 <= rday <= 31:
+            raise ValueError("day")
+        return "monthly", rday, t
     if rtype == "interval":
         if isinstance(rday, bool) or not isinstance(rday, int) or not 1 <= rday <= INTERVAL_MAX_DAYS:
             raise ValueError("day")
@@ -133,6 +139,25 @@ def _day_shift(moment: datetime, days: int) -> datetime:
     return utz().localize(naive.replace(hour=moment.hour, minute=moment.minute))
 
 
+def _monthly_candidate(year: int, month: int, rday: int, t: time) -> datetime:
+    """Shu oyning ``rday``-kuni ``t`` da; oyda shu kun bo'lmasa (masalan 31-fevral) — oyning oxirgi kuni."""
+    last = calendar.monthrange(year, month)[1]
+    return utz().localize(datetime(year, month, min(int(rday), last), t.hour, t.minute))
+
+
+def next_monthly_occurrence(rday, rtime, now: datetime):
+    """``monthly`` uchun ``now`` DAN KEYINGI chiqish: shu oyning kuni (hali o'tmagan bo'lsa), aks holda keyingi oy."""
+    t = _as_time(rtime)
+    if now.tzinfo is None:
+        now = utz().localize(now)
+    now = now.astimezone(utz())
+    cand = _monthly_candidate(now.year, now.month, rday, t)
+    if cand > now:
+        return cand
+    year, month = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+    return _monthly_candidate(year, month, rday, t)
+
+
 def next_extended_occurrence(rtype, rday, rtime, now: datetime):
     """``interval`` / ``weekdays`` uchun ``now`` DAN KEYINGI chiqish vaqti (aware, Toshkent). Boshqa tur -> None.
 
@@ -143,6 +168,8 @@ def next_extended_occurrence(rtype, rday, rtime, now: datetime):
     if now.tzinfo is None:
         now = utz().localize(now)
     now = now.astimezone(utz())
+    if rtype == "monthly":
+        return next_monthly_occurrence(int(rday), t, now)
     if rtype == "interval":
         n = int(rday)
         return _day_shift(_at(now, t), n)
@@ -181,6 +208,13 @@ def first_occurrence(rtype, rday, rtime, start: datetime):
     start = start.astimezone(utz())
     if rtype in ("daily", "interval"):
         return start
+    if rtype == "monthly":
+        # Shu oyning kuni hali o'tmagan bo'lsa shu oy, aks holda keyingi oy.
+        cand = _monthly_candidate(start.year, start.month, rday, t)
+        if cand >= start:
+            return cand
+        year, month = (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
+        return _monthly_candidate(year, month, rday, t)
     if rtype == "twice":
         first, second = twice_times(t, rday)
         for k in (0, 1):

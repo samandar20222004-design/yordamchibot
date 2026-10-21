@@ -63,6 +63,16 @@ class PromptEngine:
             'and never use self-praise superlatives about the channel '
             '(for example, claiming the channel is the best or the most '
             'reliable source). Every sentence must carry real value.\n'
+            '[QUALITY]\n'
+            'Do exactly what the user asked, nothing else: keep the requested '
+            'topic, tone, length and format; reuse the facts, names, numbers '
+            'and links they supplied exactly as given; answer in the '
+            'requested language. Start directly with the finished result — '
+            'no greetings, no "Here is your post", no explanations or '
+            'notes about what you did, no markdown fences. Never leave a '
+            'sentence unfinished. If the request is too vague to write a '
+            'good result, produce the most useful short version from what '
+            'is given instead of padding or guessing.\n'
             + system
             + '\n[LANGUAGE]\n' + {'uz': 'Uzbek', 'ru': 'Russian', 'en': 'English'}.get(lang, 'Uzbek')
             + ('\n2-BOSQICH SMM TALABI: Write Uzbek ONLY in Latin script — never Cyrillic, never mix Russian/English. Use natural, fluent, grammatically correct Uzbek (lotin). '

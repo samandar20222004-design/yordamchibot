@@ -42,7 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -58,6 +58,7 @@ from keyboards.inline import (
     CB_MANUAL_REACT_SAVE,
     CB_MANUAL_URL_RM,
     get_manual_back_markup,
+    get_manual_repeat_markup,
     get_manual_compact_panel,
     get_manual_more_panel,
     CB_MANUAL_CANCEL,
@@ -74,6 +75,7 @@ from keyboards.inline import (
     CB_MANUAL_REACT_CUSTOM,
     CB_MANUAL_REACT_TOGGLE,
     CB_MANUAL_REPEAT,
+    CB_MANUAL_RK,
     CB_MANUAL_TIME,
     CB_MANUAL_URL_BTN,
     CUSTOM_REACTION_MAX,
@@ -99,7 +101,7 @@ from services.media_group_collector import (
     send_album_preview,
 )
 from translations import manual_post_t
-from utils.date_format import format_datetime, format_time
+from utils.date_format import format_datetime
 from utils.helpers import (
     html_escape,
     parse_button_input,
@@ -147,6 +149,9 @@ UD_MEDIA_GROUP = "mnp_media_group"
 UD_MODE = "mnp_mode"
 UD_WHEN = "mnp_when"            # ISO datetime (rejalashtirish uchun)
 UD_REPEAT_TIME = "mnp_repeat_time"  # "HH:MM" (takroriy e'lon uchun)
+UD_MA_URL = "mnp_miniapp_url"      # Mini App yoqilgan bo'lsa: preview tugmasi manzili (qoralama yozilgach)
+UD_REPEAT_REC = "mnp_repeat_rec"    # {"type","day","time"} — har kuni / haftada / oyda / har N kunda va h.k.
+UD_REPEAT_HINT = "mnp_repeat_hint"  # tez tugma: daily | weekly | monthly (matn shu bilan to'ldiriladi)
 # dublikat detektori holati (post chiqarilishidan oldin).
 UD_DUP_FORCE = "mnp_dup_force"          # foydalanuvchi "Baribir chiqarish" bosdi
 UD_DUP_CHANNEL_ID = "mnp_dup_channel"   # ogohlantirilgan kanal (id)
@@ -218,7 +223,7 @@ def _has_content(context) -> bool:
 def _clear_manual_state(context) -> None:
     """Oddiy post oqimi ma'lumotlarini tozalaydi (FSM kontekstidan tashqari)."""
     for key in (UD_CONTENT, UD_POST_TYPE, UD_FILE_ID, UD_MEDIA_GROUP, UD_MODE, UD_WHEN,
-                UD_REPEAT_TIME, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
+                UD_REPEAT_TIME, UD_REPEAT_REC, UD_REPEAT_HINT, UD_MA_URL, UD_DUP_FORCE, UD_DUP_CHANNEL_ID,
                 UD_DUP_CHANNEL_TITLE, UD_REACTIONS, UD_URL_BTN_TEXT,
                 UD_URL_BTN_URL, UD_DELIVERY, UD_DEL24, UD_REACT_PREV, UD_SELECTED_CHANNEL_ID,
                 UD_SELECTED_CHANNEL_TITLE, UD_ALBUM_ITEMS, UD_ALBUM_GROUP):
@@ -411,6 +416,7 @@ async def _manual_album_finalize(user_id: int, context, lang: str, chat_id=None,
         # tegishli caption + boshqaruv paneli bo'lgan yagona karta chiqadi
         # (media fayllar va menyu ALOHIDA xabarlarga ajratilmaydi).
         content = context.user_data.get(UD_CONTENT, "")
+        await _sync_miniapp_draft(context, user_id)
         preview = build_album_preview(
             items,
             text=_album_ack_text(lang, len(items), content),
@@ -748,6 +754,56 @@ def _manual_url_button(context):
     return None
 
 
+def _manual_draft_userdata(context) -> dict:
+    """Oddiy post holati -> ``miniapp_api.drafts.build_payload`` kutadigan (new_post bilan bir xil) kalitlar."""
+    ud = context.user_data
+    url_btn = _manual_url_button(context)
+    selected = _get_selected_channel(context)
+    return {
+        "post_type": ud.get(UD_POST_TYPE, "text"),
+        "content": ud.get(UD_CONTENT, "") or "",
+        "file_id": ud.get(UD_FILE_ID),
+        "btn_text": url_btn[0] if url_btn else None,
+        "btn_url": url_btn[1] if url_btn else None,
+        "enable_reactions": bool(_manual_reactions(context)),
+        "reaction_emojis": _manual_reactions(context),
+        "delete_after_hours": 24 if ud.get(UD_DEL24) else 0,
+        "selected_channel_id": selected[0] if selected else None,
+    }
+
+
+async def _sync_miniapp_draft(context, user_id: int) -> None:
+    """Mini App yoqilgan bo'lsa joriy postni qoralamaga yozadi: preview'dagi «📱 Mini App'da» tugmasi shu postni AYNAN
+    bot ko'rsatgandek ochadi (matn, rasm/video/albom, tugma, reaksiya). O'chiq/xato bo'lsa jimgina tugma ko'rsatilmaydi."""
+    context.user_data.pop(UD_MA_URL, None)
+    try:
+        from miniapp_api import drafts
+        from miniapp_api.menu import miniapp_tab_url
+
+        url = miniapp_tab_url("post")
+        if not url or not user_id:
+            return
+        payload = drafts.build_payload(_manual_draft_userdata(context))
+        if payload is None:
+            return
+        await db.run_db(drafts.save_draft, user_id, payload)
+        context.user_data[UD_MA_URL] = url
+    except Exception as _silent_exc:  # noqa: BLE001 — Mini App qo'shimcha: oddiy post oqimi hech qachon buzilmasin
+        log_silent_failure("handlers.manual_post:_sync_miniapp_draft", _silent_exc, user_id=user_id)
+
+
+async def _drop_miniapp_draft(user_id: int) -> None:
+    """Post yuborildi/bekor qilindi: bot yozgan qoralama Mini App'da eskirib qolmasin."""
+    try:
+        from miniapp_api import drafts
+        from miniapp_api.menu import miniapp_webapp_url
+
+        if user_id and miniapp_webapp_url():
+            await db.run_db(drafts.delete_draft, user_id)
+    except Exception as _silent_exc:  # noqa: BLE001
+        log_silent_failure("handlers.manual_post:_drop_miniapp_draft", _silent_exc, user_id=user_id)
+
+
 def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     """Preview ostidagi to'liq markup: kanal tugmasi + URL + reaksiyalar + panel.
 
@@ -756,6 +812,13 @@ def _manual_preview_markup(context, lang: str) -> InlineKeyboardMarkup:
     (5) agar vaqt belgilangan bo'lsa — ✅ Rejalashtirishni yakunlash.
     """
     rows = []
+    ma_url = context.user_data.get(UD_MA_URL)
+    if ma_url:
+        # 📱 Postni Mini App'da davom ettirish (qoralama ``_sync_miniapp_draft`` da yozilgan).
+        from telegram import WebAppInfo
+        from locales.translations import get_text
+
+        rows.append([InlineKeyboardButton(get_text("np_confirm_miniapp_btn", lang), web_app=WebAppInfo(url=ma_url))])
     # 1-vazifa: 📢 Kanal: [Tanlangan kanal nomi] tugmasi
     selected = _get_selected_channel(context)
     if selected:
@@ -840,9 +903,12 @@ async def _show_preview(target_msg, context, lang: str):
     content = context.user_data.get(UD_CONTENT, "") or ""
     post_type = context.user_data.get(UD_POST_TYPE, "text")
     file_id = context.user_data.get(UD_FILE_ID)
+    await _sync_miniapp_draft(context, getattr(target_msg, "chat_id", 0) or _manual_user_id(context))
     panel = _manual_preview_markup(context, lang)
     title = manual_post_t("mp_preview_title", lang)
     foot = manual_post_t("mp_preview_foot", lang)
+    if context.user_data.get(UD_MA_URL):
+        foot += "\n" + manual_post_t("mp_miniapp_hint", lang)
     extras = _manual_extras_text(context, lang)
 
     # 🖼 ALBOM — BIRLASHTIRILGAN PREVIEW (media + caption + tugmalar = 1 xabar).
@@ -1029,19 +1095,15 @@ async def _publish(target_msg, context, user_id: int, channel_id,
     now = datetime.now(utz())
 
     delete_after_hours = 24 if (mode == MODE_24H or context.user_data.get(UD_DEL24)) else 0
-    recurrence_type = "daily" if mode == MODE_REPEAT else "none"
-    recurrence_time = (
-        f"{context.user_data.get(UD_REPEAT_TIME)}:00"
-        if mode == MODE_REPEAT and context.user_data.get(UD_REPEAT_TIME)
-        else None
-    )
+    repeat_rec = context.user_data.get(UD_REPEAT_REC) if mode == MODE_REPEAT else None
+    if mode == MODE_REPEAT and not repeat_rec and context.user_data.get(UD_REPEAT_TIME):
+        repeat_rec = {"type": "daily", "day": None, "time": context.user_data[UD_REPEAT_TIME]}  # eski sessiya: faqat kunlik vaqt
+    recurrence_type = repeat_rec["type"] if repeat_rec else "none"
+    recurrence_day = repeat_rec["day"] if repeat_rec else None
+    recurrence_time = f"{repeat_rec['time']}:00" if repeat_rec else None
 
-    if mode == MODE_REPEAT and context.user_data.get(UD_REPEAT_TIME):
-        hh, mm = (int(x) for x in context.user_data[UD_REPEAT_TIME].split(":"))
-        scheduled_time = utz().localize(
-            datetime(now.year, now.month, now.day, hh, mm))
-        if scheduled_time <= now:
-            scheduled_time = shift_local(scheduled_time, days=1)
+    if repeat_rec:
+        scheduled_time = _repeat_start(repeat_rec, now) or now
     elif context.user_data.get(UD_WHEN):
         try:
             scheduled_time = datetime.strptime(
@@ -1071,7 +1133,7 @@ async def _publish(target_msg, context, user_id: int, channel_id,
             file_id=context.user_data.get(UD_FILE_ID),
             scheduled_time=scheduled_time,
             recurrence_type=recurrence_type,
-            recurrence_day=None,
+            recurrence_day=recurrence_day,
             recurrence_time=recurrence_time,
             end_date=None,
             btn_text=(url_btn[0] if url_btn else None),
@@ -1098,9 +1160,8 @@ async def _publish(target_msg, context, user_id: int, channel_id,
             or scheduled_time.strftime("%Y-%m-%d %H:%M")
         )
     elif mode == MODE_REPEAT:
-        msg_key = "mp_repeat_ok"
-        time_display = format_time(
-            f"{context.user_data.get(UD_REPEAT_TIME)}:00", lang)
+        msg_key = "mp_repeat_ok2"
+        time_display = ""
     else:
         # 🚀 Hozir yuborish: «yuborildi» DEB AYTISH faqat haqiqatan chiqqandan keyin (pastda tekshiriladi).
         msg_key = "mp_sending"
@@ -1108,9 +1169,16 @@ async def _publish(target_msg, context, user_id: int, channel_id,
         deliver_now = True
     note = manual_post_t("mp_del24_note", lang) if delete_after_hours == 24 else ""
 
+    if msg_key == "mp_repeat_ok2":
+        final_text = manual_post_t(
+            msg_key, lang, channel=channel_safe,
+            when=_repeat_when_text(repeat_rec, scheduled_time, lang),
+            first=format_datetime(scheduled_time, lang) or scheduled_time.strftime("%Y-%m-%d %H:%M"))
+    else:
+        final_text = manual_post_t(msg_key, lang, channel=channel_safe, time=time_display)
     status_msg = await _finalize(
         target_msg, context, user_id, lang,
-        manual_post_t(msg_key, lang, channel=channel_safe, time=time_display) + (note if not deliver_now else ""),
+        final_text + (note if not deliver_now else ""),
     )
     if deliver_now:
         from utils.handler_timeout import run_background_task
@@ -1141,12 +1209,24 @@ async def _deliver_now_and_report(bot, user_id: int, lang: str, post_id, channel
             await asyncio.sleep(_NOW_POLL_DELAY)
     except Exception:
         logger.exception("Hozir yuborish: natijani aniqlab bo'lmadi (post=%s)", post_id)
+    reason = ""
+    if status != "posted":
+        # Aniq SABAB (bot admin emas / format / tarmoq...) — foydalanuvchi nima qilishni bilsin; xom xato matni ko'rsatilmaydi.
+        try:
+            from locales.translations import get_text
+            from scheduler import _problem_reason_key
+
+            last_error = await db.run_db(db.get_post_last_error, post_id, user_id)
+            if last_error:
+                reason = "\n\n⚠️ " + get_text(_problem_reason_key("dead_letter", last_error), lang)
+        except Exception:
+            logger.debug("Hozir yuborish: sababni aniqlab bo'lmadi (post=%s)", post_id, exc_info=True)
     if status == "posted":
         text = manual_post_t("mp_sent_now", lang, channel=channel_safe) + note
     elif status in ("failed", "dead_letter", "cancelled"):
-        text = manual_post_t("mp_send_failed", lang, channel=channel_safe)
+        text = manual_post_t("mp_send_failed", lang, channel=channel_safe) + reason
     else:  # pending/processing — navbatda (tungi soatlar, kanal sovutishi, qayta urinish) yoki noma'lum
-        text = manual_post_t("mp_queued", lang, channel=channel_safe) + note
+        text = manual_post_t("mp_queued", lang, channel=channel_safe) + reason + note
     if status_msg is None:
         return
     try:
@@ -1213,6 +1293,7 @@ async def _dup_ai_refresh(query, context, user_id: int, lang: str) -> int:
 async def _finalize(target_msg, context, user_id: int, lang: str,
                     text: str):
     """Yakuniy xabar + asosiy menyu + holatni tozalash (yagona nuqta)."""
+    await _drop_miniapp_draft(user_id)
     clear_fsm_data(context)
     _clear_manual_state(context)
     if target_msg is None:
@@ -1278,6 +1359,47 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML",
     )
     return MANUAL_AWAIT_CONTENT
+
+
+async def manual_post_from_snapshot(update: Update, context: ContextTypes.DEFAULT_TYPE, snap: dict):
+    """Aqlli qabuldan («📝 Post qilish») keladi: xabar O'ZGARTIRILMASDAN preview'ga.
+
+    Foydalanuvchi allaqachon kontentni yuborgan — "yuboring" deb qayta
+    so'ralmaydi. AI ishlamaydi. Kanal bo'lmasa — oddiy ``mp_no_channels``.
+    """
+    query = getattr(update, "callback_query", None)
+    msg = getattr(query, "message", None) or getattr(update, "effective_message", None)
+    if msg is None:
+        return ConversationHandler.END
+    clear_fsm_data(context)
+    _clear_manual_state(context)
+    user_id = getattr(getattr(update, "effective_user", None), "id", 0) or 0
+    lang = get_lang(context)
+    from handlers.navigation import SECTION_CONTENT, remember_section
+    remember_section(context, SECTION_CONTENT)
+
+    channels = await db.run_db(db.get_user_channels, user_id)
+    if not channels:
+        await msg.reply_text(
+            manual_post_t("mp_no_channels", lang),
+            reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),
+            parse_mode="HTML",
+        )
+        return ConversationHandler.END
+    if len(channels) == 1:
+        _set_selected_channel(context, channels[0][0], channels[0][1])
+
+    album = snap.get("album")
+    if album:
+        context.user_data[UD_ALBUM_GROUP] = getattr(snap.get("message"), "media_group_id", None)
+        _manual_album_store(context, [dict(i) for i in album])
+    else:
+        context.user_data[UD_CONTENT] = snap.get("text") or ""
+        context.user_data[UD_POST_TYPE] = snap.get("post_type") or "text"
+        context.user_data[UD_FILE_ID] = snap.get("file_id")
+        context.user_data[UD_MEDIA_GROUP] = False
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
 
 
 async def manual_content_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1443,6 +1565,14 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
         return MANUAL_TIME_INPUT
 
     text = msg.text.strip()
+    now = datetime.now(utz())
+
+    # 🔄 Takrorlash: «har kuni 9:00», «har dushanba 9:00», «har oyning 15-kuni 10:00», «ikki kunda bir 18:30».
+    # Tez tugma (Har kuni / Haftada bir / Oyda bir) bosilgan bo'lsa, matn shu tur bilan to'ldiriladi:
+    # haftada bir -> «dushanba 9:00», oyda bir -> «15 10:00».
+    rec = _parse_repeat_text(text, now, context.user_data.get(UD_REPEAT_HINT) if mode == MODE_REPEAT else None)
+    if rec is not None:
+        return await _apply_repeat(msg, context, lang, rec)
 
     if mode == MODE_REPEAT:
         parsed = parse_daily_time_input(text)
@@ -1454,25 +1584,31 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
                                  parse_mode="HTML")
             return MANUAL_TIME_INPUT
         hh, mm = parsed
-        time_str = f"{hh:02d}:{mm:02d}"
-        context.user_data[UD_REPEAT_TIME] = time_str
-        # 3-vazifa: FSM yopilmaydi, vaqt saqlanadi va preview qayta ko'rsatiladi
-        try:
-            time_msg = manual_post_t("mp_time_set", lang, time=time_str)
-        except Exception:
-            time_msg = f"🕒 Vaqt belgilandi: {time_str}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
-        await msg.reply_text(time_msg, parse_mode="HTML")
-        await _show_preview(msg, context, lang)
-        return MANUAL_PREVIEW
+        return await _apply_repeat(msg, context, lang, {"type": "daily", "day": None, "time": f"{hh:02d}:{mm:02d}"})
+
+    # 📅 Oyning kuni raqam bilan: «25-kuni 18:00», «25 18:00» (eng yaqin shu kun).
+    from services.schedule_nlp import parse_day_number_once
+    day_once = parse_day_number_once(text, now)
+    if day_once and day_once.get("ok"):
+        candidate = day_once["start"]
+        context.user_data[UD_MODE] = MODE_TIME
+        context.user_data.pop(UD_REPEAT_REC, None)
+        context.user_data.pop(UD_REPEAT_TIME, None)
+        return await _apply_once(msg, context, lang, candidate)
 
     candidate, _reason = parse_schedule_input(text)
     if candidate is None:
         await msg.reply_text(manual_post_t("mp_time_invalid", lang),
                              parse_mode="HTML")
         return MANUAL_TIME_INPUT
+    return await _apply_once(msg, context, lang, candidate)
 
+
+async def _apply_once(msg, context, lang: str, candidate):
+    """Bir martalik vaqt belgilandi: saqlanadi va preview qayta ko'rsatiladi (FSM yopilmaydi)."""
     context.user_data[UD_WHEN] = candidate.strftime("%Y-%m-%d %H:%M")
-    # 3-vazifa: FSM yopilmaydi, vaqt saqlanadi va preview qayta ko'rsatiladi
+    context.user_data.pop(UD_REPEAT_REC, None)
+    context.user_data.pop(UD_REPEAT_TIME, None)
     try:
         display_time = format_datetime(candidate, lang) if 'format_datetime' in globals() else candidate.strftime("%Y-%m-%d %H:%M")
     except Exception:
@@ -1481,7 +1617,75 @@ async def manual_time_received(update: Update, context: ContextTypes.DEFAULT_TYP
         time_msg = manual_post_t("mp_time_set", lang, time=display_time)
     except Exception:
         time_msg = f"🕒 Vaqt belgilandi: {display_time}. Yana reaksiya, havola yoki sozlamalarni o'zgartirishingiz mumkin."
-    await msg.reply_text(time_msg, parse_mode="HTML")
+    from handlers.timezone_flow import tz_hint
+
+    await msg.reply_text(time_msg + tz_hint(getattr(msg, "from_user", None), lang), parse_mode="HTML")
+    await _show_preview(msg, context, lang)
+    return MANUAL_PREVIEW
+
+
+_REPEAT_HINT_PREFIX = {"daily": "har kuni ", "weekly": "har hafta ", "monthly": "har oy "}
+
+
+def _parse_repeat_text(text: str, now, hint=None):
+    """Takrorlanish iborasini ``{"type","day","time": "HH:MM"}`` ga o'giradi (``None`` — takrorlanish emas).
+
+    Avval matn o'zi tekshiriladi («har dushanba 9:00»); topilmasa va tez tugma bosilgan bo'lsa — matn shu tur bilan
+    to'ldiriladi («dushanba 9:00» + Haftada bir). Hammasi AI'siz, ``services.schedule_nlp`` orqali.
+    """
+    from services.schedule_nlp import parse_schedule_text
+
+    candidates = [text]
+    if hint in _REPEAT_HINT_PREFIX:
+        candidates.append(_REPEAT_HINT_PREFIX[hint] + text)
+    for variant in candidates:
+        parsed = parse_schedule_text(variant, now)
+        rec = parsed.get("recurrence") if parsed.get("ok") else None
+        if rec:
+            return {"type": rec["type"], "day": rec["day"], "time": rec["time"].strftime("%H:%M")}
+    return None
+
+
+def _repeat_start(rec: dict, now):
+    """Takrorlanishning birinchi chiqish vaqti (``now`` dan keyin; kun/hafta/oy qoidalariga mos)."""
+    from services.recurrence import first_occurrence
+
+    hh, mm = (int(x) for x in rec["time"].split(":"))
+    if rec["type"] in ("daily", "interval"):
+        first = utz().localize(datetime(now.year, now.month, now.day, hh, mm))
+        return first if first > now else shift_local(first, days=1)
+    start = first_occurrence(rec["type"], rec["day"], rec["time"], now)
+    if start is not None and start <= now:
+        start = first_occurrence(rec["type"], rec["day"], rec["time"], now + timedelta(minutes=1))
+    return start
+
+
+def _repeat_when_text(rec: dict, first, lang: str) -> str:
+    from utils.helpers import format_schedule_line
+
+    hh, mm = (int(x) for x in rec["time"].split(":"))
+    from datetime import time as _time
+    return format_schedule_line(first, rec["type"], rec["day"], _time(hh, mm), lang)
+
+
+async def _apply_repeat(msg, context, lang: str, rec: dict):
+    """Takrorlanish belgilandi: saqlanadi, bir martalik vaqt tozalanadi, preview qayta ko'rsatiladi."""
+    now = datetime.now(utz())
+    first = _repeat_start(rec, now)
+    if first is None:
+        await msg.reply_text(manual_post_t("mp_time_invalid", lang), parse_mode="HTML")
+        return MANUAL_TIME_INPUT
+    context.user_data[UD_MODE] = MODE_REPEAT
+    context.user_data[UD_REPEAT_REC] = rec
+    context.user_data[UD_REPEAT_TIME] = rec["time"]
+    context.user_data.pop(UD_WHEN, None)
+    context.user_data.pop(UD_REPEAT_HINT, None)
+    from handlers.timezone_flow import tz_hint
+
+    await msg.reply_text(
+        manual_post_t("mp_repeat_set", lang, when=_repeat_when_text(rec, first, lang)) + tz_hint(getattr(msg, "from_user", None), lang),
+        parse_mode="HTML",
+    )
     await _show_preview(msg, context, lang)
     return MANUAL_PREVIEW
 
@@ -1785,6 +1989,7 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return MANUAL_PREVIEW
 
     if data == CB_MANUAL_MORE_BACK:
+        await _sync_miniapp_draft(context, user_id)  # reaksiya/havola/24 soat o'zgargan bo'lishi mumkin
         await _edit_markup(query, _manual_preview_markup(context, lang))
         return MANUAL_PREVIEW
 
@@ -1888,8 +2093,22 @@ async def manual_panel_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     if data == CB_MANUAL_REPEAT:
         context.user_data[UD_MODE] = MODE_REPEAT
+        context.user_data.pop(UD_REPEAT_HINT, None)
         await query.message.reply_text(
             manual_post_t("mp_repeat_prompt", lang),
+            reply_markup=get_manual_repeat_markup(lang),
+            parse_mode="HTML",
+        )
+        return MANUAL_TIME_INPUT
+
+    if data.startswith(CB_MANUAL_RK):
+        kind = data[len(CB_MANUAL_RK):]
+        if kind not in _REPEAT_HINT_PREFIX:
+            return MANUAL_PREVIEW
+        context.user_data[UD_MODE] = MODE_REPEAT
+        context.user_data[UD_REPEAT_HINT] = kind
+        await query.message.reply_text(
+            manual_post_t(f"mp_repeat_hint_{kind}", lang),
             reply_markup=get_manual_back_markup(lang),
             parse_mode="HTML",
         )

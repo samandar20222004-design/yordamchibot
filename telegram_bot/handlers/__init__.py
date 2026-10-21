@@ -142,6 +142,9 @@ from handlers.manual_post import (
 )
 
 # 2b. 🛠 POST KUCHAYTIRGICH (Post Enhancer — qo'shimcha funksiyalar)
+from handlers.smart_intake import (  # noqa: F401
+    intake_handler, offer_intake, photo_intake_entry,
+)
 from handlers.post_enhancer import (
     post_enhancer_start, enh_message_received, enh_callback, enh_stale_callback,
     ENH_POST,
@@ -899,8 +902,8 @@ async def unknown_message_fallback(update, context):
             # taklif bosilganda to'g'ridan-to'g'ri uslub tanlash ekrani ochiladi.
             # Qisqa/tushunarsiz xabarlar ("???", "/buyruq") uchun esa eski
             # xushmuomala javob + asosiy menyu O'Z KUCHIDA qoladi.
-            from handlers.content_creation import offer_magic_post_for_direct_text
-            if not await offer_magic_post_for_direct_text(msg, context, user_id, lang):
+            from handlers.smart_intake import offer_intake
+            if not await offer_intake(update, context, lang):
                 await msg.reply_text(
                     get_text("unknown_message_fallback", lang),
                     reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -1272,7 +1275,11 @@ def _main_entry_points(all_menu_jumps):
         # 📸 Oddiy private photo ham Image → Post oqimini boshlaydi.
         # Conversation ichidagi new-post/photo-check holatlari o'zining
         # state handlerlari bilan ustun turadi — legacy oqimlar buzilmaydi.
-        ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, image_photo_received),
+        # AI bu yerda O'ZI ISHLAMAYDI: avval «Bu bilan nima qilamiz?» taklifi
+        # (📝 Post qilish / ✨ AI / ❌), Vision faqat foydalanuvchi so'raganda.
+        ImageEntryHandler(filters.PHOTO & filters.ChatType.PRIVATE, photo_intake_entry),
+        # Aqlli qabul tugmalari (in_post / in_ai / in_close).
+        intake_handler(),
         # 🧩 ACTION-FIRST: menyu tashqarisida yozilgan
         # xom matn uchun yuboriladigan «✨ Magic Post» taklifining tugmalari.
         # ContentOfferEntryHandler dialog ICHIDA mos KELMAYDI — faol suhbat

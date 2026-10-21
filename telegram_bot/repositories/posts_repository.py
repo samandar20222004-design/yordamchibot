@@ -245,6 +245,26 @@ def get_pending_posts(user_id: int) -> list:
         return []
 
 
+def get_post_last_error(post_id: int, user_id: int) -> str:
+    """Postning oxirgi yetkazish xatosi matni (``post_deliveries.last_error``); yo'q yoki xato bo'lsa ``""``.
+
+    Foydalanuvchiga xom matn ko'rsatilmaydi — faqat sabab turini aniqlash uchun (``scheduler._problem_reason_key``).
+    """
+    try:
+        with db_cursor() as cur:
+            cur.execute(
+                "SELECT COALESCE(d.last_error, '') FROM post_deliveries d "
+                "JOIN scheduled_posts p ON p.id = d.post_id "
+                "WHERE d.post_id = %s AND p.user_id = %s ORDER BY d.id DESC LIMIT 1",
+                (int(post_id), int(user_id)),
+            )
+            row = cur.fetchone()
+            return str(row[0] or "") if row else ""
+    except Exception as e:
+        logger.error(f"Post xatosini olish xatosi: {e}")
+        return ""
+
+
 def get_post_status(post_id: int, user_id: int) -> str:
     """Foydalanuvchi postining holati (``pending``/``processing``/``posted``/…).
 

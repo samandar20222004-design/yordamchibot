@@ -96,6 +96,31 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Asosiy menyu",
+        # --- 🧭 AQLLI QABUL: menyu tashqarisidagi xabar (AI ISHGA TUSHMAYDI) ---
+        "in_offer_text": (
+            "📩 <b>Xabaringizni oldim.</b>\n\n"
+            "Bu bilan nima qilamiz? Hech narsa o'zgarmaydi va AI kreditingiz "
+            "sarflanmaydi — o'zingiz tanlaysiz."
+        ),
+        "in_offer_photo": (
+            "🖼 <b>Rasmingizni oldim.</b>\n\n"
+            "Bu bilan nima qilamiz? Rasm o'zgarishsiz kanalga chiqadi, "
+            "AI faqat siz so'raganda ishlaydi."
+        ),
+        "in_offer_media": (
+            "📎 <b>Faylingizni oldim.</b>\n\n"
+            "Uni o'zgarishsiz post qilib kanalga chiqaramizmi?"
+        ),
+        "in_offer_album": (
+            "🖼 <b>Albomingizni oldim ({n} ta fayl).</b>\n\n"
+            "Uni o'zgarishsiz bitta post qilib kanalga chiqaramizmi?"
+        ),
+        "in_btn_post": "📝 Post qilish",
+        "in_btn_ai_text": "✨ AI yaxshilash",
+        "in_btn_ai_photo": "✨ Rasmdan AI post",
+        "in_btn_close": "❌ Yopish",
+        "in_expired": "⌛ Xabar eskirdi — uni qayta yuboring.",
+        "in_closed": "👌 Xo'p, hech narsa qilinmadi.",
         # [✍️ Post yaratish] Contextual Inline Menu ---
         "ctx_post_intro": (
             "✍️ <b>Post yaratish</b> — kerakli formatni tanlang 👇\n\n"
@@ -157,6 +182,31 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Главное меню",
+        # --- 🧭 УМНЫЙ ПРИЁМ: сообщение вне меню (AI НЕ запускается) ---
+        "in_offer_text": (
+            "📩 <b>Сообщение получено.</b>\n\n"
+            "Что с ним сделаем? Ничего не меняется и AI-кредиты не "
+            "тратятся — выбор за вами."
+        ),
+        "in_offer_photo": (
+            "🖼 <b>Фото получено.</b>\n\n"
+            "Что сделаем? Фото уйдёт в канал без изменений, "
+            "AI работает только по вашему запросу."
+        ),
+        "in_offer_media": (
+            "📎 <b>Файл получен.</b>\n\n"
+            "Опубликовать его в канале без изменений?"
+        ),
+        "in_offer_album": (
+            "🖼 <b>Альбом получен ({n} файлов).</b>\n\n"
+            "Опубликовать его в канале одним постом без изменений?"
+        ),
+        "in_btn_post": "📝 Опубликовать",
+        "in_btn_ai_text": "✨ Улучшить с AI",
+        "in_btn_ai_photo": "✨ AI-пост по фото",
+        "in_btn_close": "❌ Закрыть",
+        "in_expired": "⌛ Сообщение устарело — отправьте его заново.",
+        "in_closed": "👌 Хорошо, ничего не сделано.",
         # [✍️ Создать пост] Contextual Inline Menu (RU) ---
         "ctx_post_intro": (
             "✍️ <b>Создать пост</b> — выберите нужный формат 👇\n\n"
@@ -218,6 +268,31 @@ CONTENT_MENU_I18N = {
         ),
         "cm_offer_magic": "✨ Magic Post",
         "cm_offer_menu": "🔙 Main menu",
+        # --- 🧭 SMART INTAKE: message outside any menu (AI does NOT run) ---
+        "in_offer_text": (
+            "📩 <b>Got your message.</b>\n\n"
+            "What should we do with it? Nothing changes and no AI "
+            "credits are spent — you choose."
+        ),
+        "in_offer_photo": (
+            "🖼 <b>Got your photo.</b>\n\n"
+            "What should we do? The photo goes to your channel as is; "
+            "AI runs only when you ask."
+        ),
+        "in_offer_media": (
+            "📎 <b>Got your file.</b>\n\n"
+            "Publish it to your channel as is?"
+        ),
+        "in_offer_album": (
+            "🖼 <b>Got your album ({n} files).</b>\n\n"
+            "Publish it to your channel as one post, unchanged?"
+        ),
+        "in_btn_post": "📝 Make a post",
+        "in_btn_ai_text": "✨ Improve with AI",
+        "in_btn_ai_photo": "✨ AI post by photo",
+        "in_btn_close": "❌ Close",
+        "in_expired": "⌛ Message expired — please send it again.",
+        "in_closed": "👌 Okay, nothing was done.",
         # [✍️ Create post] Contextual Inline Menu (EN) ---
         "ctx_post_intro": (
             "✍️ <b>Create post</b> — choose a format 👇\n\n"
