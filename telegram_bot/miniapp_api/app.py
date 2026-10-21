@@ -533,6 +533,11 @@ async def admin_promo_create_handler(request: web.Request):
 
 
 @_write
+async def admin_promo_delete_handler(request: web.Request):
+    return web.json_response(await request.app[_K_ADMIN].delete_promo(request["user_id"], request.match_info["code"]))
+
+
+@_write
 async def admin_promo_active_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
     return web.json_response(await request.app[_K_ADMIN].set_promo_active(request["user_id"], request.match_info["code"], body))
@@ -829,6 +834,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/admin/promos", admin_promo_create_handler)
     api.router.add_get("/admin/promos/{code}", admin_promo_detail_handler)
     api.router.add_patch("/admin/promos/{code}", admin_promo_active_handler)
+    api.router.add_delete("/admin/promos/{code}", admin_promo_delete_handler)
     api.router.add_post("/admin/grant", admin_grant_handler)
     api.router.add_get("/admin/audit", admin_audit_handler)
     api.router.add_get("/admin/features", admin_features_handler)

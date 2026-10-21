@@ -387,7 +387,7 @@ from handlers.phone_verify import phone_contact_callback
 from handlers.timezone_flow import timezone_callback, timezone_command
 from handlers.team_ui import team_callback, team_command, team_users_shared
 from handlers.admin_promos import (
-    promos_command, promo_detail_command, promo_off_command, promo_on_command, admin_help_command,
+    promos_command, promo_detail_command, promo_off_command, promo_on_command, promo_del_command, admin_help_command,
 )
 from handlers.subscription import (
     start_subscription, subscription_callback, promo_code_received, promo_wait_active, promo_wait_text,
@@ -2309,6 +2309,7 @@ def _register_global_commands(app):
     app.add_handler(CommandHandler("promo", promo_detail_command))
     app.add_handler(CommandHandler("promo_off", promo_off_command))
     app.add_handler(CommandHandler("promo_on", promo_on_command))
+    app.add_handler(CommandHandler("promo_del", promo_del_command))
     app.add_handler(CommandHandler("admin_help", admin_help_command))
     app.add_handler(CommandHandler("admin_stats", admin_stats_command))
     # eng ko'p/kam (<5%) ishlatilayotgan tugma va

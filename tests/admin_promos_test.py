@@ -47,7 +47,7 @@ def offline() -> None:
         T.check(f"[{lang}] ro'yxat: HTML-escape (B&lt;2&gt;)", "B&lt;2&gt;" in text and "B<2>" not in text)
         T.check(f"[{lang}] bo'sh ro'yxat matni", AP.build_list_text([], {}, lang) != AP.build_list_text(items, totals, lang))
         T.check(f"[{lang}] buyruqlar ro'yxati hamma buyruqni o'z ichiga oladi",
-                all(c in AP.commands_text(lang) for c in ("/promos", "/promo_off", "/grant_pro", "/setrole", "/audit", "/health", "/economics", "/feature_usage", "/broadcast")))
+                all(c in AP.commands_text(lang) for c in ("/promos", "/promo_off", "/promo_del", "/grant_pro", "/setrole", "/audit", "/health", "/economics", "/feature_usage", "/broadcast")))
         d = AP.build_detail_text({**items[0], "created_at": None}, [{"user_id": 55, "redeemed_at": None}], lang)
         T.check(f"[{lang}] tafsilot: kim ishlatgani", "55" in d and "12/50" in d, d)
     more = [dict(items[0], code=f"K{i}") for i in range(40)]
@@ -119,6 +119,7 @@ def online() -> None:
         cur.execute("DELETE FROM promo_redemptions WHERE promo_id IN (SELECT id FROM promo_codes WHERE code LIKE 'ZT\\_%')")
         cur.execute("DELETE FROM promo_codes WHERE code LIKE 'ZT\\_%'")
         cur.execute("DELETE FROM admin_roles WHERE user_id = ANY(%s)", (list(IDS),))
+        cur.execute("DELETE FROM credits_ledger WHERE user_id = ANY(%s)", (list(IDS),))
         cur.execute("DELETE FROM users WHERE user_id = ANY(%s)", (list(IDS),))
 
     cleanup()
@@ -151,6 +152,34 @@ def online() -> None:
         T.check("filtr: status=disabled bo'sh", all(i["status"] == "disabled" for i in PS.list_promos(200, 0, "disabled")))
         cur.execute("SELECT COUNT(*) FROM admin_audit_logs WHERE admin_id=%s AND target_id IN ('ZT_A')", (ADM,))
         T.check("audit yozuvi (yaratish/o'chirish)", cur.fetchone()[0] >= 2)
+
+        print("\n== B2. O'chirish va tarifni himoya qilish ==")
+        T.check("noma'lum tarif bilan kod yaratib bo'lmaydi (ai/credits/free)", not PS.create_promo("ZT_AI", 5, 5, None, "ai", ADM) and not PS.create_promo("ZT_FR", 5, 5, None, "free", ADM))
+        cur.execute("INSERT INTO promo_codes (code, plan_type, duration_days, max_uses) VALUES ('ZT_OLD', 'ai', 30, 5)")
+        cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (TGT,))
+        before = cur.fetchone()[0]
+        ok, msg = PS.redeem_promo(TGT, "ZT_OLD")
+        cur.execute("SELECT plan_type, subscription_expires_at FROM users WHERE user_id = %s", (TGT,))
+        row = cur.fetchone()
+        T.check("eski/noto'g'ri tarifli kod tarifni ALMASHTIRMAYDI va ishlatilgan hisoblanmaydi", not ok and row[0] == before and row[1] is None, f"{msg} {row}")
+        cur.execute("SELECT COUNT(*) FROM promo_redemptions r JOIN promo_codes p ON p.id = r.promo_id WHERE p.code = 'ZT_OLD'")
+        T.check("rad etilgan urinish tarixga yozilmadi", cur.fetchone()[0] == 0)
+        PS.create_promo("ZT_DEL", 7, 2, None, "pro", ADM)
+        PS.redeem_promo(FIN, "ZT_DEL")
+        T.check("ishlatilgan kodni o'chirish: topildi, tarix ham ketdi", PS.delete_promo("zt_del", ADM) and "ZT_DEL" not in {i["code"] for i in PS.list_promos(200)}
+                and PS.recent_redemptions("ZT_DEL") == [])
+        cur.execute("SELECT plan_type FROM users WHERE user_id = %s", (FIN,))
+        T.check("o'chirilgach foydalanuvchining olgan tarifi SAQLANDI", cur.fetchone()[0] == "pro")
+        T.check("yo'q kodni o'chirib bo'lmaydi; bo'sh kod rad", not PS.delete_promo("ZT_DEL") and not PS.delete_promo("  "))
+        T.check("eski kodni o'chirish ishlaydi", PS.delete_promo("ZT_OLD", ADM))
+        cur.execute("SELECT COUNT(*) FROM admin_audit_logs WHERE admin_id=%s AND target_id = 'ZT_DEL' AND new_value::text LIKE '%%deleted%%'", (ADM,))
+        T.check("o'chirish auditga yozildi", cur.fetchone()[0] >= 1)
+        from services.credits_service import CreditsService
+        cur.execute("SELECT plan_type, subscription_expires_at FROM users WHERE user_id = %s", (TGT,))
+        plan_before = cur.fetchone()
+        res = CreditsService.add_credits(TGT, 50, "promo", ref_id="ZT_CR")
+        cur.execute("SELECT plan_type, subscription_expires_at FROM users WHERE user_id = %s", (TGT,))
+        T.check("AI ball (kredit) berilishi tarifni sotib olmaydi va o'zgartirmaydi", res.get("success") and cur.fetchone() == plan_before)
 
         print("\n== C. Mini App API (real PG) ==")
         settings = load_settings({"MINIAPP_ENABLED": "1", "BOT_TOKEN": FAKE_TOKEN, "ENVIRONMENT": "test",
@@ -207,6 +236,11 @@ def online() -> None:
         T.check("o'chirildi (disabled)", st == 200 and off["promo"]["status"] == "disabled", str(off))
         T.check("is_active bool bo'lmasa -> 422", C("PATCH", "/admin/promos/ZT_NEW", ADM, {"is_active": "ha"})[0] == 422)
         T.check("yo'q kod PATCH -> 404", C("PATCH", "/admin/promos/ZT_NOPE", ADM, {"is_active": True})[0] == 404)
+        T.check("DELETE: oddiy foydalanuvchi -> 403, finance (manage_promos yo'q) -> 403", C("DELETE", "/admin/promos/ZT_NEW", USR)[0] == 403 and C("DELETE", "/admin/promos/ZT_NEW", FIN)[0] == 403)
+        T.check("DELETE: yo'q kod -> 404", C("DELETE", "/admin/promos/ZT_NOPE", ADM)[0] == 404)
+        st, dl = C("DELETE", "/admin/promos/zt_new", ADM)
+        T.check("DELETE: kod butunlay o'chdi (ro'yxatda ham, tafsilotda ham yo'q)", st == 200 and dl == {"code": "ZT_NEW", "deleted": True}
+                and C("GET", "/admin/promos/ZT_NEW", ADM)[0] == 404 and "ZT_NEW" not in {i["code"] for i in C("GET", "/admin/promos", ADM)[1]["items"]}, str(dl))
         T.check("katta/g'alati kod yo'li 500 bermaydi", C("GET", "/admin/promos/" + "Z" * 300, ADM)[0] in (404, 400))
 
         st, g = C("POST", "/admin/grant", ADM, {"user_id": TGT, "days": 7, "plan": "pro"})

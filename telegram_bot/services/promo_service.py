@@ -80,7 +80,7 @@ class PromoService:
                 ``admin_audit_logs`` jadvaliga SHU tranzaksiyada yoziladi.
         """
         code = normalize_promo_input(code)
-        if not code:
+        if not code or plan_type not in ("pro", "ultra"):  # promo FAQAT pro/ultra beradi; boshqa qiymat users.plan_type'ni buzardi
             return False
         try:
             duration = int(duration_days)
@@ -170,6 +170,10 @@ class PromoService:
                 if max_uses is not None and (current_uses or 0) >= max_uses:
                     return False, "Bu promo-kod ishlatib bo'lingan."
 
+                # 3b) Eski/noto'g'ri yaratilgan kod (masalan «ai») tarifni almashtira olmaydi — urinish ham hisoblanmaydi.
+                if plan_type not in ("pro", "ultra"):
+                    return False, "Bu promo-kod noto'g'ri sozlangan. Administratorga murojaat qiling."
+
                 # 4) Atomik yozuv (UNIQUE constraint himoya qiladi)
                 cur.execute(
                     "INSERT INTO promo_redemptions (promo_id, user_id) "
@@ -183,25 +187,13 @@ class PromoService:
 
                 # 5) Obuna berish: max(current_expiry, NOW()) + days
                 # Enterprise (muddatsiz) huquqi saqlanadi (qarang: PaymentService.process_stars_payment).
-                if plan_type in ("pro", "ultra"):
-                    # Yagona qoida (services/plan_sql.py): enterprise o'zgarmaydi, faol ultra PRO promo bilan pasaymaydi.
-                    cur.execute(
-                        f"UPDATE users SET plan_type = {grant_plan_case(plan_type)}, "  # nosec B608 — tarif oq ro'yxatdan
-                        f"subscription_expires_at = {grant_expiry_case()} "
-                        "WHERE user_id = %s",
-                        (str(duration_days), user_id),
-                    )
-                else:
-                    cur.execute(
-                        "UPDATE users SET plan_type = CASE WHEN plan_type = 'enterprise' "
-                        "THEN plan_type ELSE %s END, "
-                        "subscription_expires_at = CASE WHEN plan_type = 'enterprise' "
-                        "AND subscription_expires_at IS NULL THEN NULL ELSE "
-                        "GREATEST(COALESCE(subscription_expires_at, NOW()), NOW()) "
-                        "+ (%s || ' days')::INTERVAL END "
-                        "WHERE user_id = %s",
-                        (plan_type, str(duration_days), user_id),
-                    )
+                # Yagona qoida (services/plan_sql.py): enterprise o'zgarmaydi, faol ultra PRO promo bilan pasaymaydi.
+                cur.execute(
+                    f"UPDATE users SET plan_type = {grant_plan_case(plan_type)}, "  # nosec B608 — tarif oq ro'yxatdan
+                    f"subscription_expires_at = {grant_expiry_case()} "
+                    "WHERE user_id = %s",
+                    (str(duration_days), user_id),
+                )
                 if cur.rowcount == 0:
                     return False, "Foydalanuvchi topilmadi."
 
@@ -360,6 +352,33 @@ class PromoService:
         except Exception as e:
             logger.error("PromoService.recent_redemptions xatosi: %s", e)
             return []
+
+    @staticmethod
+    def delete_promo(code: str, admin_id: int | None = None) -> bool:
+        """Kodni butunlay o'chiradi (eskirgan yoki noto'g'ri yaratilgani). Ishlatish tarixi ham o'chadi.
+
+        Foydalanuvchilarning allaqachon olgan tarifi O'ZGARMAYDI (u ``users`` da). Topilmasa ``False``.
+        """
+        code = normalize_promo_input(code)
+        if not code:
+            return False
+        try:
+            with transaction() as cur:
+                cur.execute("SELECT id, current_uses FROM promo_codes WHERE code = %s FOR UPDATE", (code,))
+                row = cur.fetchone()
+                if not row:
+                    return False
+                cur.execute("DELETE FROM promo_redemptions WHERE promo_id = %s", (row[0],))
+                cur.execute("DELETE FROM promo_codes WHERE id = %s", (row[0],))
+                if admin_id is not None:
+                    AuditService.log_action(admin_id, "system_settings", target_type="promo", target_id=code,
+                                            new_value={"deleted": True, "used": int(row[1] or 0)}, cur=cur)
+            _cache_clear("system_stats")
+            _cache_clear("admin_dashboard_stats")
+            return True
+        except Exception as e:
+            logger.error("PromoService.delete_promo xatosi: %s", e)
+            return False
 
     @staticmethod
     def set_promo_active(code: str, active: bool, admin_id: int | None = None) -> bool:

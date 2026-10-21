@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { parseAdminAds, parseAdminMarket, parseAdminPromos, ShapeError } from './api/validate'
@@ -37,6 +37,7 @@ function setup(opts: { admin: boolean; search?: string; deny?: boolean }) {
     if (url.includes('/admin/ads/settings')) return jsonResponse({ ...ADS, settings: { ...ADS.settings, reply: { enabled: true, interval: 4 } } })
     if (url.includes('/admin/ads')) return jsonResponse(ADS)
     if (url.includes('/admin/sponsors')) return jsonResponse({ items: [{ id: 1, channel_id: '-1001', title: 'Homiy', username: 'homiy', invite_link: '' }] })
+    if (url.includes('/admin/promos/MAXSUS30') && method === 'DELETE') return jsonResponse({ code: 'MAXSUS30', deleted: true })
     if (url.includes('/admin/promos/MAXSUS30') && method === 'PATCH') return jsonResponse({ promo: { ...PROMOS.items[0], is_active: false, status: 'disabled' }, redeemers: [] })
     if (url.includes('/admin/promos/')) return jsonResponse({ promo: PROMOS.items[0], redeemers: [{ user_id: 777, at: '2026-10-02T10:00:00' }] })
     if (url.includes('/admin/promos') && method === 'POST') return jsonResponse({ promo: { ...PROMOS.items[0], code: 'YANGI1' }, redeemers: [] }, 201)
@@ -71,7 +72,7 @@ describe('Super admin rejimi (Mini App)', () => {
     fireEvent.click(await screen.findByText('Super admin rejimi'))
     expect(await screen.findByText('Umumiy ko\'rinish')).toBeTruthy()
     expect(await screen.findByText('120')).toBeTruthy()
-    expect(screen.getByRole('navigation', { name: 'Super admin bo\'limlari' }).querySelectorAll('button')).toHaveLength(6)
+    expect(screen.getByRole('navigation', { name: 'Super admin bo\'limlari' }).querySelectorAll('button')).toHaveLength(5)
     fireEvent.click(screen.getByText('Oddiy'))
     expect(await screen.findByText('Super admin rejimi')).toBeTruthy()
   })
@@ -81,9 +82,12 @@ describe('Super admin rejimi (Mini App)', () => {
     render(<App />)
     expect(await screen.findByText('Umumiy ko\'rinish')).toBeTruthy()
     fireEvent.click(screen.getByText('Reklama', { selector: 'nav span' }))
+    expect(await screen.findByText('Homiy')).toBeTruthy() // bo'lim boshida majburiy obuna
+    fireEvent.click(screen.getByRole('button', { name: 'Kanal postlarida' }))
     expect(await screen.findByText('Kanal reklamasi')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Bot javoblari orasida' }))
     const switches = await screen.findAllByRole('switch')
-    fireEvent.click(switches[2]) // «Bot javoblari orasida» -> yoqilgan
+    fireEvent.click(switches[0]) // «Bot javoblari orasida» -> yoqilgan
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH' && c.url.endsWith('/admin/ads/settings') && JSON.stringify(c.body) === '{"reply_enabled":true}')).toBe(true))
   })
 
@@ -141,6 +145,20 @@ describe('Super admin rejimi (Mini App)', () => {
     expect(await screen.findByText('777')).toBeTruthy()
     fireEvent.click(screen.getByText('O\'chirish', { selector: 'button' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH' && c.url.endsWith('/admin/promos/MAXSUS30') && JSON.stringify(c.body) === '{"is_active":false}')).toBe(true))
+  })
+
+  it('Boshqaruv: eskirgan/noto\'g\'ri promo-kodni BUTUNLAY o\'chirish — tasdiq so\'raydi, DELETE ketadi, tasdiqsiz ketmaydi', async () => {
+    const calls = setup({ admin: true, search: '?tab=admin' })
+    render(<App />)
+    fireEvent.click(await screen.findByText('Boshqaruv', { selector: 'nav span' }))
+    fireEvent.click(await screen.findByText('MAXSUS30'))
+    await screen.findByText('777')
+    fireEvent.click(screen.getByRole('button', { name: "Butunlay o'chirish" }))
+    expect(await screen.findByText(/butunlay o'chiriladi/)).toBeTruthy()
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false)
+    const dialogs = screen.getAllByRole('dialog')
+    fireEvent.click(within(dialogs[dialogs.length - 1]).getByRole('button', { name: "O'chirish" }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.url.endsWith('/admin/promos/MAXSUS30'))).toBe(true))
   })
 
   it('promo validatori: noto\'g\'ri shakl rad etiladi, noma\'lum holat «active» bo\'ladi', () => {

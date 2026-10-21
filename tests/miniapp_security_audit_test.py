@@ -256,7 +256,7 @@ def test_all_routes_require_auth():
                  ("POST", "/api/v1/admin/market/users/{item_id}/ban"), ("POST", "/api/v1/admin/sponsors")]
     # 🎁 Promo-kodlar, tarif berish, tizim, rollar (har biri auth + RBAC).
     expected += [("GET", "/api/v1/admin/promos"), ("POST", "/api/v1/admin/promos"), ("GET", "/api/v1/admin/promos/{code}"),
-                 ("PATCH", "/api/v1/admin/promos/{code}"), ("POST", "/api/v1/admin/grant"), ("GET", "/api/v1/admin/audit"),
+                 ("PATCH", "/api/v1/admin/promos/{code}"), ("DELETE", "/api/v1/admin/promos/{code}"), ("POST", "/api/v1/admin/grant"), ("GET", "/api/v1/admin/audit"),
                  ("GET", "/api/v1/admin/features"), ("GET", "/api/v1/admin/system"), ("GET", "/api/v1/admin/roles"),
                  ("POST", "/api/v1/admin/roles")]
     # 👥 Jamoa (miniapp_api/team.py): har biri auth talab qiladi; egalik serverda (services/team_invites).
@@ -274,7 +274,7 @@ def test_all_routes_require_auth():
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 42, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 43, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,

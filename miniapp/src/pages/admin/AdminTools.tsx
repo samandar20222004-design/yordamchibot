@@ -86,9 +86,14 @@ function PromoDetail({ promo, onClose, onChanged }: { promo: AdminPromo; onClose
   const { t } = useI18n()
   const res = useResource((s) => client.adminPromoDetail(promo.code, s), true)
   const { busy, error, run } = useAdminAction()
+  const [asking, setAsking] = useState(false)
   const toggle = async () => {
     const ok = await run(() => client.adminPromoActive(promo.code, !promo.is_active), 'adm.saved')
     if (ok) onChanged()
+  }
+  const remove = async () => {
+    const ok = await run(() => client.adminPromoDelete(promo.code), 'adm.deleted')
+    if (ok) { setAsking(false); onChanged() }
   }
   return (
     <Dialog title={promo.code} onClose={onClose} busy={busy}>
@@ -108,7 +113,12 @@ function PromoDetail({ promo, onClose, onChanged }: { promo: AdminPromo; onClose
       <div className="dialog-actions">
         <Button onClick={onClose} disabled={busy}>{t('common.back')}</Button>
         <Button busy={busy} onClick={() => void toggle()}>{t(promo.is_active ? 'adm.prDisable' : 'adm.prEnable')}</Button>
+        <Button icon="trash" disabled={busy} onClick={() => setAsking(true)} aria-label={t('adm.prDelete')}>{t('adm.prDelete')}</Button>
       </div>
+      {asking && (
+        <ConfirmDialog title={t('adm.prDeleteTitle')} body={t('adm.prDeleteAsk', { code: promo.code, used: promo.used })} confirmLabel={t('adm.delete')} danger busy={busy}
+          onClose={() => setAsking(false)} onConfirm={() => void remove()} />
+      )}
     </Dialog>
   )
 }

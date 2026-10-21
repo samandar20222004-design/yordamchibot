@@ -85,3 +85,11 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 - Escrow/kafolatli to'lov, buyurtma holatlari (kelishildi / bajarildi / baho va sharh).
 - Kunlik snapshotni e'lonlar uchun majburiy qilish va ko'rsatkichlarni fon vazifasida yangilash (hozir kartani ochganda ≥6 soat eskirgan bo'lsa bazadan qayta hisoblanadi).
 - Haftalik hisobot kanal egasiga («kartangiz N marta ko'rildi, M so'rov») — o'sish uchun foydali.
+
+## Mahalliy yoki xalqaro: qanday aniqlanadi
+- Kanalning mamlakati = **e'lon egasining tasdiqlangan telefon mamlakati** (`users.phone_country`; o'z kontakti, raqam saqlanmaydi) — soxtalashtirib bo'lmaydi. E'lon qo'yilganda `listings.country` ga yoziladi.
+- Mini App kartasida ko'ruvchining mamlakati bilan solishtiriladi: bir xil bo'lsa **🇺🇿 Mahalliy**, boshqa bo'lsa **🇷🇺 Xalqaro** (bayroq bilan); mamlakat noma'lum bo'lsa faqat 🌐. Katalog standarti — o'z mamlakati, «🌍 Hammasi» — global.
+- Cheklov: bu EGASI mamlakati, kanal auditoriyasi tili emas (masalan, Rossiyada yashovchi o'zbek kanali «xalqaro» bo'ladi). Keyingi yaxshilash: kanal nomi/tavsifi tilini aniqlab alohida «til» belgisi.
+
+## Mini App ko'rinishi (ixcham)
+Sarlavha qatori + statistika, bitta asboblar paneli (mamlakat · saralash), bir qatorli mavzu chiplari, 2 qatorli kartalar (nom + belgi / 👥 📈 💲 mavzu). Yo'riqnoma (qanday ishlaydi) pastda yig'ilgan.

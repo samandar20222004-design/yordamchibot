@@ -59,19 +59,29 @@ function useCatalog(category: MarketCategory | 'all', sort: MarketSort, scope: '
   return { items, total, viewerCountry, applied, loading, error, hasMore: page + 1 < pages, more: () => load(page + 1), reload: () => load(0) }
 }
 
-function ListingRow({ listing, onOpen }: { listing: MarketListing; onOpen: () => void }) {
+/** Kanal mahalliymi yoki xalqaroligi: e'lon egasining TASDIQLANGAN telefon mamlakati ko'ruvchiniki bilan solishtiriladi. */
+function originOf(listing: MarketListing, viewerCountry: string): 'local' | 'intl' | 'unknown' {
+  const c = (listing.country ?? '').toUpperCase()
+  if (!c || c === 'ZZ') return 'unknown'
+  return viewerCountry && c === viewerCountry.toUpperCase() ? 'local' : 'intl'
+}
+
+function ListingRow({ listing, viewerCountry, onOpen }: { listing: MarketListing; viewerCountry: string; onOpen: () => void }) {
   const { t } = useI18n()
   const price = usePriceText()
+  const origin = originOf(listing, viewerCountry)
   return (
-    <button type="button" className="item mk-card" onClick={() => { haptic('select'); onOpen() }}>
-      <Avatar text={listing.title} />
+    <button type="button" className="item mk-card mk-card-compact" onClick={() => { haptic('select'); onOpen() }}>
+      <Avatar text={listing.title} small />
       <span className="mk-card-main">
-        <strong className="mk-card-title">{listing.title}</strong>
-        <span className="muted small">{countryFlag(listing.country)} @{listing.username} · {t(`mk.cat.${listing.category}` as MessageKey)}</span>
-        <span className="mk-chips-row">
-          <span className="mk-pill">👥 {formatCount(listing.members)}</span>
-          {listing.er_percent !== null && <span className="mk-pill">📈 {listing.er_percent}%</span>}
-          <span className="mk-pill">💲 {price(listing.price, listing.currency)}</span>
+        <span className="mk-card-top">
+          <strong className="mk-card-title">{listing.title}</strong>
+          <span className={`mk-origin mk-origin-${origin}`} title={t(origin === 'local' ? 'mk.local' : 'mk.intl')}>
+            {countryFlag(listing.country)}{origin === 'unknown' ? '' : ` ${t(origin === 'local' ? 'mk.local' : 'mk.intl')}`}
+          </span>
+        </span>
+        <span className="muted small mk-card-meta">
+          👥 {formatCount(listing.members)}{listing.er_percent !== null ? ` · 📈 ${listing.er_percent}%` : ''} · 💲 {price(listing.price, listing.currency)} · {t(`mk.cat.${listing.category}` as MessageKey)}
         </span>
       </span>
       <span className="mk-go" aria-hidden="true"><Icon name="chevron" size={16} /></span>
@@ -89,29 +99,26 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
   const sorts: Array<[MarketSort, MessageKey]> = [['m', 'mk.sortM'], ['p', 'mk.sortP'], ['e', 'mk.sortE']]
   return (
     <>
-      {cat.viewerCountry ? (
-        <div className="mk-sort" role="group" aria-label={t('mk.countryLabel')}>
-          <span className="muted small">{t('mk.countryLabel')}</span>
-          <button type="button" aria-pressed={cat.applied === 'mine'} onClick={() => setScope('mine')}>{countryFlag(cat.viewerCountry)} {cat.viewerCountry}</button>
-          <button type="button" aria-pressed={cat.applied === 'all'} onClick={() => setScope('all')}>{t('mk.countryAll')}</button>
-        </div>
-      ) : (
-        <p className="muted small">
-          {t('mk.countryHint')}{' '}
-          {openBotAvailable(botUsername) && <button type="button" className="btn btn-ghost" onClick={() => openBot(botUsername)}>{t('common.openBot')}</button>}
-        </p>
-      )}
+      <div className="mk-toolbar">
+        {cat.viewerCountry ? (
+          <div className="mk-seg" role="group" aria-label={t('mk.countryLabel')}>
+            <button type="button" aria-pressed={cat.applied === 'mine'} onClick={() => setScope('mine')}>{countryFlag(cat.viewerCountry)} {cat.viewerCountry}</button>
+            <button type="button" aria-pressed={cat.applied === 'all'} onClick={() => setScope('all')}>{t('mk.countryAll')}</button>
+          </div>
+        ) : (
+          openBotAvailable(botUsername)
+            ? <button type="button" className="mk-verify" onClick={() => openBot(botUsername)}>📞 {t('mk.countryVerify')}</button>
+            : <span />
+        )}
+        <select className="mk-select" aria-label={t('mk.sortBy')} value={sort} onChange={(e) => setSort(e.target.value as MarketSort)}>
+          {sorts.map(([k, label]) => <option key={k} value={k}>{t(label)}</option>)}
+        </select>
+      </div>
       <div className="mk-chips" role="group" aria-label={t('mk.tabCatalog')}>
         {(['all', ...MARKET_CATEGORIES] as const).map((c) => (
           <button key={c} type="button" className="chip" aria-pressed={category === c} onClick={() => setCategory(c)}>
             {c === 'all' ? t('mk.catAll') : t(`mk.cat.${c}` as MessageKey)}
           </button>
-        ))}
-      </div>
-      <div className="mk-sort" role="group" aria-label={t('mk.sortBy')}>
-        <span className="muted small">{t('mk.sortBy')}</span>
-        {sorts.map(([k, label]) => (
-          <button key={k} type="button" aria-pressed={sort === k} onClick={() => setSort(k)}>{t(label)}</button>
         ))}
       </div>
       {cat.loading && cat.items.length === 0 && <LoadingBlock rows={3} />}
@@ -120,8 +127,8 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
         <section className="card mk-empty"><p>{t('mk.empty')}</p></section>
       )}
       {cat.items.length > 0 && (
-        <ul className="list">
-          {cat.items.map((l) => <li key={l.id}><ListingRow listing={l} onOpen={() => onOpen(l.id)} /></li>)}
+        <ul className="list mk-list">
+          {cat.items.map((l) => <li key={l.id}><ListingRow listing={l} viewerCountry={cat.viewerCountry} onOpen={() => onOpen(l.id)} /></li>)}
         </ul>
       )}
       {cat.hasMore && <Button block busy={cat.loading} onClick={cat.more}>{t('mk.tabCatalog')} +</Button>}
@@ -160,15 +167,7 @@ export function MarketPage() {
   return (
     <Page wide>
       <PageHeader title={t('mk.title')} onRefresh={() => { summary.reload(); mine.reload(); threads.reload() }} refreshing={summary.refreshing} />
-      <section className="card hero hero-wow mk-hero" aria-label={t('mk.title')}>
-        <div className="hero-glow" aria-hidden="true" />
-        <p className="lead">{t('mk.lead')}</p>
-        {summary.data && (
-          <div className="hero-chips">
-            <span className="chip chip-glass">{t('mk.stats', { listings: summary.data.listings, inquiries: summary.data.inquiries })}</span>
-          </div>
-        )}
-      </section>
+      {summary.data && <p className="muted small mk-stat">{t('mk.stats', { listings: summary.data.listings, inquiries: summary.data.inquiries })}</p>}
       <fieldset className="segmented mk-subtabs" aria-label={t('mk.title')}>
         {subs.map(([k, label]) => (
           <button key={k} type="button" aria-pressed={sub === k} onClick={() => setSub(k)}>{t(label)}</button>
@@ -179,6 +178,7 @@ export function MarketPage() {
       {sub === 'chats' && <ThreadList threads={threads} onOpen={(id) => setScreen({ kind: 'thread', id })} />}
       <details className="card mk-how">
         <summary>{t('mk.howTitle')}</summary>
+        <p className="muted small">{t('mk.lead')}</p>
         <ol>
           <li>{t('mk.how1')}</li>
           <li>{t('mk.how2')}</li>

@@ -138,3 +138,20 @@
 .way-card { display: grid; gap: 2px; text-align: left; padding: var(--s3); border-radius: 14px; border: 1.5px dashed var(--border); background: none; color: inherit; font: inherit; cursor: pointer; }
 .perm-switches { margin-top: var(--s2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
 .perm-switches .switch-row { grid-template-columns: minmax(0, 1fr) auto; padding: var(--s3); }
+
+/* 💰 Birja: ixcham ko'rinish (sarlavha qatori, bitta asboblar paneli, 2 qatorli kartalar) */
+.mk-stat { margin: calc(var(--s2) * -1) 0 0; }
+.mk-toolbar { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); }
+.mk-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--surface); }
+.mk-seg > button { min-height: 30px; padding: 0 12px; border: 0; border-radius: 999px; background: none; color: var(--text); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; }
+.mk-seg > button[aria-pressed='true'] { background: var(--accent); color: var(--on-accent); }
+.mk-select { min-height: 34px; max-width: 46%; padding: 0 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font: inherit; font-size: .8125rem; font-weight: 600; }
+.mk-verify { min-height: 34px; padding: 0 12px; border: 1px dashed var(--border); border-radius: 999px; background: none; color: var(--accent); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; text-align: left; }
+.mk-list { gap: var(--s2); }
+.mk-card-compact { padding: var(--s2) var(--s3); gap: var(--s2); }
+.mk-card-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s2); min-width: 0; }
+.mk-card-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-origin { flex: none; padding: 1px 8px; border-radius: 999px; font-size: .72rem; font-weight: 700; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.mk-origin-local { background: color-mix(in srgb, #22c55e 18%, transparent); }
+.mk-origin-intl { background: color-mix(in srgb, #3b82f6 16%, transparent); }
+.mk-subtabs { margin-block: 0; }

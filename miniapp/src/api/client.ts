@@ -303,6 +303,7 @@ export function createApiClient(opts: ClientOptions) {
     adminPromoDetail: (code: string, signal?: AbortSignal): Promise<AdminPromoDetail> =>
       get(`/admin/promos/${encodeURIComponent(code)}`, parseAdminPromoDetail, signal),
     adminPromoCreate: (input: AdminPromoInput): Promise<AdminPromoDetail> => send('POST', '/admin/promos', input, parseAdminPromoDetail),
+    adminPromoDelete: (code: string): Promise<void> => send('DELETE', `/admin/promos/${encodeURIComponent(code)}`, undefined, () => undefined),
     adminPromoActive: (code: string, is_active: boolean): Promise<AdminPromoDetail> =>
       send('PATCH', `/admin/promos/${encodeURIComponent(code)}`, { is_active }, parseAdminPromoDetail),
     adminGrant: (input: { user_id: number; days: number; plan: 'pro' | 'ultra' }): Promise<void> => send('POST', '/admin/grant', input, () => undefined),

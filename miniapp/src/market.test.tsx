@@ -62,9 +62,19 @@ describe('Reklama birjasi (Mini App)', () => {
     expect(await screen.findByText('Texno Yangiliklar')).toBeTruthy()
     expect(screen.getByText(/3 ta kanal · 5 ta so'rov/)).toBeTruthy()
     expect(screen.getByRole('navigation').querySelectorAll('button')).toHaveLength(5)
-    expect(screen.getAllByText('👥 12.4k')).toHaveLength(2)
-    expect(screen.getByText('💲 60 000 so\'m')).toBeTruthy()
-    expect(screen.getByText('💲 kelishiladi')).toBeTruthy()
+    expect(screen.getAllByText(/👥 12\.4k/)).toHaveLength(2)
+    expect(screen.getByText(/💲 60 000 so'm/)).toBeTruthy()
+    expect(screen.getByText(/💲 kelishiladi/)).toBeTruthy()
+  })
+
+  it('mahalliy/xalqaro belgisi: ko\'ruvchi mamlakati bilan solishtiriladi; mamlakati noma\'lum kanalda belgi yo\'q', async () => {
+    setup((url) => (url.includes('/market/listings?')
+      ? jsonResponse({ items: [{ ...LISTING, country: 'UZ' }, { ...UNKNOWN, country: 'RU' }, { ...UNKNOWN, id: 9, title: 'Nomaʼlum', country: null }], total: 3, page: 0, pages: 1, page_size: 5, viewer_country: 'UZ', filter: 'all' })
+      : undefined))
+    render(<App />)
+    await screen.findByText('Texno Yangiliklar')
+    expect(screen.getAllByText(/Mahalliy/).length).toBe(1)
+    expect(screen.getAllByText(/Xalqaro/).length).toBe(1)
   })
 
   it('kartada noma\'lum ko\'rsatkich halol: «ma\'lumot yetarli emas», soxta 0 yo\'q', async () => {

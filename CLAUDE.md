@@ -150,3 +150,5 @@ sozlamalar — `miniapp/README.md`. Testlar: `tests/miniapp_*_test.py` (+ `cd mi
 4. Katta fayllarni bo'lish: `utils/ai_agent.py` (~4,9k qator), `handlers/__init__.py` (~2,6k).
 5. Takrorlanuvchi menyu testlarini birlashtirish; eski `get_content_creation_keyboard`
    faqat testlarda qolgan.
+
+- **Admin/Mini App tartibga solish:** super admin paneli 4 bo'lim (Umumiy · Reklama · Birja · Boshqaruv): «Reklama» ichida avval Majburiy obuna, keyin Kanal postlari / Bot javoblari reklamalari. Promo-kodni butunlay o'chirish: Mini App Boshqaruv -> kod -> «Butunlay o'chirish», botda `/promo_del KOD` (tasdiq: `... ok`); tarixi ketadi, foydalanuvchi olgan tarif saqlanadi (`PromoService.delete_promo`). Promo FAQAT pro/ultra beradi (noma'lum tarifli eski kod tarifni o'zgartirmaydi); AI ball (kredit) berish tarifga tegmaydi (test `admin_promos_test`). Men sahifasi: ixcham profil kartasi, bo'limlar Hisob / Sozlamalar / Limitlar / Ilova. Birja: ixcham ro'yxat, «Mahalliy/Xalqaro» belgisi (`docs/AD_MARKET.md`).

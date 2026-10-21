@@ -33,7 +33,7 @@ function Row({ icon, tone, label, value, onClick }: { icon: IconName; tone: stri
 export function MePage() {
   const { me, channels, botUsername, setAdminMode } = useAppData()
   const [screen, setScreen] = useState<Screen>(null)
-  const { t, formatDate } = useI18n()
+  const { t } = useI18n()
   const photo = getUserPhotoUrl()
 
   if (me.loading) return <Page><PageHeader title={t('me.title')} /><LoadingBlock rows={5} /></Page>
@@ -62,14 +62,14 @@ export function MePage() {
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title={t('me.title')} onRefresh={refresh} refreshing={me.refreshing || channels.refreshing} />
 
-      <section className={`me-cover tier-${plan.type}`} aria-labelledby="profile">
-        <div className="me-cover-bg" aria-hidden="true" />
-        <Avatar text={displayName} photo={photo} large />
-        <h2 id="profile" className="me-name">{displayName}</h2>
-        <p className="muted small me-sub">{user.username ? `@${user.username} · ` : ''}{t('me.id')} {user.id}</p>
-        <div className="me-chips">
+      <section className={`me-card tier-${plan.type}`} aria-labelledby="profile">
+        <div className="me-card-top">
+          <Avatar text={displayName} photo={photo} medium />
+          <div className="me-card-main">
+            <h2 id="profile" className="me-name">{displayName}</h2>
+            <p className="muted small me-sub">{user.username ? `@${user.username}` : `${t('me.id')} ${user.id}`}</p>
+          </div>
           <Badge pro={plan.is_pro}>{planName}</Badge>
-          {plan.is_pro && plan.expires_at && <span className="chip">{t('me.expires', { date: formatDate(plan.expires_at) })}</span>}
         </div>
         <div className="me-stats">
           <div><strong>{usage.channels}</strong><span>{t('home.channels')}</span></div>
@@ -84,14 +84,18 @@ export function MePage() {
         </section>
       )}
 
+      <h3 className="sec-label">{t('me.secAccount')}</h3>
+      <section className="set-group" aria-label={t('me.secAccount')}>
+        <Row icon="diamond" tone="gold" label={t('me.rowPlan')} value={planValue} onClick={() => setScreen('plans')} />
+        <Row icon="megaphone" tone="green" label={t('me.rowChannels')} value={String(usage.channels)} onClick={() => setScreen('channels')} />
+        <Row icon="user" tone="blue" label={t('me.rowTeam')} value={(plan.limits.team_seats ?? 0) > 0 ? t('team.seatsMax', { n: plan.limits.team_seats ?? 0 }) : undefined} onClick={() => setScreen('team')} />
+      </section>
+
       <h3 className="sec-label">{t('me.secSettings')}</h3>
       <section className="set-group" aria-label={t('me.secSettings')}>
-        <Row icon="diamond" tone="gold" label={t('me.rowPlan')} value={planValue} onClick={() => setScreen('plans')} />
         <Row icon="globe" tone="blue" label={t('me.rowLang')} value={`${FLAGS[user.language]} ${t(`lang.${user.language}`)}`} onClick={() => setScreen('lang')} />
         <Row icon="sparkle" tone="violet" label={t('me.rowLook')} onClick={() => setScreen('look')} />
         <Row icon="bell" tone="rose" label={t('me.rowNotif')} value={t('me.notifValue', { n: enabledCount(notifications), total: 4 })} onClick={() => setScreen('notif')} />
-        <Row icon="user" tone="blue" label={t('me.rowTeam')} value={(plan.limits.team_seats ?? 0) > 0 ? t('team.seatsMax', { n: plan.limits.team_seats ?? 0 }) : undefined} onClick={() => setScreen('team')} />
-        <Row icon="megaphone" tone="green" label={t('me.rowChannels')} value={String(usage.channels)} onClick={() => setScreen('channels')} />
       </section>
 
       <h3 className="sec-label">{t('me.limits')}</h3>
