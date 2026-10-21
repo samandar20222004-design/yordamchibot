@@ -1,30 +1,62 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppData } from '../AppData'
-import type { TeamChannel, TeamMember, TeamRole, Workspace } from '../api/types'
-import { TEAM_ROLES } from '../api/types'
+import type { TeamChannel, TeamPerm, TeamPreset, Workspace } from '../api/types'
+import { TEAM_PERMS, TEAM_PRESETS } from '../api/types'
 import { ConfirmDialog, Dialog } from '../components/Dialog'
 import { Icon } from '../components/Icon'
 import { SubPage } from '../components/SubPage'
-import { Button, FormError, LoadingBlock, ErrorState, openBotAvailable } from '../components/ui'
+import { Button, ErrorState, FormError, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useAdminAction } from './admin/AdminPages'
 import { useI18n, type MessageKey } from '../i18n'
 import { haptic, inviteLink, openBot, shareLink } from '../telegram'
 
-const roleLabel = (r: TeamRole): MessageKey => `team.role_${r}` as MessageKey
-const roleHelp = (r: TeamRole): MessageKey => `team.roleHelp_${r}` as MessageKey
+const permLabel = (p: TeamPerm): MessageKey => `team.perm_${p}` as MessageKey
+const permHint = (p: TeamPerm): MessageKey => `team.permHint_${p}` as MessageKey
+const PRESET_ORDER: readonly TeamPreset[] = ['full', 'editor', 'scheduler', 'analyst', 'view']
+const sameSet = (a: readonly TeamPerm[], b: readonly TeamPerm[]) => a.length === b.length && a.every((x) => b.includes(x))
 
-function RoleChips({ value, onPick, disabled }: { value: TeamRole | null; onPick: (r: TeamRole) => void; disabled?: boolean }) {
+/** Ruxsatlar: tayyor shablonlar (bir bosishda) + har bir ruxsat alohida katakcha. «Ko'rish» har doim bor. */
+export function PermPicker({ value, onChange, disabled }: { value: TeamPerm[]; onChange: (next: TeamPerm[]) => void; disabled?: boolean }) {
   const { t } = useI18n()
+  const toggle = (p: TeamPerm) => onChange(TEAM_PERMS.filter((x) => (x === p ? !value.includes(x) : value.includes(x))))
   return (
-    <div className="chips" role="group" aria-label={t('team.roleLabel')}>
-      {TEAM_ROLES.map((r) => (
-        <button key={r} type="button" className="chip" aria-pressed={value === r} disabled={disabled} onClick={() => onPick(r)}>{t(roleLabel(r))}</button>
+    <div className="perm-picker">
+      <div className="chips" role="group" aria-label={t('team.presets')}>
+        {PRESET_ORDER.map((id) => (
+          <button key={id} type="button" className="chip" disabled={disabled} aria-pressed={sameSet(value, TEAM_PRESETS[id])}
+            onClick={() => onChange([...TEAM_PRESETS[id]])}>{t(`team.preset_${id}` as MessageKey)}</button>
+        ))}
+      </div>
+      <ul className="perm-list">
+        <li className="perm-row perm-fixed"><Icon name="check" size={18} /><span><strong>{t('team.perm_view')}</strong><small>{t('team.permHint_view')}</small></span></li>
+        {TEAM_PERMS.map((p) => (
+          <li key={p}>
+            <label className="perm-row">
+              <input type="checkbox" checked={value.includes(p)} disabled={disabled} onChange={() => toggle(p)} />
+              <span><strong>{t(permLabel(p))}</strong><small>{t(permHint(p))}</small></span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ChannelPicker({ channels, value, onChange, disabled }: { channels: TeamChannel[]; value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
+  const { t } = useI18n()
+  const toggle = (id: string) => onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id])
+  return (
+    <div className="chips" role="group" aria-label={t('team.inviteChannel')}>
+      <button type="button" className="chip" disabled={disabled} aria-pressed={value.length === channels.length && channels.length > 0}
+        onClick={() => onChange(value.length === channels.length ? [] : channels.map((c) => c.channel_id))}>{t('team.allChannels')}</button>
+      {channels.map((c) => (
+        <button key={c.channel_id} type="button" className="chip" disabled={disabled} aria-pressed={value.includes(c.channel_id)} onClick={() => toggle(c.channel_id)}>{c.title || c.channel_id}</button>
       ))}
     </div>
   )
 }
 
-// ----------------------------------------------------------------- «Men kimman?»
+// ----------------------------------------------------------------- «Men kimman?» (faqat shu ekranda, so'ralmaydi)
 function ModePicker({ mode, isAdmin, onPick, busy }: {
   mode: 'owner' | 'helper' | null; isAdmin: boolean; onPick: (m: 'owner' | 'helper' | 'admin') => void; busy: boolean
 }) {
@@ -46,37 +78,18 @@ function ModePicker({ mode, isAdmin, onPick, busy }: {
   )
 }
 
-/** Birinchi ochilishdagi qisqa «Men kimman?» oynasi (bir marta; keyin Men → Jamoa va rol). */
-export function RoleWelcome({ onDone }: { onDone: (mode: 'owner' | 'helper' | null) => void }) {
-  const { client, me } = useAppData()
-  const { t } = useI18n()
-  const { busy, error, run } = useAdminAction()
-  const pick = async (m: 'owner' | 'helper') => {
-    const ok = await run(() => client.teamMode(m))
-    if (ok) { me.reload(); onDone(m) }
-  }
-  return (
-    <Dialog title={t('team.welcomeTitle')} onClose={() => onDone(null)} busy={busy}>
-      <p className="muted">{t('team.welcomeBody')}</p>
-      <ModePicker mode={null} isAdmin={false} busy={busy} onPick={(m) => { if (m !== 'admin') void pick(m) }} />
-      {error && <FormError error={error} />}
-      <div className="dialog-actions"><Button onClick={() => onDone(null)} disabled={busy}>{t('team.welcomeLater')}</Button></div>
-    </Dialog>
-  )
-}
-
 // ----------------------------------------------------------------- Taklif yaratish
 function InviteDialog({ channels, onClose, onCreated }: { channels: TeamChannel[]; onClose: () => void; onCreated: () => void }) {
   const { client, botUsername, notify } = useAppData()
   const { t } = useI18n()
   const { busy, error, run } = useAdminAction()
-  const [channel, setChannel] = useState(channels[0]?.channel_id ?? '')
-  const [role, setRole] = useState<TeamRole>('editor')
+  const [picked, setPicked] = useState<string[]>(() => channels.map((c) => c.channel_id))
+  const [perms, setPerms] = useState<TeamPerm[]>([...TEAM_PRESETS.full])
   const [token, setToken] = useState<string | null>(null)
   const link = token ? inviteLink(botUsername, token) : null
   const create = async () => {
     let created: string | null = null
-    const ok = await run(async () => { created = (await client.teamInviteCreate(channel, role)).token })
+    const ok = await run(async () => { created = (await client.teamInviteCreate(picked, perms)).token })
     if (ok && created) { setToken(created); onCreated() }
   }
   const copy = async () => {
@@ -89,18 +102,14 @@ function InviteDialog({ channels, onClose, onCreated }: { channels: TeamChannel[
       {!token && channels.length > 0 && (
         <>
           <span className="field-label">{t('team.inviteChannel')}</span>
-          <div className="chips" role="group" aria-label={t('team.inviteChannel')}>
-            {channels.map((c) => (
-              <button key={c.channel_id} type="button" className="chip" aria-pressed={channel === c.channel_id} onClick={() => setChannel(c.channel_id)}>{c.title || c.channel_id}</button>
-            ))}
-          </div>
-          <span className="field-label">{t('team.inviteRole')}</span>
-          <RoleChips value={role} onPick={setRole} />
-          <p className="muted small">{t(roleHelp(role))}</p>
+          <ChannelPicker channels={channels} value={picked} onChange={setPicked} disabled={busy} />
+          <span className="field-label">{t('team.permsTitle')}</span>
+          <PermPicker value={perms} onChange={setPerms} disabled={busy} />
+          <p className="muted small">{t('team.limitsNote')}</p>
           {error && <FormError error={error} />}
           <div className="dialog-actions">
             <Button onClick={onClose} disabled={busy}>{t('common.back')}</Button>
-            <Button variant="primary" busy={busy} disabled={!channel} onClick={() => void create()}>{t('team.inviteCreate')}</Button>
+            <Button variant="primary" busy={busy} disabled={picked.length === 0} onClick={() => void create()}>{t('team.inviteCreate')}</Button>
           </div>
         </>
       )}
@@ -119,37 +128,60 @@ function InviteDialog({ channels, onClose, onCreated }: { channels: TeamChannel[
   )
 }
 
-// ----------------------------------------------------------------- Egasi: o'rindiqlar va a'zolar
-function MemberRow({ channel, m, reload }: { channel: TeamChannel; m: TeamMember; reload: () => void }) {
+// ----------------------------------------------------------------- Egasi: yordamchi kartasi
+interface Helper { user_id: number; name: string; username: string; active: boolean; channelIds: string[]; perms: TeamPerm[]; mixed: boolean }
+
+function groupHelpers(channels: TeamChannel[]): Helper[] {
+  const map = new Map<number, Helper>()
+  for (const c of channels) {
+    for (const m of c.members) {
+      const h = map.get(m.user_id)
+      if (!h) map.set(m.user_id, { user_id: m.user_id, name: m.name, username: m.username, active: m.active, channelIds: [c.channel_id], perms: m.perms, mixed: false })
+      else { h.channelIds.push(c.channel_id); if (!sameSet(h.perms, m.perms)) h.mixed = true }
+    }
+  }
+  return Array.from(map.values())
+}
+
+function HelperCard({ helper, channels, reload }: { helper: Helper; channels: TeamChannel[]; reload: () => void }) {
   const { client } = useAppData()
   const { t } = useI18n()
   const { busy, error, run } = useAdminAction()
+  const [picked, setPicked] = useState<string[]>(helper.channelIds)
+  const [perms, setPerms] = useState<TeamPerm[]>(helper.perms)
   const [ask, setAsk] = useState(false)
-  const name = m.name || (m.username ? `@${m.username}` : String(m.user_id))
+  const name = helper.name || (helper.username ? `@${helper.username}` : String(helper.user_id))
+  const dirty = !sameSet(perms, helper.perms) || picked.length !== helper.channelIds.length || picked.some((c) => !helper.channelIds.includes(c))
   return (
-    <li className="item team-member">
+    <section className="card adm-card" aria-label={name}>
       <div className="adm-row">
-        <span className="adm-row-main"><strong className="adm-row-title">{name}</strong><span className="muted small">{m.user_id}</span></span>
+        <span className="adm-row-main"><h2>{name}</h2><span className="muted small">{helper.user_id}</span></span>
         <Button icon="trash" disabled={busy} onClick={() => setAsk(true)} aria-label={t('team.remove')} />
       </div>
-      <RoleChips value={m.role} disabled={busy} onPick={(r) => { if (r !== m.role) void run(() => client.teamMemberRole(channel.channel_id, m.user_id, r), 'adm.saved').then((ok) => { if (ok) reload() }) }} />
-      {!m.active && <p className="muted small">⏸ {t('team.inactive')}</p>}
+      {!helper.active && <p className="muted small">⏸ {t('team.inactive')}</p>}
+      <span className="field-label">{t('team.inviteChannel')}</span>
+      <ChannelPicker channels={channels} value={picked} onChange={setPicked} disabled={busy} />
+      <span className="field-label">{t('team.permsTitle')}</span>
+      {helper.mixed && <p className="muted small">{t('team.permsMixed')}</p>}
+      <PermPicker value={perms} onChange={setPerms} disabled={busy} />
       {error && <FormError error={error} />}
+      <Button variant="primary" block busy={busy} disabled={!dirty || picked.length === 0}
+        onClick={() => { void run(() => client.teamHelperUpdate(helper.user_id, picked, perms), 'adm.saved').then((ok) => { if (ok) reload() }) }}>{t('adm.save')}</Button>
       {ask && (
-        <ConfirmDialog title={t('team.remove')} body={t('team.removeAsk', { name, title: channel.title || channel.channel_id })} confirmLabel={t('team.remove')} danger busy={busy}
-          onClose={() => setAsk(false)} onConfirm={() => { void run(() => client.teamMemberRemove(channel.channel_id, m.user_id), 'adm.deleted').then((ok) => { if (ok) { setAsk(false); reload() } }) }} />
+        <ConfirmDialog title={t('team.remove')} body={t('team.removeAsk', { name })} confirmLabel={t('team.remove')} danger busy={busy} onClose={() => setAsk(false)}
+          onConfirm={() => { void run(() => client.teamHelperUpdate(helper.user_id, [], []), 'adm.deleted').then((ok) => { if (ok) { setAsk(false); reload() } }) }} />
       )}
-    </li>
+    </section>
   )
 }
 
 function OwnerTeam() {
-  const { team, me, botUsername } = useAppData()
-  const { client } = useAppData()
+  const { team, me, botUsername, client } = useAppData()
   const { t } = useI18n()
   const { busy, run } = useAdminAction()
   const [inviting, setInviting] = useState(false)
   const d = team.data
+  const helpers = useMemo(() => groupHelpers(d?.channels ?? []), [d])
   if (!d) return null
   const seats = d.seats
   const ultraSeats = me.data?.tiers?.ultra.limits.team_seats ?? 2
@@ -163,7 +195,8 @@ function OwnerTeam() {
     )
   }
   const pct = seats.limit > 0 ? Math.min(100, Math.round(((seats.used + seats.pending) / seats.limit) * 100)) : 0
-  const withPeople = d.channels.filter((c) => c.members.length > 0 || c.invites.length > 0)
+  const pending = d.channels.flatMap((c) => c.invites.map((i) => ({ ...i, channel: c })))
+  const seenInvite = new Set<number>()
   return (
     <>
       <section className="card adm-card">
@@ -172,22 +205,19 @@ function OwnerTeam() {
           <span style={{ width: `${pct}%` }} data-level={pct >= 100 ? 'full' : 'ok'} />
         </div>
         <p className="muted small">{t('team.accounts', { n: seats.limit + 1, h: seats.limit })}{seats.pending > 0 ? ` · ${t('team.seatsPending', { n: seats.pending })}` : ''}</p>
+        <p className="muted small">{t('team.limitsNote')}</p>
         <Button variant="primary" block icon="plus" onClick={() => setInviting(true)}>{t('team.invite')}</Button>
       </section>
       <h3 className="sec-label">{t('team.members')}</h3>
-      {withPeople.length === 0 && <p className="muted small">{t('team.membersEmpty')}</p>}
-      {withPeople.map((c) => (
-        <section key={c.channel_id} className="card adm-card" aria-label={c.title}>
-          <h2>{c.title || c.channel_id}</h2>
-          <ul className="list">
-            {c.members.map((m) => <MemberRow key={m.user_id} channel={c} m={m} reload={team.reload} />)}
-            {c.invites.map((i) => (
-              <li key={`inv-${i.id}`} className="item adm-row">
-                <span className="adm-row-main"><strong className="adm-row-title">⏳ {t('team.pendingInvite')}</strong><span className="muted small">{t(roleLabel(i.role))}</span></span>
-                <Button disabled={busy} onClick={() => { void run(() => client.teamInviteRevoke(i.id), 'adm.deleted').then((ok) => { if (ok) team.reload() }) }}>{t('team.revoke')}</Button>
-              </li>
-            ))}
-          </ul>
+      {helpers.length === 0 && pending.length === 0 && <p className="muted small">{t('team.membersEmpty')}</p>}
+      {helpers.map((h) => <HelperCard key={`${h.user_id}:${h.channelIds.join(',')}:${h.perms.join(',')}`} helper={h} channels={d.channels} reload={team.reload} />)}
+      {pending.filter((i) => (seenInvite.has(i.id) ? false : (seenInvite.add(i.id), true))).map((i) => (
+        <section key={`inv-${i.id}`} className="card adm-card">
+          <div className="adm-row">
+            <span className="adm-row-main"><strong className="adm-row-title">⏳ {t('team.pendingInvite')}</strong>
+              <span className="muted small">{i.perms.length === 0 ? t('team.preset_view') : i.perms.map((p) => t(permLabel(p))).join(' · ')}</span></span>
+            <Button disabled={busy} onClick={() => { void run(() => client.teamInviteRevoke(i.id), 'adm.deleted').then((ok) => { if (ok) team.reload() }) }}>{t('team.revoke')}</Button>
+          </div>
         </section>
       ))}
       {inviting && <InviteDialog channels={d.channels} onClose={() => setInviting(false)} onCreated={team.reload} />}
@@ -209,9 +239,12 @@ function WorkspaceCard({ ws }: { ws: Workspace }) {
       {ws.suspended && <p className="muted small">⏸ {t('team.suspended')}</p>}
       <ul className="list">
         {ws.channels.map((c) => (
-          <li key={c.channel_id} className="item adm-row">
-            <span className="adm-row-main"><strong className="adm-row-title">{c.title || c.channel_id}</strong><span className="muted small">{t(roleHelp(c.role))}</span></span>
-            <span className="chip">{t(roleLabel(c.role))}</span>
+          <li key={c.channel_id} className="item team-member">
+            <strong className="adm-row-title">{c.title || c.channel_id}</strong>
+            <div className="chips">
+              <span className="chip">{t('team.perm_view')}</span>
+              {c.perms.map((p) => <span key={p} className="chip">{t(permLabel(p))}</span>)}
+            </div>
           </li>
         ))}
       </ul>

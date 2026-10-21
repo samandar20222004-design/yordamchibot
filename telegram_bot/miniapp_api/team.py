@@ -60,9 +60,9 @@ class TeamApi:
             "seats": seats,
             "can_invite": seats["limit"] > 0,
             "channels": [{"channel_id": c["channel_id"], "title": c["title"],
-                          "members": [{"user_id": m["user_id"], "name": m["name"], "username": m["username"], "role": m["role"],
+                          "members": [{"user_id": m["user_id"], "name": m["name"], "username": m["username"], "role": m["role"], "perms": m["perms"],
                                        "active": m["active"], "since": _iso(m["since"])} for m in c["members"]],
-                          "invites": [{"id": i["id"], "role": i["role"], "expires_at": _iso(i["expires_at"])} for i in c["invites"]]}
+                          "invites": [{"id": i["id"], "role": i["role"], "perms": i["perms"], "expires_at": _iso(i["expires_at"])} for i in c["invites"]]}
                          for c in team["channels"]],
             "workspaces": workspaces,
         }
@@ -79,19 +79,37 @@ class TeamApi:
             raise ApiError("save_failed", retry_after=5)
         return {"mode": mode}
 
+    @staticmethod
+    def _parse_perms(body: dict):
+        """``perms`` (ro'yxat yoki shablon nomi) yoki eski ``role``; ikkalasi ham yo'q = hammasi."""
+        from services import team_invites as TI
+
+        raw = body.get("perms", body.get("role"))
+        if raw is None and "perms" not in body and "role" not in body:
+            return list(TI.PRESETS["full"])
+        if isinstance(raw, str) and raw not in TI.PRESETS:
+            raise ApiError("invalid_input", field="perms")
+        if isinstance(raw, list) and not all(isinstance(x, str) for x in raw):
+            raise ApiError("invalid_input", field="perms")
+        got = TI.normalize_perms(raw)
+        if got is None:
+            raise ApiError("invalid_input", field="perms")
+        return got
+
     async def create_invite(self, user_id: int, body: dict) -> dict:
-        writes._only_keys(body, ("channel_id", "role"))
-        channel_id = writes.parse_channel_id(body.get("channel_id"))
-        role = body.get("role")
-        if role not in ("editor", "scheduler", "analyst"):
-            raise ApiError("invalid_input", field="role")
+        writes._only_keys(body, ("channel_id", "channel_ids", "perms", "role"))
+        raw_ids = body.get("channel_ids") if "channel_ids" in body else [body.get("channel_id")]
+        if not isinstance(raw_ids, list) or not 1 <= len(raw_ids) <= 10:
+            raise ApiError("invalid_input", field="channel_ids")
+        channel_ids = [writes.parse_channel_id(c) for c in raw_ids]
+        perms = self._parse_perms(body)
         await self._service.authorize(user_id)
         from services import team_invites as TI
 
-        res = await self._blocking(TI.create_invite, user_id, channel_id, role)
+        res = await self._blocking(TI.create_invite, user_id, channel_ids, perms)
         if not res.get("ok"):
-            raise ApiError(_ERRORS.get(res.get("error"), "save_failed"), **({"field": "channel_id"} if res.get("error") == "not_owner" else {}))
-        return {"id": res["id"], "token": res["token"], "role": role, "channel_id": channel_id, "expires_at": _iso(res["expires_at"])}
+            raise ApiError(_ERRORS.get(res.get("error"), "save_failed"), **({"field": "channel_ids"} if res.get("error") == "not_owner" else {}))
+        return {"id": res["id"], "token": res["token"], "perms": perms, "channel_ids": channel_ids, "expires_at": _iso(res["expires_at"])}
 
     async def revoke_invite(self, user_id: int, invite_id: int) -> dict:
         await self._service.authorize(user_id)
@@ -102,20 +120,41 @@ class TeamApi:
         return {"id": invite_id, "revoked": True}
 
     async def update_member(self, user_id: int, body: dict) -> dict:
-        writes._only_keys(body, ("channel_id", "user_id", "role"))
+        """Bitta kanaldagi a'zoning ruxsatlarini o'zgartiradi (``perms`` yoki eski ``role`` shabloni)."""
+        writes._only_keys(body, ("channel_id", "user_id", "perms", "role"))
         channel_id = writes.parse_channel_id(body.get("channel_id"))
         member = body.get("user_id")
         if isinstance(member, bool) or not isinstance(member, int) or member <= 0:
             raise ApiError("invalid_input", field="user_id")
-        role = body.get("role")
-        if role not in ("editor", "scheduler", "analyst"):
-            raise ApiError("invalid_input", field="role")
+        if "perms" not in body and "role" not in body:
+            raise ApiError("invalid_input", field="perms")
+        perms = self._parse_perms(body)
         await self._service.authorize(user_id)
         from services import team_invites as TI
 
-        if not await self._blocking(TI.set_member_role, user_id, channel_id, member, role):
+        if not await self._blocking(TI.set_member_perms, user_id, channel_id, member, perms):
             raise ApiError("not_found")
-        return {"channel_id": channel_id, "user_id": member, "role": role}
+        return {"channel_id": channel_id, "user_id": member, "perms": perms}
+
+    async def update_helper(self, user_id: int, body: dict) -> dict:
+        """Yordamchini markaz qilib sozlaydi: u ishlaydigan kanallar to'plami + ruxsatlari (hammasiga bir xil)."""
+        writes._only_keys(body, ("user_id", "channel_ids", "perms"))
+        member = body.get("user_id")
+        if isinstance(member, bool) or not isinstance(member, int) or member <= 0:
+            raise ApiError("invalid_input", field="user_id")
+        raw_ids = body.get("channel_ids")
+        if not isinstance(raw_ids, list) or len(raw_ids) > 50:
+            raise ApiError("invalid_input", field="channel_ids")
+        channel_ids = [writes.parse_channel_id(c) for c in raw_ids]
+        if "perms" not in body:
+            raise ApiError("invalid_input", field="perms")
+        perms = self._parse_perms(body)
+        await self._service.authorize(user_id)
+        from services import team_invites as TI
+
+        if not await self._blocking(TI.set_helper, user_id, member, channel_ids, perms):
+            raise ApiError("not_found")
+        return {"user_id": member, "channel_ids": channel_ids, "perms": perms}
 
     async def remove_member(self, user_id: int, body: dict) -> dict:
         writes._only_keys(body, ("channel_id", "user_id"))

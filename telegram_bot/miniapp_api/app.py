@@ -155,6 +155,7 @@ def _channel_id(request: web.Request) -> str:
 
 @_ws
 async def channel_analytics_handler(request: web.Request):
+    workspace.require_action(request, "analytics", _channel_id(request))
     data = await request.app[_K_SERVICE].channel_analytics(request["user_id"], _channel_id(request))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
@@ -249,7 +250,7 @@ async def post_media_handler(request: web.Request):
 async def post_media_upload_handler(request: web.Request):
     await _ws_post_check(request, _post_id(request), "edit")
     data = await request.app[_K_WRITER].upload_post_media(
-        request["user_id"], _post_id(request), request, add=request.query.get("add") == "1")
+        request["user_id"], _post_id(request), request, add=request.query.get("add") == "1", actor=request.get("acting_user"))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
 
@@ -267,12 +268,15 @@ async def post_media_delete_handler(request: web.Request):
 @_ws
 async def post_create_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    draft_user = None
     if request.get("ws_access") is not None:
-        # Ish joyida: egasining qoralamasi o'qilmaydi/o'chirilmaydi; kanal va rol tekshiriladi.
-        if body.get("use_draft"):
-            raise ApiError("invalid_input", field="use_draft")
-        workspace.require_action(request, "create", str(body.get("channel_id")))
-    data = await request.app[_K_WRITER].create_post(request["user_id"], body)
+        # Ish joyida: kanal va ruxsat tekshiriladi; qoralama (media) YORDAMCHINING o'zida, post esa egasi nomidan yaratiladi.
+        channel = str(body.get("channel_id"))
+        workspace.require_action(request, "create", channel)
+        if body.get("send_now") is True:
+            workspace.require_action(request, "send_now", channel)
+        draft_user = request["acting_user"]
+    data = await request.app[_K_WRITER].create_post(request["user_id"], body, draft_user=draft_user)
     return web.json_response(data, status=201 if data["created"] else 200)
 
 
@@ -322,15 +326,19 @@ async def template_delete_handler(request: web.Request):
 
 
 @_ai
+@_ws
 async def ai_generate_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    workspace.require_any_channel(request, "ai")  # ish joyida AI EGASINING kvotasidan ketadi
     data = await request.app[_K_WRITER].ai_generate(request["user_id"], body)
     return web.json_response(data)
 
 
 @_ai
+@_ws
 async def schedule_parse_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    workspace.require_any_channel(request, "create")
     data = await request.app[_K_WRITER].parse_schedule(request["user_id"], body)
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 
@@ -587,6 +595,12 @@ async def team_member_update_handler(request: web.Request):
 
 
 @_write
+async def team_helper_update_handler(request: web.Request):
+    body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
+    return web.json_response(await request.app[_K_TEAM].update_helper(request["user_id"], body))
+
+
+@_write
 async def team_member_remove_handler(request: web.Request):
     body = await read_json_object(request, request.app[_K_SETTINGS].max_body_bytes)
     return web.json_response(await request.app[_K_TEAM].remove_member(request["user_id"], body))
@@ -802,6 +816,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_post("/team/invites", team_invite_create_handler)
     api.router.add_delete("/team/invites/{item_id}", team_invite_delete_handler)
     api.router.add_patch("/team/members", team_member_update_handler)
+    api.router.add_patch("/team/helpers", team_helper_update_handler)
     api.router.add_post("/team/members/remove", team_member_remove_handler)
     api.router.add_post("/team/leave", team_leave_handler)
     api.router.add_get("/admin/promos", admin_promos_handler)

@@ -24,6 +24,9 @@ IDS = (OWN, PRO, HA, HB, HC, STR)
 CH1, CH2, CHP = "-1009800000001", "-1009800000002", "-1009800000003"
 
 
+R = lambda access: {k: v["role"] for k, v in access.items()}  # noqa: E731
+
+
 def main() -> int:
     if not URL:
         T.skip("jamoa testi", "BLOCKED: MINIAPP_TEST_DATABASE_URL (sinov bazasi) berilmagan")
@@ -83,7 +86,7 @@ def main() -> int:
         T.check("bir martalik: qayta -> used", TI.accept_invite(i1["token"], HB)["error"] == "used")
         cur.execute("SELECT work_mode FROM users WHERE user_id = %s", (HA,))
         T.check("yordamchi rejimi avtomatik 'helper'", cur.fetchone()[0] == "helper")
-        T.check("A ish joyi: faqat CH1 editor", TI.workspace_access(HA, OWN) == {CH1: "editor"})
+        T.check("A ish joyi: faqat CH1 editor", R(TI.workspace_access(HA, OWN)) == {CH1: "editor"})
         T.check("A boshqa egaga kira olmaydi", TI.workspace_access(HA, PRO) == {})
         b = TI.accept_invite(i2["token"], HB)
         T.check("B qabul qildi (analyst, CH2)", b["ok"] and b["role"] == "analyst")
@@ -97,9 +100,9 @@ def main() -> int:
         T.check("B olib tashlandi, o'rindiq bo'shadi", TI.seat_status(OWN)["used"] == 1 and TI.workspace_access(HB, OWN) == {})
         i3 = TI.create_invite(OWN, CH2, "scheduler")
         a2 = TI.accept_invite(i3["token"], HA)
-        T.check("A ikkinchi kanalga ham (rol scheduler)", a2["ok"] and TI.workspace_access(HA, OWN) == {CH1: "editor", CH2: "scheduler"})
+        T.check("A ikkinchi kanalga ham (rol scheduler)", a2["ok"] and R(TI.workspace_access(HA, OWN)) == {CH1: "editor", CH2: "scheduler"})
         T.check("o'rindiq o'zgarmadi (A noyob)", TI.seat_status(OWN)["used"] == 1)
-        T.check("rol o'zgartirish", TI.set_member_role(OWN, CH2, HA, "analyst") and TI.workspace_access(HA, OWN)[CH2] == "analyst")
+        T.check("rol o'zgartirish", TI.set_member_role(OWN, CH2, HA, "analyst") and TI.workspace_access(HA, OWN)[CH2]["role"] == "analyst")
         T.check("noto'g'ri rolga o'zgartirib bo'lmaydi", not TI.set_member_role(OWN, CH2, HA, "owner"))
         T.check("begona egasi rolni o'zgartira olmaydi", not TI.set_member_role(PRO, CH2, HA, "editor") and not TI.remove_member(PRO, CH2, HA))
 
@@ -146,6 +149,33 @@ def main() -> int:
         T.check("rejim: o'rnatish/o'qish", TI.set_mode(STR, "owner") and TI.get_mode(STR) == "owner" and TI.set_mode(STR, "helper") and TI.get_mode(STR) == "helper")
         T.check("noto'g'ri rejim rad", not TI.set_mode(STR, "admin") and TI.get_mode(STR) == "helper")
         T.check("yo'q foydalanuvchi rejimi o'rnatilmaydi", not TI.set_mode(9_899_999_999, "owner"))
+        print("\n== 5b. Ruxsatlar (har bir yordamchiga alohida) ==")
+        T.check("PRESETS: full = hamma ruxsat; analyst = faqat statistika",
+                TI.PRESETS["full"] == TI.PERMS and TI.PRESETS["analyst"] == ("analytics",))
+        T.check("normalize_perms: noma'lum kalit -> None, bo'sh ro'yxat -> [] (faqat ko'rish), None -> hammasi",
+                TI.normalize_perms(["hack"]) is None and TI.normalize_perms([]) == [] and TI.normalize_perms(None) == list(TI.PERMS)
+                and TI.normalize_perms(["ai", "create", "create"]) == ["create", "ai"] and TI.normalize_perms("scheduler") == ["create", "reschedule"])
+        T.check("can(): view har doim, qolganlari ruxsatga bog'liq", TI.can([], "view") and not TI.can([], "create") and TI.can(["edit"], "edit"))
+        T.check("rol belgisi ruxsatlardan hosil bo'ladi", TI.role_for_perms(["edit"]) == "editor" and TI.role_for_perms(["create"]) == "scheduler" and TI.role_for_perms(["analytics"]) == "analyst")
+        cur.execute("DELETE FROM channel_members WHERE channel_id = ANY(%s)", ([CH1, CH2],))
+        cur.execute("UPDATE team_invites SET revoked_at = NOW() WHERE used_at IS NULL AND revoked_at IS NULL")
+        T.check("noto'g'ri ruxsat bilan taklif rad", TI.create_invite(OWN, CH1, ["hack"])["error"] == "bad_role")
+        T.check("bir nechta kanalga bitta taklif; begona kanal aralashsa rad", TI.create_invite(OWN, [CH1, CHP], ["create"])["error"] == "not_owner")
+        mi = TI.create_invite(OWN, [CH1, CH2], ["create", "ai"])
+        T.check("ikki kanalga bitta taklif yaratildi", mi["ok"])
+        T.check("kutilayotgan taklif ikkala kanalda ko'rinadi", sum(len(c["invites"]) for c in TI.list_team(OWN)["channels"]) == 2)
+        acc = TI.accept_invite(mi["token"], HC)
+        T.check("qabul: ikkala kanalga a'zo, ruxsatlar [create, ai]", acc["ok"] and acc["channel_ids"] == [CH1, CH2] and acc["perms"] == ["create", "ai"], str(acc))
+        wa = TI.workspace_access(HC, OWN)
+        T.check("ish joyi: ikkala kanalda [create, ai]; bitta o'rindiq", set(wa) == {CH1, CH2} and wa[CH1]["perms"] == ["create", "ai"] and TI.seat_status(OWN)["used"] == 1)
+        T.check("set_member_perms: bitta kanalda o'zgartirish", TI.set_member_perms(OWN, CH2, HC, ["create", "edit", "delete"]) and TI.workspace_access(HC, OWN)[CH2]["perms"] == ["create", "edit", "delete"] and TI.workspace_access(HC, OWN)[CH1]["perms"] == ["create", "ai"])
+        T.check("set_helper: kanallar to'plami va ruxsatlar (CH2 olib tashlanadi)", TI.set_helper(OWN, HC, [CH1], ["create", "edit", "send_now"]) and set(TI.workspace_access(HC, OWN)) == {CH1} and TI.workspace_access(HC, OWN)[CH1]["perms"] == ["create", "edit", "send_now"])
+        T.check("set_helper: bo'sh ruxsat = faqat ko'rish", TI.set_helper(OWN, HC, [CH1, CH2], []) and TI.workspace_access(HC, OWN)[CH2]["perms"] == [])
+        T.check("set_helper: yordamchi bo'lmagan odam/begona kanal/noto'g'ri ruxsat rad", not TI.set_helper(OWN, STR, [CH1], ["create"]) and not TI.set_helper(OWN, HC, [CHP], ["create"]) and not TI.set_helper(OWN, HC, [CH1], ["hack"]))
+        cur.execute("UPDATE channel_members SET perms = NULL, role = 'scheduler' WHERE user_id = %s AND channel_id = %s", (HC, CH1))
+        T.check("eski a'zo (perms NULL) — rol shablonidan: scheduler = create+reschedule", TI.workspace_access(HC, OWN)[CH1]["perms"] == ["create", "reschedule"])
+        TI.leave(HC, OWN)
+
     finally:
         config.TIER_LIMITS["ultra"]["team_seats"] = old_seats
         cleanup()

@@ -3429,6 +3429,9 @@ def _ddl_team_and_support(cur):
         );
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_team_invites_owner ON team_invites (owner_id, channel_id);")
+    cur.execute("ALTER TABLE channel_members ADD COLUMN IF NOT EXISTS perms VARCHAR(120);")
+    cur.execute("ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS perms VARCHAR(120);")
+    cur.execute("ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS channel_ids TEXT;")
     cur.execute("""
         CREATE TABLE IF NOT EXISTS channel_comment_insights (
             id BIGSERIAL PRIMARY KEY,

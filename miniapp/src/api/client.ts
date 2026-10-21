@@ -1,6 +1,6 @@
 import { config } from '../config'
 import { setAppTimezone } from '../pages/recurrence'
-import type { TeamInviteCreated, TeamOverview, TeamRole, AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { TeamInviteCreated, TeamOverview, TeamPerm, AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseTeam, parseTeamInvite, parseTeamMode, parseAck,
   parseAdminAudit, parseAdminFeatures, parseAdminHealth, parseAdminPromoDetail, parseAdminPromos, parseAdminRoles,
@@ -313,9 +313,10 @@ export function createApiClient(opts: ClientOptions) {
     adminRoleSet: (input: { user_id: number; role: string }): Promise<AdminRoles> => send('POST', '/admin/roles', input, parseAdminRoles),
     team: (signal?: AbortSignal): Promise<TeamOverview> => get('/team', parseTeam, signal),
     teamMode: (mode: 'owner' | 'helper'): Promise<{ mode: 'owner' | 'helper' }> => send('PATCH', '/team/mode', { mode }, parseTeamMode),
-    teamInviteCreate: (channel_id: string, role: TeamRole): Promise<TeamInviteCreated> => send('POST', '/team/invites', { channel_id, role }, parseTeamInvite),
+    teamInviteCreate: (channel_ids: string[], perms: readonly TeamPerm[]): Promise<TeamInviteCreated> => send('POST', '/team/invites', { channel_ids, perms }, parseTeamInvite),
     teamInviteRevoke: (id: number): Promise<void> => send('DELETE', `/team/invites/${id}`, undefined, () => undefined),
-    teamMemberRole: (channel_id: string, user_id: number, role: TeamRole): Promise<void> => send('PATCH', '/team/members', { channel_id, user_id, role }, parseAck).then(() => undefined),
+    /** Yordamchini sozlash: u ishlaydigan kanallar to'plami va ruxsatlari (bo'sh kanallar ro'yxati = yordamchini olib tashlash). */
+    teamHelperUpdate: (user_id: number, channel_ids: string[], perms: readonly TeamPerm[]): Promise<void> => send('PATCH', '/team/helpers', { user_id, channel_ids, perms }, parseAck).then(() => undefined),
     teamMemberRemove: (channel_id: string, user_id: number): Promise<void> => send('POST', '/team/members/remove', { channel_id, user_id }, parseAck).then(() => undefined),
     teamLeave: (owner_id: number): Promise<void> => send('POST', '/team/leave', { owner_id }, parseAck).then(() => undefined),
     adminUserBan: (userId: number, banned: boolean): Promise<void> =>

@@ -1361,6 +1361,45 @@ async def manual_post_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MANUAL_AWAIT_CONTENT
 
 
+async def _helper_handoff(msg, context, user_id: int, lang: str, snap: dict) -> bool:
+    """👥 Yordamchi (o'z kanali yo'q, egasining ish joyida «post yaratish» ruxsati bor): post (matn/media/albom) qoralamaga yoziladi
+    va Mini App EGASI ish joyida AYNAN shuni ochadi (kanalni tanlab rejalaydi). Natija egasi nomidan, limit egasidan. ``True`` — hal qilindi."""
+    try:
+        from miniapp_api.menu import miniapp_button
+        from services import team_invites
+        from translations.team_ui import team_t
+
+        workspaces = await db.run_db(team_invites.workspaces_for, user_id)
+        usable = [w for w in workspaces if not w["suspended"] and any("create" in c["perms"] for c in w["channels"])]
+        if not usable:
+            return False
+        owner = usable[0]
+        album = snap.get("album")
+        if album:
+            context.user_data[UD_ALBUM_GROUP] = getattr(snap.get("message"), "media_group_id", None)
+            _manual_album_store(context, [dict(i) for i in album])
+        else:
+            context.user_data[UD_CONTENT] = snap.get("text") or ""
+            context.user_data[UD_POST_TYPE] = snap.get("post_type") or "text"
+            context.user_data[UD_FILE_ID] = snap.get("file_id")
+            context.user_data[UD_MEDIA_GROUP] = False
+        button = miniapp_button(lang, "post", label=team_t("tm_btn_open_app", lang), extra={"ws": owner["owner_id"]})
+        if button is not None:
+            from miniapp_api import drafts
+
+            payload = drafts.build_payload(_manual_draft_userdata(context))
+            if payload is not None:
+                await db.run_db(drafts.save_draft, user_id, payload)
+        await msg.reply_text(
+            team_t("tm_handoff" if button is not None else "tm_handoff_noapp", lang, owner=html_escape(owner["owner_name"] or str(owner["owner_id"]))),
+            reply_markup=InlineKeyboardMarkup([[button]]) if button is not None else None, parse_mode="HTML")
+        _clear_manual_state(context)
+        return True
+    except Exception as _silent_exc:  # noqa: BLE001 — yordamchi yo'li qo'shimcha: oddiy xabar o'z yo'lida davom etadi
+        log_silent_failure("handlers.manual_post:_helper_handoff", _silent_exc, user_id=user_id)
+        return False
+
+
 async def manual_post_from_snapshot(update: Update, context: ContextTypes.DEFAULT_TYPE, snap: dict):
     """Aqlli qabuldan («📝 Post qilish») keladi: xabar O'ZGARTIRILMASDAN preview'ga.
 
@@ -1380,6 +1419,8 @@ async def manual_post_from_snapshot(update: Update, context: ContextTypes.DEFAUL
 
     channels = await db.run_db(db.get_user_channels, user_id)
     if not channels:
+        if await _helper_handoff(msg, context, user_id, lang, snap):
+            return ConversationHandler.END
         await msg.reply_text(
             manual_post_t("mp_no_channels", lang),
             reply_markup=get_main_keyboard(user_id in ADMIN_IDS_SET, lang),

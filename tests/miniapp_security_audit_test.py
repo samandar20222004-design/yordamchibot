@@ -261,7 +261,7 @@ def test_all_routes_require_auth():
                  ("POST", "/api/v1/admin/roles")]
     # 👥 Jamoa (miniapp_api/team.py): har biri auth talab qiladi; egalik serverda (services/team_invites).
     expected += [("GET", "/api/v1/team"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
-                 ("DELETE", "/api/v1/team/invites/{item_id}"), ("PATCH", "/api/v1/team/members"),
+                 ("DELETE", "/api/v1/team/invites/{item_id}"), ("PATCH", "/api/v1/team/members"), ("PATCH", "/api/v1/team/helpers"),
                  ("POST", "/api/v1/team/members/remove"), ("POST", "/api/v1/team/leave")]
     expected.sort()
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
@@ -274,7 +274,7 @@ def test_all_routes_require_auth():
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 41, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 42, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,

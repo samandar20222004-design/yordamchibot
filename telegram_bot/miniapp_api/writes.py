@@ -352,7 +352,7 @@ class PostWriter:
         return self._locks.setdefault(user_id, asyncio.Lock())
 
     # ------------------------------------------------------------------ postlar
-    async def create_post(self, user_id: int, body: dict) -> dict:
+    async def create_post(self, user_id: int, body: dict, draft_user: int | None = None) -> dict:
         _only_keys(body, ("channel_id", "text", "scheduled_at", "send_now",
                           "button_text", "button_url", "use_draft", "recurrence"))
         channel_id = parse_channel_id(body.get("channel_id"))
@@ -382,7 +382,7 @@ class PostWriter:
             raise ApiError("channel_not_found", field="channel_id")
         draft = None
         if use_draft:
-            draft = await self._service.draft_raw(user_id)
+            draft = await self._service.draft_raw(draft_user or user_id)
             if not draft:
                 raise ApiError("draft_not_found")
         post_type = (draft or {}).get("post_type") or "text"
@@ -420,7 +420,7 @@ class PostWriter:
                     raise ApiError("save_failed", retry_after=5)
                 created = True
             if use_draft:
-                await self._blocking(self._drop_draft, user_id)
+                await self._blocking(self._drop_draft, draft_user or user_id)
         post = await self._service.post(user_id, int(post_id))
         return {"post": post, "created": created,
                 "delivery": "immediate" if send_now else "scheduled"}
@@ -754,7 +754,7 @@ class PostWriter:
             _invalidate_user(user_id)
         return changed
 
-    async def upload_post_media(self, user_id: int, post_id: int, request, add: bool = False) -> dict:
+    async def upload_post_media(self, user_id: int, post_id: int, request, add: bool = False, actor: int | None = None) -> dict:
         """Rejalangan postning rasm/videosini qurilmadagi yangi fayl bilan ALMASHTIRADI (matn sarlavha bo'lib qoladi)."""
         fields, data, post_type = await self._read_upload(request)
         if set(fields) - set():  # bu yo'lda faqat fayl qabul qilinadi (matn PATCH orqali)
@@ -773,7 +773,7 @@ class PostWriter:
             if add:
                 ref = await self._service.post_media_ref(user_id, post_id)
                 media_items.add_item(ref.get("post_type"), ref.get("file_id"), post_type, "-")
-            file_id = await self._send_for_file_id(user_id, post_type, bytes(data))
+            file_id = await self._send_for_file_id(actor or user_id, post_type, bytes(data))
             del data
             if add:
                 ref = await self._service.post_media_ref(user_id, post_id)

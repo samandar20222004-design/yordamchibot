@@ -1363,6 +1363,14 @@ async def send_no_channel_media_guide(update, context) -> bool:
     # ``None`` — holat aniq emas (fail-open); bo'sh RO'YXAT — kanal YO'Q.
     if channels is None or channels:
         return False
+    # 👥 Yordamchi: o'z kanali yo'q, lekin egasining ish joyi bor — «kanal ulang» demaymiz (post Mini App'da egasi kanaliga ketadi).
+    try:
+        from services import team_invites
+
+        if any(not w["suspended"] for w in await db.run_db(team_invites.workspaces_for, user_id)):
+            return False
+    except Exception:  # noqa: BLE001 — tekshirib bo'lmasa eski xulq
+        pass
     try:
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         from locales.translations import get_lang, get_text

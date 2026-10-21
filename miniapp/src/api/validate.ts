@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamRole, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -615,9 +615,12 @@ export function parseAdminRoles(v: unknown): AdminRoles {
 }
 
 // --- 👥 Jamoa va ish joyi ---
-const teamRole = (v: unknown, what: string): TeamRole => {
-  if (v === 'editor' || v === 'scheduler' || v === 'analyst') return v
-  throw new ShapeError(`${what}: noma'lum rol`)
+const PERM_SET = new Set(['create', 'edit', 'reschedule', 'delete', 'send_now', 'analytics', 'ai'])
+function teamPerms(v: unknown, what: string): TeamPerm[] {
+  return arr(v ?? [], what).map((x) => {
+    if (typeof x === 'string' && PERM_SET.has(x)) return x as TeamPerm
+    throw new ShapeError(`${what}: noma'lum ruxsat`)
+  })
 }
 function parseTeamChannel(v: unknown): TeamChannel {
   const c = rec(v, 'team.channel')
@@ -626,11 +629,11 @@ function parseTeamChannel(v: unknown): TeamChannel {
     members: arr(c.members ?? [], 'team.members').map((x) => {
       const m = rec(x, 'team.member')
       return { user_id: int(m.user_id, 'member.user_id'), name: str(m.name ?? '', 'member.name'), username: str(m.username ?? '', 'member.username'),
-        role: teamRole(m.role, 'member.role'), active: m.active !== false, since: typeof m.since === 'string' ? m.since : null }
+        perms: teamPerms(m.perms, 'member.perms'), active: m.active !== false, since: typeof m.since === 'string' ? m.since : null }
     }),
     invites: arr(c.invites ?? [], 'team.invites').map((x) => {
       const i = rec(x, 'team.invite')
-      return { id: int(i.id, 'invite.id'), role: teamRole(i.role, 'invite.role'), expires_at: typeof i.expires_at === 'string' ? i.expires_at : null }
+      return { id: int(i.id, 'invite.id'), perms: teamPerms(i.perms, 'invite.perms'), expires_at: typeof i.expires_at === 'string' ? i.expires_at : null }
     }),
   }
 }
@@ -640,7 +643,7 @@ function parseWorkspace(v: unknown): Workspace {
     owner_id: int(w.owner_id, 'workspace.owner_id'), owner_name: str(w.owner_name ?? '', 'workspace.owner_name'), suspended: w.suspended === true,
     channels: arr(w.channels ?? [], 'workspace.channels').map((x) => {
       const c = rec(x, 'workspace.channel')
-      return { channel_id: str(c.channel_id, 'ws.channel_id'), title: str(c.title ?? '', 'ws.title'), role: teamRole(c.role, 'ws.role') }
+      return { channel_id: str(c.channel_id, 'ws.channel_id'), title: str(c.title ?? '', 'ws.title'), perms: teamPerms(c.perms, 'ws.perms') }
     }),
   }
 }
@@ -657,8 +660,8 @@ export function parseTeam(v: unknown): TeamOverview {
 }
 export function parseTeamInvite(v: unknown): TeamInviteCreated {
   const o = rec(v, 'team.invite')
-  return { id: int(o.id, 'invite.id'), token: str(o.token, 'invite.token'), role: teamRole(o.role, 'invite.role'),
-    channel_id: str(o.channel_id, 'invite.channel_id'), expires_at: typeof o.expires_at === 'string' ? o.expires_at : null }
+  return { id: int(o.id, 'invite.id'), token: str(o.token, 'invite.token'), perms: teamPerms(o.perms, 'invite.perms'),
+    channel_ids: arr(o.channel_ids ?? [], 'invite.channel_ids').map((c) => str(c, 'invite.channel_id')), expires_at: typeof o.expires_at === 'string' ? o.expires_at : null }
 }
 export function parseTeamMode(v: unknown): { mode: 'owner' | 'helper' } {
   const o = rec(v, 'team.mode')

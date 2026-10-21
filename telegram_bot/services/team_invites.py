@@ -25,13 +25,62 @@ ROLES = ("editor", "scheduler", "analyst")
 MODES = ("owner", "helper")
 INVITE_TTL_DAYS = 7
 MAX_PENDING_INVITES = 10
+MAX_INVITE_CHANNELS = 10
 
-#: Ish joyida rolga ruxsat etilgan amallar (Mini App gate shu jadvalga tayanadi).
-ROLE_ACTIONS = {
-    "editor": frozenset({"view", "create", "edit", "reschedule", "delete"}),
-    "scheduler": frozenset({"view", "create", "reschedule"}),
-    "analyst": frozenset({"view"}),
+#: Yordamchi ruxsatlari (egasi har biriga alohida beradi). «Ko'rish» har doim bor.
+#: create — yangi post yaratish/rejalash; edit — matn, tugma, media tahriri; reschedule — vaqtni o'zgartirish;
+#: delete — postni bekor qilish; send_now — darhol yuborish; analytics — kanal statistikasi; ai — AI (EGASI kvotasidan).
+PERMS = ("create", "edit", "reschedule", "delete", "send_now", "analytics", "ai")
+
+#: Tayyor shablonlar (egasi baribir har birini alohida belgilay oladi). `full` — hamma ruxsat (standart).
+PRESETS = {
+    "full": PERMS,
+    "editor": ("create", "edit", "reschedule", "delete", "ai"),
+    "scheduler": ("create", "reschedule"),
+    "analyst": ("analytics",),
 }
+
+#: Eski (``perms`` ustuni NULL) a'zolar uchun: rol -> shablon.
+_LEGACY_ROLE_PERMS = {"editor": PRESETS["editor"], "scheduler": PRESETS["scheduler"], "analyst": PRESETS["analyst"]}
+
+
+def normalize_perms(value) -> list | None:
+    """Ruxsatlar ro'yxati (yoki shablon nomi / vergulli matn) -> tartiblangan noyob ro'yxat. Noma'lum kalit bo'lsa ``None``."""
+    if value is None:
+        return list(PRESETS["full"])
+    if isinstance(value, str):
+        value = PRESETS.get(value) or [x for x in value.split(",") if x.strip()]
+    try:
+        items = [str(x).strip() for x in value]
+    except TypeError:
+        return None
+    if any(x not in PERMS for x in items):
+        return None
+    return [p for p in PERMS if p in set(items)]
+
+
+def role_for_perms(perms) -> str:
+    """Ruxsatlardan eski ``channel_members.role`` belgisi (RBAC bilan moslik uchun)."""
+    perms = set(perms or ())
+    if "edit" in perms:
+        return "editor"
+    if perms & {"create", "reschedule", "delete", "send_now"}:
+        return "scheduler"
+    return "analyst"
+
+
+def effective_perms(perms_value, role) -> list:
+    """Saqlangan ``perms`` (bo'lsa) yoki eski rolning shabloni."""
+    if perms_value is not None:
+        got = normalize_perms(perms_value)
+        if got is not None:
+            return got
+    return list(_LEGACY_ROLE_PERMS.get(role, ()))
+
+
+def can(perms, action: str) -> bool:
+    """Ish joyida amalga ruxsat: ``view`` har doim; qolganlari ruxsatlar ro'yxatida bo'lishi shart."""
+    return action == "view" or action in set(perms or ())
 
 
 def _hash(token: str) -> str:
@@ -80,20 +129,37 @@ def seat_status(owner_id: int) -> dict:
     return {"plan": plan, "limit": limit, "used": used, "pending": pending, "free": max(0, limit - used - pending)}
 
 
-def create_invite(owner_id: int, channel_id: str, role: str) -> dict:
-    """Taklif yaratadi. Natija: ``{"ok": True, "token", "id", "expires_at"}`` yoki ``{"ok": False, "error": kod}``.
+def _as_channel_list(channel_ids) -> list:
+    if isinstance(channel_ids, (str, int)):
+        channel_ids = [channel_ids]
+    out = []
+    for c in channel_ids or ():
+        c = str(c).strip()
+        if c and c not in out:
+            out.append(c)
+    return out
 
-    Xato kodlari: ``bad_role``, ``not_owner`` (kanal egasiniki emas), ``no_team`` (tarif jamoani bermaydi),
+
+def create_invite(owner_id: int, channel_ids, perms=None) -> dict:
+    """Taklif yaratadi (bir yoki bir nechta kanal, bitta ruxsatlar to'plami; standart — hammasi).
+
+    ``perms``: ruxsatlar ro'yxati yoki shablon nomi (``full|editor|scheduler|analyst``); ``None`` = ``full``.
+    Natija: ``{"ok": True, "token", "id", "expires_at"}`` yoki ``{"ok": False, "error": kod}``.
+    Xato kodlari: ``bad_role`` (noto'g'ri ruxsat/shablon), ``not_owner`` (kanal egasiniki emas), ``no_team`` (tarif jamoani bermaydi),
     ``seats_full`` (bo'sh o'rindiq yo'q), ``too_many_pending``.
     """
-    if role not in ROLES:
+    chans = _as_channel_list(channel_ids)
+    got = normalize_perms(perms)
+    if got is None:
         return {"ok": False, "error": "bad_role"}
+    if not chans or len(chans) > MAX_INVITE_CHANNELS:
+        return {"ok": False, "error": "not_owner"}
     token = secrets.token_urlsafe(16)
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT 1 FROM channels WHERE user_id = %s AND channel_id = %s AND is_active = TRUE "
-                        "AND deleted_at IS NULL", (owner_id, str(channel_id)))
-            if not cur.fetchone():
+            cur.execute("SELECT channel_id FROM channels WHERE user_id = %s AND channel_id = ANY(%s) AND is_active = TRUE "
+                        "AND deleted_at IS NULL", (owner_id, chans))
+            if {str(r[0]) for r in cur.fetchall()} != set(chans):
                 return {"ok": False, "error": "not_owner"}
             limit = _seat_limit(cur, owner_id)
             if limit <= 0:
@@ -104,9 +170,9 @@ def create_invite(owner_id: int, channel_id: str, role: str) -> dict:
             if len(_helpers(cur, owner_id)) + pending >= limit:
                 return {"ok": False, "error": "seats_full"}
             cur.execute(
-                "INSERT INTO team_invites (token_hash, owner_id, channel_id, role, expires_at) "
-                "VALUES (%s, %s, %s, %s, NOW() + (%s || ' days')::interval) RETURNING id, expires_at",
-                (_hash(token), owner_id, str(channel_id), role, str(INVITE_TTL_DAYS)),
+                "INSERT INTO team_invites (token_hash, owner_id, channel_id, role, perms, channel_ids, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, NOW() + (%s || ' days')::interval) RETURNING id, expires_at",
+                (_hash(token), owner_id, chans[0], role_for_perms(got), ",".join(got), ",".join(chans), str(INVITE_TTL_DAYS)),
             )
             row = cur.fetchone()
         return {"ok": True, "token": token, "id": int(row[0]), "expires_at": row[1]}
@@ -116,7 +182,7 @@ def create_invite(owner_id: int, channel_id: str, role: str) -> dict:
 
 
 def accept_invite(token: str, user_id: int) -> dict:
-    """Taklifni qabul qiladi (atomik). ``{"ok": True, owner_id, channel_id, role, title}`` yoki ``{"ok": False, "error"}``.
+    """Taklifni qabul qiladi (atomik). ``{"ok": True, owner_id, channel_id, channel_ids, role, perms, title}`` yoki ``{"ok": False, "error"}``.
 
     Xato kodlari: ``invalid``, ``used``, ``expired``, ``revoked``, ``self`` (egasi o'zini taklif qila olmaydi),
     ``no_team`` (egasi tarifi endi jamoani bermaydi), ``seats_full``.
@@ -126,12 +192,12 @@ def accept_invite(token: str, user_id: int) -> dict:
         return {"ok": False, "error": "invalid"}
     try:
         with db_cursor(commit=True) as cur:
-            cur.execute("SELECT id, owner_id, channel_id, role, expires_at <= NOW(), used_at, revoked_at "
+            cur.execute("SELECT id, owner_id, channel_id, role, expires_at <= NOW(), used_at, revoked_at, perms, channel_ids "
                         "FROM team_invites WHERE token_hash = %s FOR UPDATE", (_hash(token),))
             inv = cur.fetchone()
             if not inv:
                 return {"ok": False, "error": "invalid"}
-            inv_id, owner_id, channel_id, role, expired, used_at, revoked_at = inv
+            inv_id, owner_id, channel_id, role, expired, used_at, revoked_at, perms_value, ids_value = inv
             if revoked_at is not None:
                 return {"ok": False, "error": "revoked"}
             if used_at is not None:
@@ -140,10 +206,12 @@ def accept_invite(token: str, user_id: int) -> dict:
                 return {"ok": False, "error": "expired"}
             if int(owner_id) == int(user_id):
                 return {"ok": False, "error": "self"}
-            cur.execute("SELECT channel_title FROM channels WHERE user_id = %s AND channel_id = %s AND is_active = TRUE "
-                        "AND deleted_at IS NULL", (owner_id, channel_id))
-            ch = cur.fetchone()
-            if not ch:
+            chans = _as_channel_list((ids_value or "").split(",")) or [str(channel_id)]
+            cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND channel_id = ANY(%s) AND is_active = TRUE "
+                        "AND deleted_at IS NULL", (owner_id, chans))
+            live = {str(r[0]): r[1] or "" for r in cur.fetchall()}
+            chans = [c for c in chans if c in live]
+            if not chans:
                 return {"ok": False, "error": "invalid"}
             limit = _seat_limit(cur, owner_id)
             if limit <= 0:
@@ -151,16 +219,22 @@ def accept_invite(token: str, user_id: int) -> dict:
             helpers = _helpers(cur, owner_id)
             if int(user_id) not in helpers and len(helpers) >= limit:
                 return {"ok": False, "error": "seats_full"}
-            cur.execute(
-                "INSERT INTO channel_members (channel_id, user_id, role) VALUES (%s, %s, %s) "
-                "ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role",
-                (channel_id, int(user_id), role),
-            )
+            perms = effective_perms(perms_value, role)
+            base_role = role_for_perms(perms)
+            for ch in chans:
+                cur.execute(
+                    "INSERT INTO channel_members (channel_id, user_id, role, perms) VALUES (%s, %s, %s, %s) "
+                    "ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role, perms = EXCLUDED.perms",
+                    (ch, int(user_id), base_role, ",".join(perms)),
+                )
             cur.execute("UPDATE team_invites SET used_by = %s, used_at = NOW() WHERE id = %s", (int(user_id), inv_id))
             cur.execute("UPDATE users SET work_mode = COALESCE(work_mode, 'helper') WHERE user_id = %s", (int(user_id),))
         _invalidate_user(int(user_id))
-        _drop_rbac_cache(user_id, channel_id)
-        return {"ok": True, "owner_id": int(owner_id), "channel_id": str(channel_id), "role": role, "title": ch[0] or ""}
+        for ch in chans:
+            _drop_rbac_cache(user_id, ch)
+        title = live[chans[0]] + (f" +{len(chans) - 1}" if len(chans) > 1 else "")
+        return {"ok": True, "owner_id": int(owner_id), "channel_id": chans[0], "channel_ids": chans, "role": base_role,
+                "perms": perms, "title": title}
     except Exception as exc:  # noqa: BLE001
         logger.error("team accept_invite xatosi: %s", type(exc).__name__)
         return {"ok": False, "error": "failed"}
@@ -193,15 +267,56 @@ def remove_member(owner_id: int, channel_id: str, member_id: int) -> bool:
 
 
 def set_member_role(owner_id: int, channel_id: str, member_id: int, role: str) -> bool:
+    """Eski usul: rol shablonini qo'llaydi (``editor|scheduler|analyst``)."""
     if role not in ROLES:
         return False
+    return set_member_perms(owner_id, channel_id, member_id, list(PRESETS[role]))
+
+
+def set_member_perms(owner_id: int, channel_id: str, member_id: int, perms) -> bool:
+    """Bitta kanaldagi a'zoning ruxsatlarini o'zgartiradi (bo'sh ro'yxat = faqat ko'rish)."""
+    got = normalize_perms(perms if perms is not None else [])
+    if got is None:
+        return False
     with db_cursor(commit=True) as cur:
-        cur.execute("UPDATE channel_members cm SET role = %s FROM channels c WHERE cm.channel_id = c.channel_id "
-                    "AND c.user_id = %s AND cm.channel_id = %s AND cm.user_id = %s", (role, owner_id, str(channel_id), int(member_id)))
+        cur.execute("UPDATE channel_members cm SET role = %s, perms = %s FROM channels c WHERE cm.channel_id = c.channel_id "
+                    "AND c.user_id = %s AND cm.channel_id = %s AND cm.user_id = %s",
+                    (role_for_perms(got), ",".join(got), owner_id, str(channel_id), int(member_id)))
         ok = cur.rowcount > 0
     if ok:
         _drop_rbac_cache(member_id, channel_id)
     return ok
+
+
+def set_helper(owner_id: int, member_id: int, channel_ids, perms) -> bool:
+    """Yordamchini MARKAZ qilib sozlash: u ishlaydigan kanallar to'plami va ruxsatlari (hammasiga bir xil).
+
+    Yangi kanal qo'shiladi, ro'yxatda yo'qlari olib tashlanadi. O'rindiq o'zgarmaydi (yordamchi allaqachon a'zo).
+    Yordamchi bo'lmagan odamni bu usul bilan qo'shib bo'lmaydi (faqat taklif orqali).
+    """
+    chans = _as_channel_list(channel_ids)
+    got = normalize_perms(perms if perms is not None else [])
+    if got is None:
+        return False
+    with db_cursor(commit=True) as cur:
+        if int(member_id) not in _helpers(cur, owner_id):
+            return False
+        cur.execute("SELECT channel_id FROM channels WHERE user_id = %s AND is_active = TRUE AND deleted_at IS NULL", (owner_id,))
+        owned = {str(r[0]) for r in cur.fetchall()}
+        if not set(chans) <= owned:
+            return False
+        cur.execute("SELECT cm.channel_id FROM channel_members cm JOIN channels c ON c.channel_id = cm.channel_id "
+                    "WHERE c.user_id = %s AND cm.user_id = %s", (owner_id, int(member_id)))
+        had = {str(r[0]) for r in cur.fetchall()}
+        for ch in chans:
+            cur.execute("INSERT INTO channel_members (channel_id, user_id, role, perms) VALUES (%s, %s, %s, %s) "
+                        "ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role, perms = EXCLUDED.perms",
+                        (ch, int(member_id), role_for_perms(got), ",".join(got)))
+        for ch in had - set(chans):
+            cur.execute("DELETE FROM channel_members WHERE channel_id = %s AND user_id = %s", (ch, int(member_id)))
+    for ch in had | set(chans):
+        _drop_rbac_cache(member_id, ch)
+    return True
 
 
 def leave(user_id: int, owner_id: int) -> int:
@@ -219,34 +334,35 @@ def leave(user_id: int, owner_id: int) -> int:
 
 
 def list_team(owner_id: int) -> dict:
-    """Egasi uchun: o'rindiqlar + har kanal bo'yicha a'zolar va kutilayotgan takliflar."""
+    """Egasi uchun: o'rindiqlar + har kanal bo'yicha a'zolar (ruxsatlari bilan) va kutilayotgan takliflar."""
     seats = seat_status(owner_id)
     with db_cursor() as cur:
         cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s AND is_active = TRUE "
                     "AND deleted_at IS NULL ORDER BY id", (owner_id,))
         chans = cur.fetchall()
-        cur.execute("SELECT cm.channel_id, cm.user_id, cm.role, cm.created_at, u.full_name, u.username "
+        cur.execute("SELECT cm.channel_id, cm.user_id, cm.role, cm.created_at, u.full_name, u.username, cm.perms "
                     "FROM channel_members cm JOIN channels c ON c.channel_id = cm.channel_id "
                     "LEFT JOIN users u ON u.user_id = cm.user_id "
                     "WHERE c.user_id = %s AND cm.user_id <> %s ORDER BY cm.created_at", (owner_id, owner_id))
         members = cur.fetchall()
         active = set(_helpers(cur, owner_id)[: seats["limit"]])
-        cur.execute("SELECT id, channel_id, role, expires_at FROM team_invites WHERE owner_id = %s AND used_at IS NULL "
+        cur.execute("SELECT id, channel_id, role, expires_at, perms, channel_ids FROM team_invites WHERE owner_id = %s AND used_at IS NULL "
                     "AND revoked_at IS NULL AND expires_at > NOW() ORDER BY id", (owner_id,))
         invites = cur.fetchall()
     out = []
     for ch_id, title in chans:
         out.append({
             "channel_id": str(ch_id), "title": title or "",
-            "members": [{"user_id": int(m[1]), "role": m[2], "name": m[4] or "", "username": m[5] or "",
+            "members": [{"user_id": int(m[1]), "role": m[2], "perms": effective_perms(m[6], m[2]), "name": m[4] or "", "username": m[5] or "",
                          "active": int(m[1]) in active, "since": m[3]} for m in members if str(m[0]) == str(ch_id)],
-            "invites": [{"id": int(i[0]), "role": i[2], "expires_at": i[3]} for i in invites if str(i[1]) == str(ch_id)],
+            "invites": [{"id": int(i[0]), "role": i[2], "perms": effective_perms(i[4], i[2]), "expires_at": i[3]}
+                        for i in invites if str(ch_id) in (_as_channel_list((i[5] or "").split(",")) or [str(i[1])])],
         })
     return {"seats": seats, "channels": out}
 
 
 def workspace_access(user_id: int, owner_id: int) -> dict:
-    """Yordamchining egasi ish joyidagi kanallari: ``{channel_id: rol}``. Ruxsat yo'q bo'lsa ``{}``.
+    """Yordamchining egasi ish joyidagi kanallari: ``{channel_id: {"role", "perms": [...]}}``. Ruxsat yo'q bo'lsa ``{}``.
 
     Ruxsat: yordamchi egasining ENG ESKI ``team_seats`` tasidan biri bo'lishi shart (egasi tarifi tushsa — yopiladi).
     """
@@ -254,14 +370,14 @@ def workspace_access(user_id: int, owner_id: int) -> dict:
         limit = _seat_limit(cur, owner_id)
         if limit <= 0 or int(user_id) not in _helpers(cur, owner_id)[:limit]:
             return {}
-        cur.execute("SELECT cm.channel_id, cm.role FROM channel_members cm JOIN channels c ON c.channel_id = cm.channel_id "
+        cur.execute("SELECT cm.channel_id, cm.role, cm.perms FROM channel_members cm JOIN channels c ON c.channel_id = cm.channel_id "
                     "WHERE c.user_id = %s AND cm.user_id = %s AND c.is_active = TRUE AND c.deleted_at IS NULL "
                     "AND cm.role IN ('editor', 'scheduler', 'analyst')", (owner_id, int(user_id)))
-        return {str(r[0]): r[1] for r in cur.fetchall()}
+        return {str(r[0]): {"role": r[1], "perms": effective_perms(r[2], r[1])} for r in cur.fetchall()}
 
 
 def workspaces_for(user_id: int) -> list[dict]:
-    """Foydalanuvchi yordamchi bo'lgan ish joylari (faol o'rindiq bilan): egasi + kanallar/rollar."""
+    """Foydalanuvchi yordamchi bo'lgan ish joylari (faol o'rindiq bilan): egasi + kanallar/ruxsatlar."""
     with db_cursor() as cur:
         cur.execute("SELECT DISTINCT c.user_id FROM channel_members cm JOIN channels c ON c.channel_id = cm.channel_id "
                     "WHERE cm.user_id = %s AND c.user_id <> %s AND c.is_active = TRUE AND c.deleted_at IS NULL",
@@ -276,7 +392,8 @@ def workspaces_for(user_id: int) -> list[dict]:
             cur.execute("SELECT channel_id, channel_title FROM channels WHERE user_id = %s", (owner,))
             titles = {str(r[0]): r[1] or "" for r in cur.fetchall()}
         out.append({"owner_id": owner, "owner_name": row[0] or row[1] or "", "suspended": not access,
-                    "channels": [{"channel_id": ch, "title": titles.get(ch, ""), "role": role} for ch, role in access.items()]})
+                    "channels": [{"channel_id": ch, "title": titles.get(ch, ""), "role": a["role"], "perms": a["perms"]}
+                                 for ch, a in access.items()]})
     return out
 
 

@@ -21,13 +21,20 @@ from utils.silent_errors import log_silent_failure
 
 logger = logging.getLogger(__name__)
 
-ROLE_KEYS = {"editor": "tm_btn_editor", "scheduler": "tm_btn_scheduler", "analyst": "tm_btn_analyst"}
+PRESET_BUTTONS = (("full", "tm_btn_full"), ("editor", "tm_btn_editor"), ("scheduler", "tm_btn_scheduler"),
+                  ("analyst", "tm_btn_analyst"), ("view", "tm_btn_view"))
 _JOIN_ERRORS = {"invalid": "tm_join_invalid", "used": "tm_join_used", "expired": "tm_join_expired", "revoked": "tm_join_revoked",
                 "self": "tm_join_self", "no_team": "tm_join_no_team", "seats_full": "tm_join_seats_full", "failed": "tm_err_generic"}
 
 
-def role_name(role: str, lang: str) -> str:
-    return team_t(ROLE_KEYS.get(role, "tm_btn_editor"), lang)
+def perms_text(perms, lang: str) -> str:
+    """Ruxsatlar qisqa matni: «hammasi» / «faqat ko'rish» / nomlar ro'yxati."""
+    perms = list(perms or [])
+    if not perms:
+        return team_t("tm_perms_viewonly", lang)
+    if set(perms) >= set(TI.PERMS):
+        return team_t("tm_perms_all", lang)
+    return ", ".join(team_t(f"tm_perm_{p}", lang) for p in perms)
 
 
 def _btn(text: str, data: str) -> InlineKeyboardButton:
@@ -87,7 +94,7 @@ async def build_home(user_id: int, lang: str):
             if ws["suspended"]:
                 lines.append(team_t("tm_ws_row_off", lang, owner=owner))
             else:
-                chs = ", ".join(f"{html_escape(c['title'] or c['channel_id'])} ({role_name(c['role'], lang)})" for c in ws["channels"])
+                chs = ", ".join(f"{html_escape(c['title'] or c['channel_id'])} ({perms_text(c['perms'], lang)})" for c in ws["channels"])
                 lines.append(team_t("tm_ws_row", lang, owner=owner, chs=chs))
     rows = [[_btn(team_t("tm_btn_role", lang), "tm_mode")]]
     if seats["limit"] > 0:
@@ -110,6 +117,27 @@ async def team_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # ------------------------------------------------------------------ callback'lar
+async def _member_screen(update: Update, user_id: int, lang: str, action: str, ch_id: str, member: int):
+    """A'zo ekrani (ruxsat katakchalari) va olib tashlash tasdig'i."""
+    team = await db.run_db(TI.list_team, user_id)
+    ch = next((c for c in team["channels"] if c["channel_id"] == ch_id), None)
+    m = next((x for x in (ch or {}).get("members", []) if x["user_id"] == member), None)
+    if ch is None or m is None:
+        return await _show(update, team_t("tm_err_generic", lang), InlineKeyboardMarkup([_back(lang, "tm_mem")]))
+    title = html_escape(ch["title"] or ch_id)
+    if action == "tm_md":
+        markup = InlineKeyboardMarkup([[_btn(team_t("tm_btn_yes", lang), f"tm_mdy:{ch_id}:{member}")], _back(lang, f"tm_mm:{ch_id}:{member}")])
+        return await _show(update, team_t("tm_remove_ask", lang, uid=member, title=title), markup)
+    if action == "tm_mdy":
+        await db.run_db(TI.remove_member, user_id, ch_id, member)
+        return await _show(update, team_t("tm_member_removed", lang), InlineKeyboardMarkup([_back(lang, "tm_mem")]))
+    rows = [[_btn(("✅ " if p in m["perms"] else "⬜ ") + team_t(f"tm_perm_{p}", lang), f"tm_pt:{ch_id}:{member}:{p}")] for p in TI.PERMS]
+    rows.append([_btn(team_t("tm_btn_remove", lang), f"tm_md:{ch_id}:{member}")])
+    rows.append(_back(lang, "tm_mem"))
+    text = team_t("tm_member_title", lang, uid=member, name=html_escape(m["name"] or ""), title=title, role=perms_text(m["perms"], lang))
+    return await _show(update, text + "\n\n" + team_t("tm_perms_note", lang), InlineKeyboardMarkup(rows))
+
+
 async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query is None:
@@ -153,13 +181,14 @@ async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ch = next((c for c in team["channels"] if c["channel_id"] == parts[1]), None)
         if ch is None:
             return await _show(update, team_t("tm_err_generic", lang), InlineKeyboardMarkup([_back(lang)]))
-        rows = [[_btn(role_name(r, lang), f"tm_ir:{ch['channel_id']}:{r}")] for r in TI.ROLES]
+        rows = [[_btn(team_t(key, lang), f"tm_ir:{ch['channel_id']}:{preset}")] for preset, key in PRESET_BUTTONS]
         rows.append(_back(lang, "tm_inv"))
         text = team_t("tm_inv_pick_role", lang, title=html_escape(ch["title"] or ch["channel_id"]), help=team_t("tm_roles_help", lang))
         return await _show(update, text, InlineKeyboardMarkup(rows))
 
-    if action == "tm_ir" and len(parts) == 3 and parts[2] in TI.ROLES:
-        res = await db.run_db(TI.create_invite, user_id, parts[1], parts[2])
+    if action == "tm_ir" and len(parts) == 3 and parts[2] in dict(PRESET_BUTTONS):
+        invite_perms = [] if parts[2] == "view" else parts[2]
+        res = await db.run_db(TI.create_invite, user_id, [parts[1]], invite_perms)
         if not res.get("ok"):
             key = {"no_team": "tm_err_no_team", "seats_full": "tm_err_seats_full", "too_many_pending": "tm_err_seats_full"}.get(res.get("error"), "tm_err_generic")
             return await _show(update, team_t(key, lang), InlineKeyboardMarkup([_back(lang)]))
@@ -172,7 +201,8 @@ async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from urllib.parse import quote
 
         share = f"https://t.me/share/url?url={quote(link, safe='')}&text={quote(team_t('tm_share_text', lang))}"
-        text = team_t("tm_inv_ready", lang, title=html_escape(title or ""), role=role_name(parts[2], lang), days=TI.INVITE_TTL_DAYS, link=link)
+        shown = [] if parts[2] == "view" else list(TI.PRESETS[parts[2]])
+        text = team_t("tm_inv_ready", lang, title=html_escape(title or ""), role=perms_text(shown, lang), days=TI.INVITE_TTL_DAYS, link=link)
         markup = InlineKeyboardMarkup([[InlineKeyboardButton(team_t("tm_btn_share", lang), url=share)],
                                        [_btn(team_t("tm_btn_revoke", lang), f"tm_rv:{res['id']}")], _back(lang)])
         return await _show(update, text, markup)
@@ -193,40 +223,28 @@ async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             for m in ch["members"]:
                 any_row = True
                 lines.append(team_t("tm_member_row", lang, uid=m["user_id"], name=html_escape(m["name"] or m["username"] or ""),
-                                    role=role_name(m["role"], lang), off="" if m["active"] else team_t("tm_member_off", lang)))
+                                    role=perms_text(m["perms"], lang), off="" if m["active"] else team_t("tm_member_off", lang)))
                 rows.append([_btn(f"{(m['name'] or m['user_id'])!s:.14} · {(ch['title'] or '')[:10]}", f"tm_mm:{ch['channel_id']}:{m['user_id']}")])
             for i in ch["invites"]:
                 any_row = True
-                lines.append(team_t("tm_invite_row", lang, role=role_name(i["role"], lang)))
-                rows.append([_btn(f"❌ {role_name(i['role'], lang)}", f"tm_rv:{i['id']}")])
+                lines.append(team_t("tm_invite_row", lang, role=perms_text(i["perms"], lang)))
+                rows.append([_btn(f"❌ {team_t('tm_btn_revoke', lang)}", f"tm_rv:{i['id']}")])
         if not any_row:
             lines += ["", team_t("tm_members_empty", lang)]
         rows.append(_back(lang))
         return await _show(update, "\n".join(lines), InlineKeyboardMarkup(rows[:30]))
 
     if action in ("tm_mm", "tm_md", "tm_mdy") and len(parts) == 3 and parts[2].isdigit():
-        ch_id, member = parts[1], int(parts[2])
-        team = await db.run_db(TI.list_team, user_id)
-        ch = next((c for c in team["channels"] if c["channel_id"] == ch_id), None)
-        m = next((x for x in (ch or {}).get("members", []) if x["user_id"] == member), None)
-        if ch is None or m is None:
-            return await _show(update, team_t("tm_err_generic", lang), InlineKeyboardMarkup([_back(lang, "tm_mem")]))
-        title = html_escape(ch["title"] or ch_id)
-        if action == "tm_md":
-            markup = InlineKeyboardMarkup([[_btn(team_t("tm_btn_yes", lang), f"tm_mdy:{ch_id}:{member}")], _back(lang, f"tm_mm:{ch_id}:{member}")])
-            return await _show(update, team_t("tm_remove_ask", lang, uid=member, title=title), markup)
-        if action == "tm_mdy":
-            await db.run_db(TI.remove_member, user_id, ch_id, member)
-            return await _show(update, team_t("tm_member_removed", lang), InlineKeyboardMarkup([_back(lang, "tm_mem")]))
-        rows = [[_btn(role_name(r, lang), f"tm_mr:{ch_id}:{member}:{r}")] for r in TI.ROLES if r != m["role"]]
-        rows.append([_btn(team_t("tm_btn_remove", lang), f"tm_md:{ch_id}:{member}")])
-        rows.append(_back(lang, "tm_mem"))
-        text = team_t("tm_member_title", lang, uid=member, name=html_escape(m["name"] or ""), title=title, role=role_name(m["role"], lang))
-        return await _show(update, text, InlineKeyboardMarkup(rows))
+        return await _member_screen(update, user_id, lang, action, parts[1], int(parts[2]))
 
-    if action == "tm_mr" and len(parts) == 4 and parts[2].isdigit() and parts[3] in TI.ROLES:
-        ok = await db.run_db(TI.set_member_role, user_id, parts[1], int(parts[2]), parts[3])
-        return await _show(update, team_t("tm_member_role_set" if ok else "tm_err_generic", lang), InlineKeyboardMarkup([_back(lang, "tm_mem")]))
+    if action == "tm_pt" and len(parts) == 4 and parts[2].isdigit() and parts[3] in TI.PERMS:
+        team = await db.run_db(TI.list_team, user_id)
+        ch = next((c for c in team["channels"] if c["channel_id"] == parts[1]), None)
+        m = next((x for x in (ch or {}).get("members", []) if x["user_id"] == int(parts[2])), None)
+        if m is not None:
+            now = [p for p in TI.PERMS if (p in m["perms"]) != (p == parts[3])]  # shu ruxsatni almashtiramiz
+            await db.run_db(TI.set_member_perms, user_id, parts[1], int(parts[2]), now)
+        return await _member_screen(update, user_id, lang, "tm_mm", parts[1], int(parts[2]))
 
     if action == "tm_ws":
         workspaces = await db.run_db(TI.workspaces_for, user_id)
@@ -239,7 +257,7 @@ async def team_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if ws["suspended"]:
                 lines.append(team_t("tm_ws_row_off", lang, owner=owner))
             else:
-                chs = ", ".join(f"{html_escape(c['title'] or c['channel_id'])} ({role_name(c['role'], lang)})" for c in ws["channels"])
+                chs = ", ".join(f"{html_escape(c['title'] or c['channel_id'])} ({perms_text(c['perms'], lang)})" for c in ws["channels"])
                 lines.append(team_t("tm_ws_row", lang, owner=owner, chs=chs))
                 app = miniapp_button(lang, "post", label=team_t("tm_btn_open_app", lang), extra={"ws": ws["owner_id"]})
                 if app is not None:
@@ -277,13 +295,13 @@ async def accept_team_invite(update: Update, context: ContextTypes.DEFAULT_TYPE,
     if app is not None:
         rows.append([app])
     await msg.reply_text(
-        team_t("tm_joined", lang, owner=html_escape(owner_name), title=html_escape(res["title"]), role=role_name(res["role"], lang)),
+        team_t("tm_joined", lang, owner=html_escape(owner_name), title=html_escape(res["title"]), role=perms_text(res["perms"], lang)),
         parse_mode="HTML", reply_markup=InlineKeyboardMarkup(rows) if rows else None)
     try:
         owner_lang = await db.run_db(db.get_user_language, owner_id) or "uz"
         await context.bot.send_message(
             chat_id=owner_id, parse_mode="HTML",
             text=team_t("tm_joined_owner", owner_lang, name=html_escape(user.full_name or user.username or str(user.id)),
-                        title=html_escape(res["title"]), role=role_name(res["role"], owner_lang)))
+                        title=html_escape(res["title"]), role=perms_text(res["perms"], owner_lang)))
     except Exception as exc:  # noqa: BLE001 — egasiga xabar yetmasa ham taklif qabul qilingan
         log_silent_failure("handlers.team_ui:notify_owner", exc)

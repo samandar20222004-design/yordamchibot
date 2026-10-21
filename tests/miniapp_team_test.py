@@ -24,7 +24,8 @@ from miniapp_testkit import FAKE_TOKEN, NOW, Counter, make_init_data  # noqa: E4
 
 T = Counter("MINI APP — JAMOA VA ISH JOYI (real PostgreSQL)")
 OWN, PROU, ED, SCH, ANA, OUT = 9_810_000_001, 9_810_000_002, 9_810_000_003, 9_810_000_004, 9_810_000_005, 9_810_000_006
-IDS = (OWN, PROU, ED, SCH, ANA, OUT)
+USRX = 9_810_000_007
+IDS = (OWN, PROU, ED, SCH, ANA, OUT, USRX)
 CH1, CH2, CH3, CHP = "-1009810000001", "-1009810000002", "-1009810000003", "-1009810000004"
 import time  # noqa: E402
 
@@ -118,7 +119,7 @@ def main() -> int:
         T.check("PRO: o'rindiq 0, taklif yo'q", st == 200 and ov2["seats"]["limit"] == 0 and ov2["can_invite"] is False)
         T.check("PRO taklif qila olmaydi -> team_no_seats", code(C("POST", "/team/invites", PROU, {"channel_id": CHP, "role": "editor"})) == "team_no_seats")
         T.check("begona kanalga taklif -> 404 channel_not_found", code(C("POST", "/team/invites", OWN, {"channel_id": CHP, "role": "editor"})) == "channel_not_found")
-        for bad in ({"channel_id": CH1, "role": "owner"}, {"channel_id": "x", "role": "editor"}, {"channel_id": CH1}, {"channel_id": CH1, "role": "editor", "z": 1}):
+        for bad in ({"channel_id": CH1, "role": "owner"}, {"channel_id": "x", "role": "editor"}, {"channel_id": CH1, "perms": ["hack"]}, {"channel_ids": []}, {"channel_id": CH1, "role": "editor", "z": 1}):
             T.check(f"noto'g'ri taklif -> 422: {bad}", C("POST", "/team/invites", OWN, bad)[0] == 422)
         st, i_ed = C("POST", "/team/invites", OWN, {"channel_id": CH1, "role": "editor"})
         T.check("taklif yaratildi (token qaytadi)", st == 201 and len(i_ed["token"]) >= 16, str(i_ed))
@@ -138,7 +139,7 @@ def main() -> int:
         T.check("a'zolar va o'rindiqlar yangilandi (2/2)", ov["seats"]["used"] == 2 and any(m["user_id"] == ED for c in ov["channels"] for m in c["members"]))
         st, h = C("GET", "/team", ED)
         T.check("yordamchi: ish joylari ro'yxatida egasi va roli", len(h["workspaces"]) == 1 and h["workspaces"][0]["owner_id"] == OWN
-                and h["workspaces"][0]["channels"] == [{"channel_id": CH1, "title": "Kanal1", "role": "editor"}], str(h["workspaces"]))
+                and h["workspaces"][0]["channels"] == [{"channel_id": CH1, "title": "Kanal1", "role": "editor", "perms": ["create", "edit", "reschedule", "delete", "ai"]}], str(h["workspaces"]))
         T.check("yordamchi o'z o'rindiqlarini 0 ko'radi (o'zi egasi emas)", h["seats"]["limit"] == 0)
         T.check("rejim: boshida (taklif orqali) 'helper'", h["mode"] == "helper")
         T.check("rejimni o'zgartirish", C("PATCH", "/team/mode", ED, {"mode": "owner"})[1].get("mode") == "owner" and C("PATCH", "/team/mode", ED, {"mode": "helper"})[0] == 200)
@@ -168,8 +169,8 @@ def main() -> int:
         T.check("post egasi nomidan saqlandi (egasi navbati/kvotasi)", cur.fetchone()[0] == OWN)
         T.check("editor CH2 ga yarata olmaydi -> workspace_denied", code(C("POST", "/posts", ED, {"channel_id": CH2, "text": "x", "scheduled_at": WHEN}, ws=OWN)) == "workspace_denied")
         T.check("editor CH3 (ruxsatsiz) ga yarata olmaydi", code(C("POST", "/posts", ED, {"channel_id": CH3, "text": "x", "scheduled_at": WHEN}, ws=OWN)) == "workspace_denied")
-        T.check("ish joyida use_draft taqiqlangan (egasining qoralamasi himoyada) -> 422",
-                C("POST", "/posts", ED, {"channel_id": CH1, "text": "x", "scheduled_at": WHEN, "use_draft": True}, ws=OWN)[0] == 422)
+        T.check("ish joyida use_draft yordamchining O'Z qoralamasini o'qiydi (yo'q bo'lsa draft_not_found; egasinikini emas)",
+                code(C("POST", "/posts", ED, {"channel_id": CH1, "text": "x", "scheduled_at": WHEN, "use_draft": True}, ws=OWN)) == "draft_not_found")
         st, lst = C("GET", "/scheduled-posts", ED, ws=OWN)
         ids = [i["id"] for i in lst.get("items", [])]
         T.check("ro'yxat: faqat CH1 postlari (egasining CH3 posti yashirin)", pid in ids and p_hidden not in ids, str(ids))
@@ -197,7 +198,7 @@ def main() -> int:
         T.check("rol o'zgardi: endi analyst — yaratolmaydi", code(C("POST", "/posts", ED, {"channel_id": CH1, "text": "x", "scheduled_at": WHEN}, ws=OWN)) == "workspace_denied")
         T.check("analyst ro'yxatni ko'radi", C("GET", "/scheduled-posts", ED, ws=OWN)[0] == 200)
         T.check("analyst kanal tahlilini ko'radi", C("GET", f"/channels/{CH1}/analytics", ED, ws=OWN)[0] == 200)
-        T.check("analyst CH2 tahlilini ko'ra olmaydi", C("GET", f"/channels/{CH2}/analytics", ED, ws=OWN)[0] == 404)
+        T.check("analyst CH2 tahlilini ko'ra olmaydi (kanal ruxsat doirasida emas)", code(C("GET", f"/channels/{CH2}/analytics", ED, ws=OWN)) == "workspace_denied")
 
         print("\n== 6. A'zoni boshqarish ==")
         st, up = C("PATCH", "/team/members", OWN, {"channel_id": CH1, "user_id": ED, "role": "editor"})
@@ -216,6 +217,67 @@ def main() -> int:
         T.check("PRO egasi yangi taklif bera olmaydi", code(C("POST", "/team/invites", OWN, {"channel_id": CH1, "role": "editor"})) == "team_no_seats")
         cur.execute("UPDATE users SET plan_type = 'ultra' WHERE user_id = %s", (OWN,))
         T.check("ULTRA qaytsa ish joyi ochiladi", C("GET", "/channels", ED, ws=OWN)[0] == 200)
+        print("\n== 8. Ruxsatlar: har bir yordamchiga alohida ==")
+        from miniapp_api import drafts as drafts_mod
+
+        TI.leave(ED, OWN)
+        cur.execute("UPDATE team_invites SET revoked_at = NOW() WHERE used_at IS NULL AND revoked_at IS NULL")
+        st, mi = C("POST", "/team/invites", OWN, {"channel_ids": [CH1, CH2], "perms": ["create", "ai", "send_now"]})
+        T.check("ikki kanalga bitta taklif, ruxsatlar ro'yxati bilan", st == 201 and mi["perms"] == ["create", "send_now", "ai"] and mi["channel_ids"] == [CH1, CH2], str(mi))
+        st, mi_default = C("POST", "/team/invites", OWN, {"channel_id": CH3})
+        T.check("ruxsat berilmasa — hamma ruxsat (kengroq standart)", st == 201 and len(mi_default["perms"]) == 7, str(mi_default))
+        C("DELETE", f"/team/invites/{mi_default['id']}", OWN)
+        T.check("shablon nomi ham qabul: perms='scheduler'", C("POST", "/team/invites", OWN, {"channel_id": CH3, "perms": "scheduler"})[1].get("perms") == ["create", "reschedule"])
+        cur.execute("UPDATE team_invites SET revoked_at = NOW() WHERE used_at IS NULL AND revoked_at IS NULL AND id <> %s", (mi["id"],))
+        T.check("ED qabul qildi", TI.accept_invite(mi["token"], ED)["ok"])
+        st, h = C("GET", "/team", ED)
+        wch = h["workspaces"][0]["channels"]
+        T.check("yordamchi ish joyida ruxsatlarini ko'radi", {c["channel_id"] for c in wch} == {CH1, CH2} and all(c["perms"] == ["create", "send_now", "ai"] for c in wch), str(wch))
+        st, ow = C("GET", "/team", OWN)
+        T.check("egasi a'zo ruxsatlarini ko'radi", any(m["perms"] == ["create", "send_now", "ai"] for c in ow["channels"] for m in c["members"]))
+        T.check("ruxsat bor: yaratadi", C("POST", "/posts", ED, {"channel_id": CH1, "text": "Faqat yaratish", "scheduled_at": WHEN}, ws=OWN)[0] in (200, 201))
+        cur.execute("SELECT id FROM scheduled_posts WHERE user_id = %s AND channel_id = %s AND content = 'Faqat yaratish'", (OWN, CH1))
+        pid2 = cur.fetchone()[0]
+        T.check("tahrirlash ruxsati yo'q -> workspace_denied", code(C("PATCH", f"/posts/{pid2}", ED, {"text": "x"}, ws=OWN)) == "workspace_denied")
+        T.check("vaqt ruxsati yo'q -> workspace_denied", code(C("PATCH", f"/posts/{pid2}", ED, {"scheduled_at": WHEN2}, ws=OWN)) == "workspace_denied")
+        T.check("o'chirish ruxsati yo'q -> workspace_denied", code(C("DELETE", f"/posts/{pid2}", ED, ws=OWN)) == "workspace_denied")
+        T.check("statistika ruxsati yo'q -> workspace_denied", code(C("GET", f"/channels/{CH1}/analytics", ED, ws=OWN)) == "workspace_denied")
+        T.check("send_now ruxsati bor: darhol yuborishga rejalash mumkin", C("POST", "/posts", ED, {"channel_id": CH1, "text": "Hozir", "send_now": True}, ws=OWN)[0] in (200, 201))
+        T.check("AI ruxsati bor — darvoza ochiq (AI chaqirilmaydi: matn bo'sh -> 422)", C("POST", "/ai/generate", ED, {"text": "", "style": "casual"}, ws=OWN)[0] == 422)
+        # egasi ruxsatlarni o'zgartiradi (markaz usuli): send_now va ai olib tashlanadi, edit/delete qo'shiladi
+        st, up = C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": [CH1, CH2], "perms": ["create", "edit", "delete", "reschedule"]})
+        T.check("egasi yordamchini sozladi", st == 200 and up["perms"] == ["create", "reschedule", "edit", "delete"] or up["perms"] == ["create", "edit", "reschedule", "delete"], str(up))
+        T.check("endi send_now -> workspace_denied", code(C("POST", "/posts", ED, {"channel_id": CH1, "text": "Yana", "send_now": True}, ws=OWN)) == "workspace_denied")
+        T.check("endi AI -> workspace_denied", code(C("POST", "/ai/generate", ED, {"text": "salom dunyo", "style": "casual"}, ws=OWN)) == "workspace_denied")
+        T.check("endi tahrirlaydi, vaqtini o'zgartiradi va o'chiradi",
+                C("PATCH", f"/posts/{pid2}", ED, {"text": "Tahrir"}, ws=OWN)[0] == 200 and C("PATCH", f"/posts/{pid2}", ED, {"scheduled_at": WHEN2}, ws=OWN)[0] == 200
+                and C("DELETE", f"/posts/{pid2}", ED, ws=OWN)[0] == 200)
+        T.check("markaz usuli: kanallar to'plami o'zgaradi (CH2 olib tashlanadi)", C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": [CH1], "perms": ["create"]})[0] == 200
+                and [c["id"] for c in C("GET", "/channels", ED, ws=OWN)[1]["items"]] == [CH1])
+        T.check("markaz usuli: begona kanal -> 404", C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": [CHP], "perms": ["create"]})[0] == 404)
+        T.check("markaz usuli: yordamchi emas -> 404", C("PATCH", "/team/helpers", OWN, {"user_id": USRX, "channel_ids": [CH1], "perms": []})[0] == 404)
+        T.check("markaz usuli: noto'g'ri ruxsat/tur -> 422", C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": [CH1], "perms": ["hack"]})[0] == 422
+                and C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": "x", "perms": []})[0] == 422 and C("PATCH", "/team/helpers", OWN, {"user_id": ED, "channel_ids": [CH1]})[0] == 422)
+        T.check("PRO egasi yordamchini sozlay olmaydi", C("PATCH", "/team/helpers", PROU, {"user_id": ED, "channel_ids": [], "perms": []})[0] == 404)
+
+        print("\n== 9. Media: qoralama yordamchida, post egasi nomidan; limit egasidan ==")
+        TI.set_helper(OWN, ED, [CH1], ["create", "edit"])
+        drafts_mod.save_draft(OWN, {"post_type": "text", "content": "EGASINING QORALAMASI"})
+        drafts_mod.save_draft(ED, {"post_type": "photo", "file_id": "AgACAgIAAxkBAAFAKEFILEID1", "content": "Rasm sarlavhasi"})
+        st, mp = C("POST", "/posts", ED, {"channel_id": CH1, "text": "Rasm sarlavhasi", "scheduled_at": WHEN, "use_draft": True}, ws=OWN)
+        T.check("yordamchi o'z qoralamasi (media) bilan post yaratdi", st in (200, 201) and mp["post"]["post_type"] == "photo", str(mp)[:200])
+        cur.execute("SELECT user_id, file_id FROM scheduled_posts WHERE id = %s", (mp["post"]["id"],))
+        T.check("post EGASI nomidan, media fayli saqlangan", cur.fetchone() == (OWN, "AgACAgIAAxkBAAFAKEFILEID1"))
+        cur.execute("SELECT COUNT(*) FROM miniapp_drafts WHERE user_id = %s", (ED,))
+        T.check("yordamchining qoralamasi tozalandi", cur.fetchone()[0] == 0)
+        cur.execute("SELECT payload->>'content' FROM miniapp_drafts WHERE user_id = %s", (OWN,))
+        T.check("egasining qoralamasi O'ZGARMADI", cur.fetchone()[0] == "EGASINING QORALAMASI")
+        T.check("qoralama bo'lmasa -> draft_not_found", code(C("POST", "/posts", ED, {"channel_id": CH1, "text": "x", "scheduled_at": WHEN, "use_draft": True}, ws=OWN)) == "draft_not_found")
+        cur.execute("UPDATE users SET plan_type = 'ultra', subscription_expires_at = NOW() + INTERVAL '30 days' WHERE user_id = %s", (OWN,))
+        cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'", (OWN,))
+        pend_owner = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s", (ED,))
+        T.check("yordamchi nomidan post YO'Q — hammasi egasining navbatida (limit egasidan)", cur.fetchone()[0] == 0 and pend_owner >= 3)
         T.check("oddiy foydalanuvchi /team auth'siz -> 401", run(client.request("GET", "/api/v1/team")).status == 401)
         run(client.close())
         _ = config

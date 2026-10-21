@@ -6,7 +6,7 @@ Mijoz ``X-Workspace: <egasi_id>`` sarlavhasini yuboradi. FAQAT ``@_ws`` bilan be
   2. ``request["user_id"]`` ni egasiga almashtiradi (egasining tarifi, kvotasi va kanallari ishlaydi),
      haqiqiy foydalanuvchi ``request["acting_user"]`` da qoladi (yozuv/AI limitlari yordamchiga hisoblanadi);
   3. ruxsat etilgan kanallar ``ContextVar`` ga yoziladi: repozitoriy SQL'i FAQAT shu kanallarni ko'radi;
-  4. amal rolga mos kelishini tekshiradi (``ROLE_ACTIONS``): editor — hammasi, scheduler — yaratish/vaqtni o'zgartirish, analyst — faqat ko'rish.
+  4. amal rolga mos kelishini tekshiradi (yordamchining ruxsatlari: yaratish, tahrirlash, vaqt, o'chirish, darhol yuborish, statistika, AI — egasi har birini alohida beradi).
 """
 from __future__ import annotations
 
@@ -51,12 +51,26 @@ def parse_header(raw) -> int | None:
 
 
 def require_action(request, action: str, channel_id) -> None:
-    """Ish joyida bo'lmasa — hech narsa. Bo'lsa: kanal ruxsat doirasida va rol amalga yetarli bo'lishi shart."""
+    """Ish joyida bo'lmasa — hech narsa. Bo'lsa: kanal ruxsat doirasida va ruxsatlar ro'yxatida amal bo'lishi shart.
+
+    ``action``: ``view`` (har doim), ``create``, ``edit``, ``reschedule``, ``delete``, ``send_now``, ``analytics``, ``ai``.
+    """
     access = request.get("ws_access")
     if access is None:
         return
-    from services.team_invites import ROLE_ACTIONS
+    from services.team_invites import can
 
-    role = access.get(str(channel_id))
-    if role is None or action not in ROLE_ACTIONS.get(role, frozenset()):
+    entry = access.get(str(channel_id))
+    if entry is None or not can(entry.get("perms"), action):
+        raise ApiError("workspace_denied")
+
+
+def require_any_channel(request, action: str) -> None:
+    """Kanalga bog'lanmagan amal (AI): ish joyidagi KAMIDA bitta kanalda shu ruxsat bo'lishi shart."""
+    access = request.get("ws_access")
+    if access is None:
+        return
+    from services.team_invites import can
+
+    if not any(can(e.get("perms"), action) for e in access.values()):
         raise ApiError("workspace_denied")

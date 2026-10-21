@@ -388,17 +388,27 @@ export interface AdminHealth { ready: boolean; checks: Record<string, string>; u
 export interface AdminRoles { items: Array<{ user_id: number; role: string }>; choices: string[] }
 
 // --- 👥 Jamoa va ish joyi ---
-export type TeamRole = 'editor' | 'scheduler' | 'analyst'
-export const TEAM_ROLES: readonly TeamRole[] = ['editor', 'scheduler', 'analyst']
-export interface TeamMember { user_id: number; name: string; username: string; role: TeamRole; active: boolean; since: string | null }
-export interface TeamInvite { id: number; role: TeamRole; expires_at: string | null }
+/** Yordamchi ruxsatlari (egasi har biriga alohida beradi); «ko'rish» har doim bor. */
+export type TeamPerm = 'create' | 'edit' | 'reschedule' | 'delete' | 'send_now' | 'analytics' | 'ai'
+export const TEAM_PERMS: readonly TeamPerm[] = ['create', 'edit', 'reschedule', 'delete', 'send_now', 'analytics', 'ai']
+export type TeamPreset = 'full' | 'editor' | 'scheduler' | 'analyst' | 'view'
+/** Tayyor shablonlar (server `services/team_invites.PRESETS` bilan bir xil); egasi baribir har birini o'zgartira oladi. */
+export const TEAM_PRESETS: Record<TeamPreset, readonly TeamPerm[]> = {
+  full: TEAM_PERMS,
+  editor: ['create', 'edit', 'reschedule', 'delete', 'ai'],
+  scheduler: ['create', 'reschedule'],
+  analyst: ['analytics'],
+  view: [],
+}
+export interface TeamMember { user_id: number; name: string; username: string; perms: TeamPerm[]; active: boolean; since: string | null }
+export interface TeamInvite { id: number; perms: TeamPerm[]; expires_at: string | null }
 export interface TeamChannel { channel_id: string; title: string; members: TeamMember[]; invites: TeamInvite[] }
 export interface TeamSeats { plan: string; limit: number; used: number; pending: number; free: number }
 export interface Workspace {
   owner_id: number; owner_name: string
   /** Egasining tarifi jamoani bermaydi (ULTRA tugagan) — ish joyi vaqtincha yopiq. */
   suspended: boolean
-  channels: Array<{ channel_id: string; title: string; role: TeamRole }>
+  channels: Array<{ channel_id: string; title: string; perms: TeamPerm[] }>
 }
 export interface TeamOverview {
   mode: 'owner' | 'helper' | null
@@ -407,4 +417,4 @@ export interface TeamOverview {
   channels: TeamChannel[]
   workspaces: Workspace[]
 }
-export interface TeamInviteCreated { id: number; token: string; role: TeamRole; channel_id: string; expires_at: string | null }
+export interface TeamInviteCreated { id: number; token: string; perms: TeamPerm[]; channel_ids: string[]; expires_at: string | null }

@@ -127,6 +127,10 @@ CREATE TABLE IF NOT EXISTS team_invites (
     CONSTRAINT chk_team_invites_role CHECK (role IN ('editor', 'scheduler', 'analyst'))
 );
 CREATE INDEX IF NOT EXISTS idx_team_invites_owner ON team_invites (owner_id, channel_id);
+-- Yordamchi ruxsatlari (vergul bilan): create,edit,reschedule,delete,send_now,analytics,ai. NULL = eski rol bo'yicha shablon.
+ALTER TABLE channel_members ADD COLUMN IF NOT EXISTS perms VARCHAR(120);
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS perms VARCHAR(120);
+ALTER TABLE team_invites ADD COLUMN IF NOT EXISTS channel_ids TEXT;
 
 CREATE TABLE IF NOT EXISTS sponsor_channels (
     id SERIAL PRIMARY KEY,

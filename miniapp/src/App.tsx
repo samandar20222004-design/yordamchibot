@@ -6,7 +6,6 @@ import { createApiClient } from './api/client'
 import { OfflineBanner, TabBar, type Tab } from './components/Shell'
 import { WorkspaceBanner } from './components/WorkspaceBanner'
 import { Toast } from './components/Dialog'
-import { RoleWelcome } from './pages/TeamScreen'
 import { getInitialWorkspace, saveWorkspace } from './workspace'
 import { EmptyState, LoadingBlock } from './components/ui'
 import { I18nProvider, normalizeLang, useI18n } from './i18n'
@@ -72,6 +71,8 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
     wsRef.current = owner
     setWsOwner(owner)
     saveWorkspace(owner)
+    // Foydalanuvchi o'zi chiqsa, shu sessiyada avtomatik qayta kirilmaydi.
+    try { if (owner) sessionStorage.removeItem('postassist.wsOptOut'); else sessionStorage.setItem('postassist.wsOptOut', '1') } catch { /* e'tiborsiz */ }
   }, [])
   // Ish joyi o'zgarsa, kanallar va rejalar QAYTA yuklanadi (boshqa egasining ma'lumoti avvalgisi bilan aralashmasin).
   const wsSeen = useRef(wsOwner)
@@ -81,6 +82,14 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
     channels.reload()
     feed.reload()
   }, [wsOwner]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Yordamchi (o'z kanali yo'q yoki rejimi «yordamchi») ish joyiga o'zi kiradi: «Men kimman?» so'ralmaydi, kerak bo'lganda topiladi.
+  useEffect(() => {
+    if (wsOwner || !team.data || !me.data) return
+    let optOut = false
+    try { optOut = sessionStorage.getItem('postassist.wsOptOut') === '1' } catch { /* e'tiborsiz */ }
+    const first = team.data.workspaces.find((w) => !w.suspended)
+    if (!optOut && first && (me.data.work_mode === 'helper' || me.data.usage.channels === 0)) setWorkspace(first.owner_id)
+  }, [team.data, me.data, wsOwner, setWorkspace])
   // Tanlangan ish joyi yopilgan/o'chirilgan bo'lsa (egasi olib tashlagan, tarif tugagan) — o'z ish joyiga qaytamiz.
   useEffect(() => {
     if (wsOwner && team.data && !team.data.workspaces.some((w) => w.owner_id === wsOwner && !w.suspended)) setWorkspace(null)
@@ -111,14 +120,6 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
   }, [hasDraft])
 
   const adminMode = adminWanted && me.data?.is_admin === true
-  // «Men kimman?»: rol hali tanlanmagan (server `work_mode: null` qaytargan) bo'lsa bir marta so'raladi; «Keyinroq» shu sessiyada eslab qolinadi.
-  const [welcomed, setWelcomed] = useState<boolean>(() => { try { return sessionStorage.getItem('postassist.welcome') === '1' } catch { return false } })
-  const showWelcome = me.data?.work_mode === null && !welcomed && !adminMode
-  const closeWelcome = useCallback((mode: 'owner' | 'helper' | null) => {
-    setWelcomed(true)
-    try { sessionStorage.setItem('postassist.welcome', '1') } catch { /* e'tiborsiz */ }
-    if (mode === 'helper') setTab('me')
-  }, [])
   const setAdminMode = useCallback((on: boolean) => { setAdminWanted(on); saveAdminMode(on) }, [])
   const value = useMemo<AppData>(
     () => ({ client, me, channels, draft, feed, go: setTab, unread, refreshUnread: reloadUnread, appearance, setAppearance, resetAppearance, botUsername, notify, setLang: onLang, adminMode, setAdminMode, team, workspace, setWorkspace }),
@@ -144,7 +145,6 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
         <TabBar active={tab} onChange={setTab} badges={{ market: unread }} tabs={appearance.tabs} />
       </div>
       )}
-      {showWelcome && <RoleWelcome onDone={closeWelcome} />}
       {toast && <Toast key={toast.id} text={toast.text} kind={toast.kind} />}
     </AppDataContext.Provider>
   )
