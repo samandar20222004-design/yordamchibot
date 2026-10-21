@@ -351,6 +351,23 @@ try:
     check("kanal egasi: mavzu tanlash ekrani", "1/3" in query.edit_message_text.await_args.args[0])
     upd, query, chat = make_cb_update(OWN, "mk:nc:shop")
     asyncio.run(h.market_callback(upd, ctx_own))
+    kb = query.edit_message_text.await_args.kwargs["reply_markup"].inline_keyboard
+    cbs = [b.callback_data for row in kb for b in row]
+    check("mavzudan keyin HUDUD tanlash: tavsiya + Global + mashhur davlatlar (narxdan oldin)",
+          "Kanal qaysi hudud" in query.edit_message_text.await_args.args[0] and "mk:nr:ZZ" in cbs and "mk:nr:RU" in cbs and "mk:nr:UZ" in cbs, str(cbs))
+    # kanal matni inglizcha -> UZ tanlansa ogohlantirish va tavsiya (Global)
+    users_data[OWN]["mk_new"].update(title="The best daily news and free tips for you", about="")
+    upd, query, chat = make_cb_update(OWN, "mk:nr:UZ")
+    asyncio.run(h.market_callback(upd, ctx_own))
+    kb = query.edit_message_text.await_args.kwargs["reply_markup"].inline_keyboard
+    cbs = [b.callback_data for row in kb for b in row]
+    check("kanal tili mos kelmasa: ogohlantirish, tavsiya (Global) va «qolsin» tugmalari; narx hali so'ralmaydi",
+          "ingliz" in query.edit_message_text.await_args.args[0] and cbs == ["mk:nk:ZZ", "mk:nk:UZ"] and users_data[OWN].get(h.INPUT_KEY) is None, str(cbs))
+    users_data[OWN]["mk_new"].update(title="Savdo kanali", about="")
+    upd, query, chat = make_cb_update(OWN, "mk:nk:UZ")
+    asyncio.run(h.market_callback(upd, ctx_own))
+    check("«UZ qolsin»: hudud UZ, valyuta so'm, narx so'raladi", users_data[OWN]["mk_new"]["country"] == "UZ" and users_data[OWN]["mk_new"]["currency"] == "UZS"
+          and users_data[OWN][h.INPUT_KEY]["kind"] == "price_new")
     upd, msg = make_msg_update(OWN, "xato narx")
     asyncio.run(h.market_text_input(upd, ctx_own))
     check("noto'g'ri narx rad etiladi", msg.reply_text.await_count == 1 and users_data[OWN][h.INPUT_KEY]["kind"] == "price_new")

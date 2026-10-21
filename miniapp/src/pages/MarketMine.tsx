@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppData } from '../AppData'
 import { ApiClientError } from '../api/client'
-import { MARKET_CATEGORIES, type MarketCategory, type MarketListing, type MarketSummary } from '../api/types'
+import { MARKET_CATEGORIES, type MarketCategory, type MarketListing, type MarketRegionCheck, type MarketSummary } from '../api/types'
 import { Avatar } from '../components/Avatar'
 import { ConfirmDialog } from '../components/Dialog'
 import { SubPage } from '../components/SubPage'
@@ -11,7 +11,7 @@ import { useI18n, type MessageKey } from '../i18n'
 import { haptic, openBot } from '../telegram'
 import type { MarketMine } from '../api/types'
 import { ListingFacts } from './MarketListing'
-import { parsePriceInput } from './marketUtils'
+import { parsePriceInput, regionLabel } from './marketUtils'
 
 const STATUS_KEY: Record<string, MessageKey> = {
   active: 'mk.statusActive', paused: 'mk.statusPaused', blocked: 'mk.statusBlocked',
@@ -64,7 +64,7 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
   onBack: () => void; onChanged: () => void
 }) {
   const { client, notify, botUsername } = useAppData()
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [listing, setListing] = useState<MarketListing | null>(initial)
   const [category, setCategory] = useState<MarketCategory>(initial?.category ?? 'other')
   const [price, setPrice] = useState(initial?.price == null ? '' : String(initial.price))
@@ -73,13 +73,43 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
   const [error, setError] = useState<ApiClientError | null>(null)
   const [priceBad, setPriceBad] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState(false)
-  // Valyuta: mavjud e'lonniki; yangi e'lon — egasining mamlakatiga qarab (O'zbekiston raqami -> so'm, boshqa -> dollar).
-  const currency = initial?.currency ?? summary?.viewer.currency ?? 'UZS'
+  // Hudud (faqat yangi e'londa): standart — egasining telefon mamlakati; bot kanal tilini tekshirib tavsiya beradi.
+  const globalCode = summary?.global_region ?? 'ZZ'
+  const [region, setRegion] = useState<string>(() => summary?.viewer.country || globalCode)
+  const [regionTouched, setRegionTouched] = useState(false)
+  const [check, setCheck] = useState<MarketRegionCheck | null>(null)
+  const [checking, setChecking] = useState(false)
+  // Valyuta: mavjud e'lonniki; yangi e'lon — tanlangan hududga qarab (O'zbekiston -> so'm, boshqa/global -> dollar).
+  const currency = initial?.currency ?? (region === 'UZ' ? 'UZS' : 'USD')
   const needPhone = !initial && summary !== null && summary.viewer.country === ''
   const min = currency === 'USD' ? (summary?.price_min_usd ?? 1) : (summary?.price_min ?? 1000)
   const max = currency === 'USD' ? (summary?.price_max_usd ?? 100000) : (summary?.price_max ?? 1_000_000_000)
   const descMax = summary?.description_max ?? 400
   const blocked = listing?.status === 'blocked'
+  const isNew = !initial
+
+  // summary kech kelsa — standart hudud telefon mamlakatiga o'tadi (egasi hali tanlamagan bo'lsa)
+  useEffect(() => {
+    if (isNew && !regionTouched && summary) setRegion(summary.viewer.country || summary.global_region)
+  }, [isNew, regionTouched, summary])
+
+  // Bot kanal tilini tekshiradi: mos kelmasa tavsiya; egasi hali tanlamagan bo'lsa tavsiya avtomatik qo'yiladi.
+  useEffect(() => {
+    if (!isNew || !summary) return
+    const ctl = new AbortController()
+    setChecking(true)
+    const timer = setTimeout(() => {
+      client.marketRegionCheck(channelId, region, desc, ctl.signal)
+        .then((r) => {
+          if (ctl.signal.aborted) return
+          setCheck(r)
+          if (!regionTouched && r.recommended && r.recommended !== region) setRegion(r.recommended)
+        })
+        .catch(() => { if (!ctl.signal.aborted) setCheck(null) })
+        .finally(() => { if (!ctl.signal.aborted) setChecking(false) })
+    }, 450)
+    return () => { clearTimeout(timer); ctl.abort() }
+  }, [client, channelId, region, desc, isNew, regionTouched, summary])
 
   const run = async (name: string, work: () => Promise<void>) => {
     setBusy(name)
@@ -103,7 +133,7 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
       setListing(await client.marketUpdate(listing.id, { category, price: parsed, description: desc2 }))
       notify(t('mk.saved'))
     } else {
-      setListing(await client.marketPublish({ channel_id: channelId, category, price: parsed, description: desc2 }))
+      setListing(await client.marketPublish({ channel_id: channelId, region, category, price: parsed, description: desc2 }))
       notify(t('mk.published'))
     }
     haptic('success')
@@ -151,7 +181,30 @@ export function MineEditor({ channelId, title, listing: initial, summary, onBack
           onChange={(e) => setCategory(e.target.value as MarketCategory)}>
           {MARKET_CATEGORIES.map((c) => <option key={c} value={c}>{t(`mk.cat.${c}` as MessageKey)}</option>)}
         </select>
-        <label className="field" htmlFor="mk-price">{t('mk.fPriceInput')}</label>
+        {isNew ? (
+          <>
+            <label className="field" htmlFor="mk-region">{t('mk.fRegion')}</label>
+            <select id="mk-region" className="input" value={region} disabled={busy !== null}
+              onChange={(e) => { setRegion(e.target.value); setRegionTouched(true); setPriceBad(false) }}>
+              <option value={globalCode}>{regionLabel(globalCode, lang, t('mk.global'))}</option>
+              {(summary?.regions ?? []).map((c) => <option key={c} value={c}>{regionLabel(c, lang, t('mk.global'))}</option>)}
+            </select>
+            {check && check.fits === false && check.suggested && check.language && (
+              <div className="banner banner-warn" role="status">
+                {t('mk.regionMismatch', { lang: t(`mk.lang.${check.language}` as MessageKey), region: regionLabel(region, lang, t('mk.global')), suggested: regionLabel(check.suggested, lang, t('mk.global')) })}{' '}
+                <button type="button" className="btn btn-ghost" onClick={() => { setRegion(check.suggested ?? globalCode); setRegionTouched(true) }}>
+                  {t('mk.regionUse', { name: regionLabel(check.suggested, lang, t('mk.global')) })}
+                </button>
+              </div>
+            )}
+            <p className="muted small">
+              {checking ? t('mk.regionChecking') : check?.fits === true && check.language ? `✓ ${t('mk.regionOk', { lang: t(`mk.lang.${check.language}` as MessageKey) })}` : t('mk.regionHint')}
+            </p>
+          </>
+        ) : (
+          listing?.country && <p className="muted small">{t('mk.fRegion')}: {regionLabel(listing.country, lang, t('mk.global'))}</p>
+        )}
+        <label className="field" htmlFor="mk-price">{t(currency === 'USD' ? 'mk.fPriceInputUsd' : 'mk.fPriceInput')}</label>
         <input id="mk-price" className="input" inputMode="numeric" value={price} placeholder={currency === 'USD' ? '$20' : '50000'} aria-invalid={priceBad || undefined}
           disabled={busy !== null} onChange={(e) => { setPrice(e.target.value); setPriceBad(false) }} />
         <p className={priceBad ? 'field-error' : 'muted small'}>{t(currency === 'USD' ? 'mk.priceHintUsd' : 'mk.priceHint')}</p>

@@ -30,11 +30,12 @@ function setup(extra: (url: string, method: string, body: unknown) => Response |
     const custom = extra(url, method, body)
     if (custom) return custom
     if (url.includes('/market/summary')) {
-      return jsonResponse({ listings: 3, inquiries: 5, categories: ['tech', 'news'], max_listings: 5, price_min: 1000, price_max: 1000000000, description_max: 400, message_min: 10, message_max: 1000 })
+      return jsonResponse({ listings: 3, inquiries: 5, categories: ['tech', 'news'], max_listings: 5, price_min: 1000, price_max: 1000000000, viewer: { country: 'UZ', currency: 'UZS' }, regions: ['UZ', 'RU', 'KZ', 'US'], global_region: 'ZZ', description_max: 400, message_min: 10, message_max: 1000 })
     }
     if (url.includes('/market/listings?')) return jsonResponse({ items: [LISTING, UNKNOWN], total: 2, page: 0, pages: 1, page_size: 5 })
     if (url.match(/\/market\/listings\/7$/)) return jsonResponse({ listing: LISTING, is_owner: false })
     if (url.match(/\/market\/listings\/8$/)) return jsonResponse({ listing: UNKNOWN, is_owner: false })
+    if (url.includes('/market/region-check')) return jsonResponse({ language: 'ru', fits: false, suggested: 'RU', recommended: 'RU', currency: 'USD' })
     if (url.includes('/market/mine')) return jsonResponse({ items: [
       { channel_id: '-1001', title: 'Kanal A', listing: MINE_LISTED }, { channel_id: '-1002', title: 'Kanal B', listing: null }], max_listings: 5 })
     if (url.endsWith('/market/unread')) return jsonResponse({ unread: 3 })
@@ -67,14 +68,34 @@ describe('Reklama birjasi (Mini App)', () => {
     expect(screen.getByText(/💲 kelishiladi/)).toBeTruthy()
   })
 
+  it('hudud tanlash: bot kanal tili boshqa ekanini aytadi, tavsiya tugmasi hududni almashtiradi (valyuta ham), POST region bilan ketadi', async () => {
+    const calls = setup((url, method) => (method === 'POST' && url.endsWith('/market/mine') ? jsonResponse({ listing: { ...MINE_LISTED, id: 11, channel_id: '-1002', country: 'RU' } }, 201) : undefined))
+    render(<App />)
+    await screen.findByText('Texno Yangiliklar')
+    fireEvent.click(screen.getByRole('button', { name: 'Kanalim' }))
+    fireEvent.click((await screen.findByText("E'lon qilinmagan")).closest('button')!)
+    const region = (await screen.findByLabelText('Kanal hududi')) as HTMLSelectElement
+    expect(Array.from(region.options).map((o) => o.value)).toEqual(['ZZ', 'UZ', 'RU', 'KZ', 'US'])
+    fireEvent.change(region, { target: { value: 'KZ' } })
+    expect(await screen.findByText(/rus tilida ko'rinadi/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /ni tanlash/ }))
+    await waitFor(() => expect(region.value).toBe('RU'))
+    expect(await screen.findByLabelText('1 post narxi ($)')).toBeTruthy() // UZ bo'lmagan hudud -> dollar
+    fireEvent.change(screen.getByLabelText('1 post narxi ($)'), { target: { value: '20' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Birjaga chiqarish' }))
+    await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/market/mine'))).toBe(true))
+    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/market/mine'))!.body).toMatchObject({ region: 'RU', price: 20 })
+  })
+
   it('mahalliy/xalqaro belgisi: ko\'ruvchi mamlakati bilan solishtiriladi; mamlakati noma\'lum kanalda belgi yo\'q', async () => {
     setup((url) => (url.includes('/market/listings?')
-      ? jsonResponse({ items: [{ ...LISTING, country: 'UZ' }, { ...UNKNOWN, country: 'RU' }, { ...UNKNOWN, id: 9, title: 'Nomaʼlum', country: null }], total: 3, page: 0, pages: 1, page_size: 5, viewer_country: 'UZ', filter: 'all' })
+      ? jsonResponse({ items: [{ ...LISTING, country: 'UZ' }, { ...UNKNOWN, country: 'RU' }, { ...UNKNOWN, id: 9, title: 'Nomaʼlum', country: null }, { ...UNKNOWN, id: 10, title: 'Dunyo', country: 'ZZ' }], total: 4, page: 0, pages: 1, page_size: 5, viewer_country: 'UZ', filter: 'all' })
       : undefined))
     render(<App />)
     await screen.findByText('Texno Yangiliklar')
     expect(screen.getAllByText(/Mahalliy/).length).toBe(1)
     expect(screen.getAllByText(/Xalqaro/).length).toBe(1)
+    expect(document.querySelectorAll('.mk-origin-global').length).toBe(1) // «ZZ» = global kanal
   })
 
   it('kartada noma\'lum ko\'rsatkich halol: «ma\'lumot yetarli emas», soxta 0 yo\'q', async () => {
@@ -133,7 +154,7 @@ describe('Reklama birjasi (Mini App)', () => {
     fireEvent.click(screen.getByRole('button', { name: "Birjaga chiqarish" }))
     await waitFor(() => expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/market/mine'))).toBe(true))
     expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/market/mine'))!.body)
-      .toEqual({ channel_id: '-1002', category: 'shop', price: 50000, description: 'Savdo kanali' })
+      .toEqual({ channel_id: '-1002', region: 'UZ', category: 'shop', price: 50000, description: 'Savdo kanali' })
   })
 
   it('e\'lonni to\'xtatish PATCH {status: paused} yuboradi', async () => {

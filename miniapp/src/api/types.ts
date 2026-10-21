@@ -287,7 +287,17 @@ export interface MarketListing {
   inquiry_count?: number
 }
 
+export interface MarketRegionCheck {
+  language: string | null
+  fits: boolean | null
+  suggested: string | null
+  recommended: string | null
+  currency: 'UZS' | 'USD'
+}
 export interface MarketSummary {
+  /** Tanlanadigan davlatlar (ISO-2; mashhurlari boshida) va global belgisi («ZZ»). */
+  regions: string[]
+  global_region: string
   listings: number
   inquiries: number
   categories: MarketCategory[]
@@ -343,6 +353,8 @@ export type MarketMessageFlag = 'prepay' | 'scam' | 'pressure' | 'link'
 
 export interface MarketListingInput {
   channel_id: string
+  /** Kanal hududi: ISO-2 davlat yoki «ZZ» (global). Berilmasa — egasining telefon mamlakati. */
+  region?: string
   category: MarketCategory
   price: number | null
   description: string | null

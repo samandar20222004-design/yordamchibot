@@ -9,7 +9,7 @@ import { Button, ErrorState, FormError, LoadingBlock } from '../components/ui'
 import { toClientError } from '../hooks/useResource'
 import { useI18n, type MessageKey } from '../i18n'
 import { haptic, openChannel } from '../telegram'
-import { formatCount, formatMoney } from './marketUtils'
+import { formatCount, formatMoney, regionLabel } from './marketUtils'
 
 /** Narx: «60 000 so'm» yoki «kelishiladi». */
 export function usePriceText(): (price: number | null, currency?: 'UZS' | 'USD') => string {
@@ -53,11 +53,12 @@ export function ListingBadges({ listing }: { listing: MarketListing }) {
 }
 
 export function ListingFacts({ listing }: { listing: MarketListing }) {
-  const { t, formatDateTime } = useI18n()
+  const { t, lang, formatDateTime } = useI18n()
   const price = usePriceText()
   return (
     <>
       <ListingMetrics listing={listing} />
+      {listing.country && <p className="muted small">{t('mk.fRegion')}: {regionLabel(listing.country, lang, t('mk.global'))}</p>}
       <div className="mk-price"><span className="muted">{t('mk.fPrice')}</span><strong>{price(listing.price, listing.currency)}</strong></div>
       <ListingBadges listing={listing} />
       {listing.description && <p className="mk-desc">{listing.description}</p>}

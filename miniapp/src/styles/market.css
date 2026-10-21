@@ -155,3 +155,4 @@
 .mk-origin-local { background: color-mix(in srgb, #22c55e 18%, transparent); }
 .mk-origin-intl { background: color-mix(in srgb, #3b82f6 16%, transparent); }
 .mk-subtabs { margin-block: 0; }
+.mk-origin-global { background: color-mix(in srgb, #8b5cf6 18%, transparent); }

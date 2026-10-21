@@ -162,6 +162,17 @@ def refresh_listing_stats(listing_id: int, channel_id: str, live_members: int | 
     return stats
 
 
+async def channel_texts(bot, channel_ref) -> tuple[str, str]:
+    """Hudud aniqlash uchun kanal nomi va tavsifi (jonli); xato bo'lsa bo'sh (aniqlash shunchaki o'tkazib yuboriladi)."""
+    from telegram.error import TelegramError
+
+    try:
+        chat = await bot.get_chat(int(channel_ref) if str(channel_ref).lstrip("-").isdigit() else channel_ref)
+    except TelegramError:
+        return "", ""
+    return chat.title or "", getattr(chat, "description", None) or ""
+
+
 async def verify_channel_ownership(bot, user_id: int, channel_ref) -> dict:
     """Birjaga chiqarishdan oldin JONLI tekshiruv (bot ham, foydalanuvchi ham kanal admini, kanal ochiq).
 
@@ -183,7 +194,8 @@ async def verify_channel_ownership(bot, user_id: int, channel_ref) -> dict:
         return {"ok": False, "reason": "tg_error"}
     if bot_member.status not in ("administrator", "creator") or user_member.status not in ("administrator", "creator"):
         return {"ok": False, "reason": "not_admin"}
-    return {"ok": True, "username": chat.username, "title": chat.title or chat.username, "members": int(members)}
+    return {"ok": True, "username": chat.username, "title": chat.title or chat.username, "members": int(members),
+            "description": getattr(chat, "description", None) or ""}
 
 
 def screen_message(user_id: int, text: str, *, first_message: bool, owner_sender: bool) -> dict:

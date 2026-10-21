@@ -90,6 +90,21 @@ def parse_message(value) -> str:
     return text
 
 
+def _region():
+    from services import channel_region
+
+    return channel_region
+
+
+def _parse_region(value, default: str) -> str | None:
+    """Hudud: ISO-2 davlat yoki ``ZZ`` (global). Berilmasa ``default`` (bo'sh bo'lsa ``None``); noto'g'ri qiymat -> 422."""
+    if value is None or value == "":
+        return default or None
+    if not isinstance(value, str) or not _region().valid_region(value):
+        raise ApiError("invalid_input", field="region")
+    return value.upper()
+
+
 class MarketApi:
     def __init__(self, service, settings: MiniAppSettings, *, bot_factory=None, repo=None) -> None:
         self._service = service
@@ -175,6 +190,7 @@ class MarketApi:
                 "price_min": svc.PRICE_MIN, "price_max": svc.PRICE_MAX,
                 "price_min_usd": svc.PRICE_MIN_USD, "price_max_usd": svc.PRICE_MAX_USD,
                 "viewer": {"country": country, "currency": svc.owner_currency(country)},
+                "regions": _region().all_regions(), "global_region": _region().GLOBAL,
                 "description_max": svc.DESCRIPTION_MAX, "message_min": svc.INQUIRY_MIN, "message_max": TEXT_MAX}
 
     async def catalog(self, user_id: int, *, category: str | None, sort: str, page: int, country: str = "all") -> dict:
@@ -269,16 +285,18 @@ class MarketApi:
         return {"items": items, "max_listings": repo.MAX_LISTINGS_PER_USER}
 
     async def publish(self, user_id: int, body: dict) -> dict:
-        writes._only_keys(body, ("channel_id", "category", "price", "description"))
+        writes._only_keys(body, ("channel_id", "category", "price", "description", "region"))
         channel_id = writes.parse_channel_id(body.get("channel_id"))
         category = parse_category(body.get("category"))
         description = parse_description(body.get("description"))
         await self._service.authorize(user_id)
         svc, repo = _svc(), self.repo()
-        country = await self._blocking(repo.get_viewer_country, user_id)
-        if not country:  # e'lon uchun telefon (mamlakat) tasdiqlanishi shart — botda
+        phone_country = await self._blocking(repo.get_viewer_country, user_id)
+        if not phone_country:  # e'lon uchun telefon (mamlakat) tasdiqlanishi shart — botda
             raise ApiError("phone_required")
-        currency = svc.owner_currency(country)
+        region = _parse_region(body.get("region"), phone_country)  # egasi tanlagan hudud (standart — telefon mamlakati)
+        country = region
+        currency = svc.owner_currency(region)
         price = parse_price(body.get("price"), currency)
         channel = await self._blocking(repo.get_owned_channel, user_id, channel_id)
         if channel is None:
@@ -296,6 +314,20 @@ class MarketApi:
         await self._blocking(svc.refresh_listing_stats, res["listing_id"], channel["channel_id"], info["members"])
         row = await self._blocking(repo.get_listing_for_owner, res["listing_id"], user_id)
         return {"listing": public_listing(row, owner=True)}
+
+    async def region_check(self, user_id: int, channel_id_raw, region_raw, desc_raw) -> dict:
+        """Tanlangan hudud kanal tiliga mosmi (faqat o'qish): ``{language, fits, suggested, recommended, currency}``."""
+        channel_id = writes.parse_channel_id(channel_id_raw)
+        region = _parse_region(region_raw, "")
+        desc = desc_raw if isinstance(desc_raw, str) and len(desc_raw) <= 1000 else ""
+        await self._service.authorize(user_id)
+        svc, repo = _svc(), self.repo()
+        channel = await self._blocking(repo.get_owned_channel, user_id, channel_id)
+        if channel is None:
+            raise ApiError("channel_not_found")
+        title, about = await svc.channel_texts(await self._bot(), channel["channel_id"])
+        res = _region().assess(region, title or channel.get("title"), about, desc)
+        return {**res, "currency": svc.owner_currency(res["recommended"] if region is None else region)}
 
     async def update_listing(self, user_id: int, listing_id: int, body: dict) -> dict:
         writes._only_keys(body, ("category", "price", "description", "status"))

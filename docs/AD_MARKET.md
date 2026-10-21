@@ -86,10 +86,12 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 - Kunlik snapshotni e'lonlar uchun majburiy qilish va ko'rsatkichlarni fon vazifasida yangilash (hozir kartani ochganda ≥6 soat eskirgan bo'lsa bazadan qayta hisoblanadi).
 - Haftalik hisobot kanal egasiga («kartangiz N marta ko'rildi, M so'rov») — o'sish uchun foydali.
 
-## Mahalliy yoki xalqaro: qanday aniqlanadi
-- Kanalning mamlakati = **e'lon egasining tasdiqlangan telefon mamlakati** (`users.phone_country`; o'z kontakti, raqam saqlanmaydi) — soxtalashtirib bo'lmaydi. E'lon qo'yilganda `listings.country` ga yoziladi.
-- Mini App kartasida ko'ruvchining mamlakati bilan solishtiriladi: bir xil bo'lsa **🇺🇿 Mahalliy**, boshqa bo'lsa **🇷🇺 Xalqaro** (bayroq bilan); mamlakat noma'lum bo'lsa faqat 🌐. Katalog standarti — o'z mamlakati, «🌍 Hammasi» — global.
-- Cheklov: bu EGASI mamlakati, kanal auditoriyasi tili emas (masalan, Rossiyada yashovchi o'zbek kanali «xalqaro» bo'ladi). Keyingi yaxshilash: kanal nomi/tavsifi tilini aniqlab alohida «til» belgisi.
+## Kanal hududi: davlat yoki Global (qanday aniqlanadi)
+- E'lon qo'yayotganda egasi faqat **davlatni** tanlaydi (yoki «🌍 Global» — hamma uchun). Bot: mavzudan keyin hudud ekrani, tavsiya kanal tiliga qarab birinchi tugmada; Mini App: «Kanal hududi» ro'yxati (davlatlar, mashhurlari boshida). Standart — egasining tasdiqlangan telefon mamlakati.
+- **Til tekshiruvi** (`services/channel_region.py`): kanal nomi + tavsifi + e'lon matni tili (uz/ru/en/tr/ar/uk/kk) aniqlanadi va tanlangan davlatning tabiiy tillari bilan solishtiriladi (UZ: o'zbek+rus, RU: rus, TR: turk, AE/SA..: arab, US/GB..: ingliz). Mos kelmasa — ogohlantirish va tavsiya (masalan UZ + inglizcha matn -> Global), QAROR egasiniki. Noaniq matn (qisqa, aralash, noma'lum lotin tili) yoki til xaritasi yo'q davlat — ogohlantirish YO'Q (chet ellik foydalanuvchilar bexuda to'silmaydi).
+- Saqlanadi: `ad_market_listings.country` = ISO-2 yoki `ZZ` (global). Valyuta hududga qarab: UZ — so'm, boshqa/global — dollar. Katalog «o'z mamlakati» filtrida global kanallar ham ko'rinadi.
+- Mini App: `GET /market/region-check?channel_id=&region=&d=` (faqat o'qish), `POST /market/mine` `region` maydoni bilan; kartada «Mahalliy / Xalqaro / Global» belgisi (ko'ruvchi mamlakati bilan solishtiriladi). Test: `tests/channel_region_test.py`, `ad_market_test`, `miniapp_market_test`.
+- Cheklov: til faqat nom/tavsif/e'lon matnidan aniqlanadi (postlar tahlil qilinmaydi); hudud e'londan keyin o'zgartirilmaydi (valyuta bog'liq) — o'chirib qayta qo'yiladi.
 
 ## Mini App ko'rinishi (ixcham)
 Sarlavha qatori + statistika, bitta asboblar paneli (mamlakat · saralash), bir qatorli mavzu chiplari, 2 qatorli kartalar (nom + belgi / 👥 📈 💲 mavzu). Yo'riqnoma (qanday ishlaydi) pastda yig'ilgan.

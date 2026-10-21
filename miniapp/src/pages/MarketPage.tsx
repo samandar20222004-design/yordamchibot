@@ -60,9 +60,10 @@ function useCatalog(category: MarketCategory | 'all', sort: MarketSort, scope: '
 }
 
 /** Kanal mahalliymi yoki xalqaroligi: e'lon egasining TASDIQLANGAN telefon mamlakati ko'ruvchiniki bilan solishtiriladi. */
-function originOf(listing: MarketListing, viewerCountry: string): 'local' | 'intl' | 'unknown' {
+function originOf(listing: MarketListing, viewerCountry: string): 'local' | 'intl' | 'global' | 'unknown' {
   const c = (listing.country ?? '').toUpperCase()
-  if (!c || c === 'ZZ') return 'unknown'
+  if (c === 'ZZ') return 'global'
+  if (!c) return 'unknown'
   return viewerCountry && c === viewerCountry.toUpperCase() ? 'local' : 'intl'
 }
 
@@ -70,14 +71,15 @@ function ListingRow({ listing, viewerCountry, onOpen }: { listing: MarketListing
   const { t } = useI18n()
   const price = usePriceText()
   const origin = originOf(listing, viewerCountry)
+  const originText = origin === 'global' ? t('mk.global') : origin === 'local' ? t('mk.local') : t('mk.intl')
   return (
     <button type="button" className="item mk-card mk-card-compact" onClick={() => { haptic('select'); onOpen() }}>
       <Avatar text={listing.title} small />
       <span className="mk-card-main">
         <span className="mk-card-top">
           <strong className="mk-card-title">{listing.title}</strong>
-          <span className={`mk-origin mk-origin-${origin}`} title={t(origin === 'local' ? 'mk.local' : 'mk.intl')}>
-            {countryFlag(listing.country)}{origin === 'unknown' ? '' : ` ${t(origin === 'local' ? 'mk.local' : 'mk.intl')}`}
+          <span className={`mk-origin mk-origin-${origin}`} title={originText}>
+            {origin === 'global' ? '🌍' : countryFlag(listing.country)}{origin === 'unknown' ? '' : ` ${originText}`}
           </span>
         </span>
         <span className="muted small mk-card-meta">
@@ -124,7 +126,10 @@ function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
       {cat.loading && cat.items.length === 0 && <LoadingBlock rows={3} />}
       {cat.error && cat.items.length === 0 && <ErrorState error={cat.error} onRetry={cat.reload} />}
       {!cat.loading && !cat.error && cat.items.length === 0 && (
-        <section className="card mk-empty"><p>{t('mk.empty')}</p></section>
+        <section className="card mk-empty">
+          <p>{t(cat.applied === 'mine' ? 'mk.emptyMine' : 'mk.empty')}</p>
+          {cat.applied === 'mine' && <Button onClick={() => setScope('all')}>{t('mk.countryAll')}</Button>}
+        </section>
       )}
       {cat.items.length > 0 && (
         <ul className="list mk-list">

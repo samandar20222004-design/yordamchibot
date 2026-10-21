@@ -240,14 +240,14 @@ _SORTS = {
 
 def list_catalog(category: str | None = None, sort: str = "m", page: int = 0, page_size: int = PAGE_SIZE,
                  country: str | None = None) -> dict:
-    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``. ``country`` (ISO-2) berilsa — faqat shu mamlakat e'lonlari."""
+    """Faol e'lonlar sahifasi: ``{"items": [...], "total": n}``. ``country`` (ISO-2) berilsa — shu mamlakat va global («ZZ») e'lonlari."""
     where = ["l.status = 'active'"]
     params: list = []
     if category and category != "all":
         where.append("l.category = %s")
         params.append(category)
-    if country:
-        where.append("l.country = %s")
+    if country:  # o'z mamlakati + global («ZZ») e'lonlar hamma uchun ko'rinadi
+        where.append("(l.country = %s OR l.country = 'ZZ')")
         params.append(str(country).upper()[:2])
     order = _SORTS.get(sort, _SORTS["m"])
     size = max(1, min(int(page_size), 20))

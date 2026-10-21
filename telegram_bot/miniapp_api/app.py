@@ -381,6 +381,12 @@ async def market_report_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].report(request["user_id"], _market_id(request)))
 
 
+async def market_region_check_handler(request: web.Request):
+    q = request.query
+    return web.json_response(await request.app[_K_MARKET].region_check(request["user_id"], q.get("channel_id"), q.get("region"), q.get("d", "")),
+                             headers={"Cache-Control": "no-store"})
+
+
 async def market_mine_handler(request: web.Request):
     return web.json_response(await request.app[_K_MARKET].mine(request["user_id"]), headers={"Cache-Control": "no-store"})
 
@@ -797,6 +803,7 @@ def build_api_app(settings: MiniAppSettings, *, runner=None, limiter=None, clock
     api.router.add_get("/market/listings/{item_id}", market_listing_handler)
     api.router.add_post("/market/listings/{item_id}/inquiries", market_inquire_handler)
     api.router.add_post("/market/listings/{item_id}/report", market_report_handler)
+    api.router.add_get("/market/region-check", market_region_check_handler)
     api.router.add_get("/market/mine", market_mine_handler)
     api.router.add_post("/market/mine", market_publish_handler)
     api.router.add_patch("/market/mine/{item_id}", market_update_handler)

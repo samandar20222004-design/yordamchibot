@@ -240,7 +240,7 @@ def test_all_routes_require_auth():
                 ("POST", "/api/v1/templates")]
     # 💰 Reklama birjasi (miniapp_api/market.py): har biri auth talab qiladi, yozuvchilari yozuv-limiti bilan.
     expected += [("DELETE", "/api/v1/market/mine/{item_id}"), ("GET", "/api/v1/market/listings"), ("GET", "/api/v1/market/listings/{item_id}"),
-                 ("GET", "/api/v1/market/mine"), ("GET", "/api/v1/market/summary"), ("GET", "/api/v1/market/threads"),
+                 ("GET", "/api/v1/market/mine"), ("GET", "/api/v1/market/region-check"), ("GET", "/api/v1/market/summary"), ("GET", "/api/v1/market/threads"),
                  ("GET", "/api/v1/market/threads/{item_id}"), ("PATCH", "/api/v1/market/mine/{item_id}"),
                  ("POST", "/api/v1/market/listings/{item_id}/inquiries"), ("POST", "/api/v1/market/listings/{item_id}/report"),
                  ("POST", "/api/v1/market/mine"), ("POST", "/api/v1/market/mine/{item_id}/refresh"),

@@ -1,12 +1,12 @@
 import { config } from '../config'
 import { setAppTimezone } from '../pages/recurrence'
-import type { TeamAdded, TeamInviteCreated, TeamPerson, TeamOverview, TeamPerm, AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { MarketRegionCheck, TeamAdded, TeamInviteCreated, TeamPerson, TeamOverview, TeamPerm, AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
   parseTeam, parseTeamAdded, parseTeamInvite, parseTeamPeople, parseTeamMode, parseAck,
   parseAdminAudit, parseAdminFeatures, parseAdminHealth, parseAdminPromoDetail, parseAdminPromos, parseAdminRoles,
   parseAdminAdEnvelope, parseAdminAds, parseAdminMarket, parseAdminOverview, parseAdminSponsors,
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
-  parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketSummary, parseMarketThread, parseMarketThreads,
+  parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketRegionCheck, parseMarketSummary, parseMarketThread, parseMarketThreads,
   parseCalendar, parseDeleted, parseSettingsSaved, parseTemplateDeleted, parseTemplateSaved, parseTemplates, parseScheduleParse, parseDraft, parsePostResult, parseScheduled,
 } from './validate'
 
@@ -262,6 +262,9 @@ export function createApiClient(opts: ClientOptions) {
         return { again: o.again === true, blocked: o.blocked === true }
       }),
     marketMine: (signal?: AbortSignal): Promise<MarketMine> => get('/market/mine', parseMarketMine, signal),
+    /** Tanlangan hudud kanal tiliga mosmi (faqat o'qish). */
+    marketRegionCheck: (channelId: string, region: string, desc: string, signal?: AbortSignal): Promise<MarketRegionCheck> =>
+      get(`/market/region-check?channel_id=${encodeURIComponent(channelId)}&region=${encodeURIComponent(region)}&d=${encodeURIComponent(desc.slice(0, 500))}`, parseMarketRegionCheck, signal),
     marketPublish: (input: MarketListingInput): Promise<MarketListing> =>
       send('POST', '/market/mine', input, parseMarketListingEnvelope, config.aiTimeoutMs),
     marketUpdate: (id: number, patch: Partial<Pick<MarketListingInput, 'category' | 'price' | 'description'>> & { status?: 'active' | 'paused' }): Promise<MarketListing> =>
