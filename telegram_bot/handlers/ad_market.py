@@ -230,18 +230,18 @@ async def market_categories(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: str, sort: str, page: int) -> None:
     lang = await _lang(context, update.effective_user.id)
     cat = cat if cat == "all" or cat in svc.CATEGORIES else "all"
-    sort = sort if sort in ("m", "p", "e") else "m"
+    sort = sort if sort in ("r", "m", "p", "e") else "r"
     page = max(0, page)
     country = await _viewer_country(update.effective_user.id)
     cf = _country_filter(context, country)
     only = country if cf == "mine" else None
     context.user_data["mk_last"] = (cat, sort, page)
-    data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
+    data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only, country or None)
     total, items = data["total"], data["items"]
     pages = max(1, -(-total // repo.PAGE_SIZE))
     if page >= pages:
         page = pages - 1
-        data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only)
+        data = await db.run_db(repo.list_catalog, cat, sort, page, repo.PAGE_SIZE, only, country or None)
         items = data["items"]
     rows = []
     for it in items:
@@ -253,7 +253,7 @@ async def market_list(update: Update, context: ContextTypes.DEFAULT_TYPE, cat: s
             price = svc.format_count(it["price_post"])
         label = f"{_flag(it.get('country'))} {(it['title'] or it['username'])[:18]} · {svc.format_count(it['members'])} · {price}"
         rows.append([_btn(label, f"mk:v:{it['id']}")])
-    sorts = [_btn(("• " if sort == k else "") + market_t(f"mk_sort_{k}", lang), f"mk:l:{cat}:{k}:0") for k in ("m", "p", "e")]
+    sorts = [_btn(("• " if sort == k else "") + market_t(f"mk_sort_{k}", lang), f"mk:l:{cat}:{k}:0") for k in ("r", "m", "p", "e")]
     rows.append(sorts)
     nav = []
     if page > 0:
@@ -920,10 +920,10 @@ async def market_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await market_categories(update, context)
         elif action == "l":
             await market_list(update, context, parts[2] if len(parts) > 2 else "all",
-                              parts[3] if len(parts) > 3 else "m", _int(parts, 4))
+                              parts[3] if len(parts) > 3 else "r", _int(parts, 4))
         elif action == "cf":
             context.user_data["mk_cf"] = "all" if (parts[2] if len(parts) > 2 else "") == "all" else "mine"
-            cat, sort, page = context.user_data.get("mk_last", ("all", "m", 0))
+            cat, sort, page = context.user_data.get("mk_last", ("all", "r", 0))
             await market_list(update, context, cat, sort, 0 if page is None else page)
         elif action == "cfv":
             from handlers.phone_verify import PURPOSE_COUNTRY, ask_phone_verification

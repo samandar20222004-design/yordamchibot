@@ -108,3 +108,35 @@ def assess(region: str | None, *texts: str | None) -> dict:
     suggested = suggest_region(lang)
     return {"language": lang, "fits": False, "suggested": suggested, "recommended": suggested or chosen}
 
+
+
+# ---------------------------------------------------------------- yaqin davlatlar (katalog tartibi uchun)
+_BORDERS: dict[str, tuple] = {
+    "UZ": ("KZ", "KG", "TJ", "TM", "AF"), "KZ": ("UZ", "KG", "RU", "CN", "TM"), "KG": ("UZ", "KZ", "TJ", "CN"),
+    "TJ": ("UZ", "KG", "TM", "AF", "CN"), "TM": ("UZ", "KZ", "TJ", "AF", "IR"), "RU": ("KZ", "BY", "UA", "AZ", "GE", "AM", "CN"),
+    "UA": ("PL", "BY", "RU", "MD", "RO", "SK", "HU"), "BY": ("RU", "UA", "PL", "LT", "LV"),
+    "TR": ("AZ", "GE", "AM", "IR", "IQ", "SY", "BG", "GR"), "AZ": ("TR", "GE", "AM", "RU", "IR", "KZ"),
+    "GE": ("TR", "AZ", "AM", "RU"), "AM": ("TR", "AZ", "GE", "IR", "RU"), "IN": ("PK", "BD", "NP", "LK"),
+    "DE": ("AT", "CH", "NL", "PL", "FR", "CZ", "BE", "DK"), "US": ("CA", "MX"), "GB": ("IE", "FR"),
+}
+_GROUPS: tuple = (
+    frozenset({"RU", "UA", "BY", "KZ", "KG", "TJ", "TM", "UZ", "AZ", "AM", "GE", "MD"}),          # MDH / rus tilli makon
+    frozenset({"TR", "AZ", "UZ", "KZ", "KG", "TM"}),                                              # turkiy tillar
+    frozenset(_ARAB),                                                                              # arab dunyosi
+    frozenset({"DE", "FR", "IT", "ES", "PT", "NL", "BE", "AT", "CH", "PL", "CZ", "SK", "HU", "RO", "BG", "GR", "SE", "NO", "DK", "FI", "IE"}),
+    frozenset({"US", "GB", "CA", "AU", "NZ", "IE"}),
+    frozenset({"IN", "PK", "BD", "LK", "NP"}),
+)
+
+
+def near_countries(country: str | None) -> list[str]:
+    """Davlatga YAQIN davlatlar: chegaradosh + bir til/madaniyat guruhidagilar (o'zi kirmaydi). Noma'lum/global -> ``[]``."""
+    c = str(country or "").upper()
+    if not c or c == GLOBAL:
+        return []
+    out = set(_BORDERS.get(c, ()))
+    for g in _GROUPS:
+        if c in g:
+            out |= g
+    out.discard(c)
+    return sorted(out)

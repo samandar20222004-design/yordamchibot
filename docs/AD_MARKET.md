@@ -95,3 +95,11 @@ ehtiyot bo'ling» ogohlantirishi bor. Keyingi bosqich: escrow / to'lov kafolati.
 
 ## Mini App ko'rinishi (ixcham)
 Sarlavha qatori + statistika, bitta asboblar paneli (mamlakat · saralash), bir qatorli mavzu chiplari, 2 qatorli kartalar (nom + belgi / 👥 📈 💲 mavzu). Yo'riqnoma (qanday ishlaydi) pastda yig'ilgan.
+
+## Katalog tartibi («⭐ Tavsiya» — standart)
+Avval **hudud yaqinligi**, keyin **sifat ballı**:
+- «Hammasi» ko'rinishi (ko'ruvchi mamlakati X): 1) X ga YAQIN davlatlar (chegaradosh + bir til/madaniyat guruhi: `channel_region.near_countries`; UZ uchun KZ, KG, TJ, TM, RU...) → 2) Global (`ZZ`) → 3) boshqa davlatlar → 4) o'z mamlakati kanallari ENG PASTDA (ular «o'z mamlakati» ro'yxatida ko'rinadi).
+- «O'z mamlakati» ko'rinishi: avval o'z davlat kanallari, keyin global.
+- Bir hudud ichida sifat ballı (0..1): ER 50% (30% da to'yinadi) + obunachi 30% (logarifmik, 1M da to'yinadi) + o'sish 20% (30 kunda +10% da to'yinadi); ko'rsatkichi hali yo'q kanal ×0,5, ma'lumoti 7 kundan eski ×0,85 (`ad_market_repository._QUALITY`).
+- Aniq saralash (Obunachi / Narx / Faollik) tanlansa — qat'iy shu bo'yicha, yaqinlik e'tiborsiz.
+- Kanal egasiga maslahat: «🔄 Yangilash» bilan ko'rsatkichlarni yangi tuting (7 kundan eskirsa pastga tushadi), ER (post ko'rishlari) va o'sish yuqori bo'lsin, davlatni to'g'ri tanlang.

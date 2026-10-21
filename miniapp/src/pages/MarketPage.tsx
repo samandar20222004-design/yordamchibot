@@ -94,11 +94,11 @@ function ListingRow({ listing, viewerCountry, onOpen }: { listing: MarketListing
 function Catalog({ onOpen }: { onOpen: (id: number) => void }) {
   const { t } = useI18n()
   const [category, setCategory] = useState<MarketCategory | 'all'>('all')
-  const [sort, setSort] = useState<MarketSort>('m')
+  const [sort, setSort] = useState<MarketSort>('r')
   const [scope, setScope] = useState<'all' | 'mine' | 'auto'>('auto')
   const cat = useCatalog(category, sort, scope)
   const { botUsername } = useAppData()
-  const sorts: Array<[MarketSort, MessageKey]> = [['m', 'mk.sortM'], ['p', 'mk.sortP'], ['e', 'mk.sortE']]
+  const sorts: Array<[MarketSort, MessageKey]> = [['r', 'mk.sortR'], ['m', 'mk.sortM'], ['p', 'mk.sortP'], ['e', 'mk.sortE']]
   return (
     <>
       <div className="mk-toolbar">

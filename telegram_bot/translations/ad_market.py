@@ -83,6 +83,7 @@ AD_MARKET_I18N = {
             "Bu mavzuda hozircha kanal yo'q.\n"
             "Birinchi bo'lib kanalingizni qo'ying — reklama beruvchilar sizni birinchi ko'radi! 📢"
         ),
+        "mk_sort_r": "⭐ Tavsiya",
         "mk_sort_m": "👥 Obunachi",
         "mk_sort_p": "💲 Narx",
         "mk_sort_e": "📈 Faollik",
@@ -275,6 +276,7 @@ AD_MARKET_I18N = {
             "В этой теме пока нет каналов.\n"
             "Разместите канал первым — рекламодатели увидят вас раньше всех! 📢"
         ),
+        "mk_sort_r": "⭐ Лучшие",
         "mk_sort_m": "👥 Подписчики",
         "mk_sort_p": "💲 Цена",
         "mk_sort_e": "📈 Вовлечённость",
@@ -464,6 +466,7 @@ AD_MARKET_I18N = {
             "No channels in this topic yet.\n"
             "List yours first — advertisers will see you before anyone else! 📢"
         ),
+        "mk_sort_r": "⭐ Best",
         "mk_sort_m": "👥 Subscribers",
         "mk_sort_p": "💲 Price",
         "mk_sort_e": "📈 Engagement",

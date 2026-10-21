@@ -23,7 +23,7 @@ from .settings import MiniAppSettings
 logger = logging.getLogger(__name__)
 
 TEXT_MAX = 1000
-SORTS = ("m", "p", "e")
+SORTS = ("r", "m", "p", "e")
 
 
 def _repo():
@@ -204,7 +204,7 @@ class MarketApi:
             raise ApiError("bad_request")
         viewer_country = await self._blocking(repo.get_viewer_country, user_id)
         only = viewer_country if (country in ("mine", "auto") and viewer_country) else None
-        data = await self._blocking(repo.list_catalog, category or "all", sort, page, repo.PAGE_SIZE, only)
+        data = await self._blocking(repo.list_catalog, category or "all", sort, page, repo.PAGE_SIZE, only, viewer_country or None)
         pages = max(1, -(-data["total"] // repo.PAGE_SIZE))
         return {"items": [public_listing(i) for i in data["items"]], "total": data["total"], "page": page,
                 "pages": pages, "page_size": repo.PAGE_SIZE, "viewer_country": viewer_country, "filter": "mine" if only else "all"}

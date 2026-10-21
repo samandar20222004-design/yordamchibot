@@ -359,7 +359,7 @@ async def market_summary_handler(request: web.Request):
 async def market_catalog_handler(request: web.Request):
     page = _parse_int(request.query.get("page"), default=0, lo=0, hi=10000)
     data = await request.app[_K_MARKET].catalog(
-        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "m"), page=page,
+        request["user_id"], category=request.query.get("category"), sort=request.query.get("sort", "r"), page=page,
         country=request.query.get("country", "all"))
     return web.json_response(data, headers={"Cache-Control": "no-store"})
 

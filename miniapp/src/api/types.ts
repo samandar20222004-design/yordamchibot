@@ -258,7 +258,7 @@ export interface TemplateList {
 // --- 💰 Reklama birjasi (telegram_bot/miniapp_api/market.py) ---
 export const MARKET_CATEGORIES = ['news', 'tech', 'business', 'education', 'entertainment', 'lifestyle', 'sport', 'shop', 'auto', 'other'] as const
 export type MarketCategory = (typeof MARKET_CATEGORIES)[number]
-export type MarketSort = 'm' | 'p' | 'e'
+export type MarketSort = 'r' | 'm' | 'p' | 'e'
 export type MarketBadge = 'growing' | 'engaged' | 'active'
 
 export interface MarketListing {

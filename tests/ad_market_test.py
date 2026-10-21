@@ -404,6 +404,35 @@ try:
     check("katalog DE filtri: faqat DE e'loni", ids_de == {de_id})
     check("e'lon valyutasi saqlandi (USD / UZS)", repo.get_listing(de_id)["price_currency"] == "USD" and repo.get_listing(L3)["price_currency"] == "UZS")
     q("DELETE FROM ad_market_listings WHERE id = %s", (de_id,))
+
+    # «Tavsiya» tartibi: hudud yaqinligi + sifat
+    mine_ids = {}
+
+    def mk_listing(owner, n, country, members, er, views):
+        ch = f"-10098100002{n}"
+        q("INSERT INTO channels (user_id, channel_id, channel_title) VALUES (%s, %s, %s)", (owner, ch, f"R{n}"))
+        lid_ = repo.create_listing(owner, ch, f"rank{n}", f"R{n}", "tech", 10, None, country=country, price_currency="USD")["listing_id"]
+        q("UPDATE ad_market_listings SET members=%s, er_percent=%s, avg_views=%s, stats_updated_at=NOW() WHERE id=%s", (members, er, views, lid_))
+        mine_ids[n] = lid_
+
+    for n in range(1, 4):
+        q("DELETE FROM ad_market_listings WHERE owner_id = %s", (ADV,))
+    mk_listing(ADV, 1, "UZ", 5000, 20.0, 1000)      # o'z mamlakati
+    mk_listing(ADV, 2, "KZ", 3000, 15.0, 600)       # yaqin davlat (yuqori sifat)
+    mk_listing(ADV, 3, "KZ", 400, None, None)       # yaqin davlat, ko'rsatkichi yo'q
+    mk_listing(ADV2, 4, "ZZ", 4000, 18.0, 800)      # global
+    mk_listing(ADV2, 5, "DE", 9000, 25.0, 2000)     # uzoq davlat
+    mk_listing(ADV2, 6, "TJ", 3500, 12.0, 500)      # yaqin davlat (pastroq sifat)
+    rev = {v: k for k, v in mine_ids.items()}
+    allv = [rev[i["id"]] for i in repo.list_catalog(sort="r", page_size=50, viewer="UZ")["items"] if i["id"] in rev]
+    check("tavsiya (hammasi, ko'ruvchi UZ): yaqinlar (KZ, TJ) -> global -> uzoq (DE) -> o'z mamlakati ENG PASTDA", allv == [2, 6, 3, 4, 5, 1], str(allv))
+    local = [rev[i["id"]] for i in repo.list_catalog(sort="r", page_size=50, country="UZ", viewer="UZ")["items"] if i["id"] in rev]
+    check("tavsiya (o'z mamlakati filtri): avval o'z davlat kanali, keyin global", local == [1, 4], str(local))
+    byfans = [rev[i["id"]] for i in repo.list_catalog(sort="m", page_size=50, viewer="UZ")["items"] if i["id"] in rev]
+    check("aniq saralash (obunachi) yaqinlikni e'tiborsiz qoldiradi — foydalanuvchi tanlovi qat'iy", byfans == [5, 1, 4, 6, 2, 3], str(byfans))
+    noview = [rev[i["id"]] for i in repo.list_catalog(sort="r", page_size=50)["items"] if i["id"] in rev]
+    check("ko'ruvchi mamlakati noma'lum: faqat sifat bo'yicha (DE kuchli ER tepada)", noview[0] == 5 and noview[-1] == 3, str(noview))
+    q("DELETE FROM ad_market_listings WHERE id = ANY(%s)", (list(mine_ids.values()),))
     # telefon tasdiqlanmagan egasi e'lon qo'ya olmaydi
     q("UPDATE users SET phone_country = NULL, uz_verified = FALSE WHERE user_id = %s", (OWN2,))
     check("telefonsiz foydalanuvchining mamlakati noma'lum", asyncio.run(h._viewer_country(OWN2)) == "")

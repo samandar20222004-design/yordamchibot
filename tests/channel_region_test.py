@@ -76,5 +76,11 @@ for lang in ("uz", "ru", "en"):
     long = [k for k in ("mk_btn_use", "mk_btn_keep") if len(market_t(k, lang, name="🇺🇿 UZ")) > 22]
     check(f"[{lang}] hudud tugmalari qisqa", not long, str(long))
 
+print("== Yaqin davlatlar ==")
+nu = R.near_countries("UZ")
+check("UZ yaqinlari: KZ, KG, TJ, TM, RU (til/madaniyat), o'zi yo'q, DE yo'q", {"KZ", "KG", "TJ", "TM", "RU", "AF"} <= set(nu) and "UZ" not in nu and "DE" not in nu, str(nu))
+check("TR yaqinlari: AZ (turkiy+chegara), UZ (turkiy)", {"AZ", "GE", "UZ"} <= set(R.near_countries("tr")))
+check("DE yaqinlari: Yevropa; global/noma'lum/bo'sh -> []", "AT" in R.near_countries("DE") and "FR" in R.near_countries("DE") and R.near_countries("ZZ") == [] and R.near_countries(None) == [] and R.near_countries("XX") == [])
+
 print(f"\n JAMI: o'tdi={passed}, xato={failed}, skip=0")
 sys.exit(0 if failed == 0 else 1)
