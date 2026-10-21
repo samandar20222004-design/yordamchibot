@@ -1690,6 +1690,7 @@ TRANSLATIONS = {
         # menyu fallbacklari uchun (avval qotirib yozilgan o'zbekcha edi).
         "sys_error_short": "⚠️ Xatolik yuz berdi",
         "sys_wait_short": "⏳ Iltimos, kuting...",
+        "sys_working_notice": "⏳ Tahlil qilinmoqda, iltimos biroz kuting...",
         "admin_only_cmd": "❌ Bu buyruqni faqat admin ishlata oladi.",
         "np_callback_wait": "⏳ Jarayon bajarilmoqda, iltimos kuting...",
         "noop_channel_info": (
@@ -3915,6 +3916,7 @@ TRANSLATIONS = {
         # 🌐 Короткие toast-сообщения (callback throttle / устаревшие меню).
         "sys_error_short": "⚠️ Произошла ошибка",
         "sys_wait_short": "⏳ Пожалуйста, подождите...",
+        "sys_working_notice": "⏳ Идёт обработка, пожалуйста, немного подождите...",
         "admin_only_cmd": "❌ Эту команду может использовать только администратор.",
         "np_callback_wait": "⏳ Идёт обработка, пожалуйста, подождите...",
         "noop_channel_info": (

@@ -665,6 +665,7 @@ EN_OVERLAY = {
     # 🌐 Short toast messages (callback throttle / stale menu fallbacks).
     "sys_error_short": "⚠️ An error occurred",
     "sys_wait_short": "⏳ Please wait...",
+    "sys_working_notice": "⏳ Working on it, please wait a moment...",
     "admin_only_cmd": "❌ This command can only be used by an administrator.",
     "np_callback_wait": "⏳ Processing, please wait...",
     "noop_channel_info": (
