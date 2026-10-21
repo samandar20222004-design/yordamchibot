@@ -176,7 +176,7 @@ ok = validate_proposal(at(20, 12), {"type": "interval", "day": 2, "time": "12:00
 check("AI taklifi: to'g'ri interval qabul", ok["ok"] and ok["recurrence"]["type"] == "interval", str(ok))
 check("AI taklifi: o'tmish rad", validate_proposal(at(14, 12), None, NOW) == {"ok": False, "reason": "past"})
 check("AI taklifi: 1 yildan uzoq rad", validate_proposal(TZ.localize(datetime(2028, 1, 1, 12)), None, NOW)["ok"] is False)
-check("AI taklifi: yaroqsiz takrorlanish rad", validate_proposal(at(20, 12), {"type": "monthly", "day": 3, "time": "12:00"}, NOW)["ok"] is False)
+check("AI taklifi: yaroqsiz takrorlanish rad", validate_proposal(at(20, 12), {"type": "yearly", "day": 3, "time": "12:00"}, NOW)["ok"] is False)
 check("AI taklifi: datetime emas rad", validate_proposal("ertaga", None, NOW)["ok"] is False)
 check("AI taklifi: takrorlanishsiz bir martalik qabul", validate_proposal(at(20, 12), None, NOW) == {"ok": True, "start": at(20, 12), "recurrence": None})
 

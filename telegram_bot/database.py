@@ -2454,7 +2454,7 @@ from repositories.posts_repository import (  # noqa: E402, F401
     DEFAULT_QUEUE_SLOTS, POST_TEMPLATES_LIMIT, _template_row_to_dict, add_post,
     cancel_post, count_post_templates, create_post_template,
     defer_post_deletion, delete_post_template, get_channel_post_stats,
-    get_due_posts, get_pending_posts, get_post_by_id, get_post_status,
+    get_due_posts, get_pending_posts, get_post_by_id, get_post_status, get_post_last_error,
     get_post_delivery_options, get_post_health_counts, get_post_template,
     get_post_templates, get_posts_to_delete, get_queue_occupied_times,
     get_queue_post_count, get_queue_post_detail, get_queue_posts,

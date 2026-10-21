@@ -7,6 +7,8 @@ Misollar::
     "har dam olish kuni shu vaqtda"           -> shanba+yakshanba, `default_time` (tahrirlagichdagi vaqt) da
     "каждый понедельник в 9"                  -> haftada bir marta (dushanba) 09:00
     "every weekday at 8:15"                   -> ish kunlari 08:15
+    "har oyning 15-kuni 10:00"                -> har oyning 15-kuni 10:00 (monthly; oyda shu kun bo'lmasa — oxirgi kun)
+    "25-kuni soat 18:00" / "25 18:00"         -> eng yaqin 25-kun (bir martalik)
     "ertaga 18:00" / "tomorrow 5pm"           -> bir martalik
 
 Natija HECH QACHON taxminga tayanmaydi: vaqt aniqlanmasa ``ok=False`` (``no_time``) — foydalanuvchidan so'raladi.
@@ -16,6 +18,7 @@ Qamrab olinmagan iboralar uchun chaqiruvchi (API) AI zaxirasiga o'tishi mumkin; 
 """
 from __future__ import annotations
 
+import calendar
 import re
 from datetime import datetime, time, timedelta
 
@@ -69,7 +72,7 @@ _TIME_TOKEN = re.compile(
 )
 MORNING_DEFAULT = time(9, 0)
 EVENING_DEFAULT = time(19, 0)
-_WEEKLY = re.compile(r"\bhar\s+hafta\b|\bhaftada\s+bir\b|еженедельно|раз\s+в\s+неделю|кажд\w+\s+недел\w+|\bevery\s+week\b|\bweekly\b|\bonce\s+a\s+week\b")
+_WEEKLY = re.compile(r"\bhar\s+hafta(?:da)?\b|\bhaftasiga\s+bir\b|\bhaftada\s+bir\b|еженедельно|раз\s+в\s+неделю|кажд\w+\s+недел\w+|\bevery\s+week\b|\bweekly\b|\bonce\s+a\s+week\b")
 _EVERY_OTHER = re.compile(r"\bkunora\b|через\s+день|\bevery\s+other\s+day\b|\bevery\s+second\s+day\b|\bday\s+after\s+day\b")
 _INTERVAL = (
     re.compile(r"\bhar\s+" + _NUM + r"\s*(?:kun|kunda|kunlik)\w*(?:\s+bir(?:\s+marta)?)?"),          # har 2 kunda (bir marta)
@@ -78,6 +81,18 @@ _INTERVAL = (
     re.compile(r"раз\s+в\s+" + _NUM + r"\s*(?:дн|день|дня|дней)\w*"),                               # раз в 2 дня
     re.compile(r"\bevery\s+" + _NUM + r"\s*days?\b"),                                                # every 2 days
 )
+# Oyning kuni: «15-kuni», «15-sanasi», «15-chi», «15 числа», «15-го», «15th» (qo'shimchasiz raqam — faqat «har oy» dan keyin).
+_DAY_SUFFIX = r"(?:\s*-?\s*(?:kuni|sana\w*|chi\b|inchi|-?ga\b)|\s*-?\s*(?:го\b|числа\b|число\b)|(?:st|nd|rd|th)\b)"
+_MONTH_DAY = re.compile(r"(?<![\d:.])(\d{1,2})" + _DAY_SUFFIX)
+_MONTHLY = re.compile(
+    r"\bhar\s+oy(?:ning|da|ga)?(?:\s+(\d{1,2})(?:" + _DAY_SUFFIX + r")?)?(?![\w:])"
+    r"|\boy(?:da|iga)\s+bir(?:\s+marta)?\b|\bhar\s+oyda\b|\boyiga\s+bir\b"
+    r"|кажд\w+\s+месяц(?:\s+(\d{1,2})(?:" + _DAY_SUFFIX + r")?)?|раз\s+в\s+месяц|ежемесячно|кажд\w+\s+(\d{1,2})(?:" + _DAY_SUFFIX + r")?\s+числ\w*"
+    r"|\bevery\s+month(?:\s+on(?:\s+the)?\s+(\d{1,2})(?:st|nd|rd|th)?\b)?|\bmonthly\b|\bonce\s+a\s+month\b"
+)
+# Bir martalik «oyning N-kuni» (har oy so'zisiz): «25-kuni 18:00», «oyning 25-sanasi 18:00», «25 18:00».
+_DAY_ONCE = re.compile(r"^(?:oyning\s+|(?:в\s+)?|on\s+the\s+)?(\d{1,2})" + _DAY_SUFFIX + r"(?=\s|$)")
+_DAY_THEN_TIME = re.compile(r"^(\d{1,2})\s+(?=\d{1,2}\s*:\s*\d{2}\b)")
 _RECUR_CUE = re.compile(r"\bhar\b|kunlari|kunlarida|кажд|по\s+\w+ам\b|по\s+(?:сред|пятниц|суббот)\w*|раз\s+в|\bevery\b|\beach\b|\b\w+days\b|\bweekly\b")
 _SAME_TIME = re.compile(r"\bshu\s+vaqt\w*|\bshu\s+soat\w*|в\s+(?:то|это)\s+же\s+время|в\s+то\s+же\s+время|\bat\s+the\s+same\s+time\b|\bsame\s+time\b")
 _DAY_WORDS = (
@@ -180,6 +195,16 @@ def _strip_recurrence(t: str):
     m = _EVERY_OTHER.search(t)
     if m:
         return "interval", 2, (t[:m.start()] + " " + t[m.end():])
+    m = _MONTHLY.search(t)
+    if m:
+        day = next((int(g) for g in m.groups() if g), None)
+        rest = t[:m.start()] + " " + t[m.end():]
+        if day is None:  # «har oy» + «15-kuni» boshqa joyda: «15-kuni har oy 10:00»
+            dm = _MONTH_DAY.search(rest)
+            if dm:
+                day = int(dm.group(1))
+                rest = rest[:dm.start()] + " " + rest[dm.end():]
+        return "monthly", day, rest
     m = _WEEKEND.search(t)
     if m:
         return "weekdays", WEEKEND_MASK, (t[:m.start()] + " " + t[m.end():])
@@ -221,6 +246,31 @@ def _en_to_24h_text(t: str) -> str:
     return re.sub(r"(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", ampm, t)
 
 
+def _once_on_day(t: str, now: datetime, default_time: time | None) -> dict | None:
+    """«25-kuni 18:00» / «25 18:00»: eng yaqin kelajakdagi shu kun (oyda shu kun bo'lmasa — keyingi mos oy). Mos kelmasa ``None``."""
+    m = _DAY_ONCE.match(t)
+    rest = t[m.end():] if m else None
+    if m is None:
+        m = _DAY_THEN_TIME.match(t)
+        rest = t[m.end():] if m else None
+    if m is None:
+        return None
+    day = int(m.group(1))
+    if not 1 <= day <= 31:
+        return {"ok": False, "reason": "unrecognized"}
+    tm = extract_time(rest or "") or (default_time if _SAME_TIME.search(rest or "") else None)
+    if tm is None:
+        return {"ok": False, "reason": "no_time"}
+    year, month = now.year, now.month
+    for _ in range(14):
+        if day <= calendar.monthrange(year, month)[1]:
+            cand = utz().localize(datetime(year, month, day, tm.hour, tm.minute))
+            if cand > now:
+                return {"ok": True, "start": cand, "recurrence": None}
+        year, month = (year + 1, 1) if month == 12 else (year, month + 1)
+    return {"ok": False, "reason": "unrecognized"}
+
+
 def parse_schedule_text(text: str, now: datetime | None = None, default_time: time | None = None) -> dict:
     """Iborani tuzilmaga o'giradi. ``now`` — Toshkent (aware); ``default_time`` — "shu vaqtda" uchun."""
     if not isinstance(text, str) or not text.strip():
@@ -235,6 +285,10 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
 
     kind, payload, rest = _strip_recurrence(t)
     if kind is None:
+        # --- bir martalik: oyning kuni raqam bilan («25-kuni 18:00», «25 18:00») ---
+        day_once = _once_on_day(t, now, default_time)
+        if day_once is not None:
+            return day_once
         # --- bir martalik: mavjud sinalgan parser ---
         weekdays = _weekdays_in(t)
         if len(weekdays) == 1 and _date_offset(t) is None:
@@ -276,6 +330,9 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
             if payload is None or not 1 <= payload <= INTERVAL_MAX_DAYS:
                 return {"ok": False, "reason": "unrecognized"}
             rtype, rday, rtime = normalize_recurrence("interval", payload, tm)
+        elif kind == "monthly":
+            day = payload if payload is not None else (now + timedelta(days=_date_offset(rest) or 0)).day
+            rtype, rday, rtime = normalize_recurrence("monthly", day, tm)
         elif kind == "weekdays":
             rtype, rday, rtime = normalize_recurrence("weekdays", payload, tm)
         elif kind == "daily":
@@ -283,7 +340,9 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
             if two is not None:
                 rtype, rday, rtime = normalize_recurrence("twice", time_to_minutes(two[1]), two[0])
         elif kind == "weekly":
-            rtype, rday, rtime = normalize_recurrence("weekly", now.weekday() if _date_offset(rest) is None else (now + timedelta(days=_date_offset(rest))).weekday(), tm)
+            named = _weekdays_in(rest)  # «haftasiga bir juma 10:00»: kun nomi aytilgan bo'lsa shu kun
+            wd = named[0] if len(named) == 1 else (now.weekday() if _date_offset(rest) is None else (now + timedelta(days=_date_offset(rest))).weekday())
+            rtype, rday, rtime = normalize_recurrence("weekly", wd, tm)
         else:  # "days"
             mask = weekdays_to_mask(payload)
             rtype, rday, rtime = normalize_recurrence("weekdays", mask, tm)
@@ -314,6 +373,16 @@ def parse_schedule_text(text: str, now: datetime | None = None, default_time: ti
     if start is None:
         return {"ok": False, "reason": "unrecognized"}
     return {"ok": True, "start": start, "recurrence": {"type": rtype, "day": rday, "time": rtime}}
+
+
+def parse_day_number_once(text: str, now: datetime | None = None, default_time: time | None = None) -> dict | None:
+    """Faqat «oyning N-kuni» ko'rinishidagi bir martalik iborani o'qiydi («25-kuni 18:00», «25 18:00»); boshqa matn uchun ``None``."""
+    if not isinstance(text, str) or len(text) > MAX_TEXT_CHARS:
+        return None
+    now = now or datetime.now(utz())
+    if now.tzinfo is None:
+        now = utz().localize(now)
+    return _once_on_day(_norm(text), now.astimezone(utz()), default_time)
 
 
 def validate_proposal(start, recurrence, now: datetime | None = None) -> dict:

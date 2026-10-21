@@ -461,7 +461,8 @@ export function PostPage() {
                 onChange={(e) => changeWhen(e.target.value)} />
               {fieldError?.field === 'when' && <p className="field-error" role="alert">{t(fieldError.key)}</p>}
               <RepeatPicker value={repeat} onChange={changeRepeat} showTz={showTz}
-                firstTime={(() => { const i = localInputToIso(when); return i ? tashkentParts(new Date(i)).time : '09:00' })()} />
+                firstTime={(() => { const i = localInputToIso(when); return i ? tashkentParts(new Date(i)).time : '09:00' })()}
+                firstDay={(() => { const i = localInputToIso(when); return i ? tashkentParts(new Date(i)).day : undefined })()} />
               {aligned && <p className="muted small" role="status">{t('rep.aligned')}</p>}
             </>
           ) : <p className="muted">{t('post.nowHint')}</p>}

@@ -34,6 +34,22 @@ async def load_user_timezone(update: Update, context: ContextTypes.DEFAULT_TYPE)
     tzs.set_current(tzs.get_tz(name))
 
 
+def tz_hint(user, lang: str) -> str:
+    """Vaqt belgilanganda qo'shiladigan eslatma: foydalanuvchi zonasi hali tanlanmagan (standart Toshkent) va Telegram tili
+    o'zbekcha emas bo'lsa — qaysi zonada hisoblanayotgani va ``/timezone`` ko'rsatiladi (chet eldagi foydalanuvchi vaqti
+    jimgina Toshkent bo'yicha hisoblanib, post kutilmagan paytda chiqmasin). Boshqa hollarda bo'sh matn."""
+    try:
+        zone = tzs.utz()
+        if getattr(zone, "zone", None) != tzs.DEFAULT_TZ_NAME:
+            return ""
+        if str(getattr(user, "language_code", "") or "").lower().startswith("uz"):
+            return ""
+        return "\n\n" + get_text("tz_note", lang, zone=tzs.DEFAULT_TZ_NAME, offset=tzs.offset_label(zone))
+    except Exception as _silent_exc:  # noqa: BLE001
+        log_silent_failure("handlers.timezone_flow:tz_hint", _silent_exc)
+        return ""
+
+
 def _allowed_zones(country: str | None) -> set[str]:
     return set(tzs.country_zones(country)) | {tzs.offset_zone(h) for h in tzs.OFFSET_CHOICES}
 

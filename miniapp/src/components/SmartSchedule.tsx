@@ -8,7 +8,7 @@ import { describeRecurrence } from '../pages/recurrence'
 import { Icon } from './Icon'
 import { Badge, Button, FormError } from './ui'
 
-const EXAMPLES: MessageKey[] = ['smart.ex1', 'smart.ex2', 'smart.ex3']
+const EXAMPLES: MessageKey[] = ['smart.ex1', 'smart.ex2', 'smart.ex3', 'smart.ex4', 'smart.ex5']
 const FAIL_KEYS: Record<string, MessageKey> = {
   no_time: 'smart.fail.no_time', unrecognized: 'smart.fail.unrecognized', past: 'smart.fail.past',
   empty: 'smart.fail.empty', too_long: 'smart.fail.too_long',

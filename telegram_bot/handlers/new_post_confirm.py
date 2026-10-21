@@ -361,6 +361,9 @@ def _scheduled_when_text(context, lang: str, post_time_tz) -> str:
     if recurrence_type == "weekdays" and recurrence_time_str and recurrence_day:
         return get_text("np_scheduled_when_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                         time=format_time(recurrence_time_str, lang))
+    if recurrence_type == "monthly" and recurrence_time_str and recurrence_day:
+        return get_text("np_scheduled_when_monthly", lang, day=int(recurrence_day),
+                        time=format_time(recurrence_time_str, lang))
     return get_text("np_scheduled_when_single", lang,
                     time=format_datetime(post_time_tz, lang))
 

@@ -13,6 +13,7 @@ Qo'lda kiritish (sana + «Takrorlash» tanlovi) saqlangan. Hech narsa tasdiqsiz 
 | `weekly` | 0..6 (dushanba=0) | haftada bir marta |
 | `interval` | 2..30 | har N kunda (yangi) |
 | `weekdays` | bitmask 1..127 (Du=1 … Ya=64) | tanlangan hafta kunlari: dam olish=96, ish kunlari=31 (yangi) |
+| `monthly` | 1..31 (oyning kuni) | har oyning shu kunida; oyda shu kun bo'lmasa (31-fevral) — oyning OXIRGI kuni (yangi) |
 
 Vaqt (`recurrence_time`) va barcha hisob — Asia/Tashkent. Normalizatsiya: `interval=1` → `daily`; bitta kun → `weekly`; 7 kun → `daily`.
 Scheduler: `calculate_next_time` yangi turlarni qo'llaydi; yuborilgach «posted + qayta rejalash» avvalgidek BITTA tranzaksiyada,
@@ -59,3 +60,19 @@ hajm oqim bo'yicha cheklanadi, fayl foydalanuvchining O'Z chatiga jimgina yubori
 qaytmaydi. Natija joriy qoralamaga yoziladi (reaksiya/avto-o'chirish/kanal saqlanadi, matn sarlavhaga aylanadi, 1024 belgi), keyin odatdagi `use_draft` oqimi.
 Chegara: yuklash limiti (`MINIAPP_RATE_AI_*`), bir vaqtda 2 ta yuborish, 60 s timeout. Hosting/proxy so'rov hajmi kamida 31 MB bo'lishi kerak.
 Telegram xatosi (masalan, bot bloklangan) -> `upload_failed`, qoralama o'zgarmaydi. Albom, hujjat va audio — hozircha botda.
+
+## Oylik / haftalik takrorlash va oyning kunini raqam bilan yozish (bot + Mini App)
+- **Tur:** `monthly` (`recurrence_day` = oyning kuni 1..31). Hisob `services/recurrence.py:next_monthly_occurrence/first_occurrence` (kun tanlanganda hisob har safar
+  asl kun bo'yicha: 31-yanvar -> 28-fevral -> 31-mart), `scheduler.calculate_next_time` shuni ishlatadi. Mini App serveri birinchi chiqish aynan shu kunga tushishini talab qiladi
+  (oyning oxirgi kuni bo'lsa ham bo'ladi).
+- **Tabiiy til (uz/ru/en, AI'siz):** «har oyning 15-kuni 10:00», «oyiga bir marta 18:00», «каждый месяц 15 числа в 10:00», «every month on the 15th at 10:00»;
+  haftalik: «har haftada 18:00», «haftasiga bir juma 10:00» (kun nomi aytilsa shu kun). Oyning kuni bir martalik: «25-kuni 18:00», «25 18:00», «25 числа в 18:00»,
+  «15th 10:00» (eng yaqin shu kun; oyda yo'q bo'lsa keyingi mos oy). Sana oy nomi bilan: «25 oktabr 18:00», «october 25 18:00» (oldin «oktabr» tanilmasdi).
+- **Bot (oddiy post):** «🔄 Takroriy e'lon» -> tez tugmalar [Har kuni] [Haftada bir] [Oyda bir] yoki to'g'ridan-to'g'ri yozish; «📅 Vaqtni belgilash» ichida ham takrorlash
+  iborasi tushuniladi. «Yangi post» oqimidagi vaqt bosqichi (`GET_TIME`) ham oylik/oyning kunini tushunadi. Natija ``manual_post._apply_repeat``.
+- **Mini App:** Takrorlash tanlovida «Oyda bir marta» (kun tanlangan sanadan olinadi), aqlli rejalashda yangi misollar; ro'yxatda «Har oyning 15-kuni 10:00».
+
+## Oddiy postdan Mini App'da davom etish
+Mini App yoqilgan bo'lsa, botda oddiy post preview'ida (shuningdek «📝 Post qilish» aqlli qabulidan keyin) BIRINCHI qatorda «📱 Mini App'da» (web_app) tugmasi turadi.
+Preview har qurilganda (`manual_post._sync_miniapp_draft`) post qoralamaga yoziladi: matn, rasm/video/GIF/hujjat/albom, havolali tugma, reaksiya, 24 soatlik e'lon va kanal —
+Mini App muharriri AYNAN shuni ochadi. Post yuborilsa yoki bekor qilinsa qoralama o'chiriladi (Mini App'da eski post qolmaydi). O'chiq bo'lsa hech narsa o'zgarmaydi.

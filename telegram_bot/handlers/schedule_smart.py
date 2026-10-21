@@ -20,7 +20,7 @@ import database as db
 from config import ADMIN_IDS_SET
 from locales.translations import get_lang, get_text
 from services import voice_schedule_quota as voice_quota
-from services.schedule_nlp import parse_schedule_text
+from services.schedule_nlp import parse_day_number_once, parse_schedule_text
 from services.user_timezone import utz
 from translations import voice_t
 from utils.audio_transcriber import check_duration, check_size, transcribe_voice
@@ -51,12 +51,14 @@ def apply_proposal(context, start: datetime, recurrence: dict | None) -> None:
 async def show_proposal(update: Update, context: ContextTypes.DEFAULT_TYPE, parsed: dict, prefix: str = ""):
     """Taklif qabul qilindi: holatga yozadi, «vaqt belgilandi» xabarini va tasdiq kartasini ko'rsatadi -> CONFIRM_POST."""
     from handlers.new_post import CONFIRM_POST, _show_confirmation
+    from handlers.timezone_flow import tz_hint
 
     lang = get_lang(context)
     apply_proposal(context, parsed["start"], parsed["recurrence"])
     try:
         await update.message.reply_text(
-            prefix + get_text("np_time_set", lang, time=format_datetime(parsed["start"], lang)), parse_mode="HTML")
+            prefix + get_text("np_time_set", lang, time=format_datetime(parsed["start"], lang))
+            + tz_hint(update.effective_user, lang), parse_mode="HTML")
     except Exception as exc:  # noqa: BLE001
         log_silent_failure("handlers.schedule_smart:show_proposal", exc, lang=lang)
     await _show_confirmation(update.message, context)
@@ -64,10 +66,16 @@ async def show_proposal(update: Update, context: ContextTypes.DEFAULT_TYPE, pars
 
 
 def try_text(text: str, now: datetime) -> dict | None:
-    """Matndagi TAKRORLANUVCHI iborani aniqlaydi (aks holda ``None`` — eski parser ishlaydi, xulq o'zgarmaydi)."""
+    """Matndagi TAKRORLANUVCHI iborani yoki oyning kunini raqam bilan («25-kuni 18:00») aniqlaydi.
+
+    Aks holda ``None`` — eski parser ishlaydi, xulq o'zgarmaydi.
+    """
     parsed = parse_schedule_text(text, now)
     if parsed.get("ok") and parsed.get("recurrence"):
         return parsed
+    once = parse_day_number_once(text, now)
+    if once and once.get("ok"):
+        return once
     return None
 
 

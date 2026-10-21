@@ -36,6 +36,7 @@ from utils.helpers import (
     parse_schedule_input, parse_daily_time_input, schedule_time_example,
     SCHEDULE_ERR_PAST,
 )
+from handlers.timezone_flow import tz_hint as _tz_hint
 from handlers.schedule_smart import show_proposal as smart_show_proposal, try_text as smart_try_text
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from locales.translations import clear_fsm_data, get_lang, get_text
@@ -1047,6 +1048,9 @@ def _build_preview_text(context) -> str:
     elif recurrence_type == "weekdays" and recurrence_time_str and recurrence_day:
         when_text = get_text("np_confirm_time_weekdays", lang, days=weekdays_text(recurrence_day, lang),
                              time=format_time(recurrence_time_str, lang))
+    elif recurrence_type == "monthly" and recurrence_time_str and recurrence_day:
+        when_text = get_text("np_confirm_time_monthly", lang, day=int(recurrence_day),
+                             time=format_time(recurrence_time_str, lang))
     elif post_time:
         when_text = get_text("np_confirm_time_single", lang,
                              time=format_datetime(post_time, lang))
@@ -1968,7 +1972,7 @@ async def time_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         time_str = format_datetime(post_time, lang)
         await update.message.reply_text(
-            get_text("np_time_set", lang, time=time_str),
+            get_text("np_time_set", lang, time=time_str) + _tz_hint(update.effective_user, lang),
             parse_mode="HTML",
         )
     except Exception as _silent_exc:
@@ -2002,7 +2006,7 @@ async def daily_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         time_str = format_time(f"{hh:02d}:{mm:02d}:00", lang)
         await update.message.reply_text(
-            get_text("np_time_set", lang, time=time_str),
+            get_text("np_time_set", lang, time=time_str) + _tz_hint(update.effective_user, lang),
             parse_mode="HTML",
         )
     except Exception as _silent_exc:
@@ -2061,7 +2065,7 @@ async def recur_time_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         time_str = format_time(f"{hh:02d}:{mm:02d}:00", lang)
         await update.message.reply_text(
-            get_text("np_time_set", lang, time=time_str),
+            get_text("np_time_set", lang, time=time_str) + _tz_hint(update.effective_user, lang),
             parse_mode="HTML",
         )
     except Exception as _silent_exc:

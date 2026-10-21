@@ -122,17 +122,38 @@ MANUAL_POST_I18N = {
         "mp_time_prompt": (
             "📅 <b>Vaqtni belgilash.</b>\n\n"
             "Post qachon chiqsin? Masalan: <code>19:30</code>, "
-            "<code>ertaga 09:00</code> yoki <code>25.09.2026 18:00</code>."
+            "<code>ertaga 09:00</code>, <code>25-kuni 18:00</code> yoki <code>25.09.2026 18:00</code>.\n\n"
+            "🔄 Takrorlash uchun ham yozing: <code>har dushanba 9:00</code>, "
+            "<code>har oyning 15-kuni 10:00</code>."
         ),
         "mp_time_invalid": (
             "⚠️ Vaqtni tushunmadim. Iltimos, boshqacha yozing — masalan, "
-            "<code>19:30</code> yoki <code>ertaga 09:00</code>."
+            "<code>19:30</code>, <code>ertaga 09:00</code> yoki <code>25-kuni 18:00</code>."
         ),
         # --- Takroriy e'lon uchun vaqt ---
         "mp_repeat_prompt": (
             "🔄 <b>Takroriy e'lon.</b>\n\n"
-            "Har kuni soat nechida qayta chiqsin? Masalan: <code>19:30</code>."
+            "Qachon qayta chiqsin? Pastdagi tugmadan tanlang yoki o'zingiz yozing: "
+            "<code>har kuni 19:30</code>, <code>har dushanba 9:00</code>, "
+            "<code>har oyning 15-kuni 10:00</code>, <code>ikki kunda bir 18:30</code>."
         ),
+        "mp_repeat_hint_daily": "📅 <b>Har kuni.</b> Soat nechida? Masalan: <code>19:30</code>",
+        "mp_repeat_hint_weekly": "🗓 <b>Haftada bir.</b> Qaysi kun va soat? Masalan: <code>dushanba 9:00</code>",
+        "mp_repeat_hint_monthly": "📆 <b>Oyda bir.</b> Oyning nechanchi kuni va soat? Masalan: <code>15 10:00</code> yoki <code>15-kuni 10:00</code>",
+        "mp_repeat_set": (
+            "🔁 Takrorlash belgilandi: {when}\n"
+            "Pastdagi «✅ Yakunlash» bilan tasdiqlang yoki sozlamalarni o'zgartiring."
+        ),
+        "mp_repeat_ok2": (
+            "🔄 <b>Takroriy e'lon yoqildi!</b>\n\n"
+            "📢 Kanal: <b>{channel}</b>\n"
+            "{when}\n"
+            "⏭ Birinchi chiqish: <b>{first}</b>"
+        ),
+        "mp_btn_rk_daily": "📅 Har kuni",
+        "mp_btn_rk_weekly": "🗓 Haftada bir",
+        "mp_btn_rk_monthly": "📆 Oyda bir",
+        "mp_miniapp_hint": "📱 <i>Mini App'da vaqt, tugma va formatni qulayroq sozlang — aynan shu post ochiladi.</i>",
         # --- Tahrirlash ---
         "mp_edit_prompt": (
             "✏️ <b>Tahrirlash.</b>\n\n"
@@ -307,16 +328,37 @@ MANUAL_POST_I18N = {
         "mp_time_prompt": (
             "📅 <b>Указать время.</b>\n\n"
             "Когда должен выйти пост? Например: <code>19:30</code>, "
-            "<code>завтра 09:00</code> или <code>25.09.2026 18:00</code>."
+            "<code>завтра 09:00</code>, <code>25 числа 18:00</code> или <code>25.09.2026 18:00</code>.\n\n"
+            "🔄 Для повтора тоже можно: <code>каждый понедельник 9:00</code>, "
+            "<code>каждый месяц 15 числа 10:00</code>."
         ),
         "mp_time_invalid": (
             "⚠️ Не понял время. Напишите по-другому — например, "
-            "<code>19:30</code> или <code>завтра 09:00</code>."
+            "<code>19:30</code>, <code>завтра 09:00</code> или <code>25 числа 18:00</code>."
         ),
         "mp_repeat_prompt": (
             "🔄 <b>Повторяемое объявление.</b>\n\n"
-            "Во сколько ежедневно публиковать? Например: <code>19:30</code>."
+            "Когда публиковать снова? Выберите кнопку ниже или напишите сами: "
+            "<code>каждый день 19:30</code>, <code>каждый понедельник 9:00</code>, "
+            "<code>каждый месяц 15 числа 10:00</code>, <code>через день 18:30</code>."
         ),
+        "mp_repeat_hint_daily": "📅 <b>Каждый день.</b> Во сколько? Например: <code>19:30</code>",
+        "mp_repeat_hint_weekly": "🗓 <b>Раз в неделю.</b> В какой день и во сколько? Например: <code>понедельник 9:00</code>",
+        "mp_repeat_hint_monthly": "📆 <b>Раз в месяц.</b> Какого числа и во сколько? Например: <code>15 10:00</code> или <code>15 числа 10:00</code>",
+        "mp_repeat_set": (
+            "🔁 Повтор задан: {when}\n"
+            "Подтвердите кнопкой «✅ Завершить» или измените настройки."
+        ),
+        "mp_repeat_ok2": (
+            "🔄 <b>Повторяемое объявление включено!</b>\n\n"
+            "📢 Канал: <b>{channel}</b>\n"
+            "{when}\n"
+            "⏭ Первый выход: <b>{first}</b>"
+        ),
+        "mp_btn_rk_daily": "📅 Каждый день",
+        "mp_btn_rk_weekly": "🗓 Раз в неделю",
+        "mp_btn_rk_monthly": "📆 Раз в месяц",
+        "mp_miniapp_hint": "📱 <i>В Mini App время, кнопку и форматирование настраивать удобнее — откроется именно этот пост.</i>",
         "mp_edit_prompt": (
             "✏️ <b>Редактирование.</b>\n\n"
             "Отправьте новый текст или фото/видео — предпросмотр обновится."
@@ -483,16 +525,37 @@ MANUAL_POST_I18N = {
         "mp_time_prompt": (
             "📅 <b>Set the time.</b>\n\n"
             "When should the post go out? For example: <code>19:30</code>, "
-            "<code>tomorrow 09:00</code> or <code>09/25/2026 18:00</code>."
+            "<code>tomorrow 09:00</code>, <code>on the 25th 18:00</code> or <code>25.09.2026 18:00</code>.\n\n"
+            "🔄 You can also repeat it: <code>every Monday 9:00</code>, "
+            "<code>every month on the 15th 10:00</code>."
         ),
         "mp_time_invalid": (
-            "⚠️ I didn't get the time. Please write it differently — e.g. "
-            "<code>19:30</code> or <code>tomorrow 09:00</code>."
+            "⚠️ I did not understand the time. Please write it differently — for example, "
+            "<code>19:30</code>, <code>tomorrow 09:00</code> or <code>25th 18:00</code>."
         ),
         "mp_repeat_prompt": (
-            "🔄 <b>Recurring announcement.</b>\n\n"
-            "At what time every day? For example: <code>19:30</code>."
+            "🔄 <b>Repeating post.</b>\n\n"
+            "When should it repeat? Pick a button below or type it: "
+            "<code>every day 19:30</code>, <code>every Monday 9:00</code>, "
+            "<code>every month on the 15th 10:00</code>, <code>every 2 days 18:30</code>."
         ),
+        "mp_repeat_hint_daily": "📅 <b>Every day.</b> At what time? For example: <code>19:30</code>",
+        "mp_repeat_hint_weekly": "🗓 <b>Once a week.</b> Which day and time? For example: <code>Monday 9:00</code>",
+        "mp_repeat_hint_monthly": "📆 <b>Once a month.</b> Which day of the month and time? For example: <code>15 10:00</code> or <code>15th 10:00</code>",
+        "mp_repeat_set": (
+            "🔁 Repeat set: {when}\n"
+            "Confirm with «✅ Finish» below or change the settings."
+        ),
+        "mp_repeat_ok2": (
+            "🔄 <b>Repeating post is on!</b>\n\n"
+            "📢 Channel: <b>{channel}</b>\n"
+            "{when}\n"
+            "⏭ First run: <b>{first}</b>"
+        ),
+        "mp_btn_rk_daily": "📅 Every day",
+        "mp_btn_rk_weekly": "🗓 Once a week",
+        "mp_btn_rk_monthly": "📆 Once a month",
+        "mp_miniapp_hint": "📱 <i>Setting the time, button and formatting is easier in the Mini App — this exact post opens there.</i>",
         "mp_edit_prompt": (
             "✏️ <b>Edit.</b>\n\n"
             "Send the new text or photo/video — the preview will update."
