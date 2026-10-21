@@ -4,15 +4,17 @@ import { Icon, type IconName } from '../../components/Icon'
 import { OfflineBanner } from '../../components/Shell'
 import { useI18n, type MessageKey } from '../../i18n'
 import { haptic } from '../../telegram'
+import { AdminToolsPage } from './AdminTools'
 import { AdminAdsPage, AdminMarketPage, AdminOverviewPage, AdminSponsorsPage } from './AdminPages'
 
-type AdminTab = 'overview' | 'ads' | 'subs' | 'market'
+type AdminTab = 'overview' | 'ads' | 'subs' | 'market' | 'tools'
 
 const ADMIN_TABS: ReadonlyArray<{ id: AdminTab; icon: IconName; label: MessageKey }> = [
   { id: 'overview', icon: 'shield', label: 'adm.tabOverview' },
   { id: 'ads', icon: 'megaphone', label: 'adm.tabAds' },
   { id: 'subs', icon: 'bell', label: 'adm.tabSubs' },
   { id: 'market', icon: 'market', label: 'adm.tabMarket' },
+  { id: 'tools', icon: 'sparkle', label: 'adm.tabTools' },
 ]
 
 /** Super admin rejimi: o'z pastki paneli (4 bo'lim + «Oddiy» — oddiy Mini App'ga qaytish). */
@@ -29,6 +31,7 @@ export function AdminShell() {
       {tab === 'ads' && <AdminAdsPage />}
       {tab === 'subs' && <AdminSponsorsPage />}
       {tab === 'market' && <AdminMarketPage />}
+      {tab === 'tools' && <AdminToolsPage />}
       <nav className="tabbar tabbar-admin" aria-label={t('adm.navLabel')}
         style={{ '--tab-i': ADMIN_TABS.findIndex((x) => x.id === tab), '--tab-n': count, gridTemplateColumns: `repeat(${count}, 1fr)` } as React.CSSProperties}>
         <span className="tab-pill" aria-hidden="true" />

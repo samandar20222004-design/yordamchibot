@@ -220,9 +220,9 @@ def test_button_labels_3_langs():
         inline_labels = [
             b.text for row in get_cabinet_inline_keyboard(code).inline_keyboard for b in row
         ]
-        # Settings: localized primary grid (5 buttons; imzo/tozalash tugmasi olib tashlangan).
-        check(f"{code}: Settings primary grid is complete (5 buttons)",
-              len(inline_labels) == 5 and all(str(x).strip() for x in inline_labels),
+        # Settings: localized primary grid (6 buttons; imzo/tozalash tugmasi olib tashlangan).
+        check(f"{code}: Settings primary grid is complete (6 buttons)",
+              len(inline_labels) == 6 and all(str(x).strip() for x in inline_labels),
               str(inline_labels[:3]))
         lang_cbs = [
             b.callback_data

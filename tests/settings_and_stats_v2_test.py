@@ -69,19 +69,19 @@ EXPECTED_STATS_MARKERS = {
 # ⚙️ Primary Settings grid — six callbacks, ordered left-to-right/top-to-bottom.
 EXPECTED_SETTINGS_CBS = (
     "stgs_lang", "stgs_notif",
-    "sub_open", "stgs_referral", "stgs_help_hub",
+    "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
 )
 
 EXPECTED_SETTINGS_LABELS = {
     "uz": (("🌐 Til / Язык", "🔔 Bildirishnomalar"),
            ("💎 PRO va Tariflar", "👥 Do'stlarni taklif"),
-           ("ℹ️ Yordam va Qo'llanma",)),
+           ("👥 Jamoa va rol", "ℹ️ Yordam va Qo'llanma")),
     "ru": (("🌐 Язык", "🔔 Уведомления"),
            ("💎 PRO и тарифы", "👥 Пригласить друзей"),
-           ("ℹ️ Помощь и руководство",)),
+           ("👥 Команда и роль", "ℹ️ Помощь и руководство")),
     "en": (("🌐 Language", "🔔 Notifications"),
            ("💎 PRO & Plans", "👥 Invite friends"),
-           ("ℹ️ Help and Guide",)),
+           ("👥 Team & role", "ℹ️ Help and Guide")),
 }
 
 

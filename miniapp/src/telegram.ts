@@ -161,6 +161,26 @@ export function initTelegram(onTheme: (scheme: 'light' | 'dark') => void): () =>
   }
 }
 
+/** Taklif havolasi: faqat bot nomi va token (token — harf/raqam/_-). */
+export function inviteLink(botUsername: string | null | undefined, token: string): string | null {
+  if (!botUsername || !/^[A-Za-z][A-Za-z0-9_]{3,31}$/.test(botUsername) || !/^[A-Za-z0-9_-]{8,64}$/.test(token)) return null
+  return `https://t.me/${botUsername}?start=team_${token}`
+}
+
+/** Havolani Telegram'da ulashish oynasini ochadi (faqat t.me havola; matn URL-kodlanadi). */
+export function shareLink(link: string, text: string): boolean {
+  if (!/^https:\/\/t\.me\//.test(link)) return false
+  const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`
+  const app = webApp()
+  try {
+    if (app?.openTelegramLink) { app.openTelegramLink(url); return true }
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return true
+  } catch {
+    return false
+  }
+}
+
 const CHANNEL_USERNAME = /^[A-Za-z][A-Za-z0-9_]{3,31}$/
 
 /** Ochiq kanalni Telegram'da ochadi (Mini App yopilmaydi). Noto'g'ri nom -> `false`. */

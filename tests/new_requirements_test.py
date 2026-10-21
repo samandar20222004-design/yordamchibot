@@ -244,7 +244,7 @@ def test_ru_cabinet_after_switch_no_crash():
             cbs = [b.callback_data for row in markup.inline_keyboard for b in row]
             assert cbs == [
                 "stgs_lang", "stgs_notif",
-                "sub_open", "stgs_referral", "stgs_help_hub",
+                "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
             ], cbs
             assert "cab_channels" not in cbs, cbs
             assert "stgs_profile" not in cbs, cbs

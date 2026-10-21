@@ -6,6 +6,8 @@ export interface PlanLimits {
   queued_posts: number
   /** Ovozli rejalash (kuniga); eski serverda bo'lmasligi mumkin. */
   voice_daily?: number
+  /** Jamoa: egasidan tashqari nechta yordamchi akkaunt (PRO/FREE: 0, ULTRA: 2). Eski serverda bo'lmasligi mumkin. */
+  team_seats?: number
 }
 
 /** Mijozga ko'rsatiladigan tarif: limitlar va 1 oylik narx (so'm) — server (config) bilan bir manba. */
@@ -45,6 +47,8 @@ export type AiStyle = 'sales' | 'premium' | 'casual' | 'ads' | 'informative'
 export const AI_STYLES: readonly AiStyle[] = ['sales', 'premium', 'casual', 'ads', 'informative']
 
 export interface Me {
+  /** «Men kimman?» tanlovi: 'owner' (o'zim yuritaman), 'helper' (yordamchiman) yoki tanlanmagan. */
+  work_mode?: 'owner' | 'helper' | null
   user: { id: number; name: string | null; username: string | null; language: Lang; timezone?: string }
   plan: Plan
   /** Narx mintaqasi: 'uz' (so'm) yoki 'intl' (dollar). Eski serverda yo'q = 'uz'. */
@@ -150,7 +154,7 @@ export type ErrorCode =
   | 'invalid_input' | 'schedule_in_past' | 'unsupported_media_type' | 'payload_too_large'
   | 'channel_not_found' | 'not_editable' | 'queue_limit_reached' | 'ai_limit_reached'
   | 'ai_unavailable' | 'upload_failed' | 'templates_limit_reached' | 'save_failed' | 'draft_not_found' | 'media_unavailable' | 'caption_too_long' | 'album_full' | 'album_mixed'
-  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'phone_required' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin'
+  | 'market_private' | 'market_not_admin' | 'market_limit' | 'market_blocked' | 'inquiry_limit' | 'inquiry_blocked' | 'inquiry_own' | 'inquiry_exists' | 'thread_closed' | 'thread_full' | 'message_card' | 'message_wallet' | 'message_link' | 'message_spam' | 'user_banned' | 'owner_busy' | 'phone_required' | 'admin_only' | 'sponsor_not_found' | 'sponsor_not_admin' | 'promo_exists' | 'user_unknown' | 'workspace_denied' | 'team_no_seats' | 'team_seats_full' | 'invite_invalid'
   | 'network' | 'timeout' | 'bad_response' | 'no_telegram'
 
 export interface PostResult {
@@ -364,3 +368,53 @@ export interface AdminListing {
 }
 export interface AdminMarket { totals: AdminMarketTotals; items: AdminListing[] }
 export interface AdminAdInput { scope: AdSupport; text: string; button_text?: string; button_url?: string }
+
+// --- 👑 Super admin: promo-kodlar va boshqaruv ---
+export type AdminPromoStatus = 'active' | 'used_up' | 'expired' | 'disabled'
+export interface AdminPromo {
+  code: string; plan: string; days: number; max_uses: number | null; used: number; left: number | null
+  status: AdminPromoStatus; is_active: boolean; expires_at: string | null; created_at: string | null
+}
+export interface AdminPromoTotals {
+  total: number; active: number; used_up: number; expired: number; disabled: number; redemptions: number; remaining_uses: number; unlimited: number
+}
+export interface AdminPromos { totals: AdminPromoTotals; items: AdminPromo[] }
+export interface AdminPromoDetail { promo: AdminPromo; redeemers: Array<{ user_id: number; at: string | null }> }
+export interface AdminPromoInput { code: string; days: number; max_uses: number | null; plan: 'pro' | 'ultra' }
+export interface AdminAuditItem { admin_id: number | null; action: string; target_type: string; target_id: string; at: string | null }
+export interface AdminFeatureRow { name: string; count: number; users: number; rate: number }
+export interface AdminFeatures { total_users: number | null; most_used: AdminFeatureRow[]; least_used: AdminFeatureRow[] }
+export interface AdminHealth { ready: boolean; checks: Record<string, string>; uptime: string }
+export interface AdminRoles { items: Array<{ user_id: number; role: string }>; choices: string[] }
+
+// --- 👥 Jamoa va ish joyi ---
+/** Yordamchi ruxsatlari (egasi har biriga alohida beradi); «ko'rish» har doim bor. */
+export type TeamPerm = 'create' | 'edit' | 'reschedule' | 'delete' | 'send_now' | 'analytics' | 'ai'
+export const TEAM_PERMS: readonly TeamPerm[] = ['create', 'edit', 'reschedule', 'delete', 'send_now', 'analytics', 'ai']
+export type TeamPreset = 'full' | 'editor' | 'scheduler' | 'analyst' | 'view'
+/** Tayyor shablonlar (server `services/team_invites.PRESETS` bilan bir xil); egasi baribir har birini o'zgartira oladi. */
+export const TEAM_PRESETS: Record<TeamPreset, readonly TeamPerm[]> = {
+  full: TEAM_PERMS,
+  editor: ['create', 'edit', 'reschedule', 'delete', 'ai'],
+  scheduler: ['create', 'reschedule'],
+  analyst: ['analytics'],
+  view: [],
+}
+export interface TeamMember { user_id: number; name: string; username: string; perms: TeamPerm[]; active: boolean; since: string | null }
+export interface TeamInvite { id: number; perms: TeamPerm[]; expires_at: string | null }
+export interface TeamChannel { channel_id: string; title: string; members: TeamMember[]; invites: TeamInvite[] }
+export interface TeamSeats { plan: string; limit: number; used: number; pending: number; free: number }
+export interface Workspace {
+  owner_id: number; owner_name: string
+  /** Egasining tarifi jamoani bermaydi (ULTRA tugagan) — ish joyi vaqtincha yopiq. */
+  suspended: boolean
+  channels: Array<{ channel_id: string; title: string; perms: TeamPerm[] }>
+}
+export interface TeamOverview {
+  mode: 'owner' | 'helper' | null
+  seats: TeamSeats
+  can_invite: boolean
+  channels: TeamChannel[]
+  workspaces: Workspace[]
+}
+export interface TeamInviteCreated { id: number; token: string; perms: TeamPerm[]; channel_ids: string[]; expires_at: string | null }

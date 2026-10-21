@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from telegram import Update, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import TelegramError, BadRequest
 from telegram.ext import ContextTypes, ConversationHandler
 from config import ADMIN_IDS_SET
@@ -912,13 +912,35 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
                                show_alert=True)
             return ConversationHandler.END
         await query.answer()
+        from handlers.admin_promos import list_keyboard  # noqa: F401  (tugma yorlig'i uchun)
+        from keyboards.nav import nav_button
         await _admin_edit(
             query,
             admin_t("promo_title", lang) + "\n\n" + admin_t("promo_howto", lang),
-            get_admin_back_keyboard(),
+            InlineKeyboardMarkup([
+                [InlineKeyboardButton(admin_t("pr_btn_list", lang), callback_data="adm_promos")],
+                [nav_button("back", "adm_back"), nav_button("cancel", "adm_cancel")],
+            ]),
         )
         context.user_data["admin_flow"] = "promo_create"
         return ADMIN_PROMO_CREATE
+
+    if data == "adm_promos":
+        if not has_permission(query.from_user.id, PERM_MANAGE_PROMOS):
+            await query.answer(admin_t("perm_promo", lang), show_alert=True)
+            return ConversationHandler.END
+        await query.answer()
+        from handlers.admin_promos import list_keyboard, load_list_text
+        await _admin_edit(query, await load_list_text(lang), list_keyboard(lang))
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_cmds":
+        await query.answer()
+        from handlers.admin_promos import commands_text
+        await _admin_edit(query, commands_text(lang), get_admin_back_keyboard(cancel=False))
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
 
     if data == "adm_grant_pro":
         if not has_permission(query.from_user.id, PERM_MANAGE_USERS):

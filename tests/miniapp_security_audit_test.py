@@ -254,18 +254,27 @@ def test_all_routes_require_auth():
                  ("PATCH", "/api/v1/admin/ads/{item_id}"), ("POST", "/api/v1/admin/ads"),
                  ("POST", "/api/v1/admin/market/listings/{item_id}/status"),
                  ("POST", "/api/v1/admin/market/users/{item_id}/ban"), ("POST", "/api/v1/admin/sponsors")]
+    # 🎁 Promo-kodlar, tarif berish, tizim, rollar (har biri auth + RBAC).
+    expected += [("GET", "/api/v1/admin/promos"), ("POST", "/api/v1/admin/promos"), ("GET", "/api/v1/admin/promos/{code}"),
+                 ("PATCH", "/api/v1/admin/promos/{code}"), ("POST", "/api/v1/admin/grant"), ("GET", "/api/v1/admin/audit"),
+                 ("GET", "/api/v1/admin/features"), ("GET", "/api/v1/admin/system"), ("GET", "/api/v1/admin/roles"),
+                 ("POST", "/api/v1/admin/roles")]
+    # 👥 Jamoa (miniapp_api/team.py): har biri auth talab qiladi; egalik serverda (services/team_invites).
+    expected += [("GET", "/api/v1/team"), ("PATCH", "/api/v1/team/mode"), ("POST", "/api/v1/team/invites"),
+                 ("DELETE", "/api/v1/team/invites/{item_id}"), ("PATCH", "/api/v1/team/members"), ("PATCH", "/api/v1/team/helpers"),
+                 ("POST", "/api/v1/team/members/remove"), ("POST", "/api/v1/team/leave")]
     expected.sort()
     T.check("marshrutlar ro'yxati kutilgandek", routes == expected, str(routes))
     CountingRunner.calls = 0
     for method, canonical in routes:
-        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890").replace("{template_id}", "1").replace("{item_id}", "1")
+        path = canonical.replace("{post_id}", "1").replace("{channel_id}", "-1001234567890").replace("{template_id}", "1").replace("{item_id}", "1").replace("{code}", "ZT_X")
         st, body = run(fetch(app, path, method=method) if method != "GET" else fetch(app, path))
         if path.endswith("/health"):
             T.check("/health auth'siz 200", st == 200)
         else:
             T.check(f"{method} {canonical} auth'siz -> 401", st == 401 and body["error"]["code"] == "unauthorized", f"{st} {body}")
     writers = {(r.method, r.resource.canonical): getattr(r.handler, "miniapp_write", False) for r in api.router.routes() if r.method not in ("GET", "HEAD")}
-    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 31, str(writers))
+    T.check("har bir yozuvchi marshrut yozuv-limiti bilan belgilangan (miniapp_write)", all(writers.values()) and len(writers) == 42, str(writers))
     ai_flags = {r.resource.canonical: getattr(r.handler, "miniapp_ai", False) for r in api.router.routes() if r.method == "POST"}
     T.check("faqat AI ishlatadigan marshrutlar (/ai/generate, /schedule/parse) AI limitiga ega",
             ai_flags == {"/api/v1/ai/generate": True, "/api/v1/posts": False, "/api/v1/schedule/parse": True,
@@ -279,7 +288,9 @@ def test_all_routes_require_auth():
                          # 🛡 admin: AI ishlatmaydi
                          "/api/v1/admin/ads": False, "/api/v1/admin/sponsors": False,
                          "/api/v1/admin/market/listings/{item_id}/status": False,
-                         "/api/v1/admin/market/users/{item_id}/ban": False},
+                         "/api/v1/admin/market/users/{item_id}/ban": False,
+                         "/api/v1/admin/promos": False, "/api/v1/admin/grant": False, "/api/v1/admin/roles": False,
+                         "/api/v1/team/invites": False, "/api/v1/team/members/remove": False, "/api/v1/team/leave": False},
                         str(ai_flags))
     methods = {r.method for r in api.router.routes()}
     T.check("faqat ruxsat etilgan usullar ulangan (PUT yo'q)", methods <= {"GET", "HEAD", "POST", "PATCH", "DELETE"}, str(methods))

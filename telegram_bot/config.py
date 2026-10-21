@@ -230,6 +230,9 @@ UNLIMITED_LIMIT = 999
 FREE_QUEUE_MAX_POSTS = _int_env("FREE_QUEUE_MAX_POSTS", 40)
 PRO_QUEUE_MAX_POSTS = _int_env("PRO_QUEUE_MAX_POSTS", 300)
 ULTRA_QUEUE_MAX_POSTS = _int_env("ULTRA_QUEUE_MAX_POSTS", 900)
+#: Jamoa: ULTRA da egasidan tashqari nechta yordamchi akkaunt ishlay oladi (PRO/FREE — 0: bitta odam hammasini boshqaradi).
+ULTRA_TEAM_SEATS = _int_env("ULTRA_TEAM_SEATS", 2)
+ENTERPRISE_TEAM_SEATS = _int_env("ENTERPRISE_TEAM_SEATS", 5)
 # 🎙 Ovozli rejalash: free — BUTUN UMR bo'yicha bir martalik; PRO/ULTRA — oxirgi 24 soatda shuncha (0 = o'chiq).
 FREE_VOICE_SCHEDULE_TOTAL = _int_env("FREE_VOICE_SCHEDULE_TOTAL", 1)
 PRO_VOICE_SCHEDULE_DAILY = _int_env("PRO_VOICE_SCHEDULE_DAILY", 20)
@@ -239,15 +242,17 @@ ULTRA_VOICE_SCHEDULE_DAILY = _int_env("ULTRA_VOICE_SCHEDULE_DAILY", 100)
 #: ``enterprise`` — muddatsiz admin bergan (cheksiz).
 TIER_LIMITS = {
     PLAN_FREE: {"max_channels": FREE_MAX_CHANNELS, "daily_ai_requests": FREE_DAILY_AI,
-                "queued_posts": FREE_QUEUE_MAX_POSTS, "voice_daily": 0},
+                "queued_posts": FREE_QUEUE_MAX_POSTS, "voice_daily": 0, "team_seats": 0},
     PLAN_PRO: {"max_channels": PRO_MAX_CHANNELS, "daily_ai_requests": PRO_DAILY_AI,
-               "queued_posts": PRO_QUEUE_MAX_POSTS, "voice_daily": PRO_VOICE_SCHEDULE_DAILY},
+               "queued_posts": PRO_QUEUE_MAX_POSTS, "voice_daily": PRO_VOICE_SCHEDULE_DAILY, "team_seats": 0},
     PLAN_ULTRA: {"max_channels": ULTRA_MAX_CHANNELS, "daily_ai_requests": ULTRA_DAILY_AI,
-                 "queued_posts": ULTRA_QUEUE_MAX_POSTS, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY},
+                 "queued_posts": ULTRA_QUEUE_MAX_POSTS, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY,
+                 "team_seats": ULTRA_TEAM_SEATS},
     "pro_legacy": {"max_channels": UNLIMITED_LIMIT, "daily_ai_requests": UNLIMITED_LIMIT,
-                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": PRO_VOICE_SCHEDULE_DAILY},
+                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": PRO_VOICE_SCHEDULE_DAILY, "team_seats": 0},
     "enterprise": {"max_channels": UNLIMITED_LIMIT, "daily_ai_requests": UNLIMITED_LIMIT,
-                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY},
+                   "queued_posts": UNLIMITED_LIMIT, "voice_daily": ULTRA_VOICE_SCHEDULE_DAILY,
+                   "team_seats": ENTERPRISE_TEAM_SEATS},
 }
 
 

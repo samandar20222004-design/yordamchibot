@@ -52,7 +52,17 @@ def load_account(cur, user_id: int) -> dict | None:
     }
 
 
+def _allowed_ids():
+    """Ish joyi chegarasi: ruxsat etilgan kanal ID'lari yoki ``None`` (cheklov yo'q)."""
+    from . import workspace
+
+    return workspace.allowed_channels()
+
+
 def channel_owned(cur, user_id: int, channel_id: str) -> bool:
+    allowed = _allowed_ids()
+    if allowed is not None and str(channel_id) not in allowed:
+        return False
     cur.execute(
         "SELECT 1 FROM channels WHERE user_id = %s AND channel_id = %s "
         "AND is_active = TRUE AND deleted_at IS NULL LIMIT 1",
@@ -63,6 +73,9 @@ def channel_owned(cur, user_id: int, channel_id: str) -> bool:
 
 def channel_title(cur, user_id: int, channel_id: str):
     """Egasining faol kanali nomi; kanal yo'q / begona / o'chirilgan bo'lsa ``None`` (egalik tekshiruvi shu yerda)."""
+    allowed = _allowed_ids()
+    if allowed is not None and str(channel_id) not in allowed:
+        return None
     cur.execute(
         "SELECT channel_title FROM channels WHERE user_id = %s AND channel_id = %s "
         "AND is_active = TRUE AND deleted_at IS NULL LIMIT 1",
@@ -145,6 +158,10 @@ def list_channels(cur, user_id: int) -> list[dict]:
     `members` faqat `MEMBERS_FRESH_DAYS` kundan eski bo'lmagan snapshot bo'lsa beriladi; aks holda `None`
     (eskirgan raqam "joriy" deb ko'rsatilmaydi, 0 ham to'qilmaydi).
     """
+    allowed = _allowed_ids()
+    scope_sql, scope_args = ("", ())
+    if allowed is not None:
+        scope_sql, scope_args = " AND c.channel_id = ANY(%s) ", (allowed,)
     cur.execute(
         "SELECT c.channel_id, c.channel_title, "
         "       (SELECT COUNT(*) FROM scheduled_posts sp "
@@ -154,9 +171,9 @@ def list_channels(cur, user_id: int) -> list[dict]:
         "  LEFT JOIN LATERAL (SELECT member_count, snapshot_date FROM channel_member_counts "
         "                      WHERE channel_id = c.channel_id AND snapshot_date >= CURRENT_DATE - %s "
         "                      ORDER BY snapshot_date DESC LIMIT 1) m ON TRUE "
-        " WHERE c.user_id = %s AND c.is_active = TRUE AND c.deleted_at IS NULL "
+        " WHERE c.user_id = %s AND c.is_active = TRUE AND c.deleted_at IS NULL " + scope_sql +
         " ORDER BY c.id ASC LIMIT %s",
-        (MEMBERS_FRESH_DAYS, user_id, CHANNELS_HARD_LIMIT),
+        (MEMBERS_FRESH_DAYS, user_id, *scope_args, CHANNELS_HARD_LIMIT),
     )
     return [{"id": str(r[0]), "title": r[1], "pending_posts": int(r[2]),
              "members": int(r[3]) if r[3] is not None else None,
@@ -200,32 +217,42 @@ def _post_dict(r) -> dict:
                                  if r[8] == "twice" and r[10] is not None else None)}
 
 
+def _ws_posts(alias: str = ""):
+    """Ish joyida: postlar faqat ruxsat etilgan kanallardan (SQL bo'lagi, argumentlar)."""
+    allowed = _allowed_ids()
+    if allowed is None:
+        return "", ()
+    return f" AND {alias}channel_id = ANY(%s) ", (allowed,)
+
+
 def count_posts(cur, user_id: int, history: bool) -> int:
+    ws_sql, ws_args = _ws_posts()
     if history:
         cur.execute(
-            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = ANY(%s)",
-            (user_id, list(HISTORY_STATUSES)),
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = ANY(%s)" + ws_sql,
+            (user_id, list(HISTORY_STATUSES), *ws_args),
         )
     else:
         cur.execute(
-            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'",
-            (user_id,),
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'" + ws_sql,
+            (user_id, *ws_args),
         )
     return int(cur.fetchone()[0])
 
 
 def list_posts(cur, user_id: int, history: bool, limit: int, offset: int) -> list[dict]:
+    ws_sql, ws_args = _ws_posts("sp.")
     if history:
         cur.execute(
-            _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = ANY(%s)"
+            _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = ANY(%s)" + ws_sql +
             " ORDER BY sp.scheduled_time DESC, sp.id DESC OFFSET %s LIMIT %s",
-            (PREVIEW_CHARS, user_id, list(HISTORY_STATUSES), offset, limit),
+            (PREVIEW_CHARS, user_id, list(HISTORY_STATUSES), *ws_args, offset, limit),
         )
     else:
         cur.execute(
-            _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = 'pending'"
+            _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = 'pending'" + ws_sql +
             " ORDER BY sp.scheduled_time ASC, sp.id ASC OFFSET %s LIMIT %s",
-            (PREVIEW_CHARS, user_id, offset, limit),
+            (PREVIEW_CHARS, user_id, *ws_args, offset, limit),
         )
     return [_post_dict(r) for r in cur.fetchall()]
 
@@ -239,11 +266,12 @@ def list_posts_between(cur, user_id: int, start, end, limit: int | None = None) 
     `limit + 1` qator so'raladi: chaqiruvchi kesilganini (`truncated`) halol bildiradi.
     """
     limit = CALENDAR_LIMIT if limit is None else limit
+    ws_sql, ws_args = _ws_posts("sp.")
     cur.execute(
         _POST_SELECT + " WHERE sp.user_id = %s AND sp.status = 'pending'"
-        " AND sp.scheduled_time >= %s AND sp.scheduled_time < %s"
+        " AND sp.scheduled_time >= %s AND sp.scheduled_time < %s" + ws_sql +
         " ORDER BY sp.scheduled_time ASC, sp.id ASC LIMIT %s",
-        (PREVIEW_CHARS, user_id, start, end, limit + 1),
+        (PREVIEW_CHARS, user_id, start, end, *ws_args, limit + 1),
     )
     return [_post_dict(r) for r in cur.fetchall()]
 
@@ -254,8 +282,9 @@ def list_pending_posts(cur, user_id: int, limit: int, offset: int) -> list[dict]
 
 def get_post(cur, user_id: int, post_id: int) -> dict | None:
     """Postni EGASI bo'yicha oladi (boshqa foydalanuvchi posti -> None)."""
-    cur.execute(_POST_SELECT + " WHERE sp.id = %s AND sp.user_id = %s",
-                (PREVIEW_CHARS, int(post_id), user_id))
+    ws_sql, ws_args = _ws_posts("sp.")
+    cur.execute(_POST_SELECT + " WHERE sp.id = %s AND sp.user_id = %s" + ws_sql,
+                (PREVIEW_CHARS, int(post_id), user_id, *ws_args))
     row = cur.fetchone()
     if not row:
         return None
@@ -277,8 +306,9 @@ def get_post(cur, user_id: int, post_id: int) -> dict | None:
 
 def get_post_media_ref(cur, user_id: int, post_id: int) -> dict | None:
     """Postning media havolasi (``file_id`` mijozga CHIQMAYDI; faqat ichki proksi uchun). Boshqa foydalanuvchi posti -> None."""
-    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s",
-                (int(post_id), user_id))
+    ws_sql, ws_args = _ws_posts()
+    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s" + ws_sql,
+                (int(post_id), user_id, *ws_args))
     row = cur.fetchone()
     return {"post_type": row[0], "file_id": row[1]} if row else None
 

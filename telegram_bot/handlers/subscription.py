@@ -1,5 +1,6 @@
 """Subscriptions, Limits & Monetization — tariflar va obuna boshqaruvi."""
 import logging
+import time
 import re
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -47,6 +48,10 @@ logger = logging.getLogger(__name__)
 # States
 SUBSCRIPTION_VIEW = 601
 PROMO_INPUT = 602
+#: Promo-kod kutilayotganini ``user_data`` da eslab qoladi (suhbatdan tashqarida
+#: bosilgan «Promo-kod» tugmasi holat qaytara olmaydi — kod «tushunmadim»ga tushardi).
+UD_PROMO_WAIT = "promo_wait_ts"
+PROMO_WAIT_SECONDS = 5 * 60
 # 💳 Karta to'lov chekini (rasm/PDF) kutuvchi holat — Admin Approval Flow
 RECEIPT_WAIT = 603
 
@@ -593,6 +598,7 @@ def _build_subscription_card(plan_info: dict, lang: str = "uz", region: str = PA
         pro_ch=TIER_LIMITS[PLAN_PRO]["max_channels"], pro_ai=TIER_LIMITS[PLAN_PRO]["daily_ai_requests"],
         ultra_ch=TIER_LIMITS[PLAN_ULTRA]["max_channels"], ultra_ai=TIER_LIMITS[PLAN_ULTRA]["daily_ai_requests"],
         ultra_q=TIER_LIMITS[PLAN_ULTRA]["queued_posts"],
+        ultra_team=TIER_LIMITS[PLAN_ULTRA].get("team_seats", 0), ultra_accounts=TIER_LIMITS[PLAN_ULTRA].get("team_seats", 0) + 1,
     )
     if plan == "free":
         lines.extend(["", get_text("plan_card_upsell_free", lang, **ctx)])
@@ -995,6 +1001,7 @@ async def subscription_callback(update: Update, context: ContextTypes.DEFAULT_TY
         return SUBSCRIPTION_VIEW
 
     if data == "sub_promo":
+        context.user_data[UD_PROMO_WAIT] = time.time()
         await query.message.reply_text(
             get_text(
                 "sub_promo_ask", lang,
@@ -1033,6 +1040,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
     lang = get_lang(context)
 
     if is_main_menu_text(text):
+        context.user_data.pop(UD_PROMO_WAIT, None)
         # Qaytadan obuna kartasini ko'rsatamiz
         plan_info = await db.run_db(db.get_user_plan, user_id)
         card = _build_subscription_card(plan_info, lang, await _user_region(user_id, lang))
@@ -1059,6 +1067,7 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if success:
         promo_limiter.reset(user_id)
+        context.user_data.pop(UD_PROMO_WAIT, None)
         await update.message.reply_text(
             get_text("sub_promo_success", lang, msg=msg_localized),
             reply_markup=get_main_keyboard(is_admin, lang=lang),
@@ -1072,6 +1081,20 @@ async def promo_code_received(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML",
         )
         return PROMO_INPUT
+
+
+def promo_wait_active(context) -> bool:
+    """Foydalanuvchi «Promo-kod» tugmasini yaqinda bosganmi (kod kutilyaptimi)."""
+    ts = (getattr(context, "user_data", None) or {}).get(UD_PROMO_WAIT)
+    return isinstance(ts, (int, float)) and time.time() - ts < PROMO_WAIT_SECONDS
+
+
+async def promo_wait_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Suhbat holati yo'qolgan bo'lsa ham, «Promo-kod»dan keyingi matnni promo sifatida qabul qiladi."""
+    if not promo_wait_active(context):
+        return None
+    await promo_code_received(update, context)
+    return None
 
 
 @require_permission(PERM_MANAGE_USERS,

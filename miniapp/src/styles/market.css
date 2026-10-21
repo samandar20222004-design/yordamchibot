@@ -101,6 +101,7 @@
 .adm-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--s3); align-items: center; }
 .adm-row-main { display: grid; gap: 2px; min-width: 0; }
 .adm-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-row-btn { width: 100%; text-align: left; background: none; border: 0; color: inherit; padding: 0; font: inherit; cursor: pointer; }
 .adm-listing { gap: var(--s2); }
 .chip-warn { background: color-mix(in srgb, var(--danger, #dc2626) 14%, var(--bg)); }
 .adm-switch { border-color: color-mix(in srgb, #7c3aed 45%, var(--border)); }
@@ -108,3 +109,16 @@
 .adm-card .switch-row, .adm-actions .switch-row { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: 0; }
 .adm-card .switch-text { min-width: 0; flex: 1 1 auto; }
 .adm-listing .adm-actions .btn { flex: 1 1 0; }
+
+/* 👥 Jamoa va rol / ish joyi */
+.mode-list { display: grid; gap: var(--s2); }
+.mode-card { display: grid; gap: 2px; text-align: left; padding: var(--s3); border-radius: var(--r-md, 14px); border: 1.5px solid var(--line, rgba(127,127,127,.25)); background: var(--surface, transparent); color: inherit; font: inherit; cursor: pointer; }
+.mode-card[aria-checked='true'] { border-color: var(--accent, #3390ec); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent, #3390ec) 25%, transparent); }
+.mode-card:disabled { opacity: .6; }
+.field-label { display: block; margin-top: var(--s2); font-size: 13px; opacity: .75; }
+.invite-link { display: block; padding: var(--s2) var(--s3); border-radius: 10px; background: var(--surface-2, rgba(127,127,127,.12)); word-break: break-all; font-size: 13px; }
+.team-member { display: grid; gap: var(--s2); }
+.ws-active { border: 1.5px solid var(--accent, #3390ec); }
+.ws-banner { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: var(--s2); padding: 8px var(--s3); background: color-mix(in srgb, var(--accent, #3390ec) 14%, var(--bg, #fff)); border-bottom: 1px solid color-mix(in srgb, var(--accent, #3390ec) 35%, transparent); }
+.ws-banner-text { display: grid; flex: 1; min-width: 0; }
+.ws-banner-exit { border: 0; background: none; color: var(--accent, #3390ec); font: inherit; font-weight: 600; cursor: pointer; }

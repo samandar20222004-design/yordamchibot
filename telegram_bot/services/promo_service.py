@@ -38,6 +38,21 @@ def transaction(commit: bool = True):
         yield cur
 
 
+def normalize_promo_input(code) -> str:
+    """Foydalanuvchi kiritgan kodni tozalaydi: ko'rinmas belgilar, bo'shliq, ``«»"'`` va katta-kichik harf.
+
+    Telegram nusxa ko'chirishda ko'pincha zero-width belgi/yo'g'on probel qo'shadi — kod bazada
+    bor bo'lsa ham «topilmadi» bo'lib qolardi. Admin kodlari faqat harf/raqam/-/_ bo'lgani uchun xavfsiz.
+    """
+    import re
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", str(code or ""))
+    text = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cf", "Cc", "Zs", "Zl", "Zp"))
+    text = text.strip("«»\"'`“”‘’<>()[].,;:!?")
+    return re.sub(r"\s+", "", text).upper()
+
+
 class PromoService:
     """Promo-kodlarni boshqarish: create, redeem, stats."""
 
@@ -64,7 +79,7 @@ class PromoService:
             admin_id: kodni yaratgan admin — berilsa harakat
                 ``admin_audit_logs`` jadvaliga SHU tranzaksiyada yoziladi.
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return False
         try:
@@ -121,7 +136,7 @@ class PromoService:
 
         Returns: ``(success: bool, message: str)``
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return False, "Promo-kod kiritilmadi."
         try:
@@ -225,7 +240,7 @@ class PromoService:
             }
             yoki promo topilmaganida ``{}``.
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return {}
         try:
@@ -256,3 +271,110 @@ class PromoService:
         except Exception as e:
             logger.error("PromoService.get_promo_stats xatosi: %s", e)
             return {}
+
+    # ──────────────────────────────────────────────────────────────
+    # RO'YXAT / HISOBOT (admin): qaysi kod qancha ishlatilgan, qancha qolgan
+    # ──────────────────────────────────────────────────────────────
+    @staticmethod
+    def promo_status(is_active, max_uses, current_uses, expired) -> str:
+        """``active`` | ``used_up`` | ``expired`` | ``disabled`` (ustunlik tartibi shu)."""
+        if not is_active:
+            return "disabled"
+        if expired:
+            return "expired"
+        if max_uses is not None and (current_uses or 0) >= max_uses:
+            return "used_up"
+        return "active"
+
+    @staticmethod
+    def list_promos(limit: int = 50, offset: int = 0, status: str | None = None) -> list:
+        """Promo-kodlar ro'yxati (eng yangisi birinchi): ishlatilgan/qolgan soni va holati bilan.
+
+        ``status``: ``active|used_up|expired|disabled`` (bo'sh = hammasi).
+        """
+        try:
+            limit = max(1, min(int(limit), 200))
+            offset = max(0, int(offset))
+        except (TypeError, ValueError):
+            limit, offset = 50, 0
+        try:
+            with db_cursor() as cur:
+                cur.execute(
+                    "SELECT code, plan_type, duration_days, max_uses, current_uses, is_active, "
+                    "expires_at, created_at, (expires_at IS NOT NULL AND expires_at <= NOW()) "
+                    "FROM promo_codes ORDER BY id DESC"
+                )
+                rows = cur.fetchall() or []
+        except Exception as e:
+            logger.error("PromoService.list_promos xatosi: %s", e)
+            return []
+        out = []
+        for code, plan, days, max_uses, used, active, expires_at, created_at, expired in rows:
+            st = PromoService.promo_status(active, max_uses, used, bool(expired))
+            if status and st != status:
+                continue
+            out.append({
+                "code": code, "plan_type": plan, "duration_days": int(days or 0),
+                "max_uses": max_uses, "current_uses": int(used or 0),
+                "remaining_uses": None if max_uses is None else max(0, max_uses - int(used or 0)),
+                "is_active": bool(active), "status": st,
+                "expires_at": expires_at, "created_at": created_at,
+            })
+        return out[offset:offset + limit]
+
+    @staticmethod
+    def promo_totals() -> dict:
+        """Umumiy hisob: kodlar soni holatlar bo'yicha, jami ishlatilgan va qolgan joylar."""
+        items = PromoService.list_promos(limit=200)
+        totals = {"total": 0, "active": 0, "used_up": 0, "expired": 0, "disabled": 0,
+                  "redemptions": 0, "remaining_uses": 0, "unlimited": 0}
+        for it in items:
+            totals["total"] += 1
+            totals[it["status"]] += 1
+            totals["redemptions"] += it["current_uses"]
+            if it["status"] == "active":
+                if it["remaining_uses"] is None:
+                    totals["unlimited"] += 1
+                else:
+                    totals["remaining_uses"] += it["remaining_uses"]
+        return totals
+
+    @staticmethod
+    def recent_redemptions(code: str, limit: int = 20) -> list:
+        """Kodni kim va qachon ishlatgani (eng yangisi birinchi)."""
+        code = normalize_promo_input(code)
+        try:
+            limit = max(1, min(int(limit), 100))
+        except (TypeError, ValueError):
+            limit = 20
+        if not code:
+            return []
+        try:
+            with db_cursor() as cur:
+                cur.execute(
+                    "SELECT r.user_id, r.redeemed_at FROM promo_redemptions r "
+                    "JOIN promo_codes p ON p.id = r.promo_id WHERE p.code = %s "
+                    "ORDER BY r.id DESC LIMIT %s", (code, limit),
+                )
+                return [{"user_id": int(u), "redeemed_at": at} for u, at in (cur.fetchall() or [])]
+        except Exception as e:
+            logger.error("PromoService.recent_redemptions xatosi: %s", e)
+            return []
+
+    @staticmethod
+    def set_promo_active(code: str, active: bool, admin_id: int | None = None) -> bool:
+        """Kodni o'chirish/qayta yoqish. Topilmasa ``False``."""
+        code = normalize_promo_input(code)
+        if not code:
+            return False
+        try:
+            with transaction() as cur:
+                cur.execute("UPDATE promo_codes SET is_active = %s WHERE code = %s", (bool(active), code))
+                ok = cur.rowcount > 0
+                if ok and admin_id is not None:
+                    AuditService.log_action(admin_id, "system_settings", target_type="promo", target_id=code,
+                                            new_value={"is_active": bool(active)}, cur=cur)
+                return ok
+        except Exception as e:
+            logger.error("PromoService.set_promo_active xatosi: %s", e)
+            return False

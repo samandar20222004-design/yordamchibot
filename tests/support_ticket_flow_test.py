@@ -598,7 +598,7 @@ def test_one_time_ticket_flow():
           and _flat_cbs(query.screen.get("markup"))
           == [
               "stgs_lang", "stgs_notif",
-              "sub_open", "stgs_referral", "stgs_help_hub",
+              "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
           ],
           str(_flat_cbs(query.screen.get("markup"))))
 
@@ -995,7 +995,7 @@ def test_regression_and_parity():
     check("hub: six primary actions (3x2)",
           hub_cbs == [
               "stgs_lang", "stgs_notif",
-              "sub_open", "stgs_referral", "stgs_help_hub",
+              "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
           ],
           str(hub_cbs))
     profile_buttons = [b for row in get_settings_help_hub_keyboard("uz").inline_keyboard

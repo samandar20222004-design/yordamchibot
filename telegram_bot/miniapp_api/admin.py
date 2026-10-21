@@ -21,6 +21,8 @@ from .settings import MiniAppSettings
 logger = logging.getLogger(__name__)
 
 AD_SCOPES = ("channel", "reply")
+_PROMO_CODE = re.compile(r"\A[A-Za-z0-9_-]{3,32}\Z")
+ROLE_CHOICES = ("owner", "super_admin", "admin", "moderator", "finance")
 _CHANNEL_TARGET = re.compile(r"\A(?:@[A-Za-z][A-Za-z0-9_]{3,31}|-?[0-9]{5,20}|https://t\.me/[A-Za-z][A-Za-z0-9_]{3,31}/?)\Z")
 
 
@@ -315,3 +317,169 @@ class AdminApi:
         await self._blocking(market.admin_set_ban, target_id, body["banned"])
         await self._audit(user_id, "system_settings", "market_user", target_id, {"banned": body["banned"]})
         return {"user_id": target_id, "banned": body["banned"]}
+
+    # ---------------------------------------------------------------- RBAC yordamchilari
+    async def _require_perm(self, user_id: int, permission: str) -> None:
+        await self.require_admin(user_id)
+        from services.rbac_service import has_permission
+
+        if not has_permission(user_id, permission):
+            raise ApiError("admin_only")
+
+    async def _require_role(self, user_id: int, role, *, strict: bool = False) -> None:
+        await self.require_admin(user_id)
+        from services.rbac_service import has_role
+
+        if not has_role(user_id, role, strict=strict):
+            raise ApiError("admin_only")
+
+    # ---------------------------------------------------------------- promo-kodlar
+    @staticmethod
+    def _iso(value):
+        try:
+            return value.isoformat()
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _public_promo(self, it: dict) -> dict:
+        return {"code": it["code"], "plan": it["plan_type"], "days": it["duration_days"], "max_uses": it["max_uses"],
+                "used": it["current_uses"], "left": it["remaining_uses"], "status": it["status"], "is_active": it["is_active"],
+                "expires_at": self._iso(it.get("expires_at")), "created_at": self._iso(it.get("created_at"))}
+
+    async def promos(self, user_id: int, status: str | None = None) -> dict:
+        from services.rbac_service import PERM_MANAGE_PROMOS
+
+        await self._require_perm(user_id, PERM_MANAGE_PROMOS)
+        if status not in (None, "", "active", "used_up", "expired", "disabled"):
+            raise ApiError("bad_request")
+        from services.promo_service import PromoService
+
+        items = await self._blocking(PromoService.list_promos, 200, 0, status or None)
+        totals = await self._blocking(PromoService.promo_totals)
+        return {"totals": totals, "items": [self._public_promo(i) for i in items]}
+
+    async def promo_detail(self, user_id: int, code: str) -> dict:
+        from services.promo_service import PromoService, normalize_promo_input
+        from services.rbac_service import PERM_MANAGE_PROMOS
+
+        await self._require_perm(user_id, PERM_MANAGE_PROMOS)
+        wanted = normalize_promo_input(code)
+        items = await self._blocking(PromoService.list_promos, 200, 0, None)
+        item = next((i for i in items if i["code"] == wanted), None)
+        if item is None:
+            raise ApiError("not_found")
+        who = await self._blocking(PromoService.recent_redemptions, wanted, 20)
+        return {"promo": self._public_promo(item),
+                "redeemers": [{"user_id": r["user_id"], "at": self._iso(r["redeemed_at"])} for r in who]}
+
+    async def create_promo(self, user_id: int, body: dict) -> dict:
+        writes._only_keys(body, ("code", "days", "max_uses", "plan"))
+        code = body.get("code")
+        if not isinstance(code, str) or not _PROMO_CODE.match(code.strip()):
+            raise ApiError("invalid_input", field="code")
+        days, max_uses, plan = body.get("days"), body.get("max_uses"), body.get("plan", "pro")
+        from services.subscription_service import MAX_ADMIN_GRANT_DAYS
+
+        if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= MAX_ADMIN_GRANT_DAYS:
+            raise ApiError("invalid_input", field="days")
+        if max_uses is not None and (isinstance(max_uses, bool) or not isinstance(max_uses, int) or not 1 <= max_uses <= 1_000_000):
+            raise ApiError("invalid_input", field="max_uses")
+        if plan not in ("pro", "ultra"):
+            raise ApiError("invalid_input", field="plan")
+        from services.promo_service import PromoService
+        from services.rbac_service import PERM_MANAGE_PROMOS
+
+        await self._require_perm(user_id, PERM_MANAGE_PROMOS)
+        ok = await self._blocking(lambda: PromoService.create_promo(code.strip(), days, max_uses, None, plan, user_id))
+        if not ok:
+            raise ApiError("promo_exists")
+        return await self.promo_detail(user_id, code)
+
+    async def set_promo_active(self, user_id: int, code: str, body: dict) -> dict:
+        writes._only_keys(body, ("is_active",))
+        if not isinstance(body.get("is_active"), bool):
+            raise ApiError("invalid_input", field="is_active")
+        from services.promo_service import PromoService
+        from services.rbac_service import PERM_MANAGE_PROMOS
+
+        await self._require_perm(user_id, PERM_MANAGE_PROMOS)
+        if not await self._blocking(PromoService.set_promo_active, code, body["is_active"], user_id):
+            raise ApiError("not_found")
+        return await self.promo_detail(user_id, code)
+
+    # ---------------------------------------------------------------- tarif berish (/grant_pro)
+    async def grant_plan(self, user_id: int, body: dict) -> dict:
+        writes._only_keys(body, ("user_id", "days", "plan"))
+        target, days, plan = body.get("user_id"), body.get("days"), body.get("plan", "pro")
+        from services.subscription_service import MAX_ADMIN_GRANT_DAYS
+
+        if isinstance(target, bool) or not isinstance(target, int) or target <= 0:
+            raise ApiError("invalid_input", field="user_id")
+        if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= MAX_ADMIN_GRANT_DAYS:
+            raise ApiError("invalid_input", field="days")
+        if plan not in ("pro", "ultra"):
+            raise ApiError("invalid_input", field="plan")
+        from services.rbac_service import PERM_MANAGE_USERS
+
+        await self._require_perm(user_id, PERM_MANAGE_USERS)
+        db = _db()
+        if not await self._blocking(lambda: db.set_user_plan(target, plan, days, admin_id=user_id)):
+            raise ApiError("user_unknown")
+        return {"user_id": target, "plan": plan, "days": days}
+
+    # ---------------------------------------------------------------- tizim: audit / funksiyalar / holat
+    async def audit(self, user_id: int, limit: int = 30) -> dict:
+        from services.rbac_service import Role
+
+        await self._require_role(user_id, Role.SUPER_ADMIN)
+        rows = await self._blocking(lambda: _db().get_admin_audit_logs(limit=max(1, min(int(limit), 100))))
+        return {"items": [{"admin_id": r.get("admin_id"), "action": r.get("action"), "target_type": r.get("target_type"),
+                           "target_id": r.get("target_id"), "at": self._iso(r.get("created_at"))} for r in rows or []]}
+
+    async def feature_usage(self, user_id: int) -> dict:
+        await self.require_admin(user_id)
+        from services import event_tracker
+
+        db = _db()
+        stats = await self._blocking(db.get_system_stats)
+        report = event_tracker.usage_report(total_users=(stats or {}).get("users"))
+        pick = lambda rows: [{"name": r["event_name"], "count": r.get("count", 0), "users": r["unique_users"],  # noqa: E731
+                              "rate": round(r["adoption_rate"] * 100, 1)} for r in rows or []]
+        return {"total_users": report.get("total_users"), "most_used": pick(report.get("most_used")),
+                "least_used": pick(report.get("least_used"))}
+
+    async def system_health(self, user_id: int) -> dict:
+        from services.rbac_service import PERM_SYSTEM_SETTINGS
+
+        await self._require_perm(user_id, PERM_SYSTEM_SETTINGS)
+        from services import health_service
+
+        status = await health_service.get_readiness_status()
+        return {"ready": bool(status.get("ready")), "checks": status.get("checks", {}),
+                "uptime": health_service.format_uptime()}
+
+    # ---------------------------------------------------------------- rollar (faqat OWNER)
+    async def roles(self, user_id: int) -> dict:
+        from services.rbac_service import Role, list_admins
+
+        await self._require_role(user_id, Role.OWNER, strict=True)
+        rows = await self._blocking(list_admins, 100)
+        return {"items": [{"user_id": r.get("user_id"), "role": str(r.get("role"))} for r in rows or []],
+                "choices": list(ROLE_CHOICES)}
+
+    async def set_role(self, user_id: int, body: dict) -> dict:
+        writes._only_keys(body, ("user_id", "role"))
+        target, role = body.get("user_id"), body.get("role")
+        if isinstance(target, bool) or not isinstance(target, int) or target <= 0:
+            raise ApiError("invalid_input", field="user_id")
+        if role not in ROLE_CHOICES + ("user",):
+            raise ApiError("invalid_input", field="role")
+        from services.rbac_service import Role, parse_role, remove_role, set_role
+
+        await self._require_role(user_id, Role.OWNER, strict=True)
+        parsed = parse_role(role)
+        if role == "user":
+            await self._blocking(lambda: remove_role(target, granted_by=user_id))
+        elif not await self._blocking(lambda: set_role(target, parsed, granted_by=user_id)):
+            raise ApiError("save_failed", retry_after=5)
+        return await self.roles(user_id)

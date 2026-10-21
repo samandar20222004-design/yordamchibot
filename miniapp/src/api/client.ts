@@ -1,7 +1,9 @@
 import { config } from '../config'
 import { setAppTimezone } from '../pages/recurrence'
-import type { AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
+import type { TeamInviteCreated, TeamOverview, TeamPerm, AdminAuditItem, AdminFeatures, AdminHealth, AdminPromoDetail, AdminPromoInput, AdminPromos, AdminRoles, AdminAd, AdminAdInput, AdminAds, AdminMarket, AdminOverview, AdminSponsor, AiResult, AiStyle, CalendarData, ChannelAnalytics, TemplateList, ChannelList, CreatePostInput, MarketCatalog, MarketCategory, MarketListing, MarketListingInput, MarketMine, MarketSort, MarketSummary, MarketThread, MarketThreadItem, Draft, ErrorCode, Lang, Me, NotificationSettings, PostFilter, PostResult, ScheduleParseResult, ScheduledPage, ScheduledPost, UpdatePostInput } from './types'
 import {
+  parseTeam, parseTeamInvite, parseTeamMode, parseAck,
+  parseAdminAudit, parseAdminFeatures, parseAdminHealth, parseAdminPromoDetail, parseAdminPromos, parseAdminRoles,
   parseAdminAdEnvelope, parseAdminAds, parseAdminMarket, parseAdminOverview, parseAdminSponsors,
   parseAi, parseCancelled, parseChannelAnalytics, parseChannels, parseErrorBody, parseLanguage, parseMe, parsePostEnvelope,
   parseMarketAck, parseMarketCard, parseMarketCatalog, parseMarketListingEnvelope, parseMarketMine, parseMarketSummary, parseMarketThread, parseMarketThreads,
@@ -17,7 +19,8 @@ const KNOWN_CODES: readonly string[] = [
   'ai_unavailable', 'upload_failed', 'templates_limit_reached', 'save_failed', 'draft_not_found', 'media_unavailable', 'caption_too_long', 'album_full', 'album_mixed',
   'market_private', 'market_not_admin', 'market_limit', 'market_blocked', 'inquiry_limit', 'inquiry_blocked', 'inquiry_own', 'inquiry_exists', 'thread_closed', 'thread_full',
   'message_card', 'message_wallet', 'message_link', 'message_spam', 'user_banned', 'owner_busy', 'phone_required',
-  'admin_only', 'sponsor_not_found', 'sponsor_not_admin',
+  'admin_only', 'sponsor_not_found', 'sponsor_not_admin', 'promo_exists', 'user_unknown',
+  'workspace_denied', 'team_no_seats', 'team_seats_full', 'invite_invalid',
 ]
 
 /** Yuklash vaqti fayl hajmiga qarab (sekin mobil tarmoqda 50 MB video 60 s ga sig'maydi). */
@@ -47,6 +50,8 @@ export class ApiClientError extends Error {
 export interface ClientOptions {
   getInitData: () => string
   language?: () => string
+  /** Ish joyi (yordamchi rejimi): egasi ID'si; berilsa `X-Workspace` sarlavhasi yuboriladi (server faqat tegishli marshrutlarda hisobga oladi). */
+  workspace?: () => number | null
   fetchImpl?: typeof fetch
   baseUrl?: string
   timeoutMs?: number
@@ -88,6 +93,8 @@ export function createApiClient(opts: ClientOptions) {
       const headers: Record<string, string> = { Authorization: `tma ${initData}`, Accept: 'application/json' }
       const lang = opts.language?.()
       if (lang) headers['Accept-Language'] = lang
+      const ws = opts.workspace?.()
+      if (ws) headers['X-Workspace'] = String(ws)
       const isForm = typeof FormData !== 'undefined' && payload instanceof FormData
       if (payload !== undefined && !isForm) headers['Content-Type'] = 'application/json'
       let res: Response
@@ -292,6 +299,26 @@ export function createApiClient(opts: ClientOptions) {
       get(`/admin/market${status === 'all' ? '' : `?status=${status}`}`, parseAdminMarket, signal),
     adminListingStatus: (id: number, status: 'active' | 'blocked'): Promise<void> =>
       send('POST', `/admin/market/listings/${id}/status`, { status }, () => undefined),
+    adminPromos: (signal?: AbortSignal): Promise<AdminPromos> => get('/admin/promos', parseAdminPromos, signal),
+    adminPromoDetail: (code: string, signal?: AbortSignal): Promise<AdminPromoDetail> =>
+      get(`/admin/promos/${encodeURIComponent(code)}`, parseAdminPromoDetail, signal),
+    adminPromoCreate: (input: AdminPromoInput): Promise<AdminPromoDetail> => send('POST', '/admin/promos', input, parseAdminPromoDetail),
+    adminPromoActive: (code: string, is_active: boolean): Promise<AdminPromoDetail> =>
+      send('PATCH', `/admin/promos/${encodeURIComponent(code)}`, { is_active }, parseAdminPromoDetail),
+    adminGrant: (input: { user_id: number; days: number; plan: 'pro' | 'ultra' }): Promise<void> => send('POST', '/admin/grant', input, () => undefined),
+    adminAudit: (signal?: AbortSignal): Promise<{ items: AdminAuditItem[] }> => get('/admin/audit', parseAdminAudit, signal),
+    adminFeatures: (signal?: AbortSignal): Promise<AdminFeatures> => get('/admin/features', parseAdminFeatures, signal),
+    adminHealth: (signal?: AbortSignal): Promise<AdminHealth> => get('/admin/system', parseAdminHealth, signal),
+    adminRoles: (signal?: AbortSignal): Promise<AdminRoles> => get('/admin/roles', parseAdminRoles, signal),
+    adminRoleSet: (input: { user_id: number; role: string }): Promise<AdminRoles> => send('POST', '/admin/roles', input, parseAdminRoles),
+    team: (signal?: AbortSignal): Promise<TeamOverview> => get('/team', parseTeam, signal),
+    teamMode: (mode: 'owner' | 'helper'): Promise<{ mode: 'owner' | 'helper' }> => send('PATCH', '/team/mode', { mode }, parseTeamMode),
+    teamInviteCreate: (channel_ids: string[], perms: readonly TeamPerm[]): Promise<TeamInviteCreated> => send('POST', '/team/invites', { channel_ids, perms }, parseTeamInvite),
+    teamInviteRevoke: (id: number): Promise<void> => send('DELETE', `/team/invites/${id}`, undefined, () => undefined),
+    /** Yordamchini sozlash: u ishlaydigan kanallar to'plami va ruxsatlari (bo'sh kanallar ro'yxati = yordamchini olib tashlash). */
+    teamHelperUpdate: (user_id: number, channel_ids: string[], perms: readonly TeamPerm[]): Promise<void> => send('PATCH', '/team/helpers', { user_id, channel_ids, perms }, parseAck).then(() => undefined),
+    teamMemberRemove: (channel_id: string, user_id: number): Promise<void> => send('POST', '/team/members/remove', { channel_id, user_id }, parseAck).then(() => undefined),
+    teamLeave: (owner_id: number): Promise<void> => send('POST', '/team/leave', { owner_id }, parseAck).then(() => undefined),
     adminUserBan: (userId: number, banned: boolean): Promise<void> =>
       send('POST', `/admin/market/users/${userId}/ban`, { banned }, () => undefined),
     generate: (text: string, style: AiStyle): Promise<AiResult> =>

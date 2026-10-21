@@ -1,6 +1,6 @@
 // Server javoblarini ish vaqtida tekshirish (kichik qo'lda validatorlar: yangi kutubxona yo'q).
 import { AI_STYLES, MARKET_CATEGORIES, NOTIFICATION_KEYS } from './types'
-import type { AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
+import type { TeamChannel, TeamInviteCreated, TeamOverview, TeamPerm, Workspace, AdminPromo, AdminPromoDetail, AdminPromos, AdminAuditItem, AdminFeatures, AdminHealth, AdminRoles, AdminAd, AdminAds, AdminMarket, AdminMarketTotals, AdminOverview, AdminSponsor, MarketBadge, MarketMessageFlag, MarketCatalog, MarketCategory, MarketListing, MarketMine, MarketSummary, MarketThread, MarketThreadItem, PlanLimits, TierInfo, AiResult, Template, TemplateList, CalendarData, Channel, ChannelAnalytics, ChannelList, Confidence, Lang, Me, Plan, PostCounts, PostResult, RecurrenceInput, ScheduleParseResult, ScheduledPage, ScheduledPost, Draft, NotificationSettings } from './types'
 
 export class ShapeError extends Error {}
 
@@ -51,6 +51,7 @@ function parseLimits(l: Rec): PlanLimits {
     daily_ai_requests: int(l.daily_ai_requests, 'limits.daily_ai_requests'),
     queued_posts: int(l.queued_posts, 'limits.queued_posts'),
     ...(l.voice_daily === undefined ? {} : { voice_daily: int(l.voice_daily, 'limits.voice_daily') }),
+    ...(l.team_seats === undefined ? {} : { team_seats: int(l.team_seats, 'limits.team_seats') }),
   }
 }
 
@@ -125,6 +126,7 @@ export function parseMe(v: unknown): Me {
     next_post_at: strOrNull(o.next_post_at, 'next_post_at'),
     bot: { username: strOrNull(bot.username, 'bot.username') },
     ...(o.is_admin === true ? { is_admin: true } : {}),
+    ...(o.work_mode === 'owner' || o.work_mode === 'helper' || o.work_mode === null ? { work_mode: o.work_mode } : {}),
   }
 }
 
@@ -556,4 +558,116 @@ export function parseAdminMarket(v: unknown): AdminMarket {
       members: intOrNull(r.members, 'listing.members'), view_count: count(r.view_count), inquiry_count: count(r.inquiry_count),
       reports: count(r.reports), owner_banned: r.owner_banned === true }
   }) }
+}
+
+// --- 👑 Super admin: promo-kodlar va boshqaruv ---
+function parseAdminPromo(v: unknown): AdminPromo {
+  const o = rec(v, 'promo')
+  const st = o.status
+  const status = st === 'used_up' || st === 'expired' || st === 'disabled' ? st : 'active'
+  return { code: str(o.code, 'promo.code'), plan: str(o.plan ?? 'pro', 'promo.plan'), days: count(o.days),
+    max_uses: typeof o.max_uses === 'number' ? o.max_uses : null, used: count(o.used),
+    left: typeof o.left === 'number' ? o.left : null, status, is_active: o.is_active !== false,
+    expires_at: typeof o.expires_at === 'string' ? o.expires_at : null, created_at: typeof o.created_at === 'string' ? o.created_at : null }
+}
+export function parseAdminPromos(v: unknown): AdminPromos {
+  const o = rec(v, 'admin.promos')
+  const t = rec(o.totals ?? {}, 'promos.totals')
+  return { totals: { total: count(t.total), active: count(t.active), used_up: count(t.used_up), expired: count(t.expired), disabled: count(t.disabled),
+    redemptions: count(t.redemptions), remaining_uses: count(t.remaining_uses), unlimited: count(t.unlimited) },
+  items: arr(o.items, 'promos.items').map(parseAdminPromo) }
+}
+export function parseAdminPromoDetail(v: unknown): AdminPromoDetail {
+  const o = rec(v, 'admin.promo')
+  return { promo: parseAdminPromo(o.promo), redeemers: arr(o.redeemers ?? [], 'promo.redeemers').map((x) => {
+    const r = rec(x, 'redeemer')
+    return { user_id: count(r.user_id), at: typeof r.at === 'string' ? r.at : null }
+  }) }
+}
+export function parseAdminAudit(v: unknown): { items: AdminAuditItem[] } {
+  return { items: arr(rec(v, 'admin.audit').items, 'audit.items').map((x) => {
+    const r = rec(x, 'audit')
+    return { admin_id: typeof r.admin_id === 'number' ? r.admin_id : null, action: str(r.action ?? '', 'audit.action'),
+      target_type: str(r.target_type ?? '', 'audit.target_type'), target_id: str(r.target_id ?? '', 'audit.target_id'),
+      at: typeof r.at === 'string' ? r.at : null }
+  }) }
+}
+export function parseAdminFeatures(v: unknown): AdminFeatures {
+  const o = rec(v, 'admin.features')
+  const rows = (x: unknown) => arr(x ?? [], 'features.rows').map((y) => {
+    const r = rec(y, 'feature')
+    return { name: str(r.name ?? '', 'feature.name'), count: count(r.count), users: count(r.users), rate: count(r.rate) }
+  })
+  return { total_users: typeof o.total_users === 'number' ? o.total_users : null, most_used: rows(o.most_used), least_used: rows(o.least_used) }
+}
+export function parseAdminHealth(v: unknown): AdminHealth {
+  const o = rec(v, 'admin.health')
+  const checks: Record<string, string> = {}
+  for (const [k, val] of Object.entries(rec(o.checks ?? {}, 'health.checks'))) checks[k] = typeof val === 'string' ? val : String(val)
+  return { ready: o.ready === true, checks, uptime: typeof o.uptime === 'string' ? o.uptime : '' }
+}
+export function parseAdminRoles(v: unknown): AdminRoles {
+  const o = rec(v, 'admin.roles')
+  return { items: arr(o.items ?? [], 'roles.items').map((x) => {
+    const r = rec(x, 'role')
+    return { user_id: count(r.user_id), role: str(r.role ?? '', 'role.role') }
+  }), choices: arr(o.choices ?? [], 'roles.choices').map((c) => str(c, 'role.choice')) }
+}
+
+// --- 👥 Jamoa va ish joyi ---
+const PERM_SET = new Set(['create', 'edit', 'reschedule', 'delete', 'send_now', 'analytics', 'ai'])
+function teamPerms(v: unknown, what: string): TeamPerm[] {
+  return arr(v ?? [], what).map((x) => {
+    if (typeof x === 'string' && PERM_SET.has(x)) return x as TeamPerm
+    throw new ShapeError(`${what}: noma'lum ruxsat`)
+  })
+}
+function parseTeamChannel(v: unknown): TeamChannel {
+  const c = rec(v, 'team.channel')
+  return {
+    channel_id: str(c.channel_id, 'team.channel_id'), title: str(c.title ?? '', 'team.title'),
+    members: arr(c.members ?? [], 'team.members').map((x) => {
+      const m = rec(x, 'team.member')
+      return { user_id: int(m.user_id, 'member.user_id'), name: str(m.name ?? '', 'member.name'), username: str(m.username ?? '', 'member.username'),
+        perms: teamPerms(m.perms, 'member.perms'), active: m.active !== false, since: typeof m.since === 'string' ? m.since : null }
+    }),
+    invites: arr(c.invites ?? [], 'team.invites').map((x) => {
+      const i = rec(x, 'team.invite')
+      return { id: int(i.id, 'invite.id'), perms: teamPerms(i.perms, 'invite.perms'), expires_at: typeof i.expires_at === 'string' ? i.expires_at : null }
+    }),
+  }
+}
+function parseWorkspace(v: unknown): Workspace {
+  const w = rec(v, 'workspace')
+  return {
+    owner_id: int(w.owner_id, 'workspace.owner_id'), owner_name: str(w.owner_name ?? '', 'workspace.owner_name'), suspended: w.suspended === true,
+    channels: arr(w.channels ?? [], 'workspace.channels').map((x) => {
+      const c = rec(x, 'workspace.channel')
+      return { channel_id: str(c.channel_id, 'ws.channel_id'), title: str(c.title ?? '', 'ws.title'), perms: teamPerms(c.perms, 'ws.perms') }
+    }),
+  }
+}
+export function parseTeam(v: unknown): TeamOverview {
+  const o = rec(v, 'team')
+  const s = rec(o.seats, 'team.seats')
+  return {
+    mode: o.mode === 'owner' || o.mode === 'helper' ? o.mode : null,
+    seats: { plan: str(s.plan ?? 'free', 'seats.plan'), limit: count(s.limit), used: count(s.used), pending: count(s.pending), free: count(s.free) },
+    can_invite: o.can_invite === true,
+    channels: arr(o.channels ?? [], 'team.channels').map(parseTeamChannel),
+    workspaces: arr(o.workspaces ?? [], 'team.workspaces').map(parseWorkspace),
+  }
+}
+export function parseTeamInvite(v: unknown): TeamInviteCreated {
+  const o = rec(v, 'team.invite')
+  return { id: int(o.id, 'invite.id'), token: str(o.token, 'invite.token'), perms: teamPerms(o.perms, 'invite.perms'),
+    channel_ids: arr(o.channel_ids ?? [], 'invite.channel_ids').map((c) => str(c, 'invite.channel_id')), expires_at: typeof o.expires_at === 'string' ? o.expires_at : null }
+}
+export function parseTeamMode(v: unknown): { mode: 'owner' | 'helper' } {
+  const o = rec(v, 'team.mode')
+  if (o.mode !== 'owner' && o.mode !== 'helper') throw new ShapeError('mode')
+  return { mode: o.mode }
+}
+export function parseAck(v: unknown): Record<string, unknown> {
+  return rec(v, 'ack')
 }

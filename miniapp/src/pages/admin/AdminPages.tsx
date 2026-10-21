@@ -11,7 +11,7 @@ import { haptic } from '../../telegram'
 import { countryFlag } from '../marketUtils'
 
 /** Bitta almashtirgich (switch) qatori — reklama yoqish/o'chirish. */
-function SwitchRow({ id, title, hint, on, disabled, onChange }: {
+export function SwitchRow({ id, title, hint, on, disabled, onChange }: {
   id: string; title: string; hint?: string; on: boolean; disabled?: boolean; onChange: (next: boolean) => void
 }) {
   return (
@@ -26,7 +26,7 @@ function SwitchRow({ id, title, hint, on, disabled, onChange }: {
   )
 }
 
-function useAdminAction() {
+export function useAdminAction() {
   const { notify } = useAppData()
   const { t } = useI18n()
   const [busy, setBusy] = useState(false)

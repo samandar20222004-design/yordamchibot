@@ -111,6 +111,7 @@ SETTINGS_STATS_I18N = {
         # PRO va Yordam asosiy reply-menudan shu panelga ko'chirildi.
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Yordam va Qo'llanma",
+        "ss_btn_team": "👥 Jamoa va rol",
         # yangi qator — maxfiylik siyosati
         # va "Ma'lumotlarimni o'chirish" (Sozlamalar hub'i 5-qator).
         "ss_btn_privacy": "🔐 Maxfiylik",
@@ -409,6 +410,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ ШАГ 3: строки inline-hub «⚙️ Настройки / Ещё» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Помощь и руководство",
+        "ss_btn_team": "👥 Команда и роль",
         # политика конфиденциальности и удаление данных.
         "ss_btn_privacy": "🔐 Приватность",
         "ss_btn_delete_data": "🗑 Удалить данные",
@@ -703,6 +705,7 @@ SETTINGS_STATS_I18N = {
         # --- ⚙️ STEP 3: inline-hub rows for «⚙️ Settings / More» ---
         "ss_btn_premium": "💎 PRO",
         "ss_btn_help": "ℹ️ Help and Guide",
+        "ss_btn_team": "👥 Team & role",
         # privacy policy and data deletion entry.
         "ss_btn_privacy": "🔐 Privacy",
         "ss_btn_delete_data": "🗑 Delete data",
@@ -944,13 +947,14 @@ SETTINGS_STATS_I18N = {
 SETTINGS_STATS_KEYS = tuple(sorted(SETTINGS_STATS_I18N["uz"].keys()))
 
 # ============================================================
-# ⚙️ SOZLAMALAR MENYUSI (3 qator: 2+2+1 tugma)
+# ⚙️ SOZLAMALAR MENYUSI (3 qator: 2+2+2 tugma)
 # ============================================================
 SETTINGS_MENU_BUTTON_KEYS = (
     "ss_btn_lang",
     "ss_btn_notif",
     "ss_btn_pro_plans",
     "ss_rewards_referral",
+    "ss_btn_team",
     "ss_btn_help",
 )
 
@@ -1003,12 +1007,14 @@ CB_STATS_BACK = "an_close"
 CB_STATS_DETAIL = "an_detail"
 CB_STATS_OVERVIEW = "an_overview"
 
-#: ⚙️ Sozlamalar — asosiy 5 tugma (2+2+1). «Post tozalash va imzo» tugmasi olib tashlangan.
+#: ⚙️ Sozlamalar — asosiy 6 tugma (2+2+2): Til, Bildirishnoma, PRO, Do'stlar, Jamoa va rol, Yordam.
+#: «Post tozalash va imzo» tugmasi olib tashlangan.
 CB_SETTINGS_HUB = (
     "stgs_lang",
     "stgs_notif",
     "sub_open",
     "stgs_referral",
+    "stgs_team",
     "stgs_help_hub",
 )
 

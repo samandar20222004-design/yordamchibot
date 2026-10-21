@@ -472,7 +472,7 @@ def test_navigation_stack_settings_tools_back():
     check("Orqaga → six-button Settings root (not main-menu callbacks)",
           back_cbs == [
               "stgs_lang", "stgs_notif",
-              "sub_open", "stgs_referral", "stgs_help_hub",
+              "sub_open", "stgs_referral", "stgs_team", "stgs_help_hub",
           ]
           and "close_msg" not in back_cbs and "stgs_back" not in back_cbs,
           str(back_cbs))
@@ -669,8 +669,10 @@ def test_admin_dashboard_single_center():
     mon_rows = _inline_rows(get_admin_monitoring_keyboard())
     check("🩺 monitoring ekranida «📜 Audit | 👥 Rollar» bor",
           mon_rows[0] == [("📜 Audit | 👥 Rollar", "adm_audit_roles")], str(mon_rows))
+    check("🩺 monitoring ekranida «📖 Buyruqlar» (admin buyruqlari ro'yxati) bor",
+          mon_rows[1] == [("📖 Buyruqlar", "adm_cmds")], str(mon_rows))
     check("🩺 monitoring ekranida [⬅️ Orqaga] dashboard'ga",
-          [("⬅️ Orqaga", "adm_back"), ("❌ Yopish", "close_msg")] == mon_rows[1],
+          [("⬅️ Orqaga", "adm_back"), ("❌ Yopish", "close_msg")] == mon_rows[2],
           str(mon_rows))
 
     # 3b) Yangi tugmalar admin uchun ISHLAYDI (ekran chiziladi).
