@@ -386,7 +386,7 @@ from handlers.statistics import show_user_statistics
 from handlers.phone_verify import phone_contact_callback
 from handlers.timezone_flow import timezone_callback, timezone_command
 from handlers.subscription import (
-    start_subscription, subscription_callback, promo_code_received,
+    start_subscription, subscription_callback, promo_code_received, promo_wait_active, promo_wait_text,
     grant_pro_command, create_promo_command,
     precheckout_callback, successful_payment_callback,
     refunded_payment_callback, refunded_payment_filter,
@@ -868,6 +868,10 @@ async def unknown_message_fallback(update, context):
     if msg is None or user is None:
         return None
     user_id = getattr(user, "id", 0) or 0
+    # 🎁 «Promo-kod» bosilgan, ammo suhbat holati yo'qolgan bo'lsa ham kod qabul qilinadi.
+    if getattr(msg, "text", None) and promo_wait_active(context):
+        await promo_wait_text(update, context)
+        return None
     if user_id and not _unknown_fallback_allowed(user_id):
         return None
     try:

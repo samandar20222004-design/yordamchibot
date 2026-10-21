@@ -38,6 +38,21 @@ def transaction(commit: bool = True):
         yield cur
 
 
+def normalize_promo_input(code) -> str:
+    """Foydalanuvchi kiritgan kodni tozalaydi: ko'rinmas belgilar, bo'shliq, ``«»"'`` va katta-kichik harf.
+
+    Telegram nusxa ko'chirishda ko'pincha zero-width belgi/yo'g'on probel qo'shadi — kod bazada
+    bor bo'lsa ham «topilmadi» bo'lib qolardi. Admin kodlari faqat harf/raqam/-/_ bo'lgani uchun xavfsiz.
+    """
+    import re
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", str(code or ""))
+    text = "".join(ch for ch in text if unicodedata.category(ch) not in ("Cf", "Cc", "Zs", "Zl", "Zp"))
+    text = text.strip("«»\"'`“”‘’<>()[].,;:!?")
+    return re.sub(r"\s+", "", text).upper()
+
+
 class PromoService:
     """Promo-kodlarni boshqarish: create, redeem, stats."""
 
@@ -64,7 +79,7 @@ class PromoService:
             admin_id: kodni yaratgan admin — berilsa harakat
                 ``admin_audit_logs`` jadvaliga SHU tranzaksiyada yoziladi.
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return False
         try:
@@ -121,7 +136,7 @@ class PromoService:
 
         Returns: ``(success: bool, message: str)``
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return False, "Promo-kod kiritilmadi."
         try:
@@ -225,7 +240,7 @@ class PromoService:
             }
             yoki promo topilmaganida ``{}``.
         """
-        code = (code or "").strip().upper()
+        code = normalize_promo_input(code)
         if not code:
             return {}
         try:
