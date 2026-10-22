@@ -303,7 +303,7 @@ function OwnerTeam() {
       {pending.filter((i) => (seenInvite.has(i.id) ? false : (seenInvite.add(i.id), true))).map((i) => (
         <section key={`inv-${i.id}`} className="card adm-card">
           <div className="adm-row">
-            <span className="adm-row-main"><strong className="adm-row-title">⏳ {t('team.pendingInvite')}</strong>
+            <span className="adm-row-main"><strong>⏳ {t('team.pendingInvite')}</strong>
               <span className="muted small">{i.perms.length === 0 ? t('team.preset_view') : i.perms.map((p) => t(permLabel(p))).join(' · ')}</span></span>
             <Button disabled={busy} onClick={() => { void run(() => client.teamInviteRevoke(i.id), 'adm.deleted').then((ok) => { if (ok) team.reload() }) }}>{t('team.revoke')}</Button>
           </div>

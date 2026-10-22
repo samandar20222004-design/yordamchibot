@@ -18,7 +18,7 @@ ularni «yuqori chegara» deb o'qing, va'da emas. Production bazaga/hostingga ki
 
 ## Yuborish tezligi (scheduler)
 - Oldin: daqiqada **ko'pi bilan 100 post** (`POST_BATCH_SIZE`, tick'da bitta paket) va postlar ketma-ket. 09:00 da 1 000 ta post bo'lsa — 10 daqiqagacha kechikish.
-- Endi: tick'da navbat bo'shaguncha paketlar (`SEND_MAX_ROUNDS`=30 → 3 000 post) va turli kanallarga `SEND_CONCURRENCY`=4 parallel
+- Endi: tick'da navbat bo'shaguncha paketlar (`SEND_MAX_ROUNDS`=30 → 3 000 post) va turli kanallarga `SEND_CONCURRENCY`=8 (lokal o'lchov: 4 da ~12, 8 da ~18,6 post/s) parallel
   (bitta kanalga — ketma-ket). Telegram chegarasi ~30 xabar/s (umumiy), bitta kanalga ~20/daqiqa. `SEND_CONCURRENCY=1` — eski xulq.
 - Qo'pol baho: Telegram javobi ~0,3 s bo'lsa 4 parallel bilan ~10 post/s ≈ 600 post/daqiqa (lokal mikro-kechikish 0,08 s hisobga olingan).
 

@@ -69,7 +69,7 @@ SEND_MICRO_DELAY = 0.08  # soniya — 0.05..0.1 oralig'ida
 #: Bir vaqtda yuboriladigan postlar soni (turli kanallar). Telegram umumiy chegarasi ~30 xabar/s; 1 = eski ketma-ket xulq.
 #: Bir tick'da ko'pi bilan nechta paket (har biri POST_BATCH_SIZE) olinadi: 30 x 100 = 3000 post.
 SEND_MAX_ROUNDS = max(1, min(100, int(os.getenv("SEND_MAX_ROUNDS", "30") or 30)))
-SEND_CONCURRENCY = max(1, min(16, int(os.getenv("SEND_CONCURRENCY", "4") or 4)))
+SEND_CONCURRENCY = max(1, min(16, int(os.getenv("SEND_CONCURRENCY", "8") or 8)))
 
 # Quiet Hours tugashi (08:00) uchun thundering-herd himoyasi. Bir tickda
 # 08:00:00 ga yig'ilgan postlar DB navbatida 30..180 soniyalik oynalar bilan
