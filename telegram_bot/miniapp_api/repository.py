@@ -163,7 +163,7 @@ def list_channels(cur, user_id: int) -> list[dict]:
     if allowed is not None:
         scope_sql, scope_args = " AND c.channel_id = ANY(%s) ", (allowed,)
     cur.execute(
-        "SELECT c.channel_id, c.channel_title, "
+        "SELECT c.channel_id, c.channel_title, "  # nosec B608 — qo'shimcha qism (_ws_posts/scope_sql) doimiy SQL bo'lagi, qiymatlar %s bilan
         "       (SELECT COUNT(*) FROM scheduled_posts sp "
         "         WHERE sp.user_id = c.user_id AND sp.channel_id = c.channel_id AND sp.status = 'pending'), "
         "       m.member_count, m.snapshot_date "
@@ -229,12 +229,12 @@ def count_posts(cur, user_id: int, history: bool) -> int:
     ws_sql, ws_args = _ws_posts()
     if history:
         cur.execute(
-            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = ANY(%s)" + ws_sql,
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = ANY(%s)" + ws_sql,  # nosec B608 — qo'shimcha qism (_ws_posts/scope_sql) doimiy SQL bo'lagi, qiymatlar %s bilan
             (user_id, list(HISTORY_STATUSES), *ws_args),
         )
     else:
         cur.execute(
-            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'" + ws_sql,
+            "SELECT COUNT(*) FROM scheduled_posts WHERE user_id = %s AND status = 'pending'" + ws_sql,  # nosec B608 — qo'shimcha qism (_ws_posts/scope_sql) doimiy SQL bo'lagi, qiymatlar %s bilan
             (user_id, *ws_args),
         )
     return int(cur.fetchone()[0])
@@ -307,7 +307,7 @@ def get_post(cur, user_id: int, post_id: int) -> dict | None:
 def get_post_media_ref(cur, user_id: int, post_id: int) -> dict | None:
     """Postning media havolasi (``file_id`` mijozga CHIQMAYDI; faqat ichki proksi uchun). Boshqa foydalanuvchi posti -> None."""
     ws_sql, ws_args = _ws_posts()
-    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s" + ws_sql,
+    cur.execute("SELECT post_type, file_id FROM scheduled_posts WHERE id = %s AND user_id = %s" + ws_sql,  # nosec B608 — qo'shimcha qism (_ws_posts/scope_sql) doimiy SQL bo'lagi, qiymatlar %s bilan
                 (int(post_id), user_id, *ws_args))
     row = cur.fetchone()
     return {"post_type": row[0], "file_id": row[1]} if row else None
