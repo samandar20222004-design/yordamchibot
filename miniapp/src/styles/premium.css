@@ -1,0 +1,73 @@
+/* 💎 Premium ko'rinish: PRO (⭐ oltin) va ULTRA (👑 binafsha-moviy) — tarif davridan (1 soat ... 1 yil) qat'i nazar.
+   Foydalanuvchi tanlagan aksent (Ko'rinish) tugma/havolalarda saqlanadi; tarif ranglari faqat bezakda. */
+.shell[data-tier='pro'] { --tier-1: #f59e0b; --tier-2: #f97316; --tier-3: #ec4899; --tier-glow: 245, 158, 11; }
+.shell[data-tier='ultra'] { --tier-1: #7c3aed; --tier-2: #4f46e5; --tier-3: #06b6d4; --tier-glow: 124, 58, 237; }
+.shell[data-tier='enterprise'] { --tier-1: #0ea5e9; --tier-2: #6366f1; --tier-3: #a855f7; --tier-glow: 14, 165, 233; }
+.tier-pro { --tier-1: #f59e0b; --tier-2: #f97316; --tier-3: #ec4899; --tier-glow: 245, 158, 11; }
+.tier-ultra { --tier-1: #7c3aed; --tier-2: #4f46e5; --tier-3: #06b6d4; --tier-glow: 124, 58, 237; }
+.tier-enterprise { --tier-1: #0ea5e9; --tier-2: #6366f1; --tier-3: #a855f7; --tier-glow: 14, 165, 233; }
+
+/* Fon nuri (aurora) tarif rangida */
+.shell[data-tier='pro']::before, .shell[data-tier='ultra']::before, .shell[data-tier='enterprise']::before {
+  background:
+    radial-gradient(40vmax 40vmax at 15% 8%, rgba(var(--tier-glow), .20), transparent 70%),
+    radial-gradient(36vmax 36vmax at 92% 18%, color-mix(in srgb, var(--tier-3) 16%, transparent), transparent 70%),
+    radial-gradient(42vmax 42vmax at 55% 98%, color-mix(in srgb, var(--tier-2) 14%, transparent), transparent 70%);
+}
+
+/* Belgi: ⭐ PRO / 👑 ULTRA */
+.tier-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 8px; border-radius: 999px; font-size: .8125rem; font-weight: 800; letter-spacing: .02em; color: #fff;
+  background: linear-gradient(120deg, var(--tier-1), var(--tier-2) 55%, var(--tier-3)); background-size: 220% 100%;
+  box-shadow: 0 6px 16px -6px rgba(var(--tier-glow), .8), inset 0 0 0 1px rgba(255, 255, 255, .3); animation: tier-flow 6s ease-in-out infinite; white-space: nowrap; }
+.tier-badge svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .25)); fill: rgba(255, 255, 255, .35); }
+@keyframes tier-flow { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+/* Ism yonidagi yulduz/toj */
+.tier-mark { display: inline-grid; place-items: center; vertical-align: -3px; width: 22px; height: 22px; border-radius: 50%; color: #fff; margin-left: 2px;
+  background: linear-gradient(135deg, var(--tier-1), var(--tier-3)); box-shadow: 0 4px 10px -3px rgba(var(--tier-glow), .9); animation: tier-twinkle 3.2s ease-in-out infinite; }
+.tier-mark svg { width: 13px; height: 13px; fill: rgba(255, 255, 255, .4); }
+@keyframes tier-twinkle { 0%, 100% { transform: scale(1) rotate(0); } 50% { transform: scale(1.12) rotate(8deg); } }
+.page-head .tier-mark { width: 20px; height: 20px; vertical-align: 2px; }
+
+/* Avatar: rangli halqa + burchak belgisi */
+.avatar-ring { position: relative; display: inline-grid; flex: none; padding: 3px; border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--tier-1), var(--tier-3), var(--tier-2), var(--tier-1)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--surface) 92%, transparent), 0 8px 22px -6px rgba(var(--tier-glow), .8); animation: ring-spin 9s linear infinite; }
+.avatar-ring > .avatar { border: 2px solid var(--surface); animation: ring-spin-rev 9s linear infinite; }
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+@keyframes ring-spin-rev { to { transform: rotate(-360deg); } }
+.avatar-tier { position: absolute; right: -4px; bottom: -4px; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: #fff; z-index: 1;
+  background: linear-gradient(135deg, var(--tier-1), var(--tier-2)); border: 2px solid var(--surface); animation: ring-spin-rev 9s linear infinite; }
+.avatar-tier svg { fill: rgba(255, 255, 255, .45); }
+
+/* Men: profil kartasi — rangli chegara, nur va yaltirash */
+.me-card.tier-pro, .me-card.tier-ultra, .me-card.tier-enterprise { border-color: transparent; overflow: hidden;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(135deg, var(--tier-1), var(--tier-3) 50%, var(--tier-2)) border-box;
+  border: 1.5px solid transparent; box-shadow: 0 18px 40px -20px rgba(var(--tier-glow), .85); }
+.me-card.tier-pro::before, .me-card.tier-ultra::before, .me-card.tier-enterprise::before { width: 100%; height: 3px; inset: 0 0 auto 0; background: linear-gradient(90deg, var(--tier-1), var(--tier-3), var(--tier-2)); }
+.me-card.tier-pro::after, .me-card.tier-ultra::after, .me-card.tier-enterprise::after { content: ''; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%; pointer-events: none;
+  background: linear-gradient(100deg, transparent, rgba(var(--tier-glow), .16), transparent); transform: skewX(-20deg); animation: shine 4.2s ease-in-out infinite; }
+.me-card.tier-pro .me-stats strong, .me-card.tier-ultra .me-stats strong, .me-card.tier-enterprise .me-stats strong {
+  background: linear-gradient(120deg, var(--tier-1), var(--tier-3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Bosh sahifa hero: tarif ranglari + yulduzcha zarralari */
+.hero-pro { background: linear-gradient(120deg, #b45309, #f59e0b 30%, #f97316 60%, #db2777 90%, #b45309) !important; background-size: 300% 300% !important; box-shadow: 0 24px 50px -22px rgba(245, 158, 11, .8) !important; }
+.hero-ultra { background: linear-gradient(120deg, #312e81, #4f46e5 30%, #7c3aed 58%, #0891b2 88%, #312e81) !important; background-size: 300% 300% !important; box-shadow: 0 24px 50px -22px rgba(124, 58, 237, .85) !important; }
+.hero-enterprise { background: linear-gradient(120deg, #0c4a6e, #0ea5e9 35%, #6366f1 65%, #a855f7 90%, #0c4a6e) !important; background-size: 300% 300% !important; }
+.hero-pro::after, .hero-ultra::after, .hero-enterprise::after { content: '✦  ✧  ✦'; position: absolute; right: 14px; top: 10px; letter-spacing: 8px; font-size: .8rem; color: rgba(255, 255, 255, .55); animation: tier-twinkle 3s ease-in-out infinite; pointer-events: none; }
+.hero-pro .tier-badge, .hero-ultra .tier-badge, .hero-enterprise .tier-badge { background: rgba(255, 255, 255, .24); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .45); animation: none; }
+
+/* Pastki panel: faol tab tarif rangida */
+.shell[data-tier='pro'] .tab-pill, .shell[data-tier='ultra'] .tab-pill, .shell[data-tier='enterprise'] .tab-pill {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--tier-1) 22%, transparent), color-mix(in srgb, var(--tier-3) 18%, transparent)); box-shadow: inset 0 0 0 1px rgba(var(--tier-glow), .25); }
+.shell[data-tier='pro'] .tabbar, .shell[data-tier='ultra'] .tabbar, .shell[data-tier='enterprise'] .tabbar { box-shadow: 0 16px 40px -12px rgba(var(--tier-glow), .4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .tier-badge, .tier-mark, .avatar-ring, .avatar-ring > .avatar, .avatar-tier, .me-card::after, .hero-pro::after, .hero-ultra::after, .hero-enterprise::after { animation: none !important; }
+}
+
+/* 🛠 Sana/vaqt maydonlari (iOS): kartadan chiqib ketmasin */
+.input, select.input, input.input { box-sizing: border-box; min-width: 0; max-width: 100%; }
+input.input[type='datetime-local'], input.input[type='date'], input.input[type='time'] {
+  display: block; width: 100%; -webkit-appearance: none; appearance: none; text-align: left; line-height: 1.2; }
+input.input[type='datetime-local']::-webkit-date-and-time-value, input.input[type='date']::-webkit-date-and-time-value { text-align: left; min-width: 0; }
+.hero-kicker .tier-mark { background: rgba(255,255,255,.25); box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); width: 20px; height: 20px; vertical-align: -5px; margin-right: 4px; }

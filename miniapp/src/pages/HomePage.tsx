@@ -3,8 +3,9 @@ import { useAppData } from '../AppData'
 import { BrandMark } from '../components/BrandMark'
 import { Icon, type IconName } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
-import { Badge, Button, CountUp, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
+import { Button, CountUp, TierBadge, TierMark, EmptyState, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useI18n, type MessageKey } from '../i18n'
+import { tierOf } from '../tier'
 import { haptic, openBot, type BotSection } from '../telegram'
 import { isUnlimited } from './format'
 import { countdownTo, greetingKey, tipIndex, type Countdown } from './homeUtils'
@@ -51,6 +52,7 @@ export function HomePage() {
 
   const { user, plan, usage, posts, next_post_at: nextAt } = me.data
   const limit = (n: number) => (isUnlimited(n) ? t('common.unlimited') : String(n))
+  const tier = tierOf(plan)
   const planName = plan.type === 'ultra' ? t('plan.ultra') : plan.type === 'enterprise' ? t('plan.enterprise') : plan.is_pro ? t('plan.pro') : t('plan.free')
   const cdText = (c: Countdown): string => (c.key === 'cd.hourMin'
     ? t(c.key, { h: c.h, m: c.m }) : 'n' in c ? t(c.key, { n: c.n }) : t(c.key))
@@ -74,19 +76,19 @@ export function HomePage() {
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title="PostAssist" onRefresh={me.reload} refreshing={me.refreshing} />
 
-      <section aria-labelledby="hello" className="card hero hero-wow">
+      <section aria-labelledby="hello" className={`card hero hero-wow hero-${tier}`}>
         <div className="hero-glow" aria-hidden="true" />
         <div className="hero-orbs" aria-hidden="true"><i /><i /><i /></div>
         <div className="hero-top">
           <div className="hero-text">
-            <p className="hero-kicker">{t(greetingKey(now.getHours()))}</p>
+            <p className="hero-kicker"><TierMark tier={tier} /> {t(greetingKey(now.getHours()))}</p>
             <h2 id="hello">{user.name ? t('home.hello', { name: user.name }) : t('home.helloAnon')}</h2>
             <p className="lead">{t('home.subtitle')}</p>
           </div>
           <div className="hero-mark" aria-hidden="true"><BrandMark /></div>
         </div>
         <div className="hero-chips">
-          <Badge pro={plan.is_pro}>{planName}</Badge>
+          <TierBadge tier={tier}>{planName}</TierBadge>
           <span className="chip chip-glass">{t('home.heroChannels', { n: usage.channels })}</span>
         </div>
         <Button variant="primary" block icon="sparkle" className="hero-cta" onClick={() => goTab('post')}>{t('home.ctaNew')}</Button>

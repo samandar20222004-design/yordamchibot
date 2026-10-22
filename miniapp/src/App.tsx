@@ -1,3 +1,4 @@
+import { tierOf } from './tier'
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AppDataContext, type AppData } from './AppData'
 import { DEFAULT_APPEARANCE, applyAppearance, loadCloudIfNewer, loadLocal, sanitize, save, type Appearance } from './appearance'
@@ -134,7 +135,7 @@ function Shell({ onLang, appearance, setAppearance, resetAppearance }: {
   return (
     <AppDataContext.Provider value={value}>
       {adminMode ? <Suspense fallback={<LoadingBlock />}><AdminShell /></Suspense> : (
-      <div className="shell">
+      <div className="shell" data-tier={tierOf(me.data?.plan)}>
         <OfflineBanner />
         <WorkspaceBanner />
         {tab === 'home' && <HomePage />}

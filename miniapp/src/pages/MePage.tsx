@@ -3,8 +3,9 @@ import { useAppData } from '../AppData'
 import { Avatar, initialOf } from '../components/Avatar'
 import { Icon, type IconName } from '../components/Icon'
 import { Page, PageHeader } from '../components/Shell'
-import { Badge, ErrorState, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
+import { ErrorState, TierBadge, TierMark, InlineWarning, LoadingBlock, openBotAvailable } from '../components/ui'
 import { useI18n } from '../i18n'
+import { tierOf } from '../tier'
 import { closeApp, getUserPhotoUrl, openBot } from '../telegram'
 import { ChannelsScreen } from './ChannelsScreen'
 import { isUnlimited } from './format'
@@ -52,6 +53,7 @@ export function MePage() {
 
   const refresh = () => { me.reload(); channels.reload() }
   const displayName = user.name || user.username || t('common.none')
+  const tier = tierOf(plan)
   const planName = plan.type === 'ultra' ? t('plan.ultra') : plan.type === 'enterprise' ? t('plan.enterprise') : plan.is_pro ? t('plan.pro') : t('plan.free')
   const daysLeft = plan.is_pro && plan.expires_at ? Math.max(0, Math.ceil((new Date(plan.expires_at).getTime() - Date.now()) / 86400000)) : null
   const planValue = plan.is_pro
@@ -62,14 +64,14 @@ export function MePage() {
       {me.error && <InlineWarning error={me.error} onRetry={me.reload} />}
       <PageHeader title={t('me.title')} onRefresh={refresh} refreshing={me.refreshing || channels.refreshing} />
 
-      <section className={`me-card tier-${plan.type}`} aria-labelledby="profile">
+      <section className={`me-card tier-${tier}`} aria-labelledby="profile">
         <div className="me-card-top">
-          <Avatar text={displayName} photo={photo} medium />
+          <Avatar text={displayName} photo={photo} medium tier={tier} />
           <div className="me-card-main">
-            <h2 id="profile" className="me-name">{displayName}</h2>
+            <h2 id="profile" className="me-name">{displayName} <TierMark tier={tier} /></h2>
             <p className="muted small me-sub">{user.username ? `@${user.username}` : `${t('me.id')} ${user.id}`}</p>
           </div>
-          <Badge pro={plan.is_pro}>{planName}</Badge>
+          <TierBadge tier={tier}>{planName}</TierBadge>
         </div>
         <div className="me-stats">
           <div><strong>{usage.channels}</strong><span>{t('home.channels')}</span></div>

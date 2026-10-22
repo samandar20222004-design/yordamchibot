@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { ApiClientError } from '../api/client'
 import { closeApp, isValidBotUsername, openBot } from '../telegram'
 import { useI18n, type MessageKey } from '../i18n'
+import type { Tier } from '../tier'
 import { Icon, type IconName } from './Icon'
 
 export function Button({
@@ -47,6 +48,20 @@ export function CountUp({ value, durationMs = 900 }: { value: number; durationMs
     return () => cancelAnimationFrame(raf)
   }, [value, durationMs])
   return <>{shown}</>
+}
+
+/** Pullik tarif belgisi: PRO — ⭐, ULTRA — 👑, enterprise — 💎 (rangli, yaltiraydi). Bepul tarif oddiy belgi. */
+export function TierBadge({ tier, children }: { tier: Tier; children: ReactNode }) {
+  if (tier === 'free') return <span className="badge">{children}</span>
+  const icon: IconName = tier === 'pro' ? 'star' : tier === 'ultra' ? 'crown' : 'diamond'
+  return <span className={`tier-badge tier-${tier}`}><Icon name={icon} size={14} />{children}</span>
+}
+
+/** Ism yonidagi kichik tarif belgisi (faqat pullik tarifda). */
+export function TierMark({ tier }: { tier: Tier }) {
+  if (tier === 'free') return null
+  const icon: IconName = tier === 'pro' ? 'star' : tier === 'ultra' ? 'crown' : 'diamond'
+  return <span className={`tier-mark tier-${tier}`} aria-hidden="true"><Icon name={icon} size={16} /></span>
 }
 
 export function Badge({ pro = false, children }: { pro?: boolean; children: ReactNode }) {
