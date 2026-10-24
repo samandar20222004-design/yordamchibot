@@ -115,6 +115,12 @@ def schedule_week_posts(user_id: int, channel_id: str, posts: list,
         except Exception:  # noqa: BLE001 — referal hook'i best-effort
             logger.debug("Referral konversiya belgilashda xato (user=%s)",
                          user_id, exc_info=True)
+        try:
+            from repositories.tracked_links_repository import mark_first_post
+
+            mark_first_post(user_id)
+        except Exception:  # noqa: BLE001 — manba havolasi belgisi best-effort
+            logger.debug("Manba havolasi: birinchi post belgisi yozilmadi (user=%s)", user_id, exc_info=True)
         return result
     except Exception as e:
         logger.error(f"Haftalik postlarni navbatga qo'yish xatosi: {e}")

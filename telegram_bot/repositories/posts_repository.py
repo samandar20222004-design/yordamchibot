@@ -195,6 +195,12 @@ def add_post(
         except Exception:  # noqa: BLE001 — referal hook'i best-effort
             logger.debug("Referral konversiya belgilashda xato (post_id=%s)",
                          post_id, exc_info=True)
+        try:
+            from repositories.tracked_links_repository import mark_first_post
+
+            mark_first_post(user_id)
+        except Exception:  # noqa: BLE001 — manba havolasi belgisi best-effort
+            logger.debug("Manba havolasi: birinchi post belgisi yozilmadi (user=%s)", user_id, exc_info=True)
         return post_id
     except Exception as e:
         logger.error(f"Post saqlash xatosi: {e}")

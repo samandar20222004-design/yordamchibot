@@ -74,6 +74,7 @@ Menyuda ko'rinmaydigan, lekin ishlaydigan buyruqlar: `/profile`, `/queue`,
 Admin buyruqlari (faqat `ADMIN_IDS` yoki RBAC roli bo'lganlar uchun):
 `/admin`, `/stats`, `/admin_stats`, `/broadcast`, `/grant_pro`, `/create_promo`,
 `/setrole`, `/delrole`, `/audit`, `/health`, `/economics`, `/feature_usage`.
+Manba havolalari (kim qaysi reklama/hamkor havolasidan keldi): `/links`, `/link_new`, `/link`, `/link_off`, `/link_on`, `/link_user`; hamkor uchun `/mylinks` — batafsil [docs/TRACKED_LINKS.md](../docs/TRACKED_LINKS.md).
 
 ## To'lovlar
 

@@ -914,11 +914,13 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         from handlers.admin_promos import list_keyboard  # noqa: F401  (tugma yorlig'i uchun)
         from keyboards.nav import nav_button
+        from translations.tracked_links import links_t
         await _admin_edit(
             query,
             admin_t("promo_title", lang) + "\n\n" + admin_t("promo_howto", lang),
             InlineKeyboardMarkup([
-                [InlineKeyboardButton(admin_t("pr_btn_list", lang), callback_data="adm_promos")],
+                [InlineKeyboardButton(admin_t("pr_btn_list", lang), callback_data="adm_promos"),
+                 InlineKeyboardButton(links_t("tl_btn_list", lang), callback_data="adm_links")],
                 [nav_button("back", "adm_back"), nav_button("cancel", "adm_cancel")],
             ]),
         )
@@ -932,6 +934,16 @@ async def admin_dashboard_callback(update: Update, context: ContextTypes.DEFAULT
         await query.answer()
         from handlers.admin_promos import list_keyboard, load_list_text
         await _admin_edit(query, await load_list_text(lang), list_keyboard(lang))
+        context.user_data.pop("admin_flow", None)
+        return ConversationHandler.END
+
+    if data == "adm_links":
+        if not has_permission(query.from_user.id, PERM_MANAGE_PROMOS):
+            await query.answer(admin_t("perm_promo", lang), show_alert=True)
+            return ConversationHandler.END
+        await query.answer()
+        from handlers.tracked_links import list_keyboard as links_keyboard, load_list_text as load_links_text
+        await _admin_edit(query, await load_links_text(lang), links_keyboard(lang))
         context.user_data.pop("admin_flow", None)
         return ConversationHandler.END
 
