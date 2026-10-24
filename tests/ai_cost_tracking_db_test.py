@@ -83,8 +83,8 @@ def test_static_schema_and_api():
 
     # Jadval ``CREATE TABLE IF NOT EXISTS`` literal sonini o'zgartirmaydi
     # (locked count 31) — wrapper shaklida yozilgan.
-    check("schema.sql jadval literal soni 40 (regressiya yo'q; +team_invites)",
-          schema_sql.count("CREATE TABLE IF NOT EXISTS") == 40,
+    check("schema.sql jadval literal soni 42 (regressiya yo'q; +team_invites, +tracked_links, +tracked_link_visits)",
+          schema_sql.count("CREATE TABLE IF NOT EXISTS") == 42,
           str(schema_sql.count("CREATE TABLE IF NOT EXISTS")))
 
     expected_columns = {

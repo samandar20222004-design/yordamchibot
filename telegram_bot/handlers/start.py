@@ -297,6 +297,8 @@ async def _warm_user_stats(user_id: int) -> None:
 
 
 _TEAM_INVITE_ARG = re.compile(r"^team_([A-Za-z0-9_-]{8,64})$")
+# 🔗 manba havolasi: ``s_<kod>`` (kod qoidasi ``tracked_links_repository.CODE_RE`` bilan bir xil).
+_SOURCE_LINK_ARG = re.compile(r"^s_[a-z0-9_]{2,24}$")
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -320,7 +322,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = int(arg.replace("ref_", ""))
             except ValueError:
                 referrer_id = None
-        elif arg.startswith("s_"):  # 🔗 manba havolasi: egasi bo'lsa yangi foydalanuvchi uning taklifi
+        elif _SOURCE_LINK_ARG.match(arg):  # 🔗 manba havolasi: egasi bo'lsa yangi foydalanuvchi uning taklifi
             from handlers.tracked_links import link_for_start
 
             source_link = await link_for_start(arg)
