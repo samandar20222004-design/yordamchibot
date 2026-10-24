@@ -307,6 +307,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     referrer_id = None
     go_target = None
     team_token = None
+    source_link = None
     if context.args and len(context.args) > 0:
         arg = context.args[0]
         team_match = _TEAM_INVITE_ARG.match(arg)
@@ -319,6 +320,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 referrer_id = int(arg.replace("ref_", ""))
             except ValueError:
                 referrer_id = None
+        elif arg.startswith("s_"):  # 🔗 manba havolasi: egasi bo'lsa yangi foydalanuvchi uning taklifi
+            from handlers.tracked_links import link_for_start
+
+            source_link = await link_for_start(arg)
+            if source_link and source_link.get("owner_id"):
+                referrer_id = int(source_link["owner_id"])
 
     # BITTA so'rov. ``db.save_user`` endi ``is_new`` va saqlangan
     # tilni BIRGA qaytaradi (``_UserSaveResult``), shuning uchun eski
@@ -345,6 +352,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not lang:
             lang = detected if is_new else await db.run_db(db.get_user_language, user.id)
     set_lang_cache(context, lang)
+
+    if source_link:
+        from handlers.tracked_links import record_start_visit
+
+        run_background_task(
+            record_start_visit(source_link["id"], user.id, is_new),
+            name=f"start:source-link:{source_link['id']}",
+        )
 
     if team_token:
         from handlers.team_ui import accept_team_invite

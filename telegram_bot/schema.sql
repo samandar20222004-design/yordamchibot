@@ -1389,3 +1389,31 @@ CREATE TABLE IF NOT EXISTS ad_market_bans (
     reason VARCHAR(16) NOT NULL DEFAULT 'reports',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 🔗 MANBA HAVOLALARI (kampaniya/hamkor havolalari): `https://t.me/<bot>?start=s_<kod>`.
+-- Har reklama joyi yoki hamkor uchun alohida havola: kim qaysi havola bilan kelgani, nechtasi kanal ulagani,
+-- post qilgani va to'lagani ko'rinadi. `owner_id` bo'lsa yangi foydalanuvchi uning taklifi sifatida yoziladi
+-- (oddiy referal qoidasi: ball birinchi postdan keyin, o'zini taklif qilish rad etiladi). Kod faqat [a-z0-9_].
+CREATE TABLE IF NOT EXISTS tracked_links (
+    id SERIAL PRIMARY KEY,
+    code VARCHAR(24) NOT NULL UNIQUE,
+    title VARCHAR(80) NOT NULL,
+    owner_id BIGINT,
+    created_by BIGINT,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    clicks INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_tracked_links_owner ON tracked_links (owner_id) WHERE owner_id IS NOT NULL;
+
+-- Bitta foydalanuvchi + bitta havola = bitta qator. `is_new` — shu havola orqali RO'YXATDAN o'tgan (birinchi tegish).
+-- `first_post_at` post saqlanganda bir marta yoziladi (eski postlar 30 kundan keyin tozalansa ham hisob buzilmaydi).
+CREATE TABLE IF NOT EXISTS tracked_link_visits (
+    link_id INTEGER NOT NULL REFERENCES tracked_links(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    is_new BOOLEAN NOT NULL DEFAULT FALSE,
+    first_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    first_post_at TIMESTAMPTZ,
+    PRIMARY KEY (link_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_tracked_link_visits_user ON tracked_link_visits (user_id);
