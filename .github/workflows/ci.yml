@@ -120,3 +120,49 @@ jobs:
           docker inspect --format '{{json .Config.Healthcheck.Test}}' postassist:ci | tee /dev/stderr | grep -q 'health/live'
           docker inspect --format '{{json .Config.Entrypoint}}' postassist:ci | tee /dev/stderr | grep -q 'tini'
           docker inspect --format '{{.Config.StopSignal}}' postassist:ci | grep -qx 'SIGTERM'
+
+  # PHP versiya (php_bot/): oddiy hosting uchun. PHP 7.4 (hosting) va 8.3 da, haqiqiy MariaDB bilan.
+  php:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ["7.4", "8.3"]
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MARIADB_DATABASE: pa_test
+          MARIADB_USER: pa
+          MARIADB_PASSWORD: pa_pass
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    defaults:
+      run:
+        working-directory: php_bot
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, mbstring, curl, json
+          coverage: none
+
+      - name: Sintaksis (php -l)
+        run: |
+          set -e
+          for f in $(find . -name '*.php'); do php -l "$f" > /dev/null; done
+          echo "php -l: OK"
+
+      - name: Testlar (unit + MariaDB integratsiya)
+        env:
+          PA_TEST_DB_HOST: 127.0.0.1
+        run: php tests/run.php
