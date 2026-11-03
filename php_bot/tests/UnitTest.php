@@ -142,3 +142,65 @@ foreach ([Keyboards::previewRows('uz', true), Keyboards::confirm('uz', 'ch:delok
     }
 }
 T::check('callback_data ≤64 bayt', max($cb) <= 64);
+
+T::section('G. Tariflar, to\'lov, promo, havola qoidalari (2-bosqich)');
+use PostAssist\Repo\Credits;
+use PostAssist\Repo\Payments;
+use PostAssist\Repo\Promos;
+use PostAssist\Repo\TrackedLinks;
+use PostAssist\Services\Plans;
+use PostAssist\Handlers\PlansHandler;
+
+$cat = Plans::catalog();
+T::eq('katalog: 8 ta kalit (PRO + ULTRA, 4 muddat)', array_keys($cat), ['1m', '3m', '6m', '1y', 'u1m', 'u3m', 'u6m', 'u1y']);
+T::eq('Stars narxlari (Python bilan bir xil)', array_map(static function ($p) {
+    return $p['stars'];
+}, array_values($cat)), [195, 510, 910, 1650, 470, 1180, 2260, 4180]);
+T::eq('kunlar 30/90/180/365', array_values(array_unique(array_column($cat, 'days'))), [30, 90, 180, 365]);
+T::eq('PRO tejam: 0/13/22/29', [Plans::discount(195, 195, 1), Plans::discount(510, 195, 3), Plans::discount(910, 195, 6), Plans::discount(1650, 195, 12)], [0, 13, 22, 29]);
+T::eq('ULTRA tejam: 0/16/20/26', [Plans::discount(470, 470, 1), Plans::discount(1180, 470, 3), Plans::discount(2260, 470, 6), Plans::discount(4180, 470, 12)], [0, 16, 20, 26]);
+T::eq('limitlar: FREE 3/40, PRO 10/300, ULTRA 30/900, enterprise cheksiz', [Plans::limits('free'), Plans::limits('pro'), Plans::limits('ultra'), Plans::limits('enterprise')],
+    [['channels' => 3, 'queue' => 40], ['channels' => 10, 'queue' => 300], ['channels' => 30, 'queue' => 900], ['channels' => 0, 'queue' => 0]]);
+$cfg2 = new PostAssist\Config(['stars_prices' => ['1m' => 250, 'xx' => 5, '3m' => -1], 'tier_limits' => ['pro' => ['channels' => 12]]]);
+T::eq('config: narxni almashtirish (noto\'g\'ri qiymatlar e\'tiborsiz)', [Plans::catalog($cfg2)['1m']['stars'], Plans::catalog($cfg2)['3m']['stars'], isset(Plans::catalog($cfg2)['xx'])], [250, 510, false]);
+T::eq('config: tarif limitini almashtirish', Plans::limits('pro', $cfg2), ['channels' => 12, 'queue' => 300]);
+$nowU = new DateTimeImmutable('2026-11-10 10:00:00', new DateTimeZone('UTC'));
+T::eq('amaldagi tarif: muddati bor PRO', Plans::effective('pro', '2026-12-01 00:00:00', $nowU), 'pro');
+T::eq('amaldagi tarif: muddati o\'tgan ULTRA = free', Plans::effective('ultra', '2026-11-10 09:59:59', $nowU), 'free');
+T::eq('amaldagi tarif: muddatsiz PRO = free', Plans::effective('pro', null, $nowU), 'free');
+T::eq('amaldagi tarif: enterprise', Plans::effective('enterprise', null, $nowU), 'enterprise');
+T::eq('amaldagi tarif: noma\'lum = free', Plans::effective('vip', '2030-01-01 00:00:00', $nowU), 'free');
+$long = [];
+foreach (I18n::LANGS as $l) {
+    foreach ($cat as $p) {
+        $b = PlansHandler::periodButton(I18n::t('period_' . $p['period'], $l), $p['stars']);
+        if (mb_strlen($b) > 18) {
+            $long[] = "{$l}:{$b}";
+        }
+        $title = I18n::t('invoice_title', $l, ['plan' => Plans::NAMES[$p['tier']], 'period' => I18n::t('period_' . $p['period'], $l)]);
+        if (mb_strlen($title) > 32) {
+            $long[] = "{$l}:{$title}";
+        }
+    }
+}
+T::eq('muddat tugmalari ≤18 belgi, hisob nomi ≤32 (3 tilda)', $long, []);
+T::eq('payload', Payments::payload('u3m', 5001), 'sub_stars_u3m_5001');
+T::eq('to\'lov tekshiruvi: to\'g\'ri', Payments::validate(null, 'sub_stars_3m_5001', 'XTR', 510, 5001)['ok'], true);
+T::eq('to\'lov: summa mos emas', Payments::validate(null, 'sub_stars_3m_5001', 'XTR', 1, 5001)['error'] ?? '', 'bad_amount');
+T::eq('to\'lov: valyuta XTR emas', Payments::validate(null, 'sub_stars_3m_5001', 'USD', 510, 5001)['error'] ?? '', 'bad_amount');
+T::eq('to\'lov: boshqa foydalanuvchi payloadi', Payments::validate(null, 'sub_stars_3m_5002', 'XTR', 510, 5001)['error'] ?? '', 'wrong_user');
+T::eq('to\'lov: noma\'lum kalit', Payments::validate(null, 'sub_stars_2m_5001', 'XTR', 510, 5001)['error'] ?? '', 'bad_payload');
+T::eq('to\'lov: ortiqcha belgi', Payments::validate(null, 'sub_stars_3m_5001x', 'XTR', 510, 5001)['error'] ?? '', 'bad_payload');
+T::eq('promo normallashtirish: probel, qo\'shtirnoq, ko\'rinmas belgi', Promos::normalize(" «test\u{200B}30» "), 'TEST30');
+T::eq('promo: juda qisqa', Promos::normalize('ab'), null);
+T::eq('promo: noto\'g\'ri belgi', Promos::normalize('KOD!'), null);
+T::eq('havola kodi: " Kanal-1 " -> kanal_1', TrackedLinks::normalizeCode(' Kanal-1 '), 'kanal_1');
+T::eq('havola kodi: 1 belgi rad', TrackedLinks::normalizeCode('a'), null);
+T::eq('havola kodi: kirill rad', TrackedLinks::normalizeCode('канал'), null);
+T::eq('start parametri s_<kod>', [TrackedLinks::codeFromPayload('s_kanal_1'), TrackedLinks::codeFromPayload('ref_5'), TrackedLinks::codeFromPayload('s_A')], ['kanal_1', null, null]);
+T::eq('referal mukofoti: 1-3 => 3, 4+ => 1', [Credits::rewardFor(1), Credits::rewardFor(3), Credits::rewardFor(4), Credits::rewardFor(50)], [3, 3, 1, 1]);
+$cbs = [];
+foreach ($cat as $p) {
+    $cbs[] = strlen('pl:b:' . $p['key']);
+}
+T::check('tarif callback_data ≤64 bayt', max($cbs) <= 64);

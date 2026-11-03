@@ -193,6 +193,7 @@ final class PostHandler
         }
         $utcSql = $utc->format('Y-m-d H:i:s');
         $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $utcSql, true);
+        self::afterSaved($ctx);
         $ctx->replyMenu($ctx->t('post_scheduled', [
             'channel' => Html::e((string) $channel['title']),
             'when' => TimeParser::show($utcSql, $ctx->app->tz()),
@@ -216,6 +217,7 @@ final class PostHandler
             return; // ikkinchi parallel bosish — post allaqachon yuborilmoqda
         }
         $id = $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false);
+        self::afterSaved($ctx);
         if (!$ctx->app->posts->claim($id)) {
             $ctx->replyMenu($ctx->t('send_retry'));
             return;
@@ -229,6 +231,15 @@ final class PostHandler
             $ctx->replyMenu($ctx->t('send_retry'));
         } else {
             $ctx->replyMenu($ctx->t('send_fail', ['reason' => $ctx->t($r['reason'])]));
+        }
+    }
+
+    /** Post saqlandi: referal mukofoti (birinchi post) va manba havolasi belgisi. */
+    private static function afterSaved(Ctx $ctx): void
+    {
+        $r = $ctx->app->afterPostSaved($ctx->userId);
+        if ($r !== null) {
+            PlansHandler::notifyReward($ctx->app, $r, $ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId);
         }
     }
 

@@ -66,6 +66,7 @@ final class Scheduler
                     $stats[$r['status']]++;
                 }
             }
+            $this->planMaintenance();
             $this->cleanup();
         } finally {
             $this->app->db->unlock(self::LOCK);
@@ -129,12 +130,42 @@ final class Scheduler
         ]));
     }
 
+    /**
+     * Tarif muddati: 24 soat qolganda bir marta eslatma; muddat tugaganda FREE ga tushirish va xabar.
+     * (Muddati o'tgan tarif baribir FREE hisoblanadi — `Plans::effective`; bu yerda faqat bazani tartiblash va xabar.)
+     * @return array{reminded:int, expired:int}
+     */
+    public function planMaintenance(): array
+    {
+        $app = $this->app;
+        $now = $app->nowSql();
+        $out = ['reminded' => 0, 'expired' => 0];
+        foreach ($app->users->expiringSoon($now, $app->now()->modify('+24 hours')->format('Y-m-d H:i:s')) as $u) {
+            if ($app->users->claimReminder((int) $u['user_id'], (string) $u['subscription_expires_at'])) {
+                $lang = I18n::norm($u['lang'] ?? 'uz');
+                $app->tg->sendMessage((int) $u['user_id'], I18n::t('plan_reminder', $lang, [
+                    'plan' => Plans::NAMES[$u['plan_type']] ?? 'PRO', 'date' => TimeParser::show((string) $u['subscription_expires_at'], $app->tz()),
+                ]));
+                $out['reminded']++;
+            }
+        }
+        foreach ($app->users->expiredPaid($now) as $u) {
+            if ($app->users->downgradeIfExpired((int) $u['user_id'], (string) $u['plan_type'], $now)) {
+                $lang = I18n::norm($u['lang'] ?? 'uz');
+                $app->tg->sendMessage((int) $u['user_id'], I18n::t('plan_expired', $lang, ['plan' => Plans::NAMES[$u['plan_type']] ?? 'PRO']));
+                $out['expired']++;
+            }
+        }
+        return $out;
+    }
+
     /** Eski yozuvlarni tozalash (Python versiyadagi kabi: yakunlangan postlar 30 kundan keyin). */
     private function cleanup(): void
     {
         $db = $this->app->db;
         $db->exec('DELETE FROM processed_updates WHERE created_at < UTC_TIMESTAMP() - INTERVAL 2 DAY');
         $db->exec('DELETE FROM user_states WHERE updated_at < UTC_TIMESTAMP() - INTERVAL 3 DAY');
+        $db->exec('DELETE FROM promo_attempts WHERE created_at < UTC_TIMESTAMP() - INTERVAL 1 DAY');
         $db->exec("DELETE FROM scheduled_posts WHERE status IN ('sent', 'failed', 'cancelled') AND created_at < UTC_TIMESTAMP() - INTERVAL 30 DAY");
     }
 }

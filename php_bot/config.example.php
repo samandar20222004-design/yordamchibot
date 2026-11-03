@@ -29,4 +29,10 @@ return [
     // Bepul tarif limitlari (Python versiyadagi bilan bir xil: docs/PLANS.md).
     'free_max_channels' => 3,
     'free_max_queued' => 40,
+
+    // Ixtiyoriy (2-bosqich): Telegram Stars narxlarini o'zgartirish. Yozilmasa — standart: PRO 195/510/910/1650,
+    // ULTRA 470/1180/2260/4180 (1/3/6/12 oy). Kalitlar: 1m 3m 6m 1y (PRO), u1m u3m u6m u1y (ULTRA).
+    // 'stars_prices' => ['1m' => 195, 'u1m' => 470],
+    // Ixtiyoriy: PRO/ULTRA limitlari (standart: PRO 10 kanal / 300 post, ULTRA 30 / 900).
+    // 'tier_limits' => ['pro' => ['channels' => 10, 'queue' => 300]],
 ];

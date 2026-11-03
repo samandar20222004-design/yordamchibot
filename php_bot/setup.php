@@ -10,6 +10,7 @@ require __DIR__ . '/bootstrap.php';
 use PostAssist\App;
 use PostAssist\Config;
 use PostAssist\I18n;
+use PostAssist\Schema;
 
 $cli = PHP_SAPI === 'cli';
 $cfg = postassist_config();
@@ -37,8 +38,8 @@ if ($problems) {
     exit(1);
 }
 $app = App::fromConfig($cfg);
-$app->db->execScript((string) file_get_contents(__DIR__ . '/sql/schema.sql'));
-$out('Baza jadvallari: OK');
+$changes = Schema::apply($app->db, (string) file_get_contents(__DIR__ . '/sql/schema.sql'));
+$out('Baza jadvallari: OK' . ($changes ? ' (yangilandi: ' . implode(', ', $changes) . ')' : ''));
 
 $url = (string) ($cfg['webhook_url'] ?? '');
 if (strpos($url, 'https://') !== 0) {
@@ -47,14 +48,14 @@ if (strpos($url, 'https://') !== 0) {
 }
 $r = $app->tg->call('setWebhook', [
     'url' => $url, 'secret_token' => (string) $cfg['webhook_secret'],
-    'allowed_updates' => ['message', 'callback_query', 'my_chat_member'], 'max_connections' => 20,
+    'allowed_updates' => ['message', 'callback_query', 'my_chat_member', 'pre_checkout_query'], 'max_connections' => 20,
 ]);
 $out('Webhook: ' . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
 
 $commands = [
-    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'help' => 'Yordam'],
-    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'help' => 'Помощь'],
-    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'help' => 'Help'],
+    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
+    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
+    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
 ];
 foreach (I18n::LANGS as $lang) {
     $list = [];

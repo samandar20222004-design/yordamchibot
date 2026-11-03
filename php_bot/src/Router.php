@@ -5,10 +5,13 @@ namespace PostAssist;
 
 use PostAssist\Handlers\AdminHandler;
 use PostAssist\Handlers\ChannelHandler;
+use PostAssist\Handlers\LinksHandler;
+use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
+use PostAssist\Repo\TrackedLinks;
 
 /**
  * Telegram yangilanishini tegishli bo'limga yo'naltiradi. Faqat shaxsiy chatdagi xabar va tugmalar ishlanadi;
@@ -33,6 +36,10 @@ final class Router
         }
         if (isset($update['my_chat_member'])) {
             ChannelHandler::memberChanged($this->app, $update['my_chat_member']);
+            return;
+        }
+        if (isset($update['pre_checkout_query'])) {
+            PlansHandler::preCheckout($this->app, $update['pre_checkout_query']);
             return;
         }
         if (isset($update['callback_query'])) {
@@ -64,15 +71,28 @@ final class Router
         }
         $text = isset($msg['text']) ? trim((string) $msg['text']) : '';
         $referrer = null;
-        $startArg = '';
+        $link = null;
         if (preg_match('/^\/start(?:@\w+)?(?:\s+(\S+))?$/u', $text, $m)) {
             $startArg = $m[1] ?? '';
+            $code = TrackedLinks::codeFromPayload($startArg);
             if (preg_match('/^ref_(\d{1,20})$/', $startArg, $r)) {
                 $referrer = (int) $r[1];
+            } elseif ($code !== null) {
+                $link = $this->app->links->active($code);
+                if ($link && $link['owner_id'] !== null) {
+                    $referrer = (int) $link['owner_id']; // hamkor havolasi = uning taklifi (faqat yangi foydalanuvchiga)
+                }
             }
         }
         $ctx = $this->ctxFor($msg['from'], (int) $msg['chat']['id'], $msg, null, $referrer);
         if ($ctx === null) {
+            return;
+        }
+        if ($link) {
+            $this->app->links->recordVisit((int) $link['id'], $ctx->userId, $ctx->isNew, $this->app->now());
+        }
+        if (isset($msg['successful_payment']) && is_array($msg['successful_payment'])) {
+            PlansHandler::paid($ctx, $msg['successful_payment']);
             return;
         }
         $user = $this->app->users->get($ctx->userId);
@@ -108,6 +128,13 @@ final class Router
                 case 'post_time':
                     PostHandler::timeInput($ctx, $state);
                     return;
+                case 'promo_wait':
+                    if ($text !== '') {
+                        PlansHandler::redeem($ctx, $text);
+                    } else {
+                        $ctx->reply($ctx->t('promo_ask'));
+                    }
+                    return;
             }
         }
         // Holatsiz: kanaldan forward qilingan post — kanal ulash urinishi
@@ -120,7 +147,11 @@ final class Router
 
     private function command(Ctx $ctx, string $text): bool
     {
-        $cmd = strtolower((string) preg_replace('/@\w+$/', '', explode(' ', $text, 2)[0]));
+        $parts = preg_split('/\s+/u', trim($text)) ?: [];
+        $cmd = strtolower((string) preg_replace('/@\w+$/', '', (string) array_shift($parts)));
+        $args = array_values(array_filter($parts, static function ($a) {
+            return $a !== '';
+        }));
         switch ($cmd) {
             case '/start':
                 $this->app->states->clear($ctx->userId);
@@ -152,12 +183,30 @@ final class Router
             case '/stats':
                 StartHandler::stats($ctx);
                 return true;
+            case '/plans':
+                $this->app->states->clear($ctx->userId);
+                PlansHandler::show($ctx);
+                return true;
+            case '/invite':
+                PlansHandler::referral($ctx);
+                return true;
+            case '/mylinks':
+                LinksHandler::mine($ctx);
+                return true;
             case '/admin':
                 if ($this->app->isAdmin($ctx->userId)) {
                     AdminHandler::show($ctx);
                     return true;
                 }
                 return false;
+        }
+        if (AdminHandler::command($ctx, $cmd, $args)) {
+            return true;
+        }
+        if ($cmd === '/promo') {
+            // oddiy foydalanuvchi: /promo KOD — darhol, /promo — so'raydi
+            $args ? PlansHandler::redeem($ctx, $args[0]) : PlansHandler::askPromo($ctx);
+            return true;
         }
         return false;
     }
@@ -209,6 +258,16 @@ final class Router
             SettingsHandler::setLang($ctx, $m[1]);
         } elseif ($data === 'set:lang') {
             $ctx->edit($ctx->t('lang_choose'), Keyboards::languages());
+        } elseif ($data === 'pl:show') {
+            PlansHandler::show($ctx, true);
+        } elseif (preg_match('/^pl:t:(pro|ultra)$/', $data, $m)) {
+            PlansHandler::periods($ctx, $m[1]);
+        } elseif (preg_match('/^pl:b:(u?(?:1m|3m|6m|1y))$/', $data, $m)) {
+            PlansHandler::invoice($ctx, $m[1]);
+        } elseif ($data === 'ref:show') {
+            PlansHandler::referral($ctx);
+        } elseif ($data === 'promo:ask') {
+            PlansHandler::askPromo($ctx);
         } elseif ($data === 'set:help') {
             $ctx->reply($ctx->t('help'));
         } elseif ($data === 'ch:add') {

@@ -3,7 +3,8 @@
 Bu Python botning PHP'dagi nusxasi: oddiy (shared) hostingda ishlaydi — Python, Docker yoki VPS kerak emas.
 Tashqi kutubxona (Composer) ishlatilmagan: fayllarni yuklasangiz bo'ldi.
 
-> **Holat: 1-bosqich (yadro).** Qaysi imkoniyatlar bor va qaysilari keyingi bosqichlarda — [docs/PHP_PORT.md](../docs/PHP_PORT.md).
+> **Holat: 2-bosqich** (yadro + tariflar, Telegram Stars, promo-kod, referal ballari, manba havolalari).
+> Qaysi imkoniyatlar bor va qaysilari keyingi bosqichlarda — [docs/PHP_PORT.md](../docs/PHP_PORT.md).
 
 ## Talablar
 
@@ -37,6 +38,20 @@ Tashqi kutubxona (Composer) ishlatilmagan: fayllarni yuklasangiz bo'ldi.
 6. **Tekshiring.** Botga `/start` yozing → menyu chiqadi. Botni kanalingizga admin qiling, «📢 Kanallarim» → «➕ Kanal ulash»,
    kanaldan postni forward qiling. «✍️ Post yaratish» → matn → «🚀 Hozir yuborish».
 
+## Yangilash (oldingi bosqich o'rnatilgan bo'lsa)
+
+1. Yangi fayllarni eskilari ustiga yuklang. **`config.php` va `storage/` ga tegmang.**
+2. `https://domeningiz.uz/postassist/setup.php?key=CRON_KEY` ni bir marta oching — yangi jadvallar va ustunlar qo'shiladi
+   (eski foydalanuvchi, kanal va postlar saqlanadi), webhook yangi turdagi yangilanishlar (to'lov) bilan qayta o'rnatiladi.
+
+## To'lov (Telegram Stars)
+
+Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinmaydi. Foydalanuvchi: ⚙️ Sozlamalar →
+«💎 Tariflar» → PRO/ULTRA → muddat → Telegram oynasida to'laydi; tarif darhol yoqiladi. Narxlarni `config.php` →
+`stars_prices` bilan o'zgartirish mumkin. Yig'ilgan Stars — @BotFather → bot → Payments (Fragment orqali yechiladi).
+
+Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
+
 ## Xavfsizlik
 
 - `config.php` da token va parol bor: uni hech kimga bermang, GitHub'ga qo'ymang (`.gitignore` da).
@@ -62,4 +77,6 @@ php tests/run.php          # PA_TEST_DB_HOST / _NAME / _USER / _PASS bilan o'zga
 
 Testlar: formatlash (UTF-16, emoji), vaqtni tushunish, havolalar, nishon, uch til pariteti, va haqiqiy MariaDB + soxta Telegram bilan
 to'liq ssenariylar (start, referal, kanal ulash va rad etish holatlari, post, tugma, hozir yuborish, ikki marta bosish, vaqt belgilash,
-limitlar, navbat, cron, qayta urinish, qulf, bot chiqarilishi, IDOR). CI'da PHP 7.4 va 8.3 da ishlaydi.
+limitlar, navbat, cron, qayta urinish, qulf, bot chiqarilishi, IDOR), 2-bosqich: eski bazani yangilash, tarif ekrani, hisob (invoice),
+pre_checkout tekshiruvi, to'lov (takror to'lov, mos kelmagan summa), PRO/ULTRA almashuvi, muddat eslatmasi va tugashi, promo-kodlar
+(limit, bir marta, o'chiq, taxminga qarshi to'siq), referal ballari, manba havolalari. CI'da PHP 7.4 va 8.3 da ishlaydi.

@@ -83,13 +83,21 @@ try {
 }
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
-foreach (['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users'] as $t) {
+$ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits'];
+foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
 $schema = (string) file_get_contents(dirname(__DIR__) . '/sql/schema.sql');
-$db->execScript($schema);
-$db->execScript($schema); // ikkinchi marta ham xatosiz (IF NOT EXISTS)
-T::check('sxema ikki marta qo\'llanadi (idempotent)', true);
+// 1-bosqichdan yangilash: eski users jadvali (yangi ustunlarsiz) bo'lsa ham Schema::apply ularni qo'shadi
+$pdo->exec("CREATE TABLE users (user_id BIGINT NOT NULL PRIMARY KEY, username VARCHAR(64) NULL, full_name VARCHAR(255) NULL,
+    lang VARCHAR(5) NOT NULL DEFAULT 'uz', lang_chosen TINYINT(1) NOT NULL DEFAULT 0, referrer_id BIGINT NULL,
+    plan_type VARCHAR(20) NOT NULL DEFAULT 'free', is_blocked TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL,
+    last_active_at DATETIME NULL, KEY idx_users_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+$changes = PostAssist\Schema::apply($db, $schema);
+T::eq('eski bazani yangilash: 4 ustun + 2 indeks qo\'shildi', count($changes), 6);
+T::eq('qayta ishga tushirish: o\'zgarish yo\'q (idempotent)', PostAssist\Schema::apply($db, $schema), []);
+T::eq('hamma jadvallar bor', (int) $db->value('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (' . implode(',', array_fill(0, count($ALL_TABLES), '?')) . ')', $ALL_TABLES), count($ALL_TABLES));
 
 $BOT = 111111;
 $ADMIN = 999;
@@ -401,3 +409,5 @@ T::check('post kutilayotganda noma\'lum buyruq post bo\'lmaydi', strpos($fake->l
     && ($app->states->get($ADMIN)['state'] ?? null) === 'post_content');
 $text($U, '/cancel');
 T::check('/cancel', strpos($fake->lastText(), 'Bekor qilindi') !== false);
+
+require __DIR__ . '/Phase2Test.php';

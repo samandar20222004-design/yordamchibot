@@ -42,7 +42,8 @@ final class Keyboards
     public static function settings(string $lang): array
     {
         return self::inline([
-            [self::btn(I18n::t('btn_lang', $lang), 'set:lang')],
+            [self::btn(I18n::t('btn_lang', $lang), 'set:lang'), self::btn(I18n::t('btn_plans', $lang), 'pl:show')],
+            [self::btn(I18n::t('btn_invite', $lang), 'ref:show'), self::btn(I18n::t('btn_promo', $lang), 'promo:ask')],
             [self::btn(I18n::t('btn_help', $lang), 'set:help')],
         ]);
     }

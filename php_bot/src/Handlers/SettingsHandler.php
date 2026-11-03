@@ -7,12 +7,14 @@ use PostAssist\Ctx;
 use PostAssist\Html;
 use PostAssist\I18n;
 use PostAssist\Keyboards;
+use PostAssist\Services\Plans;
 
 final class SettingsHandler
 {
     public static function show(Ctx $ctx): void
     {
-        $ctx->reply($ctx->t('settings_title', ['lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->app->tzName())]),
+        $tier = $ctx->app->isAdmin($ctx->userId) ? Plans::ENTERPRISE : $ctx->app->tier($ctx->userId);
+        $ctx->reply($ctx->t('settings_title', ['lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->app->tzName()), 'plan' => Plans::NAMES[$tier]]),
             Keyboards::settings($ctx->lang));
     }
 
