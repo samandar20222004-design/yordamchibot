@@ -6,6 +6,7 @@ namespace PostAssist\Handlers;
 use PostAssist\Ctx;
 use PostAssist\Html;
 use PostAssist\I18n;
+use PostAssist\Keyboards;
 use PostAssist\Repo\Promos;
 use PostAssist\Services\Plans;
 use PostAssist\Services\TimeParser;
@@ -23,7 +24,7 @@ final class AdminHandler
         $today = $ctx->app->now()->setTimezone($ctx->app->tz())->setTime(0, 0, 0)->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $now = $ctx->app->nowSql();
         $pay = $ctx->app->payments->totalsSince($today);
-        $ctx->replyMenu($ctx->t('admin_stats', [
+        $ctx->reply($ctx->t('admin_stats', [
             'users' => (int) $db->value('SELECT COUNT(*) FROM users'),
             'users_today' => (int) $db->value('SELECT COUNT(*) FROM users WHERE created_at >= ?', [$today]),
             'channels' => (int) $db->value('SELECT COUNT(*) FROM channels WHERE is_active = 1'),
@@ -33,7 +34,7 @@ final class AdminHandler
             'pro' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'pro' AND subscription_expires_at > ?", [$now]),
             'ultra' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'ultra' AND subscription_expires_at > ?", [$now]),
             'stars_today' => $pay['stars'], 'pays_today' => $pay['count'],
-        ]));
+        ]), Keyboards::admin($ctx->lang));
     }
 
     /** Admin buyruqlari. Admin bo'lmasa yoki buyruq noma'lum bo'lsa false (Router «tushunmadim» deydi). */
@@ -44,7 +45,7 @@ final class AdminHandler
         }
         switch ($cmd) {
             case '/admin_help':
-                $ctx->reply($ctx->t('admin_help'));
+                $ctx->reply($ctx->t('admin_help'), Keyboards::nav($ctx->lang, 'a:stats'));
                 return true;
             case '/grant_pro':
                 self::grant($ctx, $args);
@@ -139,7 +140,7 @@ final class AdminHandler
     {
         $rows = $ctx->app->promos->listAll(50);
         if (!$rows) {
-            $ctx->reply($ctx->t('promos_empty'));
+            $ctx->reply($ctx->t('promos_empty'), Keyboards::nav($ctx->lang, 'a:stats'));
             return;
         }
         $lines = [];
@@ -148,7 +149,7 @@ final class AdminHandler
                 . (Plans::NAMES[$p['plan_type']] ?? Html::e((string) $p['plan_type'])) . ' ' . (int) $p['duration_days'] . ' ' . $ctx->t('days_short')
                 . ' · ' . (int) $p['current_uses'] . '/' . ($p['max_uses'] === null ? '∞' : (int) $p['max_uses']);
         }
-        $ctx->reply($ctx->t('promos_title', ['n' => count($rows), 'lines' => implode("\n", $lines)]));
+        $ctx->reply($ctx->t('promos_title', ['n' => count($rows), 'lines' => implode("\n", $lines)]), Keyboards::nav($ctx->lang, 'a:stats'));
     }
 
     private static function promo(Ctx $ctx, string $code): void

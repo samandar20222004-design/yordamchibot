@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace PostAssist;
 
 use PostAssist\Handlers\AdminHandler;
+use PostAssist\Handlers\AiHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\PlansHandler;
@@ -20,7 +21,7 @@ use PostAssist\Repo\TrackedLinks;
  */
 final class Router
 {
-    private const MENU_KEYS = ['btn_create_content', 'btn_my_channels', 'btn_scheduled', 'btn_statistics', 'btn_settings', 'btn_admin'];
+    private const MENU_KEYS = ['btn_create_content', 'btn_ai_post', 'btn_my_channels', 'btn_scheduled', 'btn_statistics', 'btn_settings', 'btn_admin'];
 
     private App $app;
 
@@ -151,6 +152,15 @@ final class Router
                 case 'tz_wait':
                     SettingsHandler::setTimezone($ctx, $text);
                     return;
+                case 'ai_topic':
+                case 'ai_style':
+                    AiHandler::topicInput($ctx); // uslub o'rniga yana matn yozsa — yangi mavzu
+                    return;
+                case 'intake':
+                    if (AiHandler::intake($ctx)) {
+                        return;
+                    }
+                    break;
                 case 'promo_wait':
                     if ($text !== '') {
                         PlansHandler::redeem($ctx, $text);
@@ -164,6 +174,9 @@ final class Router
         if (isset($msg['forward_origin']['chat']) || isset($msg['forward_from_chat'])) {
             ChannelHandler::receive($ctx);
             return;
+        }
+        if (AiHandler::intake($ctx)) {
+            return; // matn/rasm: «Bu bilan nima qilamiz?»
         }
         $ctx->replyMenu($ctx->t('unknown'));
     }
@@ -209,6 +222,10 @@ final class Router
             case '/stats':
                 StartHandler::stats($ctx);
                 return true;
+            case '/ai':
+                $this->app->states->clear($ctx->userId);
+                AiHandler::start($ctx);
+                return true;
             case '/plans':
                 $this->app->states->clear($ctx->userId);
                 PlansHandler::show($ctx);
@@ -242,6 +259,9 @@ final class Router
         switch ($key) {
             case 'btn_create_content':
                 PostHandler::begin($ctx);
+                return;
+            case 'btn_ai_post':
+                AiHandler::start($ctx);
                 return;
             case 'btn_my_channels':
                 ChannelHandler::show($ctx);
@@ -286,8 +306,13 @@ final class Router
         $data = (string) ($cq['data'] ?? '');
         if (preg_match('/^lang:(uz|ru|en)$/', $data, $m)) {
             SettingsHandler::setLang($ctx, $m[1]);
+        } elseif ($data === 'm:home') {
+            StartHandler::home($ctx);
+        } elseif ($data === 'set:show') {
+            $this->app->states->clear($ctx->userId);
+            SettingsHandler::show($ctx, true);
         } elseif ($data === 'set:lang') {
-            $ctx->edit($ctx->t('lang_choose'), Keyboards::languages());
+            $ctx->edit($ctx->t('lang_choose'), Keyboards::languages($ctx->lang));
         } elseif ($data === 'pl:show') {
             PlansHandler::show($ctx, true);
         } elseif (preg_match('/^pl:t:(pro|ultra)$/', $data, $m)) {
@@ -299,7 +324,24 @@ final class Router
         } elseif ($data === 'promo:ask') {
             PlansHandler::askPromo($ctx);
         } elseif ($data === 'set:help') {
-            $ctx->reply($ctx->t('help'));
+            $ctx->edit($ctx->t('help'), Keyboards::nav($ctx->lang, 'set:show'));
+        } elseif ($data === 'p:new') {
+            $this->app->states->clear($ctx->userId);
+            PostHandler::begin($ctx);
+        } elseif ($data === 'p:ai') {
+            AiHandler::editMenu($ctx);
+        } elseif ($data === 'ai:again') {
+            AiHandler::again($ctx);
+        } elseif (preg_match('/^ai:s:(news|sales|fun|useful|short)$/', $data, $m)) {
+            AiHandler::style($ctx, $m[1]);
+        } elseif (preg_match('/^ai:e:(improve|shorten|emoji|rewrite|tr_uz|tr_ru|tr_en)$/', $data, $m)) {
+            AiHandler::edit($ctx, $m[1]);
+        } elseif (preg_match('/^in:(post|ai|close)$/', $data, $m)) {
+            AiHandler::intakeChoice($ctx, $m[1]);
+        } elseif (preg_match('/^a:(stats|promos|links|help)$/', $data, $m)) {
+            if ($this->app->isAdmin($ctx->userId)) {
+                $m[1] === 'stats' ? AdminHandler::show($ctx) : AdminHandler::command($ctx, '/' . ($m[1] === 'help' ? 'admin_help' : $m[1]), []);
+            }
         } elseif ($data === 'ch:add') {
             ChannelHandler::askAdd($ctx);
         } elseif ($data === 'ch:list') {

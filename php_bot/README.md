@@ -53,6 +53,16 @@ Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinm
 
 Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
 
+## ✨ AI yoqish
+
+`config.php` ga kamida bitta bepul kalit yozing (bir nechta bo'lsa — biri ishlamasa keyingisi):
+- `gemini_api_key` — https://aistudio.google.com/apikey (tavsiya: o'zbek tilini yaxshi biladi)
+- `groq_api_key` — https://console.groq.com/keys
+- `openrouter_api_key` — https://openrouter.ai/keys
+
+Shundan keyin menyuda «✨ AI post» va preview → «⚙️ Qo'shimcha» → «✨ AI tahrir» chiqadi. Kunlik limit: FREE 5, PRO 40, ULTRA 100
+(`ai_daily` bilan o'zgaradi); tugasa ballar ishlatiladi; AI javob bermasa so'rov qaytariladi.
+
 ## Albom haqida (hosting sozlamasi)
 
 Albom (bir nechta rasm) yig'ilishi uchun webhook Telegram'ga javobni darhol qaytaradi va 2 soniya kutadi. Bu oddiy Apache, LiteSpeed va

@@ -91,7 +91,7 @@ try {
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
 $ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
-    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done'];
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage'];
 foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
@@ -422,3 +422,4 @@ T::check('/cancel', strpos($fake->lastText(), 'Bekor qilindi') !== false);
 
 require __DIR__ . '/Phase2Test.php';
 require __DIR__ . '/Phase3Test.php';
+require __DIR__ . '/Phase4Test.php';

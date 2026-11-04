@@ -8,10 +8,14 @@ use PostAssist\Services\PostRender;
 /** Klaviaturalar. Callback ma'lumoti qisqa va qat'iy formatda (Router faqat shu shakllarni qabul qiladi). */
 final class Keyboards
 {
-    public static function main(string $lang, bool $admin): array
+    public static function main(string $lang, bool $admin, bool $ai = false): array
     {
         $t = static fn (string $k) => ['text' => I18n::t($k, $lang)];
-        $rows = [
+        $rows = $ai ? [
+            [$t('btn_create_content'), $t('btn_ai_post')],
+            [$t('btn_my_channels'), $t('btn_scheduled')],
+            [$t('btn_statistics'), $t('btn_settings')],
+        ] : [
             [$t('btn_create_content'), $t('btn_my_channels')],
             [$t('btn_scheduled'), $t('btn_statistics')],
             [$t('btn_settings')],
@@ -20,6 +24,35 @@ final class Keyboards
             $rows[] = [$t('btn_admin')];
         }
         return ['keyboard' => $rows, 'resize_keyboard' => true, 'is_persistent' => true];
+    }
+
+    /** Pastki navigatsiya qatori: [◀️ Orqaga] [🏠 Menyu] (orqaga bo'lmasa faqat menyu). */
+    public static function navRow(string $lang, ?string $back = null): array
+    {
+        $row = [];
+        if ($back !== null) {
+            $row[] = self::btn(I18n::t('btn_back', $lang), $back);
+        }
+        $row[] = self::btn(I18n::t('btn_home', $lang), 'm:home');
+        return $row;
+    }
+
+    public static function nav(string $lang, ?string $back = null): array
+    {
+        return self::inline([self::navRow($lang, $back)]);
+    }
+
+    public static function aiStyles(string $lang): array
+    {
+        $b = static fn (string $s) => self::btn(I18n::t('btn_ai_' . $s, $lang), 'ai:s:' . $s);
+        return self::inline([[$b('news'), $b('sales')], [$b('fun'), $b('useful')], [$b('short')], self::navRow($lang)]);
+    }
+
+    public static function aiEdits(string $lang): array
+    {
+        $b = static fn (string $a) => self::btn(I18n::t('btn_aie_' . $a, $lang), 'ai:e:' . $a);
+        return self::inline([[$b('improve'), $b('shorten')], [$b('emoji'), $b('rewrite')], [$b('tr_uz'), $b('tr_ru'), $b('tr_en')],
+            [self::btn(I18n::t('btn_back', $lang), 'p:back')]]);
     }
 
     public static function inline(array $rows): array
@@ -32,13 +65,13 @@ final class Keyboards
         return ['text' => $text, 'callback_data' => $data];
     }
 
-    public static function languages(): array
+    public static function languages(?string $lang = null): array
     {
         $row = [];
         foreach (I18n::NAMES as $code => $name) {
             $row[] = self::btn($name, 'lang:' . $code);
         }
-        return self::inline([$row]);
+        return self::inline($lang !== null ? [$row, self::navRow($lang, 'set:show')] : [$row]);
     }
 
     public static function settings(string $lang): array
@@ -47,6 +80,7 @@ final class Keyboards
             [self::btn(I18n::t('btn_lang', $lang), 'set:lang'), self::btn(I18n::t('btn_plans', $lang), 'pl:show')],
             [self::btn(I18n::t('btn_invite', $lang), 'ref:show'), self::btn(I18n::t('btn_promo', $lang), 'promo:ask')],
             [self::btn(I18n::t('btn_timezone', $lang), 'set:tz'), self::btn(I18n::t('btn_help', $lang), 'set:help')],
+            self::navRow($lang),
         ]);
     }
 
@@ -59,6 +93,7 @@ final class Keyboards
         if ($canAdd) {
             $rows[] = [self::btn(I18n::t('btn_ch_add', $lang), 'ch:add')];
         }
+        $rows[] = self::navRow($lang);
         return self::inline($rows);
     }
 
@@ -88,19 +123,26 @@ final class Keyboards
     ];
 
     /** @return array<int, array<int, array<string,string>>> preview ostidagi boshqaruv qatorlari (ixcham, 5 tugma) */
-    public static function previewRows(string $lang): array
+    public static function previewRows(string $lang, bool $aiAgain = false): array
     {
-        return [
+        $rows = [
             [self::btn(I18n::t('btn_send_now', $lang), 'p:now'), self::btn(I18n::t('btn_set_time', $lang), 'p:time')],
             [self::btn(I18n::t('btn_more', $lang), 'p:more'), self::btn(I18n::t('btn_edit', $lang), 'p:edit')],
-            [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')],
         ];
+        if ($aiAgain) {
+            $rows[] = [self::btn(I18n::t('btn_ai_again', $lang), 'ai:again')];
+        }
+        $rows[] = [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')];
+        return $rows;
     }
 
     /** «⚙️ Qo'shimcha»: tugma, reaksiya (albomda yo'q), takror, avto-o'chirish. */
-    public static function more(string $lang, array $draft, bool $album): array
+    public static function more(string $lang, array $draft, bool $album, bool $ai = false): array
     {
         $rows = [];
+        if ($ai && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
+            $rows[] = [self::btn(I18n::t('btn_ai_edit', $lang), 'p:ai')];
+        }
         if (!$album) {
             $has = !empty($draft['button_url']);
             $rows[] = [self::btn(I18n::t($has ? 'btn_remove_button' : 'btn_add_button', $lang), $has ? 'p:btndel' : 'p:btn'),
@@ -158,7 +200,18 @@ final class Keyboards
         if ($row) {
             $rows[] = $row;
         }
+        $rows[] = self::navRow($lang, 'set:show');
         return self::inline($rows);
+    }
+
+    /** Admin paneli tugmalari. */
+    public static function admin(string $lang): array
+    {
+        return self::inline([
+            [self::btn(I18n::t('btn_adm_promos', $lang), 'a:promos'), self::btn(I18n::t('btn_adm_links', $lang), 'a:links')],
+            [self::btn(I18n::t('btn_adm_help', $lang), 'a:help'), self::btn(I18n::t('btn_refresh', $lang), 'a:stats')],
+            self::navRow($lang),
+        ]);
     }
 
     public static function times(string $lang): array
@@ -179,6 +232,7 @@ final class Keyboards
             $icon = !empty($p['recurrence_type']) ? '🔄 ' : ($p['post_type'] === 'album' ? '🖼 ' : '📄 ');
             $rows[] = [self::btn($icon . $label, 'q:v:' . (int) $p['id'])];
         }
+        $rows[] = [self::btn(I18n::t('btn_new_post', $lang), 'p:new'), self::btn(I18n::t('btn_home', $lang), 'm:home')];
         return self::inline($rows);
     }
 

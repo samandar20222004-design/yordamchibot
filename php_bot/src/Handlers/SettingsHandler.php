@@ -11,11 +11,12 @@ use PostAssist\Services\Plans;
 
 final class SettingsHandler
 {
-    public static function show(Ctx $ctx): void
+    public static function show(Ctx $ctx, bool $edit = false): void
     {
         $tier = $ctx->app->isAdmin($ctx->userId) ? Plans::ENTERPRISE : $ctx->app->tier($ctx->userId);
-        $ctx->reply($ctx->t('settings_title', ['lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->tzName()), 'plan' => Plans::NAMES[$tier]]),
-            Keyboards::settings($ctx->lang));
+        $text = $ctx->t('settings_title', ['lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->tzName()), 'plan' => Plans::NAMES[$tier]]);
+        $kb = Keyboards::settings($ctx->lang);
+        $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 
     /** /timezone: tezkor tugmalar yoki IANA nomini yozish (masalan Europe/Paris). */
@@ -63,7 +64,7 @@ final class SettingsHandler
     {
         $id = self::resolveTimezone($input);
         if ($id === null) {
-            $ctx->reply($ctx->t('tz_bad'));
+            $ctx->reply($ctx->t('tz_bad'), Keyboards::nav($ctx->lang, 'set:show'));
             return;
         }
         $ctx->app->states->clear($ctx->userId);

@@ -218,3 +218,13 @@ CREATE TABLE IF NOT EXISTS album_done (
     created_at DATETIME NOT NULL,
     PRIMARY KEY (user_id, group_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================== 4-bosqich: AI =====================
+
+-- AI so'rovlari: kuniga tarif bo'yicha (FREE 5, PRO 40, ULTRA 100); tugasa — ballar (ai_credits) ishlatiladi.
+CREATE TABLE IF NOT EXISTS ai_usage (
+    user_id BIGINT NOT NULL,
+    day DATE NOT NULL,
+    used INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

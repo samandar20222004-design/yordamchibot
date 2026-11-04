@@ -1,0 +1,235 @@
+<?php
+declare(strict_types=1);
+
+namespace PostAssist\Handlers;
+
+use PostAssist\Ctx;
+use PostAssist\Html;
+use PostAssist\Keyboards;
+use PostAssist\Services\Ai;
+use PostAssist\Services\PostRender;
+
+/**
+ * ✨ AI: mavzudan post (uslub tanlab), tayyor postni tahrirlash (yaxshilash, qisqartirish, emoji, qayta yozish, tarjima)
+ * va aqlli qabul — dialogdan tashqari yuborilgan matn/media uchun «Bu bilan nima qilamiz?» (AI o'zi ishga tushmaydi).
+ * Har AI so'rovi oldidan joy band qilinadi (kunlik limit, keyin ball); AI javob bermasa qaytariladi.
+ * Natija oddiy post qoralamasiga tushadi — keyin hamma narsa odatdagidek: kanal, preview, tugma, vaqt, takror.
+ */
+final class AiHandler
+{
+    public const TOPIC_MIN = 3;
+    public const TOPIC_MAX = 2000;
+
+    private static function disabled(Ctx $ctx): bool
+    {
+        if ($ctx->app->ai->enabled()) {
+            return false;
+        }
+        $ctx->reply($ctx->t($ctx->app->isAdmin($ctx->userId) ? 'ai_disabled_admin' : 'ai_disabled'), Keyboards::nav($ctx->lang));
+        return true;
+    }
+
+    /** Qolgan so'rovlar: «Bugun: 3/5 · Ball: 7» yoki «cheksiz». */
+    public static function quotaLine(Ctx $ctx): string
+    {
+        $limit = $ctx->app->aiLimit($ctx->userId);
+        if ($limit === 0) {
+            return $ctx->t('ai_quota_unlimited');
+        }
+        $left = max(0, $limit - $ctx->app->aiUsage->usedOn($ctx->userId, $ctx->app->today()));
+        return $ctx->t('ai_quota', ['left' => $left, 'limit' => $limit, 'credits' => $ctx->app->credits->balance($ctx->userId)]);
+    }
+
+    /** «✨ AI post»: mavzu so'raladi. */
+    public static function start(Ctx $ctx): void
+    {
+        if (self::disabled($ctx)) {
+            return;
+        }
+        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+            $ctx->replyMenu($ctx->t('ch_need_first'));
+            ChannelHandler::askAdd($ctx);
+            return;
+        }
+        $ctx->app->states->set($ctx->userId, 'ai_topic');
+        $ctx->reply($ctx->t('ai_ask_topic') . "\n\n" . self::quotaLine($ctx), Keyboards::nav($ctx->lang));
+    }
+
+    public static function topicInput(Ctx $ctx): void
+    {
+        $topic = trim((string) ($ctx->message['text'] ?? $ctx->message['caption'] ?? ''));
+        $len = mb_strlen($topic);
+        if ($len < self::TOPIC_MIN || $len > self::TOPIC_MAX) {
+            $ctx->reply($ctx->t('ai_topic_bad', ['max' => self::TOPIC_MAX]), Keyboards::nav($ctx->lang));
+            return;
+        }
+        self::askStyle($ctx, $topic);
+    }
+
+    public static function askStyle(Ctx $ctx, string $topic): void
+    {
+        $ctx->app->states->set($ctx->userId, 'ai_style', ['topic' => $topic]);
+        $ctx->reply($ctx->t('ai_ask_style'), Keyboards::aiStyles($ctx->lang));
+    }
+
+    /** Uslub tanlandi — post yoziladi. */
+    public static function style(Ctx $ctx, string $style): void
+    {
+        $st = $ctx->state();
+        $topic = (string) ($st['data']['topic'] ?? '');
+        if ($st === null || $st['state'] !== 'ai_style' || $topic === '') {
+            $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        $res = self::run($ctx, Ai::system($ctx->lang, PostRender::TEXT_LIMIT - 200), Ai::postPrompt($topic, $style), PostRender::TEXT_LIMIT - 200);
+        if ($res === null) {
+            return;
+        }
+        $draft = ['type' => 'text', 'file_id' => null, 'text' => $res];
+        PostHandler::applyDraft($ctx, ['state' => 'ai_style', 'data' => ['ai' => ['topic' => $topic, 'style' => $style]]], $draft);
+    }
+
+    /** Preview'dagi «🔄 Boshqa variant» — o'sha mavzu va uslubda qayta yozish (kanal va sozlamalar saqlanadi). */
+    public static function again(Ctx $ctx): void
+    {
+        $st = $ctx->state();
+        $ai = $st['data']['ai'] ?? null;
+        if ($st === null || !is_array($ai) || empty($ai['topic']) || strpos($st['state'], 'post_') !== 0) {
+            $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        $res = self::run($ctx, Ai::system($ctx->lang, PostRender::TEXT_LIMIT - 200), Ai::postPrompt((string) $ai['topic'], (string) ($ai['style'] ?? 'news')), PostRender::TEXT_LIMIT - 200);
+        if ($res === null) {
+            return;
+        }
+        $data = $st['data'];
+        $data['draft']['text'] = $res;
+        PostHandler::preview($ctx, $data);
+    }
+
+    /** «⚙️ Qo'shimcha» → «✨ AI tahrir»: amal tanlash. */
+    public static function editMenu(Ctx $ctx): void
+    {
+        if (self::disabled($ctx)) {
+            return;
+        }
+        $st = $ctx->state();
+        if ($st === null || empty($st['data']['draft']) || strpos($st['state'], 'post_') !== 0) {
+            $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        if (trim(Html::plain((string) ($st['data']['draft']['text'] ?? ''))) === '') {
+            $ctx->reply($ctx->t('ai_need_text'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
+            return;
+        }
+        $ctx->reply($ctx->t('ai_edit_ask') . "\n\n" . self::quotaLine($ctx), Keyboards::aiEdits($ctx->lang));
+    }
+
+    public static function edit(Ctx $ctx, string $action): void
+    {
+        $st = $ctx->state();
+        if ($st === null || empty($st['data']['draft']) || strpos($st['state'], 'post_') !== 0) {
+            $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        $data = $st['data'];
+        $text = (string) ($data['draft']['text'] ?? '');
+        if (trim(Html::plain($text)) === '') {
+            $ctx->reply($ctx->t('ai_need_text'));
+            return;
+        }
+        $type = (string) $data['draft']['type'];
+        $max = PostRender::limitFor($type === 'album' ? 'photo' : $type) - 40; // bepul nishon uchun joy
+        $res = self::run($ctx, Ai::system(Ai::editLang($action, $ctx->lang), $max), Ai::editPrompt($text, $action), $max);
+        if ($res === null) {
+            return;
+        }
+        $data['draft']['text'] = $res;
+        PostHandler::preview($ctx, $data);
+    }
+
+    /**
+     * AI chaqiruvi: limit band qilinadi, «⏳ yozmoqda» ko'rsatiladi, xatoda limit qaytadi.
+     * @return string|null tayyor HTML yoki null (foydalanuvchiga sabab aytildi)
+     */
+    private static function run(Ctx $ctx, string $system, string $prompt, int $maxChars): ?string
+    {
+        $app = $ctx->app;
+        if (self::disabled($ctx)) {
+            return null;
+        }
+        $day = $app->today();
+        $src = $app->aiUsage->reserve($ctx->userId, $app->aiLimit($ctx->userId), $day, $app->nowSql());
+        if ($src === null) {
+            $ctx->reply($ctx->t('ai_limit'), Keyboards::inline([
+                [Keyboards::btn($ctx->t('btn_plans'), 'pl:show'), Keyboards::btn($ctx->t('btn_invite'), 'ref:show')],
+                [Keyboards::btn($ctx->t('btn_home'), 'm:home')],
+            ]));
+            return null;
+        }
+        $wait = $ctx->reply($ctx->t('ai_working'));
+        $app->releaseClient(); // AI 5–30 soniya: Telegram kutib qolmasin
+        @set_time_limit(120);
+        $res = $app->ai->generate($system, $prompt, $maxChars);
+        if (!empty($wait['result']['message_id'])) {
+            $app->tg->call('deleteMessage', ['chat_id' => $ctx->chatId, 'message_id' => (int) $wait['result']['message_id']]);
+        }
+        if (!$res['ok']) {
+            $app->aiUsage->refund($ctx->userId, $src, $day, $app->nowSql());
+            $app->log('AI xato: ' . ($res['error'] ?? ''));
+            $ctx->reply($ctx->t('ai_failed'), Keyboards::nav($ctx->lang));
+            return null;
+        }
+        return (string) $res['text'];
+    }
+
+    // ------------------------------------------------------------------ aqlli qabul
+
+    /** Dialogdan tashqari kelgan matn/media: AI o'zi ishga tushmaydi — foydalanuvchi tanlaydi. */
+    public static function intake(Ctx $ctx): bool
+    {
+        $msg = $ctx->message ?? [];
+        $draft = PostRender::draftFromMessage($msg);
+        if ($draft === null) {
+            return false;
+        }
+        if ($draft['type'] === 'text') {
+            $plain = trim(Html::plain((string) $draft['text']));
+            if (mb_strlen($plain) < 8 || count(preg_split('/\s+/u', $plain) ?: []) < 2) {
+                return false; // «ha», «???» — oddiy javob
+            }
+        }
+        $ctx->app->states->set($ctx->userId, 'intake', ['draft' => $draft]);
+        $row = [Keyboards::btn($ctx->t('btn_in_post'), 'in:post')];
+        if ($ctx->app->ai->enabled() && trim(Html::plain((string) $draft['text'])) !== '') {
+            $row[] = Keyboards::btn($ctx->t('btn_in_ai'), 'in:ai');
+        }
+        $ctx->reply($ctx->t('in_ask'), Keyboards::inline([$row, [Keyboards::btn($ctx->t('btn_in_close'), 'in:close')]]));
+        return true;
+    }
+
+    public static function intakeChoice(Ctx $ctx, string $choice): void
+    {
+        $st = $ctx->state();
+        if ($choice === 'close' || $st === null || $st['state'] !== 'intake' || empty($st['data']['draft'])) {
+            $ctx->app->states->clear($ctx->userId);
+            $ctx->replyMenu($ctx->t($choice === 'close' ? 'cancelled' : 'draft_expired'));
+            return;
+        }
+        $draft = $st['data']['draft'];
+        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+            $ctx->app->states->clear($ctx->userId);
+            $ctx->replyMenu($ctx->t('ch_need_first'));
+            ChannelHandler::askAdd($ctx);
+            return;
+        }
+        if ($choice === 'ai') {
+            if (self::disabled($ctx)) {
+                return;
+            }
+            self::askStyle($ctx, mb_substr(trim(Html::plain((string) $draft['text'])), 0, self::TOPIC_MAX));
+            return;
+        }
+        PostHandler::applyDraft($ctx, ['state' => 'intake', 'data' => []], $draft);
+    }
+}

@@ -56,7 +56,7 @@ final class PostHandler
     }
 
     /** Yangi kontent: uzunlik tekshiruvi, eski sozlamalar (tugma, reaksiya, avto-o'chirish) saqlanadi, kanal tanlash, preview. */
-    private static function applyDraft(Ctx $ctx, array $state, array $draft): void
+    public static function applyDraft(Ctx $ctx, array $state, array $draft): void
     {
         $len = Html::utf16Len(Html::plain((string) $draft['text']));
         $max = PostRender::limitFor($draft['type'] === 'album' ? 'photo' : $draft['type']);
@@ -206,7 +206,7 @@ final class PostHandler
         $d = $data['draft'];
         $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null];
-        $rows = Keyboards::previewRows($ctx->lang);
+        $rows = Keyboards::previewRows($ctx->lang, !empty($data['ai']['topic']) && $ctx->app->ai->enabled());
         $free = $ctx->app->isFree($ctx->userId);
         $bot = $ctx->app->config->str('bot_username');
         $hint = $ctx->t('post_preview_hint') . self::extrasText($ctx, $data);
@@ -271,7 +271,7 @@ final class PostHandler
             case 'more':
                 $ctx->app->states->set($ctx->userId, 'post_preview', $data);
                 $ctx->reply($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
-                    Keyboards::more($ctx->lang, $data['draft'], $album));
+                    Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled()));
                 return;
             case 'btn':
                 if ($album) {

@@ -131,4 +131,68 @@ final class Html
         }
         return null;
     }
+
+    /**
+     * AI javobini xavfsiz Telegram HTML ga aylantiradi: faqat b/i/u/s/code/pre/blockquote/tg-spoiler va to'g'ri havolali <a>
+     * qoladi, qolgan hammasi escape qilinadi; teglar juftlanadi (yopilmagani yopiladi). Markdown (**qalin**, *kursiv*, # sarlavha,
+     * ``` blok) ham tushuniladi — ba'zi modellar HTML o'rniga markdown qaytaradi.
+     */
+    public static function sanitize(string $raw): string
+    {
+        $s = str_replace(["\r\n", "\r"], "\n", trim($raw));
+        $s = (string) preg_replace('/^```[a-zA-Z]*\n?|\n?```$/m', '', $s);
+        $s = (string) preg_replace('/^#{1,6}\s+(.+)$/mu', '**$1**', $s);
+        $s = (string) preg_replace('/\*\*(.+?)\*\*/us', '<b>$1</b>', $s);
+        $s = (string) preg_replace('/(?<![\*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\*\w])/u', '<i>$1</i>', $s);
+        $map = ['b' => 'b', 'strong' => 'b', 'i' => 'i', 'em' => 'i', 'u' => 'u', 'ins' => 'u', 's' => 's', 'strike' => 's', 'del' => 's',
+            'code' => 'code', 'pre' => 'pre', 'blockquote' => 'blockquote', 'tg-spoiler' => 'tg-spoiler', 'a' => 'a'];
+        $out = '';
+        $stack = [];
+        $pos = 0;
+        $re = '#<(/?)([a-zA-Z-]+)((?:\s+[a-zA-Z-]+\s*=\s*(?:"[^"]*"|\'[^\']*\'))*)\s*/?>|<br\s*/?>#';
+        if (preg_match_all($re, $s, $mm, PREG_OFFSET_CAPTURE | PREG_SET_ORDER)) {
+            foreach ($mm as $m) {
+                $out .= self::e(html_entity_decode(substr($s, $pos, $m[0][1] - $pos), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                $pos = $m[0][1] + strlen($m[0][0]);
+                if (stripos($m[0][0], '<br') === 0) {
+                    $out .= "\n";
+                    continue;
+                }
+                $tag = $map[strtolower($m[2][0] ?? '')] ?? null;
+                if ($tag === null) {
+                    continue; // noma'lum teg tashlab yuboriladi (matni qoladi)
+                }
+                if ($m[1][0] === '/') {
+                    $at = array_search($tag, $stack, true);
+                    if ($at === false) {
+                        continue;
+                    }
+                    while (count($stack) > $at) {
+                        $out .= '</' . array_pop($stack) . '>';
+                    }
+                    continue;
+                }
+                if ($tag === 'a') {
+                    $url = null;
+                    if (preg_match('/href\s*=\s*(?:"([^"]*)"|\'([^\']*)\')/i', (string) $m[3][0], $h)) {
+                        $url = Services\Links::normalize(html_entity_decode($h[1] !== '' ? $h[1] : ($h[2] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+                    }
+                    if ($url === null) {
+                        continue;
+                    }
+                    $out .= '<a href="' . self::e($url) . '">';
+                } else {
+                    $out .= '<' . $tag . '>';
+                }
+                $stack[] = $tag;
+            }
+        }
+        $out .= self::e(html_entity_decode(substr($s, $pos), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+        while ($stack) {
+            $out .= '</' . array_pop($stack) . '>';
+        }
+        // bo'sh teglar va ortiqcha bo'sh qatorlar
+        $out = (string) preg_replace('#<(b|i|u|s|code|pre|blockquote|tg-spoiler)></\1>#', '', $out);
+        return trim((string) preg_replace("/\n{3,}/", "\n\n", $out));
+    }
 }

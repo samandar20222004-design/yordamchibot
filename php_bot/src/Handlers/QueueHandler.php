@@ -17,10 +17,11 @@ final class QueueHandler
     {
         $list = $ctx->app->posts->listPending($ctx->userId, self::LIST_LIMIT);
         if (!$list) {
+            $kb = Keyboards::inline([[Keyboards::btn($ctx->t('btn_new_post'), 'p:new'), Keyboards::btn($ctx->t('btn_home'), 'm:home')]]);
             if ($edit) {
-                $ctx->edit($ctx->t('q_empty'));
+                $ctx->edit($ctx->t('q_empty'), $kb);
             } else {
-                $ctx->replyMenu($ctx->t('q_empty'));
+                $ctx->reply($ctx->t('q_empty'), $kb);
             }
             return;
         }
@@ -49,7 +50,7 @@ final class QueueHandler
     {
         $p = $ctx->app->posts->getOwnedPending($ctx->userId, $id);
         if (!$p) {
-            $ctx->edit($ctx->t('q_not_found'));
+            $ctx->edit($ctx->t('q_not_found'), Keyboards::nav($ctx->lang, 'q:list'));
             return;
         }
         $extra = '';
@@ -73,7 +74,7 @@ final class QueueHandler
     public static function askCancel(Ctx $ctx, int $id): void
     {
         if (!$ctx->app->posts->getOwnedPending($ctx->userId, $id)) {
-            $ctx->edit($ctx->t('q_not_found'));
+            $ctx->edit($ctx->t('q_not_found'), Keyboards::nav($ctx->lang, 'q:list'));
             return;
         }
         $ctx->edit($ctx->t('q_del_ask', ['id' => $id]), Keyboards::confirm($ctx->lang, 'q:dok:' . $id, 'q:v:' . $id));
@@ -82,6 +83,6 @@ final class QueueHandler
     public static function cancel(Ctx $ctx, int $id): void
     {
         $ok = $ctx->app->posts->cancel($ctx->userId, $id);
-        $ctx->edit($ctx->t($ok ? 'q_deleted' : 'q_not_found', ['id' => $id]));
+        $ctx->edit($ctx->t($ok ? 'q_deleted' : 'q_not_found', ['id' => $id]), Keyboards::nav($ctx->lang, 'q:list'));
     }
 }

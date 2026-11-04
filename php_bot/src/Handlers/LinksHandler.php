@@ -93,12 +93,12 @@ final class LinksHandler
     {
         $rows = $ctx->app->links->listAll(null, 50);
         if (!$rows) {
-            $ctx->reply($ctx->t('links_empty'));
+            $ctx->reply($ctx->t('links_empty'), \PostAssist\Keyboards::nav($ctx->lang, 'a:stats'));
             return;
         }
         $ctx->reply($ctx->t('links_title', ['n' => count($rows), 'lines' => implode("\n", array_map(static function ($l) {
             return self::line($l, true);
-        }, $rows))]));
+        }, $rows))]), \PostAssist\Keyboards::nav($ctx->lang, 'a:stats'));
     }
 
     private static function detail(Ctx $ctx, string $code): void

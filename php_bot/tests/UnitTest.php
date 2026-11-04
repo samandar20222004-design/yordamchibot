@@ -260,3 +260,65 @@ foreach (Keyboards::TIMEZONES as $id => $label) {
     }
 }
 T::eq('/timezone tugmalari: haqiqiy zona, yorliq ≤18', $bad, []);
+
+T::section('K. AI: HTML tozalash, provayderlar, limitlar (4-bosqich)');
+use PostAssist\Services\Ai;
+
+T::eq('sanitize: markdown qalin -> <b>', Html::sanitize('**Salom** dunyo'), '<b>Salom</b> dunyo');
+T::eq('sanitize: <script> va noma\'lum teg olinadi, matn escape', Html::sanitize('<script>alert(1)</script> a<b'), 'alert(1) a&lt;b');
+T::eq('sanitize: strong/em -> b/i', Html::sanitize('<strong>A</strong> <em>B</em>'), '<b>A</b> <i>B</i>');
+T::eq('sanitize: yopilmagan teg yopiladi', Html::sanitize('<b>ochiq <i>ichki'), '<b>ochiq <i>ichki</i></b>');
+T::eq('sanitize: javascript: havola olib tashlanadi, https qoladi', Html::sanitize('<a href="javascript:x()">a</a> <a href="https://x.uz">b</a>'), 'a <a href="https://x.uz">b</a>');
+T::eq('sanitize: atributli teg (onclick) — faqat teg nomi', Html::sanitize('<b onclick="x()">q</b>'), '<b>q</b>');
+T::eq('sanitize: sarlavha va ``` blok', Html::sanitize("```\n# Sarlavha\nmatn\n```"), "<b>Sarlavha</b>\nmatn");
+T::eq('sanitize: &amp; ikki marta escape bo\'lmaydi', Html::sanitize('A &amp; B & C'), 'A &amp; B &amp; C');
+T::eq('sanitize: bo\'sh teglar olinadi', Html::sanitize('<b></b>x'), 'x');
+$aiCalls = [];
+$aiQueue = [];
+$aiT = static function (string $url, array $h, string $body) use (&$aiCalls, &$aiQueue): array {
+    $aiCalls[] = [$url, $h, json_decode($body, true)];
+    return $aiQueue ? array_shift($aiQueue) : [500, ''];
+};
+$gem = static function (string $t): array {
+    return [200, json_encode(['candidates' => [['content' => ['parts' => [['text' => 'fikr', 'thought' => true], ['text' => $t]]]]]])];
+};
+$oai = static function (string $t): array {
+    return [200, json_encode(['choices' => [['message' => ['content' => $t]]]])];
+};
+$ai0 = new Ai(new PostAssist\Config([]), $aiT);
+T::eq('kalitsiz: AI o\'chiq', [$ai0->enabled(), $ai0->generate('s', 'p', 100)['error'] ?? ''], [false, 'disabled']);
+$ai2 = new Ai(new PostAssist\Config(['gemini_api_key' => 'G', 'groq_api_key' => 'Q', 'openrouter_api_key' => 'O']), $aiT);
+T::eq('provayderlar tartibi: gemini -> groq -> openrouter', array_column($ai2->providers(), 'name'), ['gemini', 'groq', 'openrouter']);
+$aiQueue = [$gem('**Post** matni')];
+$r = $ai2->generate('SYS', 'PROMPT', 1000);
+T::check('gemini: javob olinadi, «thought» qismi tashlanadi, kalit sarlavhada (URL\'da emas)', $r['ok'] && $r['text'] === '<b>Post</b> matni' && $r['provider'] === 'gemini'
+    && in_array('x-goog-api-key: G', $aiCalls[0][1], true) && strpos($aiCalls[0][0], 'G') === false
+    && ($aiCalls[0][2]['systemInstruction']['parts'][0]['text'] ?? '') === 'SYS');
+$aiCalls = [];
+$aiQueue = [[503, 'overloaded'], [200, '{"choices":[]}'], $oai('OpenRouter javobi')];
+$r = $ai2->generate('S', 'P', 1000);
+T::check('gemini 503, groq bo\'sh -> openrouter (Bearer kalit)', $r['ok'] && $r['provider'] === 'openrouter' && count($aiCalls) === 3
+    && in_array('Authorization: Bearer O', $aiCalls[2][1], true) && ($aiCalls[2][2]['messages'][0]['role'] ?? '') === 'system');
+$aiQueue = [[500, ''], [0, ''], [429, '']];
+T::eq('hammasi ishlamasa: failed', $ai2->generate('S', 'P', 1000)['error'] ?? '', 'failed');
+$aiQueue = [$gem(str_repeat('Uzun gap. ', 300))];
+$r = $ai2->generate('S', 'P', 500);
+T::check('uzun javob limitgacha qisqartiriladi', $r['ok'] && Html::utf16Len(Html::plain($r['text'])) <= 500);
+T::check('uslub va tahrir promptlari: mavzu/matn ichida', strpos(Ai::postPrompt('Yangi filial', 'sales'), 'Yangi filial') !== false
+    && strpos(Ai::postPrompt('x', 'sales'), 'CTA') !== false && strpos(Ai::editPrompt('Matn', 'tr_ru'), 'rus') !== false);
+T::eq('tarjimada javob tili — maqsad til', [Ai::editLang('tr_en', 'uz'), Ai::editLang('improve', 'ru')], ['en', 'ru']);
+T::check('system: faktlarni o\'ylab topma, faqat Telegram HTML, til', strpos(Ai::system('ru', 900), 'rus') !== false && strpos(Ai::system('uz', 900), 'Faktlar') !== false
+    && strpos(Ai::system('uz', 900), '900') !== false);
+T::eq('kunlik AI limiti: 5/40/100, enterprise cheksiz', [Plans::aiDaily('free'), Plans::aiDaily('pro'), Plans::aiDaily('ultra'), Plans::aiDaily('enterprise')], [5, 40, 100, 0]);
+T::eq('config bilan limit', Plans::aiDaily('free', new PostAssist\Config(['ai_daily' => ['free' => 10]])), 10);
+$cbAi = [];
+foreach ([Keyboards::aiStyles('uz'), Keyboards::aiEdits('uz'), Keyboards::admin('uz'), Keyboards::settings('uz'), Keyboards::languages('uz')] as $kb) {
+    foreach ($kb['inline_keyboard'] as $row) {
+        foreach ($row as $b) {
+            $cbAi[] = strlen((string) ($b['callback_data'] ?? ''));
+        }
+    }
+}
+T::check('AI/admin/sozlamalar callback_data ≤64 bayt', max($cbAi) <= 64);
+T::check('asosiy menyu: AI yoqilsa «✨ AI post» qo\'shiladi', strpos(json_encode(Keyboards::main('uz', false, true), JSON_UNESCAPED_UNICODE), 'AI post') !== false
+    && strpos(json_encode(Keyboards::main('uz', false, false), JSON_UNESCAPED_UNICODE), 'AI post') === false);

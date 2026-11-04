@@ -31,6 +31,8 @@ final class Plans
         'pro' => ['channels' => 10, 'queue' => 300],
         'ultra' => ['channels' => 30, 'queue' => 900],
     ];
+    /** Kunlik AI so'rovlari (Python FREE_DAILY_AI / PRO_DAILY_AI / ULTRA_DAILY_AI). */
+    public const DEFAULT_AI = ['free' => 5, 'pro' => 40, 'ultra' => 100];
     public const NAMES = ['free' => 'FREE', 'pro' => 'PRO', 'ultra' => 'ULTRA', 'enterprise' => 'ENTERPRISE'];
     public const MAX_GRANT_DAYS = 3650;
 
@@ -81,6 +83,20 @@ final class Plans
             $lim = ['channels' => (int) ($over[$tier]['channels'] ?? $lim['channels']), 'queue' => (int) ($over[$tier]['queue'] ?? $lim['queue'])];
         }
         return $lim;
+    }
+
+    /** Kunlik AI limiti (0 = cheksiz). config.php `ai_daily` => ['free' => 5, ...] bilan o'zgartiriladi. */
+    public static function aiDaily(string $tier, ?Config $c = null): int
+    {
+        if ($tier === self::ENTERPRISE) {
+            return 0;
+        }
+        $v = self::DEFAULT_AI[$tier] ?? self::DEFAULT_AI['free'];
+        $over = $c !== null ? $c->get('ai_daily') : null;
+        if (is_array($over) && isset($over[$tier]) && (int) $over[$tier] >= 0) {
+            $v = (int) $over[$tier];
+        }
+        return max(0, $v);
     }
 
     /** Amaldagi tarif: muddati o'tgan pro/ultra = free; enterprise muddatsiz. */

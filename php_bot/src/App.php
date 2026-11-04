@@ -5,6 +5,7 @@ namespace PostAssist;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PostAssist\Repo\AiUsage;
 use PostAssist\Repo\Albums;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
@@ -15,6 +16,7 @@ use PostAssist\Repo\Promos;
 use PostAssist\Repo\States;
 use PostAssist\Repo\TrackedLinks;
 use PostAssist\Repo\Users;
+use PostAssist\Services\Ai;
 use PostAssist\Services\Plans;
 
 /** Bitta so'rov davomida kerak bo'ladigan hamma narsa (konfiguratsiya, baza, Telegram, repozitoriylar, soat). */
@@ -33,6 +35,8 @@ final class App
     public TrackedLinks $links;
     public Messages $messages;
     public Albums $albums;
+    public AiUsage $aiUsage;
+    public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
     /** @var callable testlar uchun: fn(int $ms): void */
@@ -58,6 +62,8 @@ final class App
         $this->links = new TrackedLinks($db);
         $this->messages = new Messages($db);
         $this->albums = new Albums($db);
+        $this->aiUsage = new AiUsage($db, $this->credits);
+        $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
         };
@@ -156,6 +162,18 @@ final class App
     public function queueLimit(int $userId): int
     {
         return $this->isAdmin($userId) ? 0 : max(0, Plans::limits($this->tier($userId), $this->config)['queue']);
+    }
+
+    /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */
+    public function aiLimit(int $userId): int
+    {
+        return $this->isAdmin($userId) ? 0 : Plans::aiDaily($this->tier($userId), $this->config);
+    }
+
+    /** Bot mintaqasidagi bugungi sana (AI kunlik hisobi uchun). */
+    public function today(): string
+    {
+        return $this->now()->setTimezone($this->tz())->format('Y-m-d');
     }
 
     /** Foydalanuvchining birinchi posti saqlandi: referal mukofoti va manba havolasi belgisi (xatosi postga ta'sir qilmaydi). */

@@ -127,7 +127,7 @@ final class ChannelHandler
         $ch = $ctx->app->channels->getOwned($ctx->userId, $id);
         if ($ch) {
             $ctx->app->channels->deactivate((int) $ch['channel_id']);
-            $ctx->edit($ctx->t('ch_deleted', ['title' => Html::e((string) $ch['title'])]));
+            $ctx->edit($ctx->t('ch_deleted', ['title' => Html::e((string) $ch['title'])]), Keyboards::nav($ctx->lang, 'ch:list'));
         }
         self::show($ctx);
     }

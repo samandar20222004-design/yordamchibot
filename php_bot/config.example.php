@@ -30,6 +30,16 @@ return [
     'free_max_channels' => 3,
     'free_max_queued' => 40,
 
+    // ✨ AI (bepul kalitlar yetadi; kamida bittasi bo'lsa AI tugmalari chiqadi, birinchisi ishlamasa — keyingisi):
+    //  - Google Gemini: https://aistudio.google.com/apikey  (tavsiya, o'zbek tilini yaxshi biladi)
+    //  - Groq:          https://console.groq.com/keys
+    //  - OpenRouter:    https://openrouter.ai/keys
+    'gemini_api_key' => '',
+    'groq_api_key' => '',
+    'openrouter_api_key' => '',
+    // Kunlik AI so'rovlari (standart: free 5, pro 40, ultra 100). Tugasa — ballar ishlatiladi.
+    // 'ai_daily' => ['free' => 5, 'pro' => 40, 'ultra' => 100],
+
     // Ixtiyoriy (2-bosqich): Telegram Stars narxlarini o'zgartirish. Yozilmasa — standart: PRO 195/510/910/1650,
     // ULTRA 470/1180/2260/4180 (1/3/6/12 oy). Kalitlar: 1m 3m 6m 1y (PRO), u1m u3m u6m u1y (ULTRA).
     // 'stars_prices' => ['1m' => 195, 'u1m' => 470],

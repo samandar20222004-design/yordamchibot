@@ -39,9 +39,10 @@ final class PlansHandler
             'pro_ch' => $lim('pro', 'channels'), 'pro_q' => $lim('pro', 'queue'),
             'ultra_ch' => $lim('ultra', 'channels'), 'ultra_q' => $lim('ultra', 'queue'),
         ]);
-        $kb = $tier === Plans::ENTERPRISE ? null : Keyboards::inline([
+        $kb = $tier === Plans::ENTERPRISE ? Keyboards::nav($ctx->lang, 'set:show') : Keyboards::inline([
             [Keyboards::btn($ctx->t('btn_buy_pro'), 'pl:t:pro'), Keyboards::btn($ctx->t('btn_buy_ultra'), 'pl:t:ultra')],
             [Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')],
+            Keyboards::navRow($ctx->lang, 'set:show'),
         ]);
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
@@ -80,7 +81,7 @@ final class PlansHandler
             return;
         }
         if ($app->isAdmin($ctx->userId) || $app->tier($ctx->userId) === Plans::ENTERPRISE) {
-            $ctx->reply($ctx->t('pay_enterprise'));
+            $ctx->reply($ctx->t('pay_enterprise'), Keyboards::nav($ctx->lang, 'pl:show'));
             return;
         }
         $name = Plans::NAMES[$plan['tier']];
@@ -152,11 +153,11 @@ final class PlansHandler
     public static function askPromo(Ctx $ctx): void
     {
         if ($ctx->app->isAdmin($ctx->userId) || $ctx->app->tier($ctx->userId) === Plans::ENTERPRISE) {
-            $ctx->reply($ctx->t('promo_enterprise'));
+            $ctx->reply($ctx->t('promo_enterprise'), Keyboards::nav($ctx->lang, 'set:show'));
             return;
         }
         $ctx->app->states->set($ctx->userId, 'promo_wait');
-        $ctx->reply($ctx->t('promo_ask'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]]));
+        $ctx->reply($ctx->t('promo_ask'), Keyboards::nav($ctx->lang, 'set:show'));
     }
 
     public static function redeem(Ctx $ctx, string $code): void
@@ -176,7 +177,7 @@ final class PlansHandler
         if ($r['status'] !== 'not_found') {
             $app->states->clear($ctx->userId); // qayta yozish foyda bermaydi
         }
-        $ctx->reply($ctx->t('promo_' . $r['status']));
+        $ctx->reply($ctx->t('promo_' . $r['status']), Keyboards::nav($ctx->lang, 'set:show'));
     }
 
     // ------------------------------------------------------------------ do'stlarni taklif qilish
@@ -189,7 +190,7 @@ final class PlansHandler
         $text = $ctx->t('ref_title', ['link' => Html::e($link), 'top' => Credits::TOP_REWARD, 'base' => Credits::BASE_REWARD,
             'invited' => $s['invited'], 'active' => $s['active'], 'earned' => $s['earned'], 'balance' => $app->credits->balance($ctx->userId)]);
         $share = 'https://t.me/share/url?url=' . rawurlencode($link) . '&text=' . rawurlencode($ctx->t('share_text'));
-        $kb = Keyboards::inline([[['text' => $ctx->t('btn_share'), 'url' => $share]]]);
+        $kb = Keyboards::inline([[['text' => $ctx->t('btn_share'), 'url' => $share]], Keyboards::navRow($ctx->lang, 'set:show')]);
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 
