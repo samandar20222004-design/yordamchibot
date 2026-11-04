@@ -37,8 +37,28 @@ if ($problems) {
     $out('config.php da to\'ldirilmagan: ' . implode(', ', $problems));
     exit(1);
 }
-$app = App::fromConfig($cfg);
-$changes = Schema::apply($app->db, (string) file_get_contents(__DIR__ . '/sql/schema.sql'));
+try {
+    $app = App::fromConfig($cfg);
+} catch (Throwable $e) {
+    $msg = $e->getMessage();
+    $out('XATO: bazaga ulanib bo\'lmadi.');
+    $out('Sabab: ' . $msg);
+    if (stripos($msg, 'Access denied') !== false) {
+        $out('Maslahat: db_user yoki db_pass noto\'g\'ri (yoki foydalanuvchiga bu bazaga huquq berilmagan).');
+    } elseif (stripos($msg, 'Unknown database') !== false) {
+        $out('Maslahat: db_name noto\'g\'ri — panelda baza nomini aynan (prefiksi bilan) yozing.');
+    } elseif (stripos($msg, 'getaddrinfo') !== false || stripos($msg, 'Connection refused') !== false || stripos($msg, 'No such file') !== false) {
+        $out('Maslahat: db_host noto\'g\'ri — panelda bazaning server manzilini tekshiring (odatda localhost).');
+    }
+    exit(1);
+}
+try {
+    $changes = Schema::apply($app->db, (string) file_get_contents(__DIR__ . '/sql/schema.sql'));
+} catch (Throwable $e) {
+    $out('XATO: jadvallar yaratilmadi.');
+    $out('Sabab: ' . $e->getMessage());
+    exit(1);
+}
 $out('Baza jadvallari: OK' . ($changes ? ' (yangilandi: ' . implode(', ', $changes) . ')' : ''));
 
 $url = (string) ($cfg['webhook_url'] ?? '');
