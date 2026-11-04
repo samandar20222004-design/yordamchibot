@@ -55,6 +55,17 @@ final class Ctx
         $this->reply($text, $markup);
     }
 
+    /** Foydalanuvchi vaqt mintaqasi (ko'rsatish va vaqtni tushunish uchun). */
+    public function tz(): \DateTimeZone
+    {
+        return $this->app->tzFor($this->userId);
+    }
+
+    public function tzName(): string
+    {
+        return $this->tz()->getName();
+    }
+
     public function state(): ?array
     {
         return $this->app->states->get($this->userId);

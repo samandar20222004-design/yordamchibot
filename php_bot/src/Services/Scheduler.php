@@ -66,6 +66,8 @@ final class Scheduler
                     $stats[$r['status']]++;
                 }
             }
+            $this->autoDelete();
+            $this->finishStaleAlbums();
             $this->planMaintenance();
             $this->cleanup();
         } finally {
@@ -98,11 +100,25 @@ final class Scheduler
         $owner = (int) $post['user_id'];
         $res = PostRender::send($app->tg, (int) $post['channel_id'], $post, $app->config->str('bot_username'), $app->isFree($owner));
         if (!empty($res['ok'])) {
-            $app->posts->markSent($id, isset($res['result']['message_id']) ? (int) $res['result']['message_id'] : null);
-            if ((int) $post['notify_owner'] === 1) {
-                $this->notify($owner, 'post_sent_notice', $post);
+            $ids = PostRender::messageIds($res);
+            $deleteAt = (int) ($post['delete_after'] ?? 0) > 0 ? $app->now()->modify('+' . (int) $post['delete_after'] . ' minutes')->format('Y-m-d H:i:s') : null;
+            $app->messages->record($post, (int) $post['channel_id'], $ids, $deleteAt, $app->nowSql());
+            $next = null;
+            if (!empty($post['recurrence_type'])) {
+                $next = Recurrence::next((string) $post['recurrence_type'], (int) $post['recurrence_time'],
+                    $post['recurrence_day'] !== null ? (int) $post['recurrence_day'] : null, $app->now(), $app->tzFor($owner));
             }
-            return ['status' => 'sent', 'reason' => '', 'result' => $res];
+            if ($next !== null) {
+                $app->posts->rescheduleAfterSend($id, $ids[0] ?? null, $next->format('Y-m-d H:i:s'));
+            } else {
+                $app->posts->markSent($id, $ids[0] ?? null);
+            }
+            // takroriy postda faqat birinchi chiqishda xabar beriladi (har kuni xabar — ortiqcha)
+            if ((int) $post['notify_owner'] === 1 && (int) ($post['sent_count'] ?? 0) === 0) {
+                $this->notify($owner, $next !== null ? 'post_sent_repeat_notice' : 'post_sent_notice', $post, '',
+                    $next !== null ? $next->format('Y-m-d H:i:s') : null);
+            }
+            return ['status' => 'sent', 'reason' => '', 'result' => $res, 'next' => $next];
         }
         $reason = PostRender::reasonKey($res);
         $attempts = (int) $post['attempt_count'];
@@ -119,15 +135,53 @@ final class Scheduler
         return ['status' => 'failed', 'reason' => $reason, 'result' => $res];
     }
 
-    private function notify(int $owner, string $key, array $post, string $reason = ''): void
+    private function notify(int $owner, string $key, array $post, string $reason = '', ?string $nextSql = null): void
     {
         $user = $this->app->users->get($owner);
         $lang = I18n::norm($user['lang'] ?? 'uz');
+        $tz = $this->app->tzFor($owner);
         $this->app->tg->sendMessage($owner, I18n::t($key, $lang, [
             'channel' => Html::e((string) ($post['channel_title'] ?? $post['channel_id'])),
-            'when' => TimeParser::show((string) $post['scheduled_time'], $this->app->tz()),
+            'when' => TimeParser::show((string) $post['scheduled_time'], $tz),
+            'next' => $nextSql !== null ? TimeParser::show($nextSql, $tz) : '',
             'reason' => $reason !== '' ? I18n::t($reason, $lang) : '',
         ]));
+    }
+
+    /** Muddati kelgan avto-o'chiriladigan postlar (24 soatlik e'lon va h.k.). @return int o'chirilganlar */
+    public function autoDelete(): int
+    {
+        $app = $this->app;
+        $n = 0;
+        foreach ($app->messages->dueForDelete($app->nowSql(), 50) as $m) {
+            $ids = array_merge([(int) $m['message_id']], array_map('intval', array_filter(explode(',', (string) $m['extra_ids']))));
+            $temporary = false;
+            foreach ($ids as $mid) {
+                $r = $app->tg->call('deleteMessage', ['chat_id' => (int) $m['chat_id'], 'message_id' => $mid]);
+                if (empty($r['ok']) && Telegram::isTemporary($r)) {
+                    $temporary = true;
+                }
+            }
+            if ($temporary) {
+                $app->messages->deleteLater((int) $m['id'], $app->now()->modify('+5 minutes')->format('Y-m-d H:i:s'));
+            } else {
+                $app->messages->markDeleted((int) $m['id']); // o'chdi yoki allaqachon yo'q / o'chirib bo'lmaydi
+                $n++;
+            }
+        }
+        return $n;
+    }
+
+    /** Jarayoni uzilib qolgan albomlarni yig'ish (oxirgi qismdan 10 soniya o'tgan). */
+    public function finishStaleAlbums(): int
+    {
+        $n = 0;
+        foreach ($this->app->albums->stale($this->app->nowMs() - 10000) as $g) {
+            if (\PostAssist\Handlers\PostHandler::finishAlbum($this->app, (int) $g['user_id'], (string) $g['group_id'])) {
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /**
@@ -144,7 +198,7 @@ final class Scheduler
             if ($app->users->claimReminder((int) $u['user_id'], (string) $u['subscription_expires_at'])) {
                 $lang = I18n::norm($u['lang'] ?? 'uz');
                 $app->tg->sendMessage((int) $u['user_id'], I18n::t('plan_reminder', $lang, [
-                    'plan' => Plans::NAMES[$u['plan_type']] ?? 'PRO', 'date' => TimeParser::show((string) $u['subscription_expires_at'], $app->tz()),
+                    'plan' => Plans::NAMES[$u['plan_type']] ?? 'PRO', 'date' => TimeParser::show((string) $u['subscription_expires_at'], $app->tzFor((int) $u['user_id'])),
                 ]));
                 $out['reminded']++;
             }
@@ -166,6 +220,8 @@ final class Scheduler
         $db->exec('DELETE FROM processed_updates WHERE created_at < UTC_TIMESTAMP() - INTERVAL 2 DAY');
         $db->exec('DELETE FROM user_states WHERE updated_at < UTC_TIMESTAMP() - INTERVAL 3 DAY');
         $db->exec('DELETE FROM promo_attempts WHERE created_at < UTC_TIMESTAMP() - INTERVAL 1 DAY');
+        $this->app->messages->cleanup();
+        $this->app->albums->cleanup($this->app->nowMs() - 86400000);
         $db->exec("DELETE FROM scheduled_posts WHERE status IN ('sent', 'failed', 'cancelled') AND created_at < UTC_TIMESTAMP() - INTERVAL 30 DAY");
     }
 }

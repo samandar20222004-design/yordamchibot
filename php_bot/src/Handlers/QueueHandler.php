@@ -25,7 +25,7 @@ final class QueueHandler
             return;
         }
         $text = $ctx->t('q_title', ['n' => $ctx->app->posts->pendingCount($ctx->userId)]);
-        $kb = Keyboards::queue($list, $ctx->lang, $ctx->app->tz());
+        $kb = Keyboards::queue($list, $ctx->lang, $ctx->tz());
         if ($edit) {
             $ctx->edit($text, $kb);
         } else {
@@ -37,7 +37,8 @@ final class QueueHandler
     public static function previewText(array $post, Ctx $ctx): string
     {
         $plain = trim(Html::plain((string) ($post['text'] ?? '')));
-        $label = $post['post_type'] !== 'text' ? $ctx->t('media_label', ['type' => $post['post_type']]) . ' ' : '';
+        $type = $post['post_type'] === 'album' ? 'album ×' . count(\PostAssist\Services\PostRender::albumMedia($post)) : $post['post_type'];
+        $label = $post['post_type'] !== 'text' ? $ctx->t('media_label', ['type' => $type]) . ' ' : '';
         if (mb_strlen($plain) > 300) {
             $plain = mb_substr($plain, 0, 300) . '…';
         }
@@ -51,11 +52,22 @@ final class QueueHandler
             $ctx->edit($ctx->t('q_not_found'));
             return;
         }
+        $extra = '';
+        if (!empty($p['recurrence_type'])) {
+            $extra .= "\n🔄 " . PostHandler::repeatLabel($ctx, ['type' => $p['recurrence_type'], 'time' => (int) $p['recurrence_time'],
+                'day' => $p['recurrence_day'] !== null ? (int) $p['recurrence_day'] : null]) . ' · ' . $ctx->t('rep_sent', ['n' => (int) $p['sent_count']]);
+        }
+        if ((int) ($p['delete_after'] ?? 0) > 0) {
+            $extra .= "\n⏳ " . $ctx->t('ad_after', ['h' => intdiv((int) $p['delete_after'], 60)]);
+        }
+        if (!empty($p['reactions'])) {
+            $extra .= "\n👍 " . Html::e(str_replace(',', ' ', (string) $p['reactions']));
+        }
         $ctx->edit($ctx->t('q_view', [
             'id' => $id, 'channel' => Html::e((string) ($p['channel_title'] ?? $p['channel_id'])),
-            'when' => TimeParser::show((string) $p['scheduled_time'], $ctx->app->tz()),
-            'tz' => Html::e($ctx->app->tzName()), 'preview' => self::previewText($p, $ctx),
-        ]), Keyboards::queueItem($id, $ctx->lang));
+            'when' => TimeParser::show((string) $p['scheduled_time'], $ctx->tz()),
+            'tz' => Html::e($ctx->tzName()), 'preview' => self::previewText($p, $ctx),
+        ]) . $extra, Keyboards::queueItem($id, $ctx->lang));
     }
 
     public static function askCancel(Ctx $ctx, int $id): void

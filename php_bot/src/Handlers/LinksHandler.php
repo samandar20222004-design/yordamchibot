@@ -118,7 +118,7 @@ final class LinksHandler
             $marks = ((int) $v['is_new'] === 1 ? '🆕' : '')
                 . ((int) $v['has_channel'] === 1 ? '📢' : '') . ($v['first_post_at'] !== null ? '📝' : '')
                 . ((int) $v['has_paid'] === 1 || in_array($v['plan_type'], ['pro', 'ultra'], true) ? '💎' : '');
-            $users[] = '• ' . AdminHandler::userLabel($v) . ' ' . $marks . ' — ' . TimeParser::show((string) $v['first_at'], $ctx->app->tz());
+            $users[] = '• ' . AdminHandler::userLabel($v) . ' ' . $marks . ' — ' . TimeParser::show((string) $v['first_at'], $ctx->tz());
         }
         $ctx->reply($ctx->t('link_detail', [
             'title' => Html::e((string) $l['title']), 'state' => $ctx->t((int) $l['is_active'] === 1 ? 'state_on' : 'state_off'),
@@ -144,7 +144,7 @@ final class LinksHandler
         $lines = [];
         foreach ($rows as $r) {
             $lines[] = '• <code>' . Html::e((string) $r['code']) . '</code> — ' . Html::e((string) $r['title']) . ((int) $r['is_new'] === 1 ? ' 🆕' : '')
-                . ' · ' . TimeParser::show((string) $r['first_at'], $ctx->app->tz());
+                . ' · ' . TimeParser::show((string) $r['first_at'], $ctx->tz());
         }
         $ctx->reply($ctx->t('link_user_sources', ['id' => $id, 'lines' => implode("\n", $lines)]));
     }

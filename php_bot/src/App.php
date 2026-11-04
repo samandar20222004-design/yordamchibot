@@ -5,8 +5,10 @@ namespace PostAssist;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PostAssist\Repo\Albums;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
+use PostAssist\Repo\Messages;
 use PostAssist\Repo\Payments;
 use PostAssist\Repo\Posts;
 use PostAssist\Repo\Promos;
@@ -29,6 +31,14 @@ final class App
     public Promos $promos;
     public Credits $credits;
     public TrackedLinks $links;
+    public Messages $messages;
+    public Albums $albums;
+    /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
+    public $releaseClient = null;
+    /** @var callable testlar uchun: fn(int $ms): void */
+    public $sleeper;
+    /** @var array<int, DateTimeZone> */
+    private array $tzCache = [];
     /** @var callable|null testlar uchun soat: fn(): DateTimeImmutable (UTC) */
     private $clock;
 
@@ -46,6 +56,11 @@ final class App
         $this->promos = new Promos($db);
         $this->credits = new Credits($db);
         $this->links = new TrackedLinks($db);
+        $this->messages = new Messages($db);
+        $this->albums = new Albums($db);
+        $this->sleeper = static function (int $ms): void {
+            usleep($ms * 1000);
+        };
     }
 
     public static function fromConfig(array $cfg): self
@@ -64,9 +79,49 @@ final class App
         return $this->now()->format('Y-m-d H:i:s');
     }
 
+    /** Bot (admin statistikasi) mintaqasi — config.php `timezone`. */
     public function tz(): DateTimeZone
     {
         return $this->config->tz();
+    }
+
+    /** Foydalanuvchi mintaqasi: o'zi tanlagan (`/timezone`) yoki botniki. */
+    public function tzFor(int $userId): DateTimeZone
+    {
+        if (!isset($this->tzCache[$userId])) {
+            $name = (string) $this->db->value('SELECT timezone FROM users WHERE user_id = ?', [$userId]);
+            $tz = $this->tz();
+            if ($name !== '' && in_array($name, DateTimeZone::listIdentifiers(), true)) {
+                $tz = new DateTimeZone($name);
+            }
+            $this->tzCache[$userId] = $tz;
+        }
+        return $this->tzCache[$userId];
+    }
+
+    public function forgetTz(int $userId): void
+    {
+        unset($this->tzCache[$userId]);
+    }
+
+    public function nowMs(): int
+    {
+        return (int) round((float) $this->now()->format('U.u') * 1000);
+    }
+
+    public function sleepMs(int $ms): void
+    {
+        ($this->sleeper)($ms);
+    }
+
+    /** Telegram'ga «ok» ni darhol qaytarish (webhook ichida bo'lsa). */
+    public function releaseClient(): void
+    {
+        if ($this->releaseClient !== null) {
+            $fn = $this->releaseClient;
+            $this->releaseClient = null;
+            $fn();
+        }
     }
 
     public function tzName(): string

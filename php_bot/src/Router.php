@@ -9,6 +9,7 @@ use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
+use PostAssist\Handlers\ReactionHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
 use PostAssist\Repo\TrackedLinks;
@@ -113,6 +114,19 @@ final class Router
             return;
         }
         $state = $ctx->state();
+        $group = isset($msg['media_group_id']) ? (string) $msg['media_group_id'] : '';
+        if ($group !== '' && $state !== null && ($state['data']['draft']['group'] ?? null) === $group
+            && in_array($state['state'], ['post_preview', 'post_pick'], true)) {
+            PostHandler::albumLate($ctx, $state); // shu albomning kechikib kelgan qismi — qoralamaga qo'shiladi
+            return;
+        }
+        if ($group !== '' && ($state === null || !in_array($state['state'], ['post_content', 'post_edit'], true))) {
+            // albom post kutilmagan joyda keldi: har qismga emas, faqat bir marta javob
+            if ($this->app->albums->claim($ctx->userId, $group)) {
+                $ctx->replyMenu($ctx->t('unknown'));
+            }
+            return;
+        }
         if ($state !== null) {
             switch ($state['state']) {
                 case 'ch_wait':
@@ -127,6 +141,15 @@ final class Router
                     return;
                 case 'post_time':
                     PostHandler::timeInput($ctx, $state);
+                    return;
+                case 'post_time2':
+                    PostHandler::secondTimeInput($ctx, $state);
+                    return;
+                case 'post_rx':
+                    PostHandler::reactionsInput($ctx, $state);
+                    return;
+                case 'tz_wait':
+                    SettingsHandler::setTimezone($ctx, $text);
                     return;
                 case 'promo_wait':
                     if ($text !== '') {
@@ -176,6 +199,9 @@ final class Router
                 return true;
             case '/settings':
                 SettingsHandler::show($ctx);
+                return true;
+            case '/timezone':
+                SettingsHandler::askTimezone($ctx);
                 return true;
             case '/lang':
                 $ctx->reply($ctx->t('lang_choose'), Keyboards::languages());
@@ -242,6 +268,10 @@ final class Router
     private function callback(array $cq): void
     {
         $chat = $cq['message']['chat'] ?? null;
+        if (isset($cq['from']) && is_array($chat) && preg_match('/^rx:([0-5])$/', (string) ($cq['data'] ?? ''), $rm)) {
+            ReactionHandler::press($this->app, $cq, (int) $rm[1]); // kanal postidagi reaksiya tugmasi
+            return;
+        }
         if (!isset($cq['from']) || !is_array($chat) || ($chat['type'] ?? '') !== 'private') {
             if (isset($cq['id'])) {
                 $this->app->tg->answerCallback((string) $cq['id']);
@@ -280,8 +310,18 @@ final class Router
             ChannelHandler::delete($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|btn|btndel|edit|cancel|back)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
+        } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
+            PostHandler::setRepeat($ctx, $m[1]);
+        } elseif (preg_match('/^px:([0-3]|c|none)$/', $data, $m)) {
+            PostHandler::setReactions($ctx, $m[1]);
+        } elseif (preg_match('/^pa:(\d{1,4})$/', $data, $m)) {
+            PostHandler::setAutoDelete($ctx, (int) $m[1]);
+        } elseif ($data === 'set:tz') {
+            SettingsHandler::askTimezone($ctx);
+        } elseif (preg_match('/^tz:([A-Za-z_\/]{2,40})$/', $data, $m)) {
+            SettingsHandler::setTimezone($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
         } elseif ($data === 'q:list') {

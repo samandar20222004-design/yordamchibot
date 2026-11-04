@@ -20,15 +20,31 @@ final class Posts
         return (int) $this->db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status IN ('pending', 'processing')", [$userId]);
     }
 
-    public function create(int $userId, int $channelId, array $draft, string $utcSql, bool $notify): int
+    /**
+     * @param array $draft type, text, file_id, button_text, button_url, media (albom: [[tur, file_id]...]), reactions, delete_after (daqiqa)
+     * @param array{type:string,time:int,day:?int}|null $rec takrorlash qoidasi
+     */
+    public function create(int $userId, int $channelId, array $draft, string $utcSql, bool $notify, ?array $rec = null): int
     {
+        $media = !empty($draft['media']) && is_array($draft['media']) ? json_encode(array_values($draft['media']), JSON_UNESCAPED_UNICODE) : null;
         $this->db->exec(
-            'INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, file_id, button_text, button_url, scheduled_time, notify_owner, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
+            'INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, file_id, button_text, button_url, media, reactions, delete_after,
+                recurrence_type, recurrence_time, recurrence_day, scheduled_time, notify_owner, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
             [$userId, $channelId, $draft['type'], $draft['text'], $draft['file_id'], $draft['button_text'] ?? null,
-                $draft['button_url'] ?? null, $utcSql, $notify ? 1 : 0]
+                $draft['button_url'] ?? null, $media, $draft['reactions'] ?? null,
+                isset($draft['delete_after']) && (int) $draft['delete_after'] > 0 ? (int) $draft['delete_after'] : null,
+                $rec['type'] ?? null, $rec['time'] ?? null, $rec['day'] ?? null, $utcSql, $notify ? 1 : 0]
         );
         return $this->db->lastId();
+    }
+
+    /** Takroriy post chiqdi: o'sha qator keyingi vaqtga qaytadi (yuborilgan holat + qayta rejalash — bitta UPDATE). */
+    public function rescheduleAfterSend(int $id, ?int $messageId, string $nextUtcSql): void
+    {
+        $this->db->exec("UPDATE scheduled_posts SET status = 'pending', message_id = ?, sent_at = UTC_TIMESTAMP(), last_error = NULL,
+             attempt_count = 0, sent_count = sent_count + 1, scheduled_time = ?, processing_started_at = NULL WHERE id = ? AND status = 'processing'",
+            [$messageId, $nextUtcSql, $id]);
     }
 
     public function get(int $id): ?array
@@ -71,7 +87,7 @@ final class Posts
 
     public function markSent(int $id, ?int $messageId): void
     {
-        $this->db->exec("UPDATE scheduled_posts SET status = 'sent', message_id = ?, sent_at = UTC_TIMESTAMP(), last_error = NULL WHERE id = ?", [$messageId, $id]);
+        $this->db->exec("UPDATE scheduled_posts SET status = 'sent', message_id = ?, sent_at = UTC_TIMESTAMP(), last_error = NULL, sent_count = sent_count + 1 WHERE id = ?", [$messageId, $id]);
     }
 
     public function markFailed(int $id, string $error): void

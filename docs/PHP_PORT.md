@@ -20,7 +20,7 @@ PHP versiya alohida papkada — `php_bot/` (o'rnatish: [php_bot/README.md](../ph
 |---|---|---|
 | **1. Yadro** | start, referal (`ref_`), til (uz/ru/en), bosh menyu, kanal ulash/o'chirish (bot va foydalanuvchi admin tekshiruvi, bot chiqarilsa avtomatik o'chirish), oddiy post (matn, rasm, video, GIF, audio, hujjat; formatlash saqlanadi), havolali tugma, tahrirlash, hozir yuborish (rost natija), vaqt belgilash (tabiiy ifodalar va tezkor tugmalar), navbat (ko'rish/bekor), cron yuborish (qayta urinish, qulf, tiklash), bepul nishon, limitlar (3 kanal / 40 post), statistika, admin statistika | ✅ tayyor |
 | **2. Tariflar** | FREE/PRO/ULTRA (1/3/6/12 oy), Telegram Stars to'lovi (tekshiruv, bir to'lov — bir marta), muddat eslatmasi va tugashi (cron), promo-kod (yaratish/ro'yxat/o'chirish, taxminga qarshi limit), referal ballari (do'stning birinchi postida +3/+1), manba havolalari (`s_<kod>`: kim qayerdan keldi), tarif bo'yicha limitlar, admin buyruqlari (`/admin_help`) | ✅ tayyor |
-| 3. Kengaytirilgan post | takroriy postlar (har kuni/hafta/oy, kuniga 2 marta), albom, reaksiya, avto-o'chirish, vaqt mintaqasi (`/timezone`) | ⏳ |
+| **3. Kengaytirilgan post** | ixcham preview paneli (5 tugma) + «⚙️ Qo'shimcha»; takroriy postlar (har kuni / har hafta / har oy / kuniga 2 marta, yozgi vaqt hisobga olinadi, cron to'xtab qolsa nusxalar yig'ilmaydi); albom 2–10 fayl (kechikkan qism ham qo'shiladi, jarayon uzilsa cron yig'adi); reaksiya tugmalari (ovoz, sonlar postda); avto-o'chirish (1–48 soat); har foydalanuvchiga vaqt mintaqasi (`/timezone`) | ✅ tayyor |
 | 4. AI | Magic Post, rasmdan post, AI yordamchi, AI byudjeti va kreditlar | ⏳ |
 | 5. Pul va admin | karta/Payme to'lov, majburiy obuna, reklama, broadcast, to'liq admin panel, promo boshqaruvi | ⏳ |
 | 6. Birja va jamoa | reklama birjasi (firibgarlikdan himoya bilan), jamoa va rollar | ⏳ |
@@ -31,8 +31,7 @@ Har bosqich: kod + uch tilda matn + testlar (unit va haqiqiy MariaDB) + PHP 7.4 
 ## 1-bosqichdagi farqlar (Python'ga nisbatan)
 
 - Yangi foydalanuvchi uchun soddalashtirilgan menyu, aqlli qabul («Bu bilan nima qilamiz?»), AI tugmalari hali yo'q.
-- Takroriy post, albom, reaksiya, avto-o'chirish yo'q (3-bosqich).
-- Vaqt mintaqasi hamma uchun bitta (`config.php` → `timezone`).
+- Yangi foydalanuvchida vaqt mintaqasi — bot mintaqasi (`config.php` → `timezone`); telefon orqali avtomatik aniqlash yo'q (`/timezone` bilan tanlanadi).
 
 ## 2-bosqich: qoidalar (Python bilan bir xil)
 
@@ -44,6 +43,15 @@ Har bosqich: kod + uch tilda matn + testlar (unit va haqiqiy MariaDB) + PHP 7.4 
 - Referal: do'st BIRINCHI postini saqlaganda taklif qiluvchiga 1–3-do'st uchun +3, keyingilari +1 ball (parallel postda ham bir marta).
 - Manba havolasi egasi bo'lsa, yangi kelgan foydalanuvchi uning taklifi hisoblanadi; birinchi tegish; `/mylinks` — faqat sonlar.
 - Hozircha karta/Payme (so'm) to'lovi yo'q — 5-bosqichda; ballar AI funksiyalari bilan (4-bosqich) ishlatiladi.
+
+## 3-bosqich: qoidalar
+
+- Takror: birinchi chiqish tanlangan vaqtda; keyingisi egasining mintaqasida hisoblanadi (oyda 31-kun bo'lmasa — oxirgi kun).
+  Chiqqan post o'sha qatorda keyingi vaqtga qaytadi (bitta UPDATE). Egasi faqat birinchi chiqishda xabar oladi. To'xtatish — navbatdan bekor qilish.
+- Albom: Telegram har faylni alohida yuboradi; webhook «ok» ni darhol qaytaradi, 2 soniya kutadi, oxirgi qism yig'adi (`album_done` — bir marta).
+  Kechikkan qism preview'dagi albomga qo'shiladi. Albomga tugma/reaksiya qo'yib bo'lmaydi (Telegram).
+- Reaksiya: kanal postidagi `rx:<n>` tugmalari; bir kishi — bitta reaksiya (qayta bossa olinadi); `sent_messages` + `reaction_votes`.
+- Avto-o'chirish: `sent_messages.delete_at`; vaqtinchalik xatoda 5 daqiqadan keyin (3 marta), xabar yo'q bo'lsa o'chirilgan deb belgilanadi.
 
 ## Hostingga yuklash (GitHub'siz)
 

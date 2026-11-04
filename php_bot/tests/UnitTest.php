@@ -134,7 +134,7 @@ T::eq('til aniqlash: ru', I18n::detect('ru-RU'), 'ru');
 T::eq('til aniqlash: noma\'lum -> en', I18n::detect('de'), 'en');
 T::eq('til aniqlash: bo\'sh -> uz', I18n::detect(null), 'uz');
 $cb = [];
-foreach ([Keyboards::previewRows('uz', true), Keyboards::confirm('uz', 'ch:delok:9999999999', 'ch:list')['inline_keyboard']] as $rows) {
+foreach ([Keyboards::previewRows('uz'), Keyboards::more('uz', ['button_url' => 'x'], false)['inline_keyboard'], Keyboards::reactions('uz')['inline_keyboard'], Keyboards::autoDelete('uz')['inline_keyboard'], Keyboards::timezones('uz')['inline_keyboard'], Keyboards::confirm('uz', 'ch:delok:9999999999', 'ch:list')['inline_keyboard']] as $rows) {
     foreach ($rows as $row) {
         foreach ($row as $b) {
             $cb[] = strlen((string) ($b['callback_data'] ?? ''));
@@ -204,3 +204,59 @@ foreach ($cat as $p) {
     $cbs[] = strlen('pl:b:' . $p['key']);
 }
 T::check('tarif callback_data ≤64 bayt', max($cbs) <= 64);
+
+T::section('I. Takrorlash, reaksiya, albom, vaqt mintaqasi (3-bosqich)');
+use PostAssist\Services\Recurrence;
+use PostAssist\Handlers\SettingsHandler;
+
+$tzT = new DateTimeZone('Asia/Tashkent');
+$n0 = new DateTimeImmutable('2026-11-03 10:00:00', new DateTimeZone('UTC')); // seshanba, Toshkentda 15:00
+$nx = static function (string $type, int $time, ?int $day, DateTimeImmutable $now, DateTimeZone $tz): string {
+    $r = Recurrence::next($type, $time, $day, $now, $tz);
+    return $r ? $r->format('Y-m-d H:i') : 'null';
+};
+T::eq('har kuni 16:00 -> bugun', $nx('daily', 960, null, $n0, $tzT), '2026-11-03 11:00');
+T::eq('har kuni 09:00 (o\'tgan) -> ertaga', $nx('daily', 540, null, $n0, $tzT), '2026-11-04 04:00');
+T::eq('har kuni 15:00 (aynan hozir) -> ertaga', $nx('daily', 900, null, $n0, $tzT), '2026-11-04 10:00');
+T::eq('har hafta seshanba 16:00 -> bugun', $nx('weekly', 960, 2, $n0, $tzT), '2026-11-03 11:00');
+T::eq('har hafta seshanba 14:00 (o\'tgan) -> keyingi hafta', $nx('weekly', 840, 2, $n0, $tzT), '2026-11-10 09:00');
+T::eq('har hafta yakshanba', $nx('weekly', 600, 7, $n0, $tzT), '2026-11-08 05:00');
+T::eq('har oyning 31-kuni: noyabrda 30-kun', $nx('monthly', 600, 31, $n0, $tzT), '2026-11-30 05:00');
+T::eq('har oyning 3-kuni 14:00 (o\'tgan) -> dekabr', $nx('monthly', 840, 3, $n0, $tzT), '2026-12-03 09:00');
+T::eq('har oyning 29-kuni: fevral 2027 (28 kun)', $nx('monthly', 600, 29, new DateTimeImmutable('2027-02-01 00:00:00', new DateTimeZone('UTC')), $tzT), '2027-02-28 05:00');
+T::eq('kuniga 2 marta 09:00/18:30 (hozir 15:00) -> 18:30', $nx('twice', 540, 1110, $n0, $tzT), '2026-11-03 13:30');
+T::eq('kuniga 2 marta (hozir 19:00) -> ertaga 09:00', $nx('twice', 540, 1110, $n0->modify('+4 hours'), $tzT), '2026-11-04 04:00');
+$tzB = new DateTimeZone('Europe/Berlin');
+T::eq('yozgi vaqt: Berlin har kuni 10:00 (28.03.2027 dan keyin UTC+2)', $nx('daily', 600, null, new DateTimeImmutable('2027-03-27 12:00:00', new DateTimeZone('UTC')), $tzB), '2027-03-28 08:00');
+T::eq('noto\'g\'ri qoida -> null', [$nx('weekly', 600, 9, $n0, $tzT), $nx('daily', 1500, null, $n0, $tzT), $nx('hourly', 60, null, $n0, $tzT), $nx('twice', 60, null, $n0, $tzT)], ['null', 'null', 'null', 'null']);
+$f = Recurrence::fromFirst('weekly', new DateTimeImmutable('2026-11-06 06:30:00', new DateTimeZone('UTC')), $tzT);
+T::eq('birinchi vaqtdan: juma 11:30', $f, ['type' => 'weekly', 'time' => 690, 'day' => 5]);
+T::eq('kuniga 2 marta: tartiblanadi (kechki birinchi yozilsa ham)', Recurrence::fromFirst('twice', new DateTimeImmutable('2026-11-03 13:30:00', new DateTimeZone('UTC')), $tzT, 540), ['type' => 'twice', 'time' => 540, 'day' => 1110]);
+T::eq('kuniga 2 marta: bir xil vaqt -> null', Recurrence::fromFirst('twice', $n0, $tzT, 900), null);
+T::eq('soat: 18:30 / 9.05 / 24:00', [Recurrence::parseClock('18:30'), Recurrence::parseClock('9.05'), Recurrence::parseClock('24:00')], [1110, 545, null]);
+T::eq('reaksiya tugmalari: sonlar bilan', PostRender::reactionRow('👍,❤️', [1 => 3]), [[['text' => '👍', 'callback_data' => 'rx:0'], ['text' => '❤️ 3', 'callback_data' => 'rx:1']]]);
+T::eq('reaksiya: harf/raqam rad, takror olib tashlanadi', [PostRender::parseReactions('👍 ❤️ 👍'), PostRender::parseReactions('ok'), PostRender::parseReactions('')], ['👍,❤️', null, null]);
+T::eq('albom: rasm+video mumkin, rasm+hujjat yo\'q, bitta fayl albom emas', [
+    PostRender::albumValid([['photo', 'a'], ['video', 'b']]), PostRender::albumValid([['photo', 'a'], ['document', 'b']]),
+    PostRender::albumValid([['document', 'a'], ['document', 'b']]), PostRender::albumValid([['photo', 'a']])], [true, false, true, false]);
+$calls = [];
+$tgU = new PostAssist\Telegram('x', 'https://x', static function (string $m, array $p) use (&$calls): array {
+    $calls[] = [$m, $p];
+    return ['ok' => true, 'result' => [['message_id' => 1], ['message_id' => 2]]];
+});
+$res = PostRender::send($tgU, 1, ['post_type' => 'album', 'text' => '<b>Izoh</b>', 'media' => json_encode([['photo', 'A'], ['video', 'B']]),
+    'button_text' => 'x', 'button_url' => 'https://x.uz'], 'PostAssistrobot', true);
+$media = json_decode((string) ($calls[0][1]['media'] ?? '[]'), true);
+T::check('albom: sendMediaGroup, nishon birinchi izohda, tugma yo\'q', ($calls[0][0] ?? '') === 'sendMediaGroup' && count($media) === 2
+    && strpos((string) $media[0]['caption'], '🤖 @PostAssistrobot') === 0 && !isset($media[1]['caption']) && !isset($calls[0][1]['reply_markup']));
+T::eq('albom: xabar ID\'lari', PostRender::messageIds($res), [1, 2]);
+T::eq('vaqt mintaqasi: nom, shahar, alias', [SettingsHandler::resolveTimezone('europe/paris'), SettingsHandler::resolveTimezone('Moskva'),
+    SettingsHandler::resolveTimezone('Samarqand'), SettingsHandler::resolveTimezone('new york'), SettingsHandler::resolveTimezone('xyz')],
+    ['Europe/Paris', 'Europe/Moscow', 'Asia/Samarkand', 'America/New_York', null]);
+$bad = [];
+foreach (Keyboards::TIMEZONES as $id => $label) {
+    if (!in_array($id, DateTimeZone::listIdentifiers(), true) || mb_strlen($label) > 18 || strlen('tz:' . $id) > 64) {
+        $bad[] = $id;
+    }
+}
+T::eq('/timezone tugmalari: haqiqiy zona, yorliq ≤18', $bad, []);

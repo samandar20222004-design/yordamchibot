@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     plan_reminder_for DATETIME NULL,
     ai_credits INT NOT NULL DEFAULT 5,
     referral_rewarded_at DATETIME NULL,
+    timezone VARCHAR(64) NULL,
     is_blocked TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL,
@@ -51,6 +52,13 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     file_id VARCHAR(255) NULL,
     button_text VARCHAR(64) NULL,
     button_url VARCHAR(512) NULL,
+    media MEDIUMTEXT NULL,
+    reactions VARCHAR(64) NULL,
+    delete_after INT NULL,
+    recurrence_type VARCHAR(10) NULL,
+    recurrence_time INT NULL,
+    recurrence_day INT NULL,
+    sent_count INT NOT NULL DEFAULT 0,
     scheduled_time DATETIME NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
     attempt_count INT NOT NULL DEFAULT 0,
@@ -157,4 +165,56 @@ CREATE TABLE IF NOT EXISTS tracked_link_visits (
     first_post_at DATETIME NULL,
     PRIMARY KEY (link_id, user_id),
     KEY idx_visits_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================== 3-bosqich: takroriy post, albom, reaksiya, avto-o'chirish, vaqt mintaqasi =====================
+
+-- Kanalga chiqqan har bir xabar (takroriy post har safar yangi xabar). Reaksiya va avto-o'chirish shu jadval orqali.
+CREATE TABLE IF NOT EXISTS sent_messages (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    chat_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    extra_ids VARCHAR(255) NULL,
+    reactions VARCHAR(64) NULL,
+    button_text VARCHAR(64) NULL,
+    button_url VARCHAR(512) NULL,
+    delete_at DATETIME NULL,
+    delete_attempts INT NOT NULL DEFAULT 0,
+    deleted TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_sent_msg (chat_id, message_id),
+    KEY idx_sent_delete (deleted, delete_at),
+    KEY idx_sent_post (post_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Reaksiya tugmalari ovozlari: bitta odam bitta xabarda bitta reaksiya (qayta bossa — olib tashlanadi).
+CREATE TABLE IF NOT EXISTS reaction_votes (
+    chat_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    idx TINYINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (chat_id, message_id, user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Albom (media group) qismlari: Telegram har rasmni alohida yuboradi — oxirgisi kelgach bitta postga yig'iladi.
+CREATE TABLE IF NOT EXISTS album_items (
+    user_id BIGINT NOT NULL,
+    group_id VARCHAR(64) NOT NULL,
+    message_id BIGINT NOT NULL,
+    item_type VARCHAR(16) NOT NULL,
+    file_id VARCHAR(255) NOT NULL,
+    caption MEDIUMTEXT NULL,
+    recv_ms BIGINT NOT NULL,
+    PRIMARY KEY (user_id, group_id, message_id),
+    KEY idx_album_recv (recv_ms)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Yig'ib bo'lingan albomlar (bir albom ikki marta post bo'lmasin).
+CREATE TABLE IF NOT EXISTS album_done (
+    user_id BIGINT NOT NULL,
+    group_id VARCHAR(64) NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (user_id, group_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

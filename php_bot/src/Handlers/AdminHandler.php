@@ -96,12 +96,13 @@ final class AdminHandler
             $ctx->reply($ctx->t('admin_bad_days'));
             return;
         }
-        $date = $r['tier'] === Plans::ENTERPRISE ? '♾' : TimeParser::show((string) $r['expires'], $ctx->app->tz());
+        $date = $r['tier'] === Plans::ENTERPRISE ? '♾' : TimeParser::show((string) $r['expires'], $ctx->tz());
+        $userDate = $r['tier'] === Plans::ENTERPRISE ? '♾' : TimeParser::show((string) $r['expires'], $ctx->app->tzFor($id));
         $ctx->reply($ctx->t('admin_grant_ok', ['id' => $id, 'plan' => Plans::NAMES[$r['tier']], 'date' => $date]));
         if ($r['tier'] !== Plans::ENTERPRISE) {
             $u = $ctx->app->users->get($id);
             $lang = I18n::norm($u['lang'] ?? 'uz');
-            $ctx->app->tg->sendMessage($id, I18n::t('grant_notice', $lang, ['plan' => Plans::NAMES[$r['tier']], 'date' => $date, 'tz' => Html::e($ctx->app->tzName())]));
+            $ctx->app->tg->sendMessage($id, I18n::t('grant_notice', $lang, ['plan' => Plans::NAMES[$r['tier']], 'date' => $userDate, 'tz' => Html::e($ctx->app->tzFor($id)->getName())]));
         }
     }
 
@@ -159,13 +160,13 @@ final class AdminHandler
         }
         $users = [];
         foreach ($ctx->app->promos->recentRedemptions((int) $p['id']) as $r) {
-            $users[] = '• ' . self::userLabel($r) . ' — ' . TimeParser::show((string) $r['redeemed_at'], $ctx->app->tz());
+            $users[] = '• ' . self::userLabel($r) . ' — ' . TimeParser::show((string) $r['redeemed_at'], $ctx->tz());
         }
         $ctx->reply($ctx->t('promo_detail', [
             'code' => Html::e((string) $p['code']), 'state' => $ctx->t((int) $p['is_active'] === 1 ? 'state_on' : 'state_off'),
             'plan' => Plans::NAMES[$p['plan_type']] ?? Html::e((string) $p['plan_type']), 'days' => (int) $p['duration_days'],
             'used' => (int) $p['current_uses'], 'max' => $p['max_uses'] === null ? '∞' : (int) $p['max_uses'],
-            'created' => TimeParser::show((string) $p['created_at'], $ctx->app->tz()),
+            'created' => TimeParser::show((string) $p['created_at'], $ctx->tz()),
             'users' => $users ? implode("\n", $users) : $ctx->t('none'),
         ]));
     }

@@ -29,6 +29,13 @@ final class FakeTg
             return array_shift($this->forced[$method]);
         }
         switch ($method) {
+            case 'sendMediaGroup':
+                $n = count((array) json_decode((string) ($params['media'] ?? '[]'), true));
+                $out = [];
+                for ($i = 0; $i < $n; $i++) {
+                    $out[] = ['message_id' => ++$this->mid];
+                }
+                return ['ok' => true, 'result' => $out];
             case 'getChat':
                 $c = $this->chats[$params['chat_id']] ?? null;
                 return $c ? ['ok' => true, 'result' => $c] : ['ok' => false, 'error_code' => 400, 'description' => 'Bad Request: chat not found'];
@@ -84,7 +91,7 @@ try {
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
 $ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
-    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits'];
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done'];
 foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
@@ -95,7 +102,7 @@ $pdo->exec("CREATE TABLE users (user_id BIGINT NOT NULL PRIMARY KEY, username VA
     plan_type VARCHAR(20) NOT NULL DEFAULT 'free', is_blocked TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL, KEY idx_users_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 $changes = PostAssist\Schema::apply($db, $schema);
-T::eq('eski bazani yangilash: 4 ustun + 2 indeks qo\'shildi', count($changes), 6);
+T::eq('eski bazani yangilash: 5 ustun (2-bosqich 4 ta + timezone) + 2 indeks qo\'shildi', count($changes), 7);
 T::eq('qayta ishga tushirish: o\'zgarish yo\'q (idempotent)', PostAssist\Schema::apply($db, $schema), []);
 T::eq('hamma jadvallar bor', (int) $db->value('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (' . implode(',', array_fill(0, count($ALL_TABLES), '?')) . ')', $ALL_TABLES), count($ALL_TABLES));
 
@@ -245,8 +252,11 @@ $text($U, 'yomon format');
 T::check('tugma: noto\'g\'ri format rad', strpos($fake->lastText(), 'Format noto\'g\'ri') !== false);
 $text($U, 'Batafsil - sayt.uz');
 $prev = $fake->of('sendMessage')[0] ?? [];
-T::check('tugma qo\'shildi (preview\'da url tugma + o\'chirish tugmasi)', strpos($mk($prev), 'https:\/\/sayt.uz') !== false
-    && strpos($mk($prev), 'p:btndel') !== false, $mk($prev));
+T::check('tugma qo\'shildi (preview\'da url tugma + ixcham panel: Qo\'shimcha)', strpos($mk($prev), 'https:\/\/sayt.uz') !== false
+    && strpos($mk($prev), 'p:more') !== false, $mk($prev));
+$press($U, 'p:more');
+T::check('«Qo\'shimcha» ichida: tugmani o\'chirish, reaksiya, takror, avto-o\'chirish', strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:btndel') !== false
+    && strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:rep') !== false && strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:ad') !== false);
 
 // --- hozir yuborish
 $press($U, 'p:now');
@@ -411,3 +421,4 @@ $text($U, '/cancel');
 T::check('/cancel', strpos($fake->lastText(), 'Bekor qilindi') !== false);
 
 require __DIR__ . '/Phase2Test.php';
+require __DIR__ . '/Phase3Test.php';

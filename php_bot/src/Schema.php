@@ -15,6 +15,14 @@ final class Schema
         ['users', 'plan_reminder_for', 'DATETIME NULL'],
         ['users', 'ai_credits', 'INT NOT NULL DEFAULT 5'],
         ['users', 'referral_rewarded_at', 'DATETIME NULL'],
+        ['users', 'timezone', 'VARCHAR(64) NULL'],
+        ['scheduled_posts', 'media', 'MEDIUMTEXT NULL'],
+        ['scheduled_posts', 'reactions', 'VARCHAR(64) NULL'],
+        ['scheduled_posts', 'delete_after', 'INT NULL'],
+        ['scheduled_posts', 'recurrence_type', 'VARCHAR(10) NULL'],
+        ['scheduled_posts', 'recurrence_time', 'INT NULL'],
+        ['scheduled_posts', 'recurrence_day', 'INT NULL'],
+        ['scheduled_posts', 'sent_count', 'INT NOT NULL DEFAULT 0'],
     ];
     /** @var array<int, array{0:string,1:string,2:string}> [jadval, indeks, ustunlar] */
     private const INDEXES = [

@@ -28,7 +28,7 @@ final class PlansHandler
         if ($tier === Plans::ENTERPRISE) {
             $until = $ctx->t('plan_forever');
         } elseif ($tier !== Plans::FREE && !empty($row['subscription_expires_at'])) {
-            $until = $ctx->t('plan_until', ['date' => TimeParser::show((string) $row['subscription_expires_at'], $app->tz())]);
+            $until = $ctx->t('plan_until', ['date' => TimeParser::show((string) $row['subscription_expires_at'], $ctx->tz())]);
         }
         $lim = static function (string $t, string $k) use ($app): int {
             return Plans::limits($t, $app->config)[$k];
@@ -143,8 +143,8 @@ final class PlansHandler
     /** Tarif natijasi matni (muddatsiz tarifda sana o'rniga ♾). */
     public static function planResult(Ctx $ctx, string $key, string $tier, string $expires): string
     {
-        $date = $tier === Plans::ENTERPRISE || $expires === '' ? '♾' : TimeParser::show($expires, $ctx->app->tz());
-        return $ctx->t($key, ['plan' => Plans::NAMES[$tier] ?? $tier, 'date' => $date, 'tz' => Html::e($ctx->app->tzName())]);
+        $date = $tier === Plans::ENTERPRISE || $expires === '' ? '♾' : TimeParser::show($expires, $ctx->tz());
+        return $ctx->t($key, ['plan' => Plans::NAMES[$tier] ?? $tier, 'date' => $date, 'tz' => Html::e($ctx->tzName())]);
     }
 
     // ------------------------------------------------------------------ promo-kod

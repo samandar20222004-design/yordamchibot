@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace PostAssist;
 
+use PostAssist\Services\PostRender;
+
 /** Klaviaturalar. Callback ma'lumoti qisqa va qat'iy formatda (Router faqat shu shakllarni qabul qiladi). */
 final class Keyboards
 {
@@ -44,7 +46,7 @@ final class Keyboards
         return self::inline([
             [self::btn(I18n::t('btn_lang', $lang), 'set:lang'), self::btn(I18n::t('btn_plans', $lang), 'pl:show')],
             [self::btn(I18n::t('btn_invite', $lang), 'ref:show'), self::btn(I18n::t('btn_promo', $lang), 'promo:ask')],
-            [self::btn(I18n::t('btn_help', $lang), 'set:help')],
+            [self::btn(I18n::t('btn_timezone', $lang), 'set:tz'), self::btn(I18n::t('btn_help', $lang), 'set:help')],
         ]);
     }
 
@@ -75,15 +77,88 @@ final class Keyboards
         return self::inline($rows);
     }
 
-    /** @return array<int, array<int, array<string,string>>> preview ostidagi boshqaruv qatorlari */
-    public static function previewRows(string $lang, bool $hasButton): array
+    /** Avto-o'chirish variantlari (daqiqa). */
+    public const AUTO_DELETE = [60, 360, 720, 1440, 2880];
+    /** /timezone tezkor tugmalari: IANA nomi => yorliq. */
+    public const TIMEZONES = [
+        'Asia/Tashkent' => '🇺🇿 Toshkent', 'Asia/Almaty' => '🇰🇿 Almaty', 'Asia/Bishkek' => '🇰🇬 Bishkek',
+        'Asia/Dushanbe' => '🇹🇯 Dushanbe', 'Europe/Moscow' => '🇷🇺 Moskva', 'Europe/Istanbul' => '🇹🇷 Istanbul',
+        'Asia/Dubai' => '🇦🇪 Dubai', 'Asia/Seoul' => '🇰🇷 Seul', 'Europe/Berlin' => '🇩🇪 Berlin',
+        'Europe/London' => '🇬🇧 London', 'America/New_York' => '🇺🇸 New York', 'UTC' => '🌐 UTC',
+    ];
+
+    /** @return array<int, array<int, array<string,string>>> preview ostidagi boshqaruv qatorlari (ixcham, 5 tugma) */
+    public static function previewRows(string $lang): array
     {
         return [
             [self::btn(I18n::t('btn_send_now', $lang), 'p:now'), self::btn(I18n::t('btn_set_time', $lang), 'p:time')],
-            [self::btn(I18n::t($hasButton ? 'btn_remove_button' : 'btn_add_button', $lang), $hasButton ? 'p:btndel' : 'p:btn'),
-                self::btn(I18n::t('btn_edit', $lang), 'p:edit')],
+            [self::btn(I18n::t('btn_more', $lang), 'p:more'), self::btn(I18n::t('btn_edit', $lang), 'p:edit')],
             [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')],
         ];
+    }
+
+    /** «⚙️ Qo'shimcha»: tugma, reaksiya (albomda yo'q), takror, avto-o'chirish. */
+    public static function more(string $lang, array $draft, bool $album): array
+    {
+        $rows = [];
+        if (!$album) {
+            $has = !empty($draft['button_url']);
+            $rows[] = [self::btn(I18n::t($has ? 'btn_remove_button' : 'btn_add_button', $lang), $has ? 'p:btndel' : 'p:btn'),
+                self::btn((!empty($draft['reactions']) ? '✅ ' : '') . I18n::t('btn_reactions', $lang), 'p:rx')];
+        }
+        $rows[] = [self::btn(I18n::t('btn_repeat', $lang), 'p:rep'),
+            self::btn((!empty($draft['delete_after']) ? '✅ ' : '') . I18n::t('btn_autodelete', $lang), 'p:ad')];
+        $rows[] = [self::btn(I18n::t('btn_back', $lang), 'p:back')];
+        return self::inline($rows);
+    }
+
+    public static function repeat(string $lang): array
+    {
+        return self::inline([
+            [self::btn(I18n::t('btn_rep_daily', $lang), 'pr:daily'), self::btn(I18n::t('btn_rep_weekly', $lang), 'pr:weekly')],
+            [self::btn(I18n::t('btn_rep_monthly', $lang), 'pr:monthly'), self::btn(I18n::t('btn_rep_twice', $lang), 'pr:twice')],
+            [self::btn(I18n::t('btn_rep_none', $lang), 'pr:none'), self::btn(I18n::t('btn_back', $lang), 'p:back')],
+        ]);
+    }
+
+    public static function reactions(string $lang): array
+    {
+        $rows = [];
+        foreach (PostRender::REACTION_SETS as $i => $set) {
+            $rows[] = [self::btn(str_replace(',', ' ', $set), 'px:' . $i)];
+        }
+        $rows[] = [self::btn(I18n::t('btn_rx_custom', $lang), 'px:c'), self::btn(I18n::t('btn_rx_none', $lang), 'px:none')];
+        $rows[] = [self::btn(I18n::t('btn_back', $lang), 'p:back')];
+        return self::inline($rows);
+    }
+
+    public static function autoDelete(string $lang): array
+    {
+        $b = static function (int $min) use ($lang): array {
+            return self::btn(I18n::t('ad_hours', $lang, ['h' => intdiv($min, 60)]), 'pa:' . $min);
+        };
+        return self::inline([
+            [$b(60), $b(360), $b(720)],
+            [$b(1440), $b(2880)],
+            [self::btn(I18n::t('btn_ad_none', $lang), 'pa:0'), self::btn(I18n::t('btn_back', $lang), 'p:back')],
+        ]);
+    }
+
+    public static function timezones(string $lang): array
+    {
+        $rows = [];
+        $row = [];
+        foreach (self::TIMEZONES as $id => $label) {
+            $row[] = self::btn($label, 'tz:' . $id);
+            if (count($row) === 3) {
+                $rows[] = $row;
+                $row = [];
+            }
+        }
+        if ($row) {
+            $rows[] = $row;
+        }
+        return self::inline($rows);
     }
 
     public static function times(string $lang): array
@@ -101,7 +176,8 @@ final class Keyboards
         foreach ($posts as $p) {
             $when = (new \DateTimeImmutable((string) $p['scheduled_time'], new \DateTimeZone('UTC')))->setTimezone($tz)->format('d.m H:i');
             $label = $when . ' · ' . mb_substr((string) ($p['channel_title'] ?? ''), 0, 24);
-            $rows[] = [self::btn('📄 ' . $label, 'q:v:' . (int) $p['id'])];
+            $icon = !empty($p['recurrence_type']) ? '🔄 ' : ($p['post_type'] === 'album' ? '🖼 ' : '📄 ');
+            $rows[] = [self::btn($icon . $label, 'q:v:' . (int) $p['id'])];
         }
         return self::inline($rows);
     }

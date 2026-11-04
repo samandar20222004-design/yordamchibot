@@ -3,7 +3,8 @@
 Bu Python botning PHP'dagi nusxasi: oddiy (shared) hostingda ishlaydi — Python, Docker yoki VPS kerak emas.
 Tashqi kutubxona (Composer) ishlatilmagan: fayllarni yuklasangiz bo'ldi.
 
-> **Holat: 2-bosqich** (yadro + tariflar, Telegram Stars, promo-kod, referal ballari, manba havolalari).
+> **Holat: 3-bosqich** (yadro + tariflar, Telegram Stars, promo-kod, referal ballari, manba havolalari + takroriy post, albom,
+> reaksiya, avto-o'chirish, har foydalanuvchiga vaqt mintaqasi).
 > Qaysi imkoniyatlar bor va qaysilari keyingi bosqichlarda — [docs/PHP_PORT.md](../docs/PHP_PORT.md).
 
 ## Talablar
@@ -52,6 +53,12 @@ Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinm
 
 Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
 
+## Albom haqida (hosting sozlamasi)
+
+Albom (bir nechta rasm) yig'ilishi uchun webhook Telegram'ga javobni darhol qaytaradi va 2 soniya kutadi. Bu oddiy Apache, LiteSpeed va
+PHP-FPM hostinglarda ishlaydi. Agar bir vaqtda ishlaydigan jarayonlar soni juda kam bo'lsa ham albom yo'qolmaydi: kechikkan fayl
+preview'dagi albomga qo'shiladi, jarayon uzilib qolsa — `cron.php` 10 soniyadan keyin yig'adi.
+
 ## Xavfsizlik
 
 - `config.php` da token va parol bor: uni hech kimga bermang, GitHub'ga qo'ymang (`.gitignore` da).
@@ -79,4 +86,6 @@ Testlar: formatlash (UTF-16, emoji), vaqtni tushunish, havolalar, nishon, uch ti
 to'liq ssenariylar (start, referal, kanal ulash va rad etish holatlari, post, tugma, hozir yuborish, ikki marta bosish, vaqt belgilash,
 limitlar, navbat, cron, qayta urinish, qulf, bot chiqarilishi, IDOR), 2-bosqich: eski bazani yangilash, tarif ekrani, hisob (invoice),
 pre_checkout tekshiruvi, to'lov (takror to'lov, mos kelmagan summa), PRO/ULTRA almashuvi, muddat eslatmasi va tugashi, promo-kodlar
-(limit, bir marta, o'chiq, taxminga qarshi to'siq), referal ballari, manba havolalari. CI'da PHP 7.4 va 8.3 da ishlaydi.
+(limit, bir marta, o'chiq, taxminga qarshi to'siq), referal ballari, manba havolalari; 3-bosqich: vaqt mintaqasi, takror (har kuni/hafta/oy,
+kuniga 2 marta, yozgi vaqt, cron to'xtab qolsa), reaksiya ovozlari, avto-o'chirish (qayta urinish bilan), albom (yig'ish, kechikkan qism,
+aralash turlar, uzilgan jarayon, 10 tadan ko'p). CI'da PHP 7.4 va 8.3 da ishlaydi.

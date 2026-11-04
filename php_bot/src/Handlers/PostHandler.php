@@ -4,18 +4,23 @@ declare(strict_types=1);
 namespace PostAssist\Handlers;
 
 use DateTimeImmutable;
+use PostAssist\App;
 use PostAssist\Ctx;
 use PostAssist\Html;
+use PostAssist\I18n;
 use PostAssist\Keyboards;
 use PostAssist\Services\Links;
 use PostAssist\Services\PostRender;
+use PostAssist\Services\Recurrence;
 use PostAssist\Services\Scheduler;
 use PostAssist\Services\TimeParser;
 
 /**
  * Oddiy post: kontent -> (kanal tanlash) -> ko'rinish (preview) -> hozir yuborish | vaqt belgilash.
- * Holat `user_states` da: post_content | post_pick | post_preview | post_btn | post_edit | post_time,
- * ma'lumot: ['draft' => [type, file_id, text, button_text, button_url], 'channel' => channels.id].
+ * Holat `user_states` da: post_content | post_pick | post_preview | post_btn | post_edit | post_time | post_rx | post_time2,
+ * ma'lumot: ['draft' => [type, file_id, text, media, button_text, button_url, reactions, delete_after], 'channel' => channels.id,
+ *            'repeat' => ['type' => daily|weekly|monthly|twice, 'second' => kechki vaqt (daqiqa)]].
+ * «⚙️ Qo'shimcha»: havolali tugma, reaksiya, takrorlash, avto-o'chirish. Albom (2–10 fayl) — tugma va reaksiyasiz (Telegram cheklovi).
  */
 final class PostHandler
 {
@@ -33,25 +38,40 @@ final class PostHandler
     /** Post kontenti keldi (yangi yoki tahrir). */
     public static function content(Ctx $ctx, array $state): void
     {
-        $draft = PostRender::draftFromMessage($ctx->message ?? []);
-        if ($draft === null) {
-            $ctx->reply($ctx->t('post_unsupported'));
+        $msg = $ctx->message ?? [];
+        if (!empty($msg['media_group_id'])) {
+            self::albumItem($ctx, (string) $msg['media_group_id']);
             return;
         }
-        $len = Html::utf16Len(Html::plain((string) $draft['text']));
-        $max = PostRender::limitFor($draft['type']);
-        if ($len > $max) {
-            $ctx->reply($ctx->t($draft['type'] === 'text' ? 'post_too_long_text' : 'post_too_long_caption', ['len' => $len, 'max' => $max]));
+        $draft = PostRender::draftFromMessage($msg);
+        if ($draft === null) {
+            $ctx->reply($ctx->t('post_unsupported'));
             return;
         }
         if ($draft['type'] === 'text' && trim(Html::plain($draft['text'])) === '') {
             $ctx->reply($ctx->t('post_unsupported'));
             return;
         }
+        self::applyDraft($ctx, $state, $draft);
+    }
+
+    /** Yangi kontent: uzunlik tekshiruvi, eski sozlamalar (tugma, reaksiya, avto-o'chirish) saqlanadi, kanal tanlash, preview. */
+    private static function applyDraft(Ctx $ctx, array $state, array $draft): void
+    {
+        $len = Html::utf16Len(Html::plain((string) $draft['text']));
+        $max = PostRender::limitFor($draft['type'] === 'album' ? 'photo' : $draft['type']);
+        if ($len > $max) {
+            $ctx->reply($ctx->t($draft['type'] === 'text' ? 'post_too_long_text' : 'post_too_long_caption', ['len' => $len, 'max' => $max]));
+            return;
+        }
         $data = $state['data'];
         $old = $data['draft'] ?? [];
-        $draft['button_text'] = $old['button_text'] ?? null;
-        $draft['button_url'] = $old['button_url'] ?? null;
+        foreach (['button_text', 'button_url', 'reactions', 'delete_after'] as $k) {
+            $draft[$k] = $old[$k] ?? null;
+        }
+        if ($draft['type'] === 'album') {
+            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = null; // albomga tugma qo'yib bo'lmaydi
+        }
         $data['draft'] = $draft;
         if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->userId, (int) $data['channel'])) {
             $channels = $ctx->app->channels->listFor($ctx->userId);
@@ -66,6 +86,100 @@ final class PostHandler
                 return;
             }
             $data['channel'] = (int) $channels[0]['id'];
+        }
+        self::preview($ctx, $data);
+    }
+
+    // ------------------------------------------------------------------ albom
+
+    /** Albom qismi: yoziladi; ~2 soniya yangi qism kelmasa — shu so'rov albomni yig'adi. */
+    private static function albumItem(Ctx $ctx, string $group): void
+    {
+        $app = $ctx->app;
+        $msg = $ctx->message ?? [];
+        $d = PostRender::draftFromMessage($msg);
+        if ($d === null || !in_array($d['type'], ['photo', 'video', 'document', 'audio'], true) || $app->albums->isDone($ctx->userId, $group)) {
+            return; // GIF/stiker albomda bo'lmaydi; kech kelgan qism e'tiborsiz
+        }
+        $app->albums->add($ctx->userId, $group, (int) ($msg['message_id'] ?? 0), $d['type'], (string) $d['file_id'], (string) $d['text'], $app->nowMs());
+        $app->releaseClient(); // Telegram keyingi qismni yubora olsin
+        $app->sleepMs(2000);
+        if ($app->albums->hasNewer($ctx->userId, $group, (int) ($msg['message_id'] ?? 0))) {
+            return; // oxirgi qism emas — yig'ishni oxirgisi qiladi
+        }
+        self::finishAlbum($app, $ctx->userId, $group, $ctx);
+    }
+
+    /** Albomni bitta postga yig'adi (faqat bir marta). Cron ham chaqiradi (jarayon uzilgan bo'lsa). */
+    public static function finishAlbum(App $app, int $userId, string $group, ?Ctx $ctx = null): bool
+    {
+        if (!$app->albums->claim($userId, $group)) {
+            return false;
+        }
+        $items = $app->albums->items($userId, $group);
+        $app->albums->drop($userId, $group);
+        if ($ctx === null) {
+            $u = $app->users->get($userId);
+            if (!$u) {
+                return true;
+            }
+            $ctx = new Ctx($app, $userId, $userId, I18n::norm($u['lang'] ?? 'uz'), (string) ($u['full_name'] ?? ''), null, null);
+        }
+        $state = $ctx->state();
+        if ($state === null || !in_array($state['state'], ['post_content', 'post_edit'], true)) {
+            return true; // foydalanuvchi boshqa ishga o'tib ketgan
+        }
+        $media = [];
+        $caption = '';
+        foreach ($items as $it) {
+            $media[] = [(string) $it['item_type'], (string) $it['file_id']];
+            if ($caption === '' && trim((string) $it['caption']) !== '') {
+                $caption = (string) $it['caption'];
+            }
+        }
+        if (count($media) === 1) {
+            $one = ['type' => $media[0][0], 'file_id' => $media[0][1], 'text' => $caption];
+            self::applyDraft($ctx, $state, $one);
+            return true;
+        }
+        if (count($media) > PostRender::ALBUM_MAX) {
+            $media = array_slice($media, 0, PostRender::ALBUM_MAX);
+            $ctx->reply($ctx->t('album_trimmed', ['max' => PostRender::ALBUM_MAX]));
+        }
+        if (!PostRender::albumValid($media)) {
+            $ctx->reply($ctx->t('album_mixed'));
+            return true;
+        }
+        self::applyDraft($ctx, $state, ['type' => 'album', 'file_id' => null, 'text' => $caption, 'media' => $media, 'group' => $group]);
+        return true;
+    }
+
+    /** Albom yig'ilgandan keyin kelgan qism (server band bo'lib kechikkan): qoralamaga qo'shiladi, preview yangilanadi. */
+    public static function albumLate(Ctx $ctx, array $state): void
+    {
+        $d = PostRender::draftFromMessage($ctx->message ?? []);
+        $data = $state['data'];
+        $media = $data['draft']['media'] ?? [];
+        if ($d === null || !in_array($d['type'], ['photo', 'video', 'document', 'audio'], true) || count($media) >= PostRender::ALBUM_MAX) {
+            return;
+        }
+        foreach ($media as $m) {
+            if ($m[1] === $d['file_id']) {
+                return;
+            }
+        }
+        $next = array_merge($media, [[$d['type'], (string) $d['file_id']]]);
+        if (!PostRender::albumValid($next)) {
+            $ctx->reply($ctx->t('album_mixed'));
+            return;
+        }
+        $data['draft']['media'] = $next;
+        if (trim((string) $data['draft']['text']) === '' && trim((string) $d['text']) !== '') {
+            $data['draft']['text'] = $d['text'];
+        }
+        if ($state['state'] === 'post_pick') {
+            $ctx->app->states->set($ctx->userId, 'post_pick', $data); // kanal tanlangach to'liq albom ko'rinadi
+            return;
         }
         self::preview($ctx, $data);
     }
@@ -90,15 +204,46 @@ final class PostHandler
     {
         $ctx->app->states->set($ctx->userId, 'post_preview', $data);
         $d = $data['draft'];
-        $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'],
-            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null];
-        $rows = Keyboards::previewRows($ctx->lang, !empty($d['button_url']));
-        $res = PostRender::send($ctx->app->tg, $ctx->chatId, $post, $ctx->app->config->str('bot_username'), $ctx->app->isFree($ctx->userId), $rows);
+        $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
+            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null];
+        $rows = Keyboards::previewRows($ctx->lang);
+        $free = $ctx->app->isFree($ctx->userId);
+        $bot = $ctx->app->config->str('bot_username');
+        $hint = $ctx->t('post_preview_hint') . self::extrasText($ctx, $data);
+        if ($d['type'] === 'album') {
+            $res = PostRender::send($ctx->app->tg, $ctx->chatId, $post, $bot, $free);
+            if (empty($res['ok'])) {
+                $ctx->reply($ctx->t('send_fail', ['reason' => $ctx->t(PostRender::reasonKey($res))]), Keyboards::inline($rows));
+                return;
+            }
+            $ctx->reply($hint, Keyboards::inline($rows)); // albomga tugma ulanmaydi — boshqaruv alohida xabarda
+            return;
+        }
+        $res = PostRender::send($ctx->app->tg, $ctx->chatId, $post, $bot, $free, $rows);
         if (empty($res['ok'])) {
             $ctx->reply($ctx->t('send_fail', ['reason' => $ctx->t(PostRender::reasonKey($res))]), Keyboards::inline($rows));
             return;
         }
-        $ctx->reply($ctx->t('post_preview_hint'));
+        $ctx->reply($hint);
+    }
+
+    /** Preview ostidagi qo'shimcha sozlamalar ro'yxati (takror, avto-o'chirish, reaksiya). */
+    private static function extrasText(Ctx $ctx, array $data): string
+    {
+        $lines = [];
+        $rep = $data['repeat']['type'] ?? null;
+        if ($rep !== null) {
+            $lines[] = '🔄 ' . $ctx->t('rep_' . $rep) . ($rep === 'twice' && isset($data['repeat']['second'])
+                ? ' (+' . Recurrence::clock((int) $data['repeat']['second']) . ')' : '');
+        }
+        $ad = (int) ($data['draft']['delete_after'] ?? 0);
+        if ($ad > 0) {
+            $lines[] = '⏳ ' . $ctx->t('ad_after', ['h' => intdiv($ad, 60)]);
+        }
+        if (!empty($data['draft']['reactions'])) {
+            $lines[] = '👍 ' . Html::e(str_replace(',', ' ', (string) $data['draft']['reactions']));
+        }
+        return $lines ? "\n\n" . implode("\n", $lines) : '';
     }
 
     /** Preview tugmalari. */
@@ -114,15 +259,25 @@ final class PostHandler
             return;
         }
         $data = $st['data'];
+        $album = ($data['draft']['type'] ?? '') === 'album';
         switch ($act) {
             case 'now':
                 self::sendNow($ctx, $data, $st['state']);
                 return;
             case 'time':
                 $ctx->app->states->set($ctx->userId, 'post_time', $data);
-                $ctx->reply($ctx->t('time_ask', ['tz' => Html::e($ctx->app->tzName())]), Keyboards::times($ctx->lang));
+                $ctx->reply($ctx->t('time_ask', ['tz' => Html::e($ctx->tzName())]), Keyboards::times($ctx->lang));
+                return;
+            case 'more':
+                $ctx->app->states->set($ctx->userId, 'post_preview', $data);
+                $ctx->reply($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
+                    Keyboards::more($ctx->lang, $data['draft'], $album));
                 return;
             case 'btn':
+                if ($album) {
+                    $ctx->reply($ctx->t('album_no_buttons'));
+                    return;
+                }
                 $ctx->app->states->set($ctx->userId, 'post_btn', $data);
                 $ctx->reply($ctx->t('post_btn_ask'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
                 return;
@@ -130,6 +285,22 @@ final class PostHandler
                 $data['draft']['button_text'] = null;
                 $data['draft']['button_url'] = null;
                 self::preview($ctx, $data);
+                return;
+            case 'rep':
+                $ctx->app->states->set($ctx->userId, 'post_preview', $data);
+                $ctx->reply($ctx->t('rep_ask'), Keyboards::repeat($ctx->lang));
+                return;
+            case 'rx':
+                if ($album) {
+                    $ctx->reply($ctx->t('album_no_buttons'));
+                    return;
+                }
+                $ctx->app->states->set($ctx->userId, 'post_preview', $data);
+                $ctx->reply($ctx->t('rx_ask'), Keyboards::reactions($ctx->lang));
+                return;
+            case 'ad':
+                $ctx->app->states->set($ctx->userId, 'post_preview', $data);
+                $ctx->reply($ctx->t('ad_ask'), Keyboards::autoDelete($ctx->lang));
                 return;
             case 'edit':
                 $ctx->app->states->set($ctx->userId, 'post_edit', $data);
@@ -139,6 +310,82 @@ final class PostHandler
                 self::preview($ctx, $data);
                 return;
         }
+    }
+
+    /** Takrorlash tanlandi: none|daily|weekly|monthly|twice (twice — kechki vaqt so'raladi). */
+    public static function setRepeat(Ctx $ctx, string $type): void
+    {
+        $st = self::draftState($ctx);
+        if ($st === null) {
+            return;
+        }
+        $data = $st['data'];
+        if ($type === 'none') {
+            unset($data['repeat']);
+            self::preview($ctx, $data);
+            return;
+        }
+        if ($type === 'twice') {
+            $ctx->app->states->set($ctx->userId, 'post_time2', $data);
+            $ctx->reply($ctx->t('rep_twice_ask'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
+            return;
+        }
+        $data['repeat'] = ['type' => $type];
+        self::preview($ctx, $data);
+    }
+
+    /** «Kuniga 2 marta»: ikkinchi (kechki) vaqt yozildi. */
+    public static function secondTimeInput(Ctx $ctx, array $state): void
+    {
+        $min = Recurrence::parseClock((string) ($ctx->message['text'] ?? ''));
+        if ($min === null) {
+            $ctx->reply($ctx->t('rep_twice_bad'));
+            return;
+        }
+        $data = $state['data'];
+        $data['repeat'] = ['type' => 'twice', 'second' => $min];
+        self::preview($ctx, $data);
+    }
+
+    /** Reaksiya to'plami: 0..3 (tayyor), none, c (o'zi yozadi). */
+    public static function setReactions(Ctx $ctx, string $choice): void
+    {
+        $st = self::draftState($ctx);
+        if ($st === null) {
+            return;
+        }
+        $data = $st['data'];
+        if ($choice === 'c') {
+            $ctx->app->states->set($ctx->userId, 'post_rx', $data);
+            $ctx->reply($ctx->t('rx_custom_ask'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
+            return;
+        }
+        $data['draft']['reactions'] = $choice === 'none' ? null : (PostRender::REACTION_SETS[(int) $choice] ?? null);
+        self::preview($ctx, $data);
+    }
+
+    public static function reactionsInput(Ctx $ctx, array $state): void
+    {
+        $r = PostRender::parseReactions((string) ($ctx->message['text'] ?? ''));
+        if ($r === null) {
+            $ctx->reply($ctx->t('rx_bad'));
+            return;
+        }
+        $data = $state['data'];
+        $data['draft']['reactions'] = $r;
+        self::preview($ctx, $data);
+    }
+
+    /** Avto-o'chirish: daqiqalar (0 = o'chirmaslik). */
+    public static function setAutoDelete(Ctx $ctx, int $minutes): void
+    {
+        $st = self::draftState($ctx);
+        if ($st === null) {
+            return;
+        }
+        $data = $st['data'];
+        $data['draft']['delete_after'] = in_array($minutes, Keyboards::AUTO_DELETE, true) ? $minutes : null;
+        self::preview($ctx, $data);
     }
 
     public static function buttonInput(Ctx $ctx, array $state): void
@@ -156,7 +403,7 @@ final class PostHandler
 
     public static function timeInput(Ctx $ctx, array $state): void
     {
-        $r = TimeParser::parse((string) ($ctx->message['text'] ?? ''), $ctx->app->tz(), $ctx->app->now());
+        $r = TimeParser::parse((string) ($ctx->message['text'] ?? ''), $ctx->tz(), $ctx->app->now());
         if (!$r['ok']) {
             $key = ['past' => 'time_past', 'too_far' => 'time_too_far'][$r['error']] ?? 'time_bad';
             $ctx->reply($ctx->t($key));
@@ -171,7 +418,7 @@ final class PostHandler
         if ($st === null) {
             return;
         }
-        $utc = TimeParser::quick($code, $ctx->app->tz(), $ctx->app->now());
+        $utc = TimeParser::quick($code, $ctx->tz(), $ctx->app->now());
         if ($utc !== null) {
             self::schedule($ctx, $st['data'], $utc, $st['state']);
         }
@@ -188,17 +435,21 @@ final class PostHandler
         if (!self::queueHasRoom($ctx)) {
             return;
         }
+        $rec = self::recurrenceFor($ctx, $data, $utc);
+        if ($rec === false) {
+            return;
+        }
         if (!$ctx->app->states->take($ctx->userId, $stateName)) {
             return; // ikkinchi parallel bosish — post allaqachon yaratildi
         }
         $utcSql = $utc->format('Y-m-d H:i:s');
-        $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $utcSql, true);
+        $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $utcSql, true, $rec);
         self::afterSaved($ctx);
         $ctx->replyMenu($ctx->t('post_scheduled', [
             'channel' => Html::e((string) $channel['title']),
-            'when' => TimeParser::show($utcSql, $ctx->app->tz()),
-            'tz' => Html::e($ctx->app->tzName()),
-        ]));
+            'when' => TimeParser::show($utcSql, $ctx->tz()),
+            'tz' => Html::e($ctx->tzName()),
+        ]) . ($rec !== null ? "\n🔄 " . self::repeatLabel($ctx, $rec) : ''));
     }
 
     /** «Hozir yuborish»: navbatga qo'yiladi va darhol yuboriladi; natija rostdan aytiladi. */
@@ -213,10 +464,14 @@ final class PostHandler
         if (!self::queueHasRoom($ctx)) {
             return;
         }
+        $rec = self::recurrenceFor($ctx, $data, $ctx->app->now());
+        if ($rec === false) {
+            return;
+        }
         if (!$ctx->app->states->take($ctx->userId, $stateName)) {
             return; // ikkinchi parallel bosish — post allaqachon yuborilmoqda
         }
-        $id = $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false);
+        $id = $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false, $rec);
         self::afterSaved($ctx);
         if (!$ctx->app->posts->claim($id)) {
             $ctx->replyMenu($ctx->t('send_retry'));
@@ -226,12 +481,47 @@ final class PostHandler
         $r = (new Scheduler($ctx->app))->deliver($post ?? []);
         $name = Html::e((string) $channel['title']);
         if ($r['status'] === 'sent') {
-            $ctx->replyMenu($ctx->t('send_ok', ['channel' => $name]));
+            $next = $r['next'] ?? null;
+            $ctx->replyMenu($ctx->t('send_ok', ['channel' => $name]) . ($next !== null
+                ? "\n🔄 " . $ctx->t('rep_next', ['when' => TimeParser::show($next->format('Y-m-d H:i:s'), $ctx->tz())]) : ''));
         } elseif ($r['status'] === 'retry') {
             $ctx->replyMenu($ctx->t('send_retry'));
         } else {
             $ctx->replyMenu($ctx->t('send_fail', ['reason' => $ctx->t($r['reason'])]));
         }
+    }
+
+    /**
+     * Takrorlash qoidasi (birinchi chiqish vaqtidan): null — takrorsiz, false — xato (foydalanuvchiga aytildi).
+     * @return array{type:string,time:int,day:?int}|null|false
+     */
+    private static function recurrenceFor(Ctx $ctx, array $data, DateTimeImmutable $firstUtc)
+    {
+        $type = $data['repeat']['type'] ?? null;
+        if ($type === null) {
+            return null;
+        }
+        $rec = Recurrence::fromFirst((string) $type, $firstUtc, $ctx->tz(), isset($data['repeat']['second']) ? (int) $data['repeat']['second'] : null);
+        if ($rec === null) {
+            $ctx->reply($ctx->t('rep_twice_same'));
+            return false;
+        }
+        return $rec;
+    }
+
+    /** «Har kuni 09:00», «Har hafta (Du) 09:00», «Har oy 15-kuni 09:00», «Kuniga 2 marta: 09:00 va 18:30». */
+    public static function repeatLabel(Ctx $ctx, array $rec): string
+    {
+        $t = Recurrence::clock((int) $rec['time']);
+        switch ($rec['type']) {
+            case 'weekly':
+                return $ctx->t('rep_weekly_at', ['day' => $ctx->t('wd_' . (int) $rec['day']), 'time' => $t]);
+            case 'monthly':
+                return $ctx->t('rep_monthly_at', ['day' => (int) $rec['day'], 'time' => $t]);
+            case 'twice':
+                return $ctx->t('rep_twice_at', ['time' => $t, 'time2' => Recurrence::clock((int) $rec['day'])]);
+        }
+        return $ctx->t('rep_daily_at', ['time' => $t]);
     }
 
     /** Post saqlandi: referal mukofoti (birinchi post) va manba havolasi belgisi. */

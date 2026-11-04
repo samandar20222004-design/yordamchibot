@@ -49,6 +49,11 @@ final class Users
         $this->db->exec('UPDATE users SET lang = ?, lang_chosen = 1 WHERE user_id = ?', [$lang, $id]);
     }
 
+    public function setTimezone(int $id, ?string $tz): void
+    {
+        $this->db->exec('UPDATE users SET timezone = ? WHERE user_id = ?', [$tz, $id]);
+    }
+
     /** @return array{plan_type:string, subscription_expires_at:?string}|null */
     public function plan(int $id): ?array
     {
