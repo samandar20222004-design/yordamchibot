@@ -64,6 +64,28 @@ final class Posts
              WHERE p.user_id = ? AND p.status = 'pending' ORDER BY p.scheduled_time, p.id LIMIT " . max(1, min(50, $limit)), [$userId]);
     }
 
+    /** Navbatdagi postni tahrirlash (faqat egasi, faqat 'pending'): matn va/yoki vaqt. */
+    public function updatePending(int $userId, int $id, ?string $text, ?string $utcSql): bool
+    {
+        $sets = [];
+        $args = [];
+        if ($text !== null) {
+            $sets[] = 'text = ?';
+            $args[] = $text;
+        }
+        if ($utcSql !== null) {
+            $sets[] = 'scheduled_time = ?';
+            $args[] = $utcSql;
+        }
+        if (!$sets) {
+            return false;
+        }
+        $args[] = $id;
+        $args[] = $userId;
+        return $this->db->exec('UPDATE scheduled_posts SET ' . implode(', ', $sets) . " WHERE id = ? AND user_id = ? AND status = 'pending'", $args) > 0
+            || $this->getOwnedPending($userId, $id) !== null; // qiymat o'zgarmagan bo'lsa ham muvaffaqiyat
+    }
+
     /** Faqat egasi va faqat hali chiqmagan postni bekor qiladi. */
     public function cancel(int $userId, int $id): bool
     {

@@ -423,3 +423,4 @@ T::check('/cancel', strpos($fake->lastText(), 'Bekor qilindi') !== false);
 require __DIR__ . '/Phase2Test.php';
 require __DIR__ . '/Phase3Test.php';
 require __DIR__ . '/Phase4Test.php';
+require __DIR__ . '/MiniAppTest.php';

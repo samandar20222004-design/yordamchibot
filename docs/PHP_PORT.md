@@ -25,7 +25,7 @@ PHP versiya alohida papkada — `php_bot/` (o'rnatish: [php_bot/README.md](../ph
 | 4b. AI qo'shimcha | rasmdan post (Vision), ovozdan post, kontent-reja | ⏳ |
 | 5. Pul va admin | karta/Payme to'lov, majburiy obuna, reklama, broadcast, to'liq admin panel, promo boshqaruvi | ⏳ |
 | 6. Birja va jamoa | reklama birjasi (firibgarlikdan himoya bilan), jamoa va rollar | ⏳ |
-| 7. Mini App | Mini App API (PHP), analitika | ⏳ |
+| **7. Mini App** | `app.php` (bitta sahifa, tashqi kutubxonasiz) + `api.php`: initData HMAC imzo tekshiruvi; bosh sahifa (statistika), post muharriri (formatlash, rasm/video yuklash, tugma, reaksiya, takror, avto-o'chirish, jonli ko'rinish, hozir/vaqtli), AI (post yozish, tahrir/tarjima), rejalashtirilganlar (tahrir, bekor), profil (tarif, limit, til, mintaqa); botdagi qoralamani ochish; botda menyu tugmasi, «📱 Mini App», `/app`, preview'da «📱 Mini App'da» | ✅ tayyor |
 
 Har bosqich: kod + uch tilda matn + testlar (unit va haqiqiy MariaDB) + PHP 7.4 tekshiruvi (CI `php` vazifasi).
 

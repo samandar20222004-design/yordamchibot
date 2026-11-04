@@ -164,6 +164,29 @@ final class App
         return $this->isAdmin($userId) ? 0 : max(0, Plans::limits($this->tier($userId), $this->config)['queue']);
     }
 
+    /**
+     * Mini App manzili: config `miniapp_url`, bo'lmasa webhook manzilidan (…/webhook.php -> …/app.php). Faqat HTTPS.
+     * `miniapp_enabled => false` bo'lsa yoki manzil yo'q bo'lsa — null (bot tugmalari ko'rinmaydi).
+     */
+    public function miniAppUrl(string $query = ''): ?string
+    {
+        if ($this->config->get('miniapp_enabled') === false) {
+            return null;
+        }
+        $url = $this->config->str('miniapp_url');
+        if ($url === '') {
+            $hook = $this->config->str('webhook_url');
+            if (!preg_match('#^https://.+/webhook\.php$#', $hook)) {
+                return null;
+            }
+            $url = substr($hook, 0, -strlen('webhook.php')) . 'app.php';
+        }
+        if (strpos($url, 'https://') !== 0) {
+            return null;
+        }
+        return $query !== '' ? $url . (strpos($url, '?') === false ? '?' : '&') . $query : $url;
+    }
+
     /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */
     public function aiLimit(int $userId): int
     {

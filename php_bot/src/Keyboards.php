@@ -8,7 +8,7 @@ use PostAssist\Services\PostRender;
 /** Klaviaturalar. Callback ma'lumoti qisqa va qat'iy formatda (Router faqat shu shakllarni qabul qiladi). */
 final class Keyboards
 {
-    public static function main(string $lang, bool $admin, bool $ai = false): array
+    public static function main(string $lang, bool $admin, bool $ai = false, ?string $miniApp = null): array
     {
         $t = static fn (string $k) => ['text' => I18n::t($k, $lang)];
         $rows = $ai ? [
@@ -20,8 +20,15 @@ final class Keyboards
             [$t('btn_scheduled'), $t('btn_statistics')],
             [$t('btn_settings')],
         ];
+        $last = [];
+        if ($miniApp !== null) {
+            $last[] = ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]];
+        }
         if ($admin) {
-            $rows[] = [$t('btn_admin')];
+            $last[] = $t('btn_admin');
+        }
+        if ($last) {
+            $rows[] = $last;
         }
         return ['keyboard' => $rows, 'resize_keyboard' => true, 'is_persistent' => true];
     }
@@ -123,7 +130,7 @@ final class Keyboards
     ];
 
     /** @return array<int, array<int, array<string,string>>> preview ostidagi boshqaruv qatorlari (ixcham, 5 tugma) */
-    public static function previewRows(string $lang, bool $aiAgain = false): array
+    public static function previewRows(string $lang, bool $aiAgain = false, ?string $miniApp = null): array
     {
         $rows = [
             [self::btn(I18n::t('btn_send_now', $lang), 'p:now'), self::btn(I18n::t('btn_set_time', $lang), 'p:time')],
@@ -131,6 +138,9 @@ final class Keyboards
         ];
         if ($aiAgain) {
             $rows[] = [self::btn(I18n::t('btn_ai_again', $lang), 'ai:again')];
+        }
+        if ($miniApp !== null) {
+            $rows[] = [['text' => I18n::t('btn_miniapp_continue', $lang), 'web_app' => ['url' => $miniApp]]];
         }
         $rows[] = [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')];
         return $rows;

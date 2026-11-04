@@ -39,7 +39,7 @@ final class Ctx
     /** Bosh menyu klaviaturasi bilan javob. */
     public function replyMenu(string $text): array
     {
-        return $this->reply($text, Keyboards::main($this->lang, $this->app->isAdmin($this->userId), $this->app->ai->enabled()));
+        return $this->reply($text, Keyboards::main($this->lang, $this->app->isAdmin($this->userId), $this->app->ai->enabled(), $this->app->miniAppUrl()));
     }
 
     /** Tugma bosilgan xabarni tahrirlaydi (iloji bo'lmasa yangi xabar yuboradi). */

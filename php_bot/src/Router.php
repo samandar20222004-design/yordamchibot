@@ -222,6 +222,15 @@ final class Router
             case '/stats':
                 StartHandler::stats($ctx);
                 return true;
+            case '/app':
+            case '/miniapp':
+                $url = $this->app->miniAppUrl();
+                if ($url === null) {
+                    $ctx->replyMenu($ctx->t('miniapp_off'));
+                } else {
+                    $ctx->reply($ctx->t('miniapp_open'), Keyboards::inline([[['text' => $ctx->t('btn_miniapp'), 'web_app' => ['url' => $url]]], Keyboards::navRow($ctx->lang)]));
+                }
+                return true;
             case '/ai':
                 $this->app->states->clear($ctx->userId);
                 AiHandler::start($ctx);

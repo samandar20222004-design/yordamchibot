@@ -53,6 +53,13 @@ Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinm
 
 Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
 
+## 📱 Mini App
+
+Qo'shimcha sozlash shart emas: `webhook_url` `https://.../webhook.php` bo'lsa, Mini App manzili avtomatik `.../app.php` bo'ladi.
+`setup.php` ni bir marta ochganda bot menyu tugmasi (chat pastidagi «Mini App») o'rnatiladi. Botda: asosiy menyuda «📱 Mini App»,
+`/app`, post preview'da «📱 Mini App'da» (qoralama shu yerda davom etadi). O'chirish: `config.php` → `'miniapp_enabled' => false`.
+Ixtiyoriy: @BotFather → Bot → Bot Settings → Configure Mini App → shu manzil (chat ro'yxatidagi «Ochish» tugmasi uchun).
+
 ## ✨ AI yoqish
 
 `config.php` ga kamida bitta bepul kalit yozing (bir nechta bo'lsa — biri ishlamasa keyingisi):

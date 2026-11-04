@@ -73,9 +73,9 @@ $r = $app->tg->call('setWebhook', [
 $out('Webhook: ' . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
 
 $commands = [
-    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
-    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
-    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
+    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'app' => 'Mini App', 'ai' => 'AI bilan post', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
+    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'app' => 'Mini App', 'ai' => 'Пост с AI', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
+    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'app' => 'Mini App', 'ai' => 'Post with AI', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
 ];
 foreach (I18n::LANGS as $lang) {
     $list = [];
@@ -88,5 +88,12 @@ foreach (I18n::LANGS as $lang) {
     }
     $r = $app->tg->call('setMyCommands', $params);
     $out("Buyruqlar ({$lang}): " . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
+}
+$mini = $app->miniAppUrl();
+if ($mini !== null) {
+    $r = $app->tg->call('setChatMenuButton', ['menu_button' => ['type' => 'web_app', 'text' => 'Mini App', 'web_app' => ['url' => $mini]]]);
+    $out('Mini App menyu tugmasi: ' . (!empty($r['ok']) ? 'OK — ' . $mini : 'XATO — ' . ($r['description'] ?? '')));
+} else {
+    $out('Mini App: o\'chiq (webhook_url https://.../webhook.php bo\'lishi kerak yoki miniapp_url yozing)');
 }
 $out('Tayyor. Endi cron.php ni har daqiqaga qo\'ying (README.md).');

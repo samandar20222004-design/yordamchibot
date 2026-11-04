@@ -46,10 +46,11 @@ final class Telegram
         $ch = curl_init($this->base . '/bot' . $this->token . '/' . $method);
         curl_setopt_array($ch, [
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => http_build_query($params),
+            // fayl bo'lsa multipart (CURLFile), aks holda oddiy forma
+            CURLOPT_POSTFIELDS => self::hasFile($params) ? $params : http_build_query($params),
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => self::hasFile($params) ? 120 : 30,
         ]);
         $body = curl_exec($ch);
         $err = curl_error($ch);
@@ -62,6 +63,16 @@ final class Telegram
             return ['ok' => false, 'error_code' => 0, 'description' => 'bad json'];
         }
         return $data;
+    }
+
+    private static function hasFile(array $params): bool
+    {
+        foreach ($params as $v) {
+            if ($v instanceof \CURLFile) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------- qisqa yordamchilar
