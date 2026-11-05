@@ -23,7 +23,7 @@ $draftText = static function (string $t) use ($text, $send, $W) {
 $text($W, '/timezone');
 T::check('/timezone: joriy zona va tugmalar', strpos($fake->lastText(), 'Asia/Tashkent') !== false && strpos($mk($fake->of('sendMessage')[0] ?? []), 'tz:Europe\/Moscow') !== false);
 $text($W, 'Marsda');
-T::check('noma\'lum zona rad', strpos($fake->lastText(), 'topilmadi') !== false);
+T::check('noma\'lum zona rad', stripos($fake->lastText(), 'topilmadi') !== false);
 $text($W, 'Samarqand');
 T::eq('shahar nomi bilan: Asia/Samarkand', $app->users->get($W)['timezone'] ?? null, 'Asia/Samarkand');
 $press($W, 'tz:Europe/Moscow');

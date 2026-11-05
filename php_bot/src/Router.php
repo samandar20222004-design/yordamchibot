@@ -602,8 +602,10 @@ final class Router
             PostHandler::setAutoDelete($ctx, (int) $m[1]);
         } elseif ($data === 'set:tz') {
             SettingsHandler::askTimezone($ctx);
-        } elseif (preg_match('/^tz:([A-Za-z_\/]{2,40})$/', $data, $m)) {
+        } elseif (preg_match('/^tz:([A-Za-z0-9_\/+\-]{2,40})$/', $data, $m)) {
             SettingsHandler::setTimezone($ctx, $m[1]);
+        } elseif (preg_match('/^tzc:([A-Z]{2})$/', $data, $m)) {
+            SettingsHandler::countryZones($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
         } elseif (preg_match('/^cm:(v|w|x|b):(\d{1,10})$/', $data, $m)) {

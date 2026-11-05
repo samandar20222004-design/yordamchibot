@@ -213,8 +213,12 @@ return [
     'album_trimmed' => "ℹ️ Albomda ko'pi bilan {max} ta fayl bo'ladi — birinchi {max} tasi olindi.",
     'album_mixed' => "❌ Bu fayllarni bitta albomga qo'shib bo'lmaydi: rasm va video birga bo'ladi, hujjat va audio esa faqat o'z turi bilan.",
     'post_sent_repeat_notice' => "✅ Takroriy post chiqdi: <b>{channel}</b> ({when})\n🔄 Keyingisi: {next}. Endi har safar xabar bermayman.",
-    'tz_ask' => "🕒 <b>Vaqt mintaqasi</b>\n\nHozirgi: <b>{tz}</b> (soat {now})\n\nShahringizni tanlang yoki mintaqa nomini yozing (masalan <code>Europe/Paris</code> yoki <code>Samarqand</code>).",
-    'tz_bad' => "❌ Bunday vaqt mintaqasi topilmadi. Masalan: <code>Asia/Tashkent</code>, <code>Europe/Moscow</code>, <code>America/New_York</code>.",
+    'tz_ask' => "🕒 <b>Vaqt mintaqasi</b>
+
+Hozirgi: <b>{tz}</b> (soat {now})
+
+Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalgan davlat: <code>Germaniya</code>, <code>Turkiya</code>, <code>AQSH</code>, <code>Nyu-York</code>, <code>Europe/Paris</code>.",
+    'tz_bad' => "❌ Topilmadi. Davlat yoki shahar nomini yozing: <code>Germaniya</code>, <code>Qozog'iston</code>, <code>Nyu-York</code>.",
     'tz_set' => "✅ Vaqt mintaqasi: <b>{tz}</b> (hozir soat {now}). Endi barcha vaqtlar shu bo'yicha.",
     // ---------- 4-bosqich: AI va navigatsiya
     'btn_ai_post' => '✨ AI post',
@@ -817,4 +821,6 @@ return [
     'ma_err_promo_exists' => "Bunday kod bor.",
     'ma_err_receipt_already' => "Bu chek allaqachon ko'rib chiqilgan.",
     'ma_err_receipt_grant_failed' => "Tarif berilmadi, qayta urinib ko'ring.",
+    'tz_pick_country' => "🌍 Qaysi davlat? Tanlang:",
+    'tz_pick_zone' => "🕒 {country} — bir nechta vaqt mintaqasi bor. Shahringizni tanlang:",
 ];

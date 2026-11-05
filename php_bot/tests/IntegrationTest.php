@@ -439,3 +439,4 @@ require __DIR__ . '/CommentsTest.php';
 require __DIR__ . '/ExtrasTest.php';
 require __DIR__ . '/PollTest.php';
 require __DIR__ . '/MiniAdminTest.php';
+require __DIR__ . '/CountriesTest.php';

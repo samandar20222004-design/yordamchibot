@@ -213,8 +213,12 @@ return [
     'album_trimmed' => "ℹ️ An album can have at most {max} files — the first {max} were taken.",
     'album_mixed' => "❌ These files can't go in one album: photos and videos can be mixed, documents and audio only with their own type.",
     'post_sent_repeat_notice' => "✅ Repeating post published: <b>{channel}</b> ({when})\n🔄 Next: {next}. I won't notify you every time.",
-    'tz_ask' => "🕒 <b>Time zone</b>\n\nCurrent: <b>{tz}</b> ({now})\n\nPick your city or type a zone name (e.g. <code>Europe/Paris</code> or <code>Samarkand</code>).",
-    'tz_bad' => "❌ Time zone not found. For example: <code>Asia/Tashkent</code>, <code>Europe/Moscow</code>, <code>America/New_York</code>.",
+    'tz_ask' => "🕒 <b>Time zone</b>
+
+Current: <b>{tz}</b> ({now})
+
+Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germany</code>, <code>Turkey</code>, <code>USA</code>, <code>New York</code>, <code>Europe/Paris</code>.",
+    'tz_bad' => "❌ Not found. Type a country or city: <code>Germany</code>, <code>Kazakhstan</code>, <code>New York</code>.",
     'tz_set' => "✅ Time zone: <b>{tz}</b> (now {now}). All times now use it.",
     // ---------- Phase 4: AI and navigation
     'btn_ai_post' => '✨ AI post',
@@ -817,4 +821,6 @@ return [
     'ma_err_promo_exists' => "This code already exists.",
     'ma_err_receipt_already' => "This receipt was already reviewed.",
     'ma_err_receipt_grant_failed' => "Plan wasn't granted, try again.",
+    'tz_pick_country' => "🌍 Which country? Choose:",
+    'tz_pick_zone' => "🕒 {country} has several time zones. Choose your city:",
 ];

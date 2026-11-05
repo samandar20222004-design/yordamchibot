@@ -70,6 +70,8 @@ final class MiniAppApi
                 case 'admin_user':
                 case 'admin_market_ban':
                     return MiniAdminApi::handle($ctx, $action, $in);
+                case 'tz_search':
+                    return [200, self::tzSearch($ctx, (string) ($in['q'] ?? ''))];
                 case 'comments':
                     return [200, self::comments($ctx)];
                 case 'comment_mod':
@@ -691,5 +693,23 @@ final class MiniAppApi
         $app->comments->add((int) $p['id'], $ctx->ownerId(), $ctx->userId, $ctx->firstName !== '' ? $ctx->firstName : 'Admin', $text, $app->now());
         CommentsHandler::refreshButtons($app, (int) $p['id']);
         return [200, ['ok' => true]];
+    }
+
+    /** 🌍 Davlat/shahar bo'yicha vaqt mintaqasi qidiruvi (bot bilan bir xil manba). */
+    private static function tzSearch(Ctx $ctx, string $q): array
+    {
+        $q = mb_substr(trim($q), 0, 60);
+        $out = [];
+        $z = \PostAssist\Services\Countries::zoneFor($q);
+        if ($z !== null) {
+            $out[] = ['zone' => $z, 'label' => \PostAssist\Services\Countries::zoneLabel($z, $ctx->app->now()), 'country' => '', 'flag' => '🕒'];
+        }
+        foreach (\PostAssist\Services\Countries::search($q, 6) as $code) {
+            foreach (array_slice(\PostAssist\Services\Countries::zones($code), 0, 12) as $zone) {
+                $out[] = ['zone' => $zone, 'label' => \PostAssist\Services\Countries::zoneLabel($zone, $ctx->app->now()),
+                    'country' => \PostAssist\Services\Countries::name($code, $ctx->lang), 'flag' => \PostAssist\Services\Countries::flag($code)];
+            }
+        }
+        return ['ok' => true, 'results' => array_slice($out, 0, 40)];
     }
 }
