@@ -77,6 +77,12 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - `/contentplan` — kanal mavzusini yozing, AI 7 ta g'oya beradi; raqamni bosing — shu g'oyadan post.
 - `/autopilot` (PRO — 1, ULTRA — 3) — har kuni belgilangan soatda AI post yozadi. «Tekshirib» rejimida post avval sizga keladi, «Avtomatik» — to'g'ri kanalga. Ishlashi uchun cron har daqiqa ishlab turishi kerak.
 
+## 📰 RSS, 📤 yuborilganlar, 📢 ko'p kanal
+
+- `/rss` (PRO/ULTRA): sayt, blog yoki YouTube lentasini ulang — yangi maqolalar kanalga o'zi chiqadi (cron kerak).
+- `/sent`: kanalga chiqqan postni tahrirlash yoki kanaldan o'chirish.
+- Post yaratishda «⚙️ Qo'shimcha» → «📢 Yana kanallar»: bitta postni bir nechta kanalga birdan.
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

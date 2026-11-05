@@ -215,8 +215,16 @@ final class MiniAppApi
         if (isset($draft['error'])) {
             return [400, ['ok' => false] + $draft];
         }
+        // asosiy kanal + «Yana kanallar» (faqat egasiniki, takrorsiz)
+        $targets = [(int) $channel['id'] => $channel];
+        foreach (array_slice((array) ($in['extra_channel_ids'] ?? []), 0, 20) as $eid) {
+            $c = is_numeric($eid) ? $app->channels->getOwned($ctx->ownerId(), (int) $eid) : null;
+            if ($c !== null) {
+                $targets[(int) $c['id']] = $c;
+            }
+        }
         $limit = $app->queueLimit($ctx->ownerId());
-        if ($limit > 0 && $app->posts->pendingCount($ctx->ownerId()) >= $limit) {
+        if ($limit > 0 && $app->posts->pendingCount($ctx->ownerId()) + count($targets) > $limit) {
             return [400, ['ok' => false, 'error' => 'queue_limit', 'max' => $limit]];
         }
         $now = ($in['when'] ?? 'now') === 'now';
@@ -233,26 +241,35 @@ final class MiniAppApi
                 return [400, ['ok' => false, 'error' => 'repeat']];
             }
         }
-        $id = $app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $draft, $utc->format('Y-m-d H:i:s'), !$now, $rec, $ctx->userId);
+        $out = [];
+        foreach ($targets as $c) {
+            $id = $app->posts->create($ctx->ownerId(), (int) $c['channel_id'], $draft, $utc->format('Y-m-d H:i:s'), !$now, $rec, $ctx->userId);
+            $res = ['id' => $id, 'channel' => (string) $c['title']];
+            if (!$now) {
+                $res += ['status' => 'scheduled', 'when' => TimeParser::show($utc->format('Y-m-d H:i:s'), $ctx->tz())];
+            } elseif (!$app->posts->claim($id)) {
+                $res += ['status' => 'queued'];
+            } else {
+                $r = (new Scheduler($app))->deliver($app->posts->get($id) ?? []);
+                $next = $r['next'] ?? null;
+                $res += $r['status'] === 'sent' ? ['status' => 'sent', 'next' => $next ? TimeParser::show($next->format('Y-m-d H:i:s'), $ctx->tz()) : null]
+                    : ($r['status'] === 'retry' ? ['status' => 'queued'] : ['status' => 'failed', 'reason' => $ctx->t($r['reason'])]);
+            }
+            $out[] = $res;
+        }
         $reward = $app->afterPostSaved($ctx->ownerId());
         if ($reward !== null) {
             PlansHandler::notifyReward($app, $reward, $ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId);
         }
-        if (!$now) {
-            return [200, ['ok' => true, 'id' => $id, 'status' => 'scheduled', 'when' => TimeParser::show($utc->format('Y-m-d H:i:s'), $ctx->tz())]];
+        if (count($out) > 1) {
+            return [200, ['ok' => true, 'status' => 'multi', 'results' => $out]];
         }
-        if (!$app->posts->claim($id)) {
-            return [200, ['ok' => true, 'id' => $id, 'status' => 'queued']];
+        $one = $out[0];
+        if ($one['status'] === 'failed') {
+            return [200, ['ok' => false, 'id' => $one['id'], 'status' => 'failed', 'error' => 'send_failed', 'reason' => $one['reason']]];
         }
-        $r = (new Scheduler($app))->deliver($app->posts->get($id) ?? []);
-        if ($r['status'] === 'sent') {
-            $next = $r['next'] ?? null;
-            return [200, ['ok' => true, 'id' => $id, 'status' => 'sent', 'next' => $next ? TimeParser::show($next->format('Y-m-d H:i:s'), $ctx->tz()) : null]];
-        }
-        if ($r['status'] === 'retry') {
-            return [200, ['ok' => true, 'id' => $id, 'status' => 'queued']];
-        }
-        return [200, ['ok' => false, 'id' => $id, 'status' => 'failed', 'error' => 'send_failed', 'reason' => $ctx->t($r['reason'])]];
+        unset($one['channel']);
+        return [200, ['ok' => true] + $one];
     }
 
     /** @return array|string qoralama yoki xato kodi */
@@ -291,6 +308,14 @@ final class MiniAppApi
                 return 'reactions';
             }
             $draft['reactions'] = $r;
+        }
+        $draft['options'] = PostRender::optionsString(is_array($in['options'] ?? null) ? $in['options'] : (string) ($in['options'] ?? ''));
+        $hidden = trim((string) ($in['hidden'] ?? ''));
+        if ($hidden !== '') {
+            if (mb_strlen($hidden) > PostHandler::HIDDEN_MAX) {
+                return 'hidden';
+            }
+            $draft['hidden'] = PostRender::hiddenJson($ctx->t('hidden_btn_label'), $hidden);
         }
         $ad = (int) ($in['delete_after'] ?? 0);
         if ($ad > 0) {

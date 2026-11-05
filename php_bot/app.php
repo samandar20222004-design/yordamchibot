@@ -144,8 +144,12 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
           <div id="t2-box" style="display:none"><label data-t="ma_time2"></label><input type="time" id="t2"></div>
         </details>
         <details><summary>⏳ <span data-t="ma_autodel"></span></summary><select id="ad"></select></details>
+        <details><summary>⚙️ <span data-t="ma_opts"></span></summary><div class="chips" id="opt-list" style="margin-top:8px"></div></details>
+        <details><summary>🔒 <span data-t="ma_hidden"></span></summary><div class="muted" data-t="ma_hidden_hint"></div>
+          <textarea id="hid" rows="2" maxlength="180"></textarea></details>
+        <details id="mc-box"><summary>📢 <span data-t="ma_more_channels"></span></summary><div class="chips" id="mc-list" style="margin-top:8px"></div></details>
       </div>
-      <div class="card"><h3 data-t="ma_preview"></h3><div class="preview"><div class="bubble" id="pv"></div><div id="pv-btn"></div><div id="pv-rx"></div></div></div>
+      <div class="card"><h3 data-t="ma_preview"></h3><div class="preview"><div class="bubble" id="pv"></div><div id="pv-btn"></div><div id="pv-hid"></div><div id="pv-rx"></div></div></div>
       <div class="card">
         <div class="chips"><span class="chip on" data-when="now" data-t="ma_now"></span><span class="chip" data-when="later" data-t="ma_later"></span></div>
         <div id="when-box" style="display:none"><label data-t="ma_when"></label><input type="datetime-local" id="when"><div class="muted" id="when-tz"></div></div>
@@ -192,7 +196,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   var I18N = <?= $json ?>;
   var tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
   var initData = tg ? tg.initData : '';
-  var lang = 'uz', me = null, state = {channel: 0, type: 'text', fileId: '', mediaUrl: '', when: 'now', reactions: '', ai: null};
+  var lang = 'uz', me = null, state = {opts: [], extra: [], channel: 0, type: 'text', fileId: '', mediaUrl: '', when: 'now', reactions: '', ai: null};
   var $ = function (id) { return document.getElementById(id); };
   var t = function (k, p) {
     var s = (I18N[lang] && I18N[lang][k]) || I18N.uz[k] || k;
@@ -421,6 +425,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     $('pv').innerHTML = media + mark + (html || '<span class="muted">' + esc(t('ma_text_ph')) + '</span>');
     var bt = $('b-text').value.trim();
     $('pv-btn').innerHTML = bt ? '<div class="pbtn">' + esc(bt) + '</div>' : '';
+    $('pv-hid').innerHTML = $('hid').value.trim() ? '<div class="pbtn">' + esc(t('ma_hidden_btn')) + '</div>' : '';
     $('pv-rx').innerHTML = state.reactions ? '<div class="rx">' + state.reactions.split(',').map(function (e) { return '<span>' + esc(e) + '</span>'; }).join('') + '</div>' : '';
   }
   ['b-text', 'b-url'].forEach(function (id) { $(id).addEventListener('input', refreshPreview); });
@@ -453,6 +458,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       var el = document.createElement('span'); el.className = 'chip' + (c.id === state.channel ? ' on' : ''); el.textContent = '📢 ' + c.title;
       el.onclick = function () { state.channel = c.id; renderChannels(); haptic(); }; box.appendChild(el);
     });
+    renderExtra();
   }
   function renderReactions() {
     var box = $('rx-list'); box.innerHTML = '';
@@ -472,10 +478,42 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     };
   });
 
+
+  // ---------- sozlamalar, yashirin matn, yana kanallar
+  var OPTS = ['silent', 'nopreview', 'pin', 'protect'];
+  function renderOpts() {
+    $('opt-list').innerHTML = OPTS.map(function (o) {
+      return '<span class="chip' + (state.opts.indexOf(o) >= 0 ? ' on' : '') + '" data-opt="' + o + '">' + esc(t('ma_opt_' + o)) + '</span>';
+    }).join('');
+    document.querySelectorAll('[data-opt]').forEach(function (el) {
+      el.onclick = function () {
+        var o = el.getAttribute('data-opt'), i = state.opts.indexOf(o);
+        if (i >= 0) { state.opts.splice(i, 1); } else { state.opts.push(o); }
+        haptic(); renderOpts();
+      };
+    });
+  }
+  function renderExtra() {
+    if (!me) { return; }
+    var others = me.channels.filter(function (c) { return c.id !== state.channel; });
+    $('mc-box').style.display = others.length ? '' : 'none';
+    $('mc-list').innerHTML = others.map(function (c) {
+      return '<span class="chip' + (state.extra.indexOf(c.id) >= 0 ? ' on' : '') + '" data-mc="' + c.id + '">' + esc(c.title) + '</span>';
+    }).join('');
+    document.querySelectorAll('[data-mc]').forEach(function (el) {
+      el.onclick = function () {
+        var id = parseInt(el.getAttribute('data-mc'), 10), i = state.extra.indexOf(id);
+        if (i >= 0) { state.extra.splice(i, 1); } else { state.extra.push(id); }
+        haptic(); renderExtra();
+      };
+    });
+  }
+  $('hid').addEventListener('input', function () { refreshPreview(); });
   // ---------- yuborish
   $('submit').onclick = function () {
     if (!state.channel) { toast(t('ma_err_channel')); return; }
-    var body = {channel_id: state.channel, type: state.type, file_id: state.fileId, text: editorHtml(),
+    var body = {channel_id: state.channel, extra_channel_ids: state.extra.filter(function (x) { return x !== state.channel; }),
+      options: state.opts, hidden: $('hid').value.trim(), type: state.type, file_id: state.fileId, text: editorHtml(),
       button_text: $('b-text').value.trim(), button_url: $('b-url').value.trim(), reactions: state.reactions,
       repeat: $('rep').value, time2: $('t2').value, delete_after: parseInt($('ad').value || '0', 10), when: 'now'};
     if (state.when === 'later') { if (!$('when').value) { toast(t('ma_err_bad_time')); return; } body.when = $('when').value; }
@@ -484,7 +522,10 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       btn.disabled = false; btn.textContent = t(state.when === 'later' ? 'ma_schedule' : 'ma_send_now');
       if (!r.ok) { toast(errText(r)); return; }
       haptic('ok');
-      var msg = r.status === 'sent' ? t('ma_sent') : r.status === 'queued' ? t('ma_queued') : t('ma_scheduled', {when: r.when});
+      var msg = r.status === 'multi' ? r.results.map(function (x) {
+        return (x.status === 'sent' ? '✅ ' : x.status === 'failed' ? '❌ ' : x.status === 'queued' ? '⏳ ' : '📅 ') + x.channel + (x.reason ? ' — ' + x.reason : '');
+      }).join(' · ')
+        : r.status === 'sent' ? t('ma_sent') : r.status === 'queued' ? t('ma_queued') : t('ma_scheduled', {when: r.when});
       if (r.next) { msg += ' ' + t('ma_next', {when: r.next}); }
       toast(msg); resetEditor(); loadMe();
     });
@@ -492,6 +533,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   function resetEditor() {
     setEditor(''); $('b-text').value = ''; $('b-url').value = ''; $('rep').value = ''; $('t2-box').style.display = 'none'; $('ad').value = '0';
     state.reactions = ''; renderReactions(); $('media-del').onclick();
+    state.opts = []; state.extra = []; $('hid').value = ''; renderOpts(); renderExtra(); refreshPreview();
   }
 
   // ---------- AI
@@ -602,7 +644,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       $('no-ch').style.display = 'none'; $('editor-wrap').style.display = '';
       if (!me.channels.some(function (c) { return c.id === state.channel; })) { state.channel = me.channels[0].id; }
     }
-    renderChannels(); renderReactions(); refreshPreview();
+    renderChannels(); renderReactions(); renderOpts(); refreshPreview();
   }
   function loadMe() {
     return api('me').then(function (r) {

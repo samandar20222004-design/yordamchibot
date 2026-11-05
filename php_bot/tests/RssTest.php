@@ -153,3 +153,29 @@ $press($RU, 'rss:dok:' . $FID);
 T::eq('o\'chirildi', (int) $db->value('SELECT COUNT(*) FROM rss_feeds WHERE id = ?', [$FID]), 0);
 T::eq('limitlar: free 0, pro 3, ultra 10, admin 20', [$app->rssLimit($AX), $app->rssLimit($ADMIN)], [0, 20]);
 $app->rssClient = new Rss();
+
+T::section('AA. Mini App: sozlamalar, yashirin matn, bir nechta kanal');
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$FU]);
+$mcall = static function (int $uid, string $action, array $in = []) use ($app, $fake, $mkInit, &$clock, $token): array {
+    $fake->reset();
+    return \PostAssist\Handlers\MiniAppApi::handle($app, $action, $in, $mkInit(['id' => $uid, 'first_name' => 'U', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $token));
+};
+[$st, $r] = $mcall($FU, 'post_create', ['channel_id' => $R1, 'extra_channel_ids' => [$R2, $ROTHER, 'x'], 'type' => 'text', 'text' => 'Mini App\'dan e\'lon',
+    'options' => ['silent', 'pin', 'hack'], 'hidden' => 'Kod: MINI27', 'when' => 'now']);
+$c1 = array_values(array_filter($fake->of('sendMessage'), function ($p) use ($FC) { return (int) $p['chat_id'] === $FC; }));
+$c2 = array_values(array_filter($fake->of('sendMessage'), function ($p) use ($FC2) { return (int) $p['chat_id'] === $FC2; }));
+T::check('ikki kanalga (begona kanal tashlandi), natija ro\'yxati', $st === 200 && $r['status'] === 'multi' && count($r['results']) === 2 && count($c1) === 1 && count($c2) === 1);
+T::check('sozlamalar va yashirin tugma kanal postida', !empty($c1[0]['disable_notification']) && strpos($mk($c1[0]), '"callback_data":"hd"') !== false && count($fake->of('pinChatMessage')) === 2);
+T::eq('noma\'lum sozlama saqlanmaydi', $db->value('SELECT options FROM scheduled_posts WHERE user_id = ? ORDER BY id DESC LIMIT 1', [$FU]), 'silent,pin');
+[$st, $r] = $mcall($FU, 'post_create', ['channel_id' => $R1, 'type' => 'text', 'text' => 'X', 'hidden' => str_repeat('h', 181), 'when' => 'now']);
+T::check('uzun yashirin matn rad', $st === 400 && $r['error'] === 'hidden');
+[$st, $r] = $mcall($FU, 'post_create', ['channel_id' => $R1, 'type' => 'text', 'text' => 'Bitta kanal', 'when' => 'now']);
+T::check('bitta kanal: eski javob shakli', $st === 200 && $r['status'] === 'sent' && isset($r['id']));
+[$st, $r] = $mcall($FU, 'post_create', ['channel_id' => $R1, 'extra_channel_ids' => [$R2, $R3], 'type' => 'text', 'text' => 'Ertaga',
+    'when' => $clock->setTimezone(new DateTimeZone('Asia/Tashkent'))->modify('+1 day')->format('Y-m-d\TH:i')]);
+T::check('rejalashtirish 3 kanalga', $st === 200 && $r['status'] === 'multi' && $r['results'][2]['status'] === 'scheduled');
+[$st, $r] = $mcall($FU, 'post_create', ['channel_id' => $R1, 'extra_channel_ids' => [$R2], 'type' => 'text', 'text' => 'Ortiqcha',
+    'when' => $clock->setTimezone(new DateTimeZone('Asia/Tashkent'))->modify('+1 day')->format('Y-m-d\TH:i')]);
+T::check('navbat limiti hamma kanalni sanaydi', $st === 400 && $r['error'] === 'queue_limit');
+$appSrc3 = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: sozlamalar, yashirin matn, yana kanallar', strpos($appSrc3, 'extra_channel_ids') !== false && strpos($appSrc3, "id=\"hid\"") !== false && strpos($appSrc3, 'data-opt') !== false);
