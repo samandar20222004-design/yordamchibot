@@ -436,3 +436,22 @@ CREATE TABLE IF NOT EXISTS payme_transactions (
     KEY idx_pmt_order (order_id, state),
     KEY idx_pmt_time (payme_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 14-bosqich: RSS avtopost
+CREATE TABLE IF NOT EXISTS rss_feeds (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    channel_ref INT UNSIGNED NOT NULL,
+    url VARCHAR(500) NOT NULL,
+    url_hash CHAR(40) NOT NULL,
+    title VARCHAR(160) NULL,
+    last_item CHAR(40) NULL,
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    fails INT NOT NULL DEFAULT 0,
+    next_check DATETIME NOT NULL,
+    last_check DATETIME NULL,
+    posted INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_rss (user_id, channel_ref, url_hash),
+    KEY idx_rss_due (active, next_check)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

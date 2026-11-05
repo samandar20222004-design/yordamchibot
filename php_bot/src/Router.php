@@ -18,6 +18,7 @@ use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\ReactionHandler;
+use PostAssist\Handlers\RssHandler;
 use PostAssist\Handlers\SentHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
@@ -167,6 +168,9 @@ final class Router
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
                     return;
+                case 'rss_url':
+                    RssHandler::urlInput($ctx, $state);
+                    return;
                 case 'sent_edit':
                     SentHandler::editInput($ctx, $state);
                     return;
@@ -311,6 +315,10 @@ final class Router
                 return true;
             case '/market':
                 MarketHandler::home($ctx);
+                return true;
+            case '/rss':
+                $this->app->states->clear($ctx->userId);
+                RssHandler::show($ctx, false);
                 return true;
             case '/sent':
                 $this->app->states->clear($ctx->userId);
@@ -564,6 +572,26 @@ final class Router
             SettingsHandler::setTimezone($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
+        } elseif ($data === 'rss:show') {
+            $this->app->states->clear($ctx->userId);
+            RssHandler::show($ctx);
+        } elseif ($data === 'rss:new') {
+            RssHandler::begin($ctx);
+        } elseif (preg_match('/^rss:(ch|v|tg|del|dok|last):(\d{1,10})$/', $data, $m)) {
+            $rid = (int) $m[2];
+            if ($m[1] === 'ch') {
+                RssHandler::pickChannel($ctx, $rid);
+            } elseif ($m[1] === 'v') {
+                RssHandler::view($ctx, $rid);
+            } elseif ($m[1] === 'tg') {
+                RssHandler::toggle($ctx, $rid);
+            } elseif ($m[1] === 'del') {
+                RssHandler::askDelete($ctx, $rid);
+            } elseif ($m[1] === 'dok') {
+                RssHandler::delete($ctx, $rid);
+            } else {
+                RssHandler::postLatest($ctx, $rid);
+            }
         } elseif ($data === 's:list') {
             $this->app->states->clear($ctx->userId);
             SentHandler::show($ctx);

@@ -8,6 +8,7 @@ use DateTimeZone;
 use PostAssist\Repo\AiUsage;
 use PostAssist\Repo\Autopilots;
 use PostAssist\Repo\ContentPlans;
+use PostAssist\Repo\RssFeeds;
 use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
@@ -50,6 +51,9 @@ final class App
     public Market $market;
     public ContentPlans $plans;
     public Autopilots $autopilots;
+    public RssFeeds $rss;
+    /** @var \PostAssist\Services\Rss */
+    public $rssClient;
     public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
@@ -84,6 +88,8 @@ final class App
         $this->market = new Market($db);
         $this->plans = new ContentPlans($db);
         $this->autopilots = new Autopilots($db);
+        $this->rss = new RssFeeds($db);
+        $this->rssClient = new \PostAssist\Services\Rss();
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
@@ -241,6 +247,14 @@ final class App
     {
         $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
         $map = (array) ($this->config->get('autopilot_limits') ?? []) + ['free' => 0, 'pro' => 1, 'ultra' => 3, 'enterprise' => 10];
+        return max(0, (int) ($map[$tier] ?? 0));
+    }
+
+    /** RSS lentalari soni: FREE — 0, PRO — 3, ULTRA — 10, muddatsiz/admin — 20 (config `rss_limits`). */
+    public function rssLimit(int $userId): int
+    {
+        $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
+        $map = (array) ($this->config->get('rss_limits') ?? []) + ['free' => 0, 'pro' => 3, 'ultra' => 10, 'enterprise' => 20];
         return max(0, (int) ($map[$tier] ?? 0));
     }
 
