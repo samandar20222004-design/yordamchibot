@@ -59,3 +59,43 @@ T::check('Mini App: har 3 kunda', $sx === 200 && (int) $db->value('SELECT recurr
 $db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$XU]);
 T::eq('Mini App: noto\'g\'ri interval rad', $mcallX($XU, 'post_create', ['channel_id' => $XREF, 'type' => 'text', 'text' => 'Mini', 'repeat' => 'interval9', 'when' => $whenX])[1]['error'] ?? null, 'repeat');
 T::eq('Mini App: «interval» raqamsiz rad', $mcallX($XU, 'post_create', ['channel_id' => $XREF, 'type' => 'text', 'text' => 'Mini', 'repeat' => 'interval', 'when' => $whenX])[1]['error'] ?? null, 'repeat');
+
+T::section('AG. Ko\'p post rejasi');
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$XU]);
+$text($XU, '/newpost');
+T::check('post boshida «📦 Ko\'p post rejasi»', strpos($kbX(), 'bk:start') !== false);
+$press($XU, 'bk:start');
+T::eq('yig\'ish rejimi', $app->states->get($XU)['state'] ?? null, 'bulk');
+$text($XU, 'Birinchi post');
+T::check('qo\'shildi, «Tayyor (1)»', strpos($fake->lastText(), '1-post') !== false && strpos($kbX(), 'bk:done') !== false && strpos($kbX(), '(1)') !== false);
+$send($XU, ['photo' => [['file_id' => 'PH_BULK', 'width' => 1, 'height' => 1]], 'caption' => 'Ikkinchi (rasm)']);
+$send($XU, ['media_group_id' => 'G1', 'photo' => [['file_id' => 'A1', 'width' => 1, 'height' => 1]]]);
+T::check('albom qabul qilinmaydi', strpos($fake->lastText(), 'Albom') !== false);
+$send($XU, ['media_group_id' => 'G1', 'photo' => [['file_id' => 'A2', 'width' => 1, 'height' => 1]]]);
+T::eq('albomning 2-qismiga qayta javob yo\'q', count($fake->of('sendMessage')), 0);
+$text($XU, 'Uchinchi post');
+T::eq('3 ta yig\'ildi', count($app->states->get($XU)['data']['items'] ?? []), 3);
+$press($XU, 'bk:done');
+T::eq('bitta kanal: darhol vaqt so\'raladi', $app->states->get($XU)['state'] ?? null, 'bulk_time');
+$text($XU, 'qachondir');
+T::check('noto\'g\'ri vaqt rad', strpos($fake->lastText(), 'tushunmadim') !== false && ($app->states->get($XU)['state'] ?? '') === 'bulk_time');
+$text($XU, 'ertaga 09:00');
+T::check('oraliq so\'raladi', ($app->states->get($XU)['state'] ?? '') === 'bulk_gap' && strpos($kbX(), 'bk:g:180') !== false && strpos($kbX(), 'bk:g:1440') !== false);
+$press($XU, 'bk:g:999');
+T::eq('noma\'lum oraliq — hech narsa yaratilmaydi', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]), 0);
+$app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'text', 'file_id' => null, 'text' => 'a'], ['type' => 'text', 'file_id' => null, 'text' => 'b'],
+    ['type' => 'text', 'file_id' => null, 'text' => 'c']], 'channel' => $XREF, 'start' => '2027-06-05 04:00:00']);
+$press($XU, 'bk:g:180');
+$bp = $db->all("SELECT scheduled_time, text FROM scheduled_posts WHERE user_id = ? AND status = 'pending' ORDER BY scheduled_time", [$XU]);
+T::check('3 ta post: 09:00, 12:00, 15:00 (Toshkent)', count($bp) === 3 && $bp[0]['scheduled_time'] === '2027-06-05 04:00:00' && $bp[1]['scheduled_time'] === '2027-06-05 07:00:00'
+    && $bp[2]['scheduled_time'] === '2027-06-05 10:00:00' && strpos($fake->lastText(), '3 ta post rejalashtirildi') !== false);
+$press($XU, 'bk:g:180');
+T::eq('ikki marta bosish — ikki marta yaratilmaydi', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]), 3);
+$app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'text', 'file_id' => null, 'text' => 'd']], 'channel' => $XREF, 'start' => '2027-06-06 04:00:00']);
+$press($XU, 'bk:g:60');
+T::check('bepul navbat limiti (3): rad, sabab aytiladi', strpos($fake->lastText(), 'limiti 3') !== false
+    && (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]) === 3);
+$app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'text', 'file_id' => null, 'text' => 'e']], 'channel' => (int) $db->value('SELECT id FROM channels WHERE user_id <> ? LIMIT 1', [$XU]), 'start' => '2027-06-06 04:00:00']);
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$XU]);
+$press($XU, 'bk:g:60');
+T::eq('begona kanalga rejalab bo\'lmaydi', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]), 0);

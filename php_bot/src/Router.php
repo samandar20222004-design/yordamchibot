@@ -11,6 +11,7 @@ use PostAssist\Handlers\BroadcastHandler;
 use PostAssist\Handlers\CardHandler;
 use PostAssist\Handlers\ForceSubHandler;
 use PostAssist\Handlers\HiddenHandler;
+use PostAssist\Handlers\BulkHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\CommentsHandler;
 use PostAssist\Handlers\LinksHandler;
@@ -143,7 +144,7 @@ final class Router
             PostHandler::albumLate($ctx, $state); // shu albomning kechikib kelgan qismi — qoralamaga qo'shiladi
             return;
         }
-        if ($group !== '' && ($state === null || !in_array($state['state'], ['post_content', 'post_edit'], true))) {
+        if ($group !== '' && ($state === null || !in_array($state['state'], ['post_content', 'post_edit', 'bulk'], true))) {
             // albom post kutilmagan joyda keldi: har qismga emas, faqat bir marta javob
             if ($this->app->albums->claim($ctx->userId, $group)) {
                 $ctx->replyMenu($ctx->t('unknown'));
@@ -170,6 +171,12 @@ final class Router
                     return;
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
+                    return;
+                case 'bulk':
+                    BulkHandler::add($ctx, $state);
+                    return;
+                case 'bulk_time':
+                    BulkHandler::timeInput($ctx, $state);
                     return;
                 case 'cm_write':
                     CommentsHandler::input($ctx, $state);
@@ -598,6 +605,14 @@ final class Router
             } else {
                 CommentsHandler::moderate($ctx, $m[1], (int) $m[2]);
             }
+        } elseif ($data === 'bk:start') {
+            BulkHandler::start($ctx);
+        } elseif ($data === 'bk:done') {
+            BulkHandler::done($ctx);
+        } elseif (preg_match('/^bk:ch:(\d{1,10})$/', $data, $m)) {
+            BulkHandler::pickChannel($ctx, (int) $m[1]);
+        } elseif (preg_match('/^bk:g:(\d{2,4})$/', $data, $m)) {
+            BulkHandler::gap($ctx, (int) $m[1]);
         } elseif ($data === 'st:show') {
             StatsHandler::show($ctx, true);
         } elseif (preg_match('/^st:(c|r):(\d{1,10})$/', $data, $m)) {

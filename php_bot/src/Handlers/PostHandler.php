@@ -40,6 +40,7 @@ final class PostHandler
         if ($ctx->app->templates->countFor($ctx->ownerId()) > 0) {
             $rows[] = [Keyboards::btn($ctx->t('btn_tpl_list'), 'tpl:list')];
         }
+        $rows[] = [Keyboards::btn($ctx->t('btn_bulk'), 'bk:start')];
         $rows[] = [Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')];
         $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline($rows));
     }
