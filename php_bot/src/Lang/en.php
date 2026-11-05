@@ -245,7 +245,7 @@ return [
     'ai_disabled_admin' => "✨ AI is off. Add at least one key to <code>config.php</code>: <code>gemini_api_key</code> (Google AI Studio, free), <code>groq_api_key</code> or <code>openrouter_api_key</code>.",
     'ai_quota' => "🎯 Left today: <b>{left}/{limit}</b> · Points: <b>{credits}</b>",
     'ai_quota_unlimited' => "🎯 AI requests: <b>unlimited</b>",
-    'ai_ask_topic' => "✨ <b>Post with AI</b>\n\nWhat should the post be about? Write the topic or the key facts.\n\nExample: <i>Our new branch opened in Chilanzar, 20% off during the first week</i>",
+    'ai_ask_topic' => "✨ <b>Post with AI</b>\n\nWhat should the post be about? Write the topic or the key facts — or send a 🎤 <b>voice message</b>.\n\nExample: <i>Our new branch opened in Chilanzar, 20% off during the first week</i>",
     'ai_topic_bad' => "❌ Write a topic of 3–{max} characters.",
     'ai_ask_style' => "🎨 Which style should I use?",
     'ai_need_text' => "ℹ️ The post has no text — add text or a caption first («✏️ Edit»).",
@@ -422,4 +422,8 @@ return [
     'fs_empty' => "🔒 No forced subscription.\n\nAdd: /force_add @channel",
     'fs_list_title' => "🔒 <b>Forced subscription</b> ({n})\n\n{lines}\n\nAdd: /force_add @channel · Remove: /force_del ID",
     'admin_help2' => "💳 /receipts — receipts awaiting review\n📣 /broadcast — broadcast · /broadcast_status · /broadcast_stop\n🔒 /force_add @channel · /force_list · /force_del ID — forced subscription",
+    // ---------- 6-bosqich: rasm va ovozdan post
+    'ai_media_off' => "👀 A Gemini key (<code>gemini_api_key</code>) is needed for posts from photos and voice. It will work once the admin sets it up.",
+    'ai_media_failed' => "😔 Could not download the file (too big or Telegram did not respond). No request was used — please try again.",
+    'ai_voice_long' => "🎤 The voice message is too long — at most {sec} seconds.",
 ];

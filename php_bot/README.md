@@ -53,6 +53,11 @@ Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinm
 
 Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
 
+## 🖼 Rasm va 🎤 ovozdan post
+
+`gemini_api_key` bo'lsa: botga rasm tashlang → «✨ AI bilan» → uslub → tayyor izoh (rasm izohi — ko'rsatma). Ovozli xabar yuboring (≤3 daqiqa) — bot tinglab, post yozadi.
+Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB gacha.
+
 ## 💳 Karta (so'm), 📣 xabar yuborish, 🔒 majburiy obuna
 
 - **Karta:** `config.php` → `'card_number' => '8600 ...'`, `'card_holder' => '...'`. Foydalanuvchi ⚙️ Sozlamalar → «💎 Tariflar» → «💳 Karta» (o'z +998 raqamini ulashadi, raqam saqlanmaydi) → chek yuboradi → sizga ✅/❌ tugmali xabar keladi.

@@ -425,3 +425,4 @@ require __DIR__ . '/Phase3Test.php';
 require __DIR__ . '/Phase4Test.php';
 require __DIR__ . '/MiniAppTest.php';
 require __DIR__ . '/Phase5Test.php';
+require __DIR__ . '/Phase6Test.php';

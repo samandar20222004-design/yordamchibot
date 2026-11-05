@@ -55,6 +55,12 @@ final class Ai
         return $this->providers() !== [];
     }
 
+    /** Rasm va ovozni faqat Gemini tushunadi (inlineData). */
+    public function mediaEnabled(): bool
+    {
+        return $this->config->str('gemini_api_key') !== '';
+    }
+
     /** Umumiy qoidalar (Python `[QUALITY]` bloki ma'nosida). */
     public static function system(string $lang, int $maxChars): string
     {
@@ -69,17 +75,37 @@ final class Ai
             . "- Uzunligi {$maxChars} belgidan oshmasin.";
     }
 
-    /** Mavzudan yangi post. */
-    public static function postPrompt(string $topic, string $style): string
+    /** Uslub ta'rifi (mavzu, rasm va ovozdan post uchun umumiy). */
+    public static function styleHow(string $style): string
     {
-        $how = [
+        return [
             'news' => "yangilik/e'lon ko'rinishida: qisqa sarlavha (qalin), 2–3 xatboshi, oxirida bitta savol yoki chaqiriq",
             'sales' => "sotuvchi post: diqqatni tortadigan sarlavha, foydalari ro'yxat ko'rinishida (✅), aniq chaqiriq (CTA)",
             'fun' => "qiziqarli, jonli uslubda: hazil aralash, emoji ko'proq, o'quvchi bilan suhbatdek",
             'useful' => "foydali maslahatlar posti: sarlavha va 3–5 ta raqamlangan maslahat, har biri bir-ikki gap",
             'short' => "juda qisqa post: 2–4 gap, eng muhim fikr, bitta emoji",
         ][$style] ?? 'oddiy, tushunarli post';
-        return "Quyidagi mavzuda Telegram kanal uchun post yoz — {$how}.\n\nMavzu:\n" . trim($topic);
+    }
+
+    /** Mavzudan yangi post. */
+    public static function postPrompt(string $topic, string $style): string
+    {
+        return "Quyidagi mavzuda Telegram kanal uchun post yoz — " . self::styleHow($style) . ".\n\nMavzu:\n" . trim($topic);
+    }
+
+    /** Rasmdan post: faqat ko'ringan narsaga tayanadi (narx, manzil, nom kabi ko'rinmagan faktlarni o'ylab topmaydi). */
+    public static function imagePrompt(string $hint, string $style): string
+    {
+        return "Rasmga qarab Telegram kanal uchun post yoz — " . self::styleHow($style) . ".\n"
+            . "Faqat rasmda ko'ringan narsa va quyidagi izohga tayan; ko'rinmagan faktlarni (narx, manzil, nom, sana) o'ylab topma."
+            . (trim($hint) !== '' ? "\n\nMuallif izohi:\n" . trim($hint) : '');
+    }
+
+    /** Ovozli xabardan post: aytilgan fikr va faktlar saqlanadi, to'xtash va takrorlar tashlanadi. */
+    public static function voicePrompt(string $style): string
+    {
+        return "Ovozli xabarni diqqat bilan tingla va undan Telegram kanal uchun post yoz — " . self::styleHow($style) . ".\n"
+            . "Gapirilgan fikr va faktlarni (raqam, narx, sana, manzil) aynan saqla, ortiqcha so'zlar, to'xtash va takrorlarni tashla; o'zingdan fakt qo'shma.";
     }
 
     /** Mavjud matnni tahrirlash. */
@@ -104,16 +130,19 @@ final class Ai
     }
 
     /**
+     * @param array{mime:string, data:string}|null $media rasm yoki ovoz baytlari (faqat Gemini)
      * @return array{ok:bool, text?:string, provider?:string, error?:string} error: disabled | failed
      */
-    public function generate(string $system, string $prompt, int $maxChars): array
+    public function generate(string $system, string $prompt, int $maxChars, ?array $media = null): array
     {
-        $providers = $this->providers();
+        $providers = array_values(array_filter($this->providers(), static function ($p) use ($media) {
+            return $media === null || $p['kind'] === 'gemini'; // rasm/ovoz — faqat Gemini
+        }));
         if (!$providers) {
             return ['ok' => false, 'error' => 'disabled'];
         }
         foreach ($providers as $p) {
-            $raw = $this->callProvider($p, $system, $prompt);
+            $raw = $this->callProvider($p, $system, $prompt, $media);
             if ($raw === null) {
                 continue;
             }
@@ -144,7 +173,7 @@ final class Ai
         return Html::e(rtrim($part)) . '…';
     }
 
-    private function callProvider(array $p, string $system, string $prompt): ?string
+    private function callProvider(array $p, string $system, string $prompt, ?array $media = null): ?string
     {
         if ($p['kind'] === 'gemini') {
             $gen = ['temperature' => 0.8, 'maxOutputTokens' => 2048];
@@ -154,7 +183,10 @@ final class Ai
             }
             $body = json_encode([
                 'systemInstruction' => ['parts' => [['text' => $system]]],
-                'contents' => [['role' => 'user', 'parts' => [['text' => $prompt]]]],
+                'contents' => [['role' => 'user', 'parts' => array_merge(
+                    $media !== null ? [['inlineData' => ['mimeType' => $media['mime'], 'data' => base64_encode($media['data'])]]] : [],
+                    [['text' => $prompt]]
+                )]],
                 'generationConfig' => $gen,
             ], JSON_UNESCAPED_UNICODE);
             $headers = ['Content-Type: application/json', 'x-goog-api-key: ' . $p['key']];

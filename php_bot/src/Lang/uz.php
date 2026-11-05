@@ -245,7 +245,7 @@ return [
     'ai_disabled_admin' => "✨ AI yoqilmagan. <code>config.php</code> ga kamida bitta kalit yozing: <code>gemini_api_key</code> (Google AI Studio, bepul), <code>groq_api_key</code> yoki <code>openrouter_api_key</code>.",
     'ai_quota' => "🎯 Bugun qoldi: <b>{left}/{limit}</b> · Ballar: <b>{credits}</b>",
     'ai_quota_unlimited' => "🎯 AI so'rovlari: <b>cheksiz</b>",
-    'ai_ask_topic' => "✨ <b>AI bilan post</b>\n\nPost nima haqida bo'lsin? Mavzuni yoki asosiy ma'lumotni yozing.\n\nMisol: <i>Yangi filialimiz Chilonzorda ochildi, birinchi haftada 20% chegirma</i>",
+    'ai_ask_topic' => "✨ <b>AI bilan post</b>\n\nPost nima haqida bo'lsin? Mavzuni yoki asosiy ma'lumotni yozing — yoki 🎤 <b>ovozli xabar</b> yuboring.\n\nMisol: <i>Yangi filialimiz Chilonzorda ochildi, birinchi haftada 20% chegirma</i>",
     'ai_topic_bad' => "❌ Mavzuni 3–{max} belgi oralig'ida yozing.",
     'ai_ask_style' => "🎨 Qaysi uslubda yozay?",
     'ai_need_text' => "ℹ️ Postda matn yo'q — avval matn yoki izoh qo'shing («✏️ Tahrirlash»).",
@@ -422,4 +422,8 @@ return [
     'fs_empty' => "🔒 Majburiy obuna yo'q.\n\nQo'shish: /force_add @kanal",
     'fs_list_title' => "🔒 <b>Majburiy obuna</b> ({n})\n\n{lines}\n\nQo'shish: /force_add @kanal · O'chirish: /force_del ID",
     'admin_help2' => "💳 /receipts — ko'rib chiqilmagan cheklar\n📣 /broadcast — hammaga xabar · /broadcast_status · /broadcast_stop\n🔒 /force_add @kanal · /force_list · /force_del ID — majburiy obuna",
+    // ---------- 6-bosqich: rasm va ovozdan post
+    'ai_media_off' => "👀 Rasm va ovozdan post yozish uchun Gemini kaliti kerak (<code>gemini_api_key</code>). Admin sozlagach ishlaydi.",
+    'ai_media_failed' => "😔 Faylni yuklab bo'lmadi (juda katta yoki Telegram javob bermadi). Limit sarflanmadi — qayta urinib ko'ring.",
+    'ai_voice_long' => "🎤 Ovozli xabar juda uzun — ko'pi bilan {sec} soniya.",
 ];

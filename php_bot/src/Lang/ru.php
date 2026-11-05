@@ -245,7 +245,7 @@ return [
     'ai_disabled_admin' => "✨ AI не включён. Впишите в <code>config.php</code> хотя бы один ключ: <code>gemini_api_key</code> (Google AI Studio, бесплатно), <code>groq_api_key</code> или <code>openrouter_api_key</code>.",
     'ai_quota' => "🎯 Сегодня осталось: <b>{left}/{limit}</b> · Баллы: <b>{credits}</b>",
     'ai_quota_unlimited' => "🎯 AI-запросы: <b>без лимита</b>",
-    'ai_ask_topic' => "✨ <b>Пост с AI</b>\n\nО чём будет пост? Напишите тему или главную информацию.\n\nПример: <i>Открылся наш новый филиал в Чиланзаре, в первую неделю скидка 20%</i>",
+    'ai_ask_topic' => "✨ <b>Пост с AI</b>\n\nО чём будет пост? Напишите тему или главную информацию — или отправьте 🎤 <b>голосовое</b>.\n\nПример: <i>Открылся наш новый филиал в Чиланзаре, в первую неделю скидка 20%</i>",
     'ai_topic_bad' => "❌ Напишите тему длиной 3–{max} символов.",
     'ai_ask_style' => "🎨 В каком стиле написать?",
     'ai_need_text' => "ℹ️ В посте нет текста — сначала добавьте текст или подпись («✏️ Изменить»).",
@@ -422,4 +422,8 @@ return [
     'fs_empty' => "🔒 Обязательной подписки нет.\n\nДобавить: /force_add @канал",
     'fs_list_title' => "🔒 <b>Обязательная подписка</b> ({n})\n\n{lines}\n\nДобавить: /force_add @канал · Убрать: /force_del ID",
     'admin_help2' => "💳 /receipts — непроверенные чеки\n📣 /broadcast — рассылка · /broadcast_status · /broadcast_stop\n🔒 /force_add @канал · /force_list · /force_del ID — обязательная подписка",
+    // ---------- 6-bosqich: rasm va ovozdan post
+    'ai_media_off' => "👀 Для постов из фото и голоса нужен ключ Gemini (<code>gemini_api_key</code>). Заработает после настройки админом.",
+    'ai_media_failed' => "😔 Не удалось загрузить файл (слишком большой или Telegram не ответил). Лимит не потрачен — попробуйте ещё раз.",
+    'ai_voice_long' => "🎤 Голосовое слишком длинное — не больше {sec} секунд.",
 ];

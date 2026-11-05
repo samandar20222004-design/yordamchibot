@@ -121,6 +121,10 @@ final class Router
             return;
         }
         $state = $ctx->state();
+        if (isset($msg['voice']) && is_array($msg['voice']) && ($state === null || in_array($state['state'], ['post_content', 'post_edit', 'post_preview', 'intake', 'ai_topic', 'ai_style'], true))) {
+            AiHandler::voice($ctx); // 🎤 ovozdan post
+            return;
+        }
         $group = isset($msg['media_group_id']) ? (string) $msg['media_group_id'] : '';
         if ($group !== '' && $state !== null && ($state['data']['draft']['group'] ?? null) === $group
             && in_array($state['state'], ['post_preview', 'post_pick'], true)) {

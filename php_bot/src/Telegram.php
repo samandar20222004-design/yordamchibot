@@ -14,6 +14,8 @@ final class Telegram
     private string $base;
     /** @var callable|null */
     private $transport;
+    /** @var callable|null testlar uchun: fn(string $url): ?string */
+    private $downloader;
 
     public function __construct(string $token, string $base = 'https://api.telegram.org', ?callable $transport = null)
     {
@@ -63,6 +65,39 @@ final class Telegram
             return ['ok' => false, 'error_code' => 0, 'description' => 'bad json'];
         }
         return $data;
+    }
+
+    public function setDownloader(?callable $d): void
+    {
+        $this->downloader = $d;
+    }
+
+    /**
+     * Telegram faylini yuklab oladi (rasm, ovoz). Hajm $maxBytes dan oshsa yoki xato bo'lsa — null.
+     * Manzilda bot tokeni bor — hech qachon logga yozilmaydi.
+     * @return array{0:string,1:string}|null [baytlar, fayl yo'li]
+     */
+    public function fetchFile(string $fileId, int $maxBytes): ?array
+    {
+        $r = $this->call('getFile', ['file_id' => $fileId]);
+        $path = (string) ($r['result']['file_path'] ?? '');
+        if (empty($r['ok']) || $path === '' || !preg_match('#^[A-Za-z0-9_/.\-]+$#', $path) || strpos($path, '..') !== false || (int) ($r['result']['file_size'] ?? 0) > $maxBytes) {
+            return null;
+        }
+        $url = $this->base . '/file/bot' . $this->token . '/' . $path;
+        if ($this->downloader !== null) {
+            $bytes = ($this->downloader)($url);
+        } else {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_TIMEOUT => 40, CURLOPT_FOLLOWLOCATION => false]);
+            $bytes = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($code !== 200) {
+                $bytes = false;
+            }
+        }
+        return (is_string($bytes) && $bytes !== '' && strlen($bytes) <= $maxBytes) ? [$bytes, $path] : null;
     }
 
     private static function hasFile(array $params): bool
