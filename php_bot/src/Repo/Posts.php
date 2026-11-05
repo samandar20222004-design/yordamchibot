@@ -27,7 +27,9 @@ final class Posts
      */
     public function create(int $userId, int $channelId, array $draft, string $utcSql, bool $notify, ?array $rec = null, ?int $createdBy = null): int
     {
-        $media = !empty($draft['media']) && is_array($draft['media']) ? json_encode(array_values($draft['media']), JSON_UNESCAPED_UNICODE) : null;
+        // albom — ro'yxat ([[tur, file_id], ...]); so'rovnoma — kalitli obyekt ({options, quiz}) — kalitlar saqlanadi
+        $media = !empty($draft['media']) && is_array($draft['media'])
+            ? json_encode(($draft['type'] ?? '') === 'poll' ? $draft['media'] : array_values($draft['media']), JSON_UNESCAPED_UNICODE) : null;
         $this->db->exec(
             'INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, file_id, button_text, button_url, media, reactions, delete_after,
                 recurrence_type, recurrence_time, recurrence_day, scheduled_time, notify_owner, created_by, options, hidden_text, created_at)

@@ -14,7 +14,7 @@ final class PostRender
 {
     public const TEXT_LIMIT = 4096;
     public const CAPTION_LIMIT = 1024;
-    public const TYPES = ['text', 'photo', 'video', 'animation', 'document', 'audio', 'album'];
+    public const TYPES = ['text', 'photo', 'video', 'animation', 'document', 'audio', 'album', 'poll'];
     public const ALBUM_MAX = 10;
     /** Tayyor reaksiya to'plamlari (o'z reaksiyasini ham yozish mumkin: 1–6 ta emoji). */
     public const REACTION_SETS = ['👍,👎', '❤️,🔥,😂', '👍,❤️,🔥,👏', '🔥,😍,😮,😢,😡'];
@@ -127,7 +127,7 @@ final class PostRender
     }
 
     /** Post sozlamalari: ovozsiz, havola ko'rinishisiz, pin, nusxa himoyasi. */
-    public const OPTIONS = ['silent', 'nopreview', 'pin', 'protect', 'comments'];
+    public const OPTIONS = ['silent', 'nopreview', 'pin', 'protect', 'comments', 'multi'];
 
     /** @param string|array|null $opts @return string[] */
     public static function options($opts): array
@@ -207,6 +207,9 @@ final class PostRender
             $flags['protect_content'] = true;
         }
         $html = self::watermark((string) ($post['text'] ?? ''), $type === 'album' ? 'photo' : $type, $botUsername, $free);
+        if ($type === 'poll') {
+            return $tg->call('sendPoll', self::pollParams($chatId, $post, $botUsername, $free, in_array('multi', $opts, true)) + $flags);
+        }
         if ($type === 'album') {
             $media = [];
             foreach (self::albumMedia($post) as $i => [$t, $fid]) {
@@ -235,6 +238,40 @@ final class PostRender
         }
         return $tg->call($method, ['chat_id' => $chatId, $type => (string) $post['file_id'], 'caption' => $html,
             'parse_mode' => 'HTML', 'reply_markup' => $markup] + $flags);
+    }
+
+    /** So'rovnoma ma'lumoti (media ustunidan). @return array{options:string[], quiz:?int} */
+    public static function pollData(array $post): array
+    {
+        $m = $post['media'] ?? null;
+        if (is_string($m)) {
+            $m = json_decode($m, true);
+        }
+        $opts = is_array($m) && is_array($m['options'] ?? null) ? array_values(array_filter(array_map('strval', $m['options']), 'strlen')) : [];
+        $quiz = is_array($m) && isset($m['quiz']) && is_int($m['quiz']) && isset($opts[$m['quiz']]) ? $m['quiz'] : null;
+        return ['options' => array_slice($opts, 0, 10), 'quiz' => $quiz];
+    }
+
+    /** sendPoll parametrlari: kanal so'rovnomasi anonim; bepul tarifda savol oxiriga nishon (sig'sa). */
+    public static function pollParams(int $chatId, array $post, string $botUsername, bool $free, bool $multi): array
+    {
+        $d = self::pollData($post);
+        $q = trim(Html::plain((string) ($post['text'] ?? '')));
+        $mark = ' · 🤖 @' . $botUsername;
+        if ($free && $botUsername !== '' && mb_strlen($q . $mark) <= 300) {
+            $q .= $mark;
+        }
+        $p = ['chat_id' => $chatId, 'question' => mb_substr($q, 0, 300), 'is_anonymous' => true,
+            'options' => array_map(static function (string $o): array {
+                return ['text' => $o];
+            }, $d['options'])];
+        if ($d['quiz'] !== null) {
+            $p['type'] = 'quiz';
+            $p['correct_option_id'] = $d['quiz'];
+        } elseif ($multi) {
+            $p['allows_multiple_answers'] = true;
+        }
+        return $p;
     }
 
     /** Yuborish natijasidan xabar ID'lari (albomda bir nechta). @return array<int, int> */

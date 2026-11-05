@@ -103,7 +103,7 @@ final class Scheduler
         $app = $this->app;
         $id = (int) $post['id'];
         $owner = (int) $post['user_id'];
-        if ($post['post_type'] !== 'album' && in_array('comments', PostRender::options($post['options'] ?? null), true)) {
+        if (!in_array($post['post_type'], ['album', 'poll'], true) && in_array('comments', PostRender::options($post['options'] ?? null), true)) {
             $post['comments_label'] = I18n::t('cm_btn', I18n::norm((string) ($app->users->get($owner)['lang'] ?? 'uz')));
             $post['comments_count'] = $app->comments->count($id);
         }

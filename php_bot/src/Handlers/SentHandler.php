@@ -61,6 +61,10 @@ final class SentHandler
             $ctx->reply($ctx->t('sent_not_found'), Keyboards::nav($ctx->lang, 's:list'));
             return;
         }
+        if ($m['post_type'] === 'poll') {
+            $ctx->reply($ctx->t('sent_poll_noedit'), Keyboards::nav($ctx->lang, 's:v:' . $id));
+            return;
+        }
         $ctx->app->states->set($ctx->userId, 'sent_edit', ['id' => $id]);
         $ctx->reply($ctx->t('sent_edit_ask'), Keyboards::nav($ctx->lang, 's:v:' . $id));
     }

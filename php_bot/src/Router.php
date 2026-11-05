@@ -17,6 +17,7 @@ use PostAssist\Handlers\CommentsHandler;
 use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\MarketHandler;
 use PostAssist\Handlers\PlansHandler;
+use PostAssist\Handlers\PollHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\ReactionHandler;
@@ -171,6 +172,12 @@ final class Router
                     return;
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
+                    return;
+                case 'poll_q':
+                    PollHandler::questionInput($ctx);
+                    return;
+                case 'poll_opts':
+                    PollHandler::optionsInput($ctx, $state);
                     return;
                 case 'bulk':
                     BulkHandler::add($ctx, $state);
@@ -585,7 +592,7 @@ final class Router
             PostHandler::extraChannels($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|o_comments|mc|tsave)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|o_comments|o_multi|mc|tsave)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
         } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice|workdays|int2|int3)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);
@@ -608,6 +615,8 @@ final class Router
             } else {
                 CommentsHandler::moderate($ctx, $m[1], (int) $m[2]);
             }
+        } elseif ($data === 'poll:start') {
+            PollHandler::start($ctx);
         } elseif ($data === 'bk:start') {
             BulkHandler::start($ctx);
         } elseif ($data === 'bk:done') {

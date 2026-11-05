@@ -353,7 +353,11 @@ final class MiniAppApi
             return [404, ['ok' => false, 'error' => 'not_found']];
         }
         $text = null;
-        if (array_key_exists('text', $in)) {
+        if (array_key_exists('text', $in) && $p['post_type'] === 'poll') {
+            if (trim(Html::plain((string) $in['text'])) !== trim(Html::plain((string) $p['text']))) {
+                return [400, ['ok' => false, 'error' => 'poll_text']]; // so'rovnoma savoli botda o'zgartiriladi
+            }
+        } elseif (array_key_exists('text', $in)) {
             $text = self::cleanText((string) $in['text'], (string) $p['post_type']);
             if (is_array($text)) {
                 return [400, ['ok' => false, 'error' => 'too_long', 'len' => $text[1], 'max' => $text[2]]];

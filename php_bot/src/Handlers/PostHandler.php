@@ -40,7 +40,7 @@ final class PostHandler
         if ($ctx->app->templates->countFor($ctx->ownerId()) > 0) {
             $rows[] = [Keyboards::btn($ctx->t('btn_tpl_list'), 'tpl:list')];
         }
-        $rows[] = [Keyboards::btn($ctx->t('btn_bulk'), 'bk:start')];
+        $rows[] = [Keyboards::btn($ctx->t('btn_bulk'), 'bk:start'), Keyboards::btn($ctx->t('btn_poll'), 'poll:start')];
         $rows[] = [Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')];
         $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline($rows));
     }
@@ -79,8 +79,8 @@ final class PostHandler
         foreach (['button_text', 'button_url', 'reactions', 'delete_after', 'options', 'hidden'] as $k) {
             $draft[$k] = $old[$k] ?? null;
         }
-        if ($draft['type'] === 'album') {
-            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = $draft['hidden'] = null; // albomga tugma qo'yib bo'lmaydi
+        if ($draft['type'] === 'album' || $draft['type'] === 'poll') {
+            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = $draft['hidden'] = null; // albom/so'rovnomaga tugma qo'yilmaydi
         }
         $data['draft'] = $draft;
         if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->ownerId(), (int) $data['channel'])) {
@@ -217,13 +217,13 @@ final class PostHandler
         $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
             'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null,
-            'comments_label' => in_array('comments', PostRender::options($d['options'] ?? null), true) && $d['type'] !== 'album' ? $ctx->t('cm_btn') : null];
+            'comments_label' => in_array('comments', PostRender::options($d['options'] ?? null), true) && !in_array($d['type'], ['album', 'poll'], true) ? $ctx->t('cm_btn') : null];
         $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled(),
-            $d['type'] !== 'album' ? $ctx->app->miniAppUrl('tab=post') : null);
+            !in_array($d['type'], ['album', 'poll'], true) ? $ctx->app->miniAppUrl('tab=post') : null);
         $free = $ctx->app->isFree($ctx->ownerId());
         $bot = $ctx->app->config->str('bot_username');
         $hint = $ctx->t('post_preview_hint') . self::extrasText($ctx, $data);
-        if ($d['type'] === 'album') {
+        if ($d['type'] === 'album' || $d['type'] === 'poll') {
             $res = PostRender::send($ctx->app->tg, $ctx->chatId, $post, $bot, $free);
             if (empty($res['ok'])) {
                 $ctx->reply($ctx->t('send_fail', ['reason' => $ctx->t(PostRender::reasonKey($res))]), Keyboards::inline($rows));
@@ -293,7 +293,8 @@ final class PostHandler
             return;
         }
         $data = $st['data'];
-        $album = ($data['draft']['type'] ?? '') === 'album';
+        $album = in_array($data['draft']['type'] ?? '', ['album', 'poll'], true); // tugmasiz turlar
+        $isPoll = ($data['draft']['type'] ?? '') === 'poll';
         switch ($act) {
             case 'now':
                 self::sendNow($ctx, $data, $st['state']);
@@ -304,12 +305,12 @@ final class PostHandler
                 return;
             case 'more':
                 $ctx->app->states->set($ctx->userId, 'post_preview', $data);
-                $ctx->reply($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
+                $ctx->reply($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t($isPoll ? 'poll_no_buttons' : 'album_no_buttons') : ''),
                     Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled(), self::extraInfo($ctx, $data)));
                 return;
             case 'btn':
                 if ($album) {
-                    $ctx->reply($ctx->t('album_no_buttons'));
+                    $ctx->reply($ctx->t($isPoll ? 'poll_no_buttons' : 'album_no_buttons'));
                     return;
                 }
                 $ctx->app->states->set($ctx->userId, 'post_btn', $data);
@@ -326,7 +327,7 @@ final class PostHandler
                 return;
             case 'rx':
                 if ($album) {
-                    $ctx->reply($ctx->t('album_no_buttons'));
+                    $ctx->reply($ctx->t($isPoll ? 'poll_no_buttons' : 'album_no_buttons'));
                     return;
                 }
                 $ctx->app->states->set($ctx->userId, 'post_preview', $data);
@@ -345,7 +346,7 @@ final class PostHandler
                 return;
             case 'hidden':
                 if ($album) {
-                    $ctx->reply($ctx->t('album_no_buttons'));
+                    $ctx->reply($ctx->t($isPoll ? 'poll_no_buttons' : 'album_no_buttons'));
                     return;
                 }
                 $ctx->app->states->set($ctx->userId, 'post_hidden', $data);
@@ -369,7 +370,7 @@ final class PostHandler
             $cur = in_array($opt, $cur, true) ? array_values(array_diff($cur, [$opt])) : array_merge($cur, [$opt]);
             $data['draft']['options'] = PostRender::optionsString($cur);
             $ctx->app->states->set($ctx->userId, $st['state'], $data);
-            $ctx->edit($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
+            $ctx->edit($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t($isPoll ? 'poll_no_buttons' : 'album_no_buttons') : ''),
                 Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled(), self::extraInfo($ctx, $data)));
         }
     }

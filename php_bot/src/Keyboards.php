@@ -156,7 +156,8 @@ final class Keyboards
         if (($extra[0] ?? 0) > 0) {
             $rows[] = [self::btn(I18n::t('btn_mc', $lang) . (($extra[1] ?? 0) > 0 ? ' (+' . (int) $extra[1] . ')' : ''), 'p:mc')];
         }
-        if ($ai && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
+        $poll = ($draft['type'] ?? '') === 'poll';
+        if ($ai && !$poll && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
             $rows[] = [self::btn(I18n::t('btn_ai_edit', $lang), 'p:ai')];
         }
         if (!$album) {
@@ -175,6 +176,9 @@ final class Keyboards
             return self::btn((in_array($k, $on, true) ? '✅ ' : '') . I18n::t('btn_o_' . $k, $lang), 'p:o_' . $k);
         };
         $rows[] = $album ? [$o('silent'), $o('protect')] : [$o('silent'), $o('nopreview')];
+        if ($poll && PostRender::pollData($draft)['quiz'] === null) {
+            $rows[] = [$o('multi')];
+        }
         $rows[] = $album ? [$o('pin')] : [$o('pin'), $o('protect')];
         if (!$album) {
             $rows[] = [$o('comments')];
