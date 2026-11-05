@@ -647,4 +647,9 @@ return [
     'sent_del_confirm' => "🗑 Delete the post from the channel for good? This can't be undone.",
     'sent_deleted' => "🗑 Post deleted from the channel.",
     'sent_del_fail' => "❌ Couldn't delete: make sure the bot is a channel admin allowed to delete messages.",
+    'btn_mc' => "📢 More channels",
+    'btn_done' => "✅ Done",
+    'mc_ask' => "📢 <b>Several channels</b>\n\nMain channel: <b>{main}</b>. Which other channels should get the post? Tick them and tap «✅ Done».",
+    'mc_result' => "📢 <b>Result</b>",
+    'mc_queued' => "queued, will retry shortly",
 ];

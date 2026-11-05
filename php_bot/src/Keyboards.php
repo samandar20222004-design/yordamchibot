@@ -149,9 +149,13 @@ final class Keyboards
     }
 
     /** «⚙️ Qo'shimcha»: tugma, reaksiya (albomda yo'q), takror, avto-o'chirish. */
-    public static function more(string $lang, array $draft, bool $album, bool $ai = false): array
+    /** @param array{0:int,1:int} $extra [boshqa kanallar soni, tanlangan qo'shimchalar] */
+    public static function more(string $lang, array $draft, bool $album, bool $ai = false, array $extra = [0, 0]): array
     {
         $rows = [];
+        if (($extra[0] ?? 0) > 0) {
+            $rows[] = [self::btn(I18n::t('btn_mc', $lang) . (($extra[1] ?? 0) > 0 ? ' (+' . (int) $extra[1] . ')' : ''), 'p:mc')];
+        }
         if ($ai && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
             $rows[] = [self::btn(I18n::t('btn_ai_edit', $lang), 'p:ai')];
         }

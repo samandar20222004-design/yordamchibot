@@ -126,3 +126,67 @@ T::check('kanaldan o\'chirildi va ro\'yxatdan chiqdi', count($dm) === 1 && (int)
     && (int) $db->value('SELECT deleted FROM sent_messages WHERE id = ?', [$smA]) === 1);
 $text($FU, '/sent');
 T::check('o\'chirilgan post ro\'yxatda yo\'q', strpos($kbF(), 's:v:' . $smA) === false);
+
+T::section('Y. Bir nechta kanalga birdan');
+$FC2 = -1009902;
+$FC3 = -1009903;
+foreach ([$FC2 => 'Ikkinchi kanal', $FC3 => 'Uchinchi kanal'] as $cid => $ttl) {
+    $fake->chats[$cid] = ['id' => $cid, 'type' => 'channel', 'title' => $ttl];
+    $fake->members["{$cid}|{$BOT}"] = ['status' => 'administrator', 'can_post_messages' => true];
+    $app->channels->connect($FU, $cid, $ttl, null, 0);
+}
+$R1 = (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$FC]);
+$R2 = (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$FC2]);
+$R3 = (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$FC3]);
+$ROTHER = (int) $db->value('SELECT id FROM channels WHERE user_id <> ? AND is_active = 1 LIMIT 1', [$FU]);
+$text($FU, '/newpost');
+$text($FU, 'Hamma kanallarga e\'lon');
+$press($FU, 'p:ch:' . $R1);
+$press($FU, 'p:more');
+T::check('«Qo\'shimcha»da «📢 Yana kanallar»', strpos($kbF(), 'p:mc') !== false);
+$press($FU, 'p:mc');
+T::check('boshqa kanallar ro\'yxati (asosiysiz)', strpos($kbF(), 'pm:' . $R2) !== false && strpos($kbF(), 'pm:' . $R3) !== false && strpos($kbF(), 'pm:' . $R1) === false);
+$press($FU, 'pm:' . $R2);
+$press($FU, 'pm:' . $ROTHER);
+T::eq('faqat o\'z kanali qo\'shiladi (IDOR)', $app->states->get($FU)['data']['extra'] ?? null, [$R2]);
+$press($FU, 'p:more');
+T::check('tanlangan soni ko\'rinadi (+1)', strpos($kbF(), '(+1)') !== false && strpos($fake->lastText(), 'Ikkinchi kanal') !== false);
+$fake->reset();
+$press($FU, 'p:now');
+$byChat = static function (int $cid) use ($fake): int {
+    return count(array_filter($fake->of('sendMessage'), function ($p) use ($cid) { return (int) $p['chat_id'] === $cid; }));
+};
+T::check('ikkala kanalga chiqdi, natija har kanal bo\'yicha', $byChat($FC) === 1 && $byChat($FC2) === 1 && $byChat($FC3) === 0
+    && strpos($fake->lastText(), '✅ Aksiya kanali') !== false && strpos($fake->lastText(), '✅ Ikkinchi kanal') !== false);
+// biri xato bersa
+$text($FU, '/newpost');
+$text($FU, 'Ikkinchi e\'lon');
+$press($FU, 'p:ch:' . $R1);
+$press($FU, 'p:mc');
+$press($FU, 'pm:' . $R3);
+$fake->reset();
+$fake->forced['sendMessage'] = [['ok' => true, 'result' => ['message_id' => 5501]], ['ok' => false, 'error_code' => 403, 'description' => 'Forbidden: bot is not a member']];
+$press($FU, 'p:now');
+T::check('bir kanal xato: qolgani chiqadi, sabab aytiladi', strpos($fake->lastText(), '✅ Aksiya kanali') !== false && strpos($fake->lastText(), '❌ Uchinchi kanal') !== false);
+// rejalashtirish ham hamma kanalga, navbat limiti umumiy
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$FU]);
+$text($FU, '/newpost');
+$text($FU, 'Ertangi e\'lon');
+$press($FU, 'p:ch:' . $R1);
+$press($FU, 'p:mc');
+$press($FU, 'pm:' . $R2);
+$press($FU, 'pm:' . $R3);
+$press($FU, 'p:time');
+$press($FU, 't:tom09');
+T::check('rejalashtirildi: 3 kanal, 3 ta post', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$FU]) === 3
+    && strpos($fake->lastText(), 'Uchinchi kanal') !== false);
+$text($FU, '/newpost');
+$text($FU, 'Yana bitta');
+$press($FU, 'p:ch:' . $R1);
+$press($FU, 'p:mc');
+$press($FU, 'pm:' . $R2);
+$press($FU, 'p:time');
+$press($FU, 't:tom09');
+T::check('navbat limiti (bepul 3) hamma kanal uchun sanaladi', strpos($fake->lastText(), '3') !== false
+    && (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$FU]) === 3);
+$press($FU, 'm:home');

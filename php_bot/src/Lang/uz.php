@@ -647,4 +647,9 @@ return [
     'sent_del_confirm' => "🗑 Post kanaldan butunlay o'chirilsinmi? Buni qaytarib bo'lmaydi.",
     'sent_deleted' => "🗑 Post kanaldan o'chirildi.",
     'sent_del_fail' => "❌ O'chirib bo'lmadi: bot kanalda admin va «xabarlarni o'chirish» huquqi borligini tekshiring.",
+    'btn_mc' => "📢 Yana kanallar",
+    'btn_done' => "✅ Tayyor",
+    'mc_ask' => "📢 <b>Bir nechta kanalga</b>\n\nAsosiy kanal: <b>{main}</b>. Post yana qaysi kanallarga chiqsin? Belgilang va «✅ Tayyor» ni bosing.",
+    'mc_result' => "📢 <b>Natija</b>",
+    'mc_queued' => "navbatda, birozdan keyin qayta yuboriladi",
 ];

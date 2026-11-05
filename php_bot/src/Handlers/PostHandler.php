@@ -255,6 +255,17 @@ final class PostHandler
                 return $ctx->t('btn_o_' . $o);
             }, $opts));
         }
+        if (!empty($data['extra'])) {
+            $names = [];
+            foreach (self::targets($ctx, $data) as $i => $c) {
+                if ($i > 0) {
+                    $names[] = Html::e((string) $c['title']);
+                }
+            }
+            if ($names) {
+                $lines[] = '📢 + ' . implode(', ', $names);
+            }
+        }
         $h = PostRender::hidden($data['draft']['hidden'] ?? null);
         if ($h !== null) {
             $lines[] = $ctx->t('hidden_line', ['text' => Html::e(mb_substr($h['t'], 0, 60))]);
@@ -287,7 +298,7 @@ final class PostHandler
             case 'more':
                 $ctx->app->states->set($ctx->userId, 'post_preview', $data);
                 $ctx->reply($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
-                    Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled()));
+                    Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled(), self::extraInfo($ctx, $data)));
                 return;
             case 'btn':
                 if ($album) {
@@ -333,6 +344,9 @@ final class PostHandler
                 $ctx->app->states->set($ctx->userId, 'post_hidden', $data);
                 $ctx->reply($ctx->t('hidden_ask', ['max' => self::HIDDEN_MAX]), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
                 return;
+            case 'mc':
+                self::extraChannels($ctx);
+                return;
             case 'hddel':
                 $data['draft']['hidden'] = null;
                 self::preview($ctx, $data);
@@ -346,7 +360,7 @@ final class PostHandler
             $data['draft']['options'] = PostRender::optionsString($cur);
             $ctx->app->states->set($ctx->userId, $st['state'], $data);
             $ctx->edit($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
-                Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled()));
+                Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled(), self::extraInfo($ctx, $data)));
         }
     }
 
@@ -480,8 +494,8 @@ final class PostHandler
 
     private static function schedule(Ctx $ctx, array $data, DateTimeImmutable $utc, string $stateName): void
     {
-        $channel = $ctx->app->channels->getOwned($ctx->ownerId(), (int) ($data['channel'] ?? 0));
-        if (!$channel) {
+        $channels = self::targets($ctx, $data);
+        if (!$channels) {
             $ctx->app->states->clear($ctx->userId);
             $ctx->replyMenu($ctx->t('draft_expired'));
             return;
@@ -490,7 +504,7 @@ final class PostHandler
             $ctx->replyMenu($ctx->t('team_no_perm'));
             return;
         }
-        if (!self::queueHasRoom($ctx)) {
+        if (!self::queueHasRoom($ctx, count($channels))) {
             return;
         }
         $rec = self::recurrenceFor($ctx, $data, $utc);
@@ -501,20 +515,78 @@ final class PostHandler
             return; // ikkinchi parallel bosish — post allaqachon yaratildi
         }
         $utcSql = $utc->format('Y-m-d H:i:s');
-        $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $utcSql, true, $rec, $ctx->userId);
+        foreach ($channels as $channel) {
+            $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $utcSql, true, $rec, $ctx->userId);
+        }
         self::afterSaved($ctx);
         $ctx->replyMenu($ctx->t('post_scheduled', [
-            'channel' => Html::e((string) $channel['title']),
+            'channel' => implode(', ', array_map(static function ($c) {
+                return Html::e((string) $c['title']);
+            }, $channels)),
             'when' => TimeParser::show($utcSql, $ctx->tz()),
             'tz' => Html::e($ctx->tzName()),
         ]) . ($rec !== null ? "\n🔄 " . self::repeatLabel($ctx, $rec) : ''));
     }
 
-    /** «Hozir yuborish»: navbatga qo'yiladi va darhol yuboriladi; natija rostdan aytiladi. */
+    /** Post chiqadigan kanallar: asosiy + «📢 Yana kanallar» (faqat egasiniki, takrorsiz). */
+    private static function targets(Ctx $ctx, array $data): array
+    {
+        $out = [];
+        foreach (array_merge([(int) ($data['channel'] ?? 0)], array_map('intval', (array) ($data['extra'] ?? []))) as $id) {
+            if (isset($out[$id])) {
+                continue;
+            }
+            $c = $ctx->app->channels->getOwned($ctx->ownerId(), $id);
+            if ($c !== null) {
+                $out[$id] = $c;
+            } elseif ($id === (int) ($data['channel'] ?? 0)) {
+                return []; // asosiy kanal yo'q — qoralama eskirgan
+            }
+        }
+        return array_values($out);
+    }
+
+    /** «⚙️ Qo'shimcha» uchun: [boshqa kanallar soni, tanlangan qo'shimchalar soni]. */
+    private static function extraInfo(Ctx $ctx, array $data): array
+    {
+        $all = $ctx->app->channels->countFor($ctx->ownerId());
+        return [max(0, $all - 1), count(self::targets($ctx, $data)) - 1];
+    }
+
+    /** «📢 Yana kanallar»: boshqa kanallarni belgilash. */
+    public static function extraChannels(Ctx $ctx, ?int $toggle = null): void
+    {
+        $st = self::draftState($ctx);
+        if ($st === null) {
+            return;
+        }
+        $data = $st['data'];
+        $main = (int) ($data['channel'] ?? 0);
+        $extra = array_values(array_unique(array_map('intval', (array) ($data['extra'] ?? []))));
+        if ($toggle !== null && $toggle !== $main && $ctx->app->channels->getOwned($ctx->ownerId(), $toggle)) {
+            $extra = in_array($toggle, $extra, true) ? array_values(array_diff($extra, [$toggle])) : array_merge($extra, [$toggle]);
+            $data['extra'] = $extra;
+            $ctx->app->states->set($ctx->userId, $st['state'], $data);
+        }
+        $rows = [];
+        foreach ($ctx->app->channels->listFor($ctx->ownerId()) as $c) {
+            $id = (int) $c['id'];
+            if ($id === $main) {
+                continue;
+            }
+            $rows[] = [Keyboards::btn((in_array($id, $extra, true) ? '✅ ' : '▫️ ') . mb_substr((string) ($c['title'] ?: $c['channel_id']), 0, 40), 'pm:' . $id)];
+        }
+        $rows[] = [Keyboards::btn($ctx->t('btn_done'), 'p:more')];
+        $mainCh = $ctx->app->channels->getOwned($ctx->ownerId(), $main);
+        $text = $ctx->t('mc_ask', ['main' => Html::e((string) ($mainCh['title'] ?? ''))]);
+        $toggle === null ? $ctx->reply($text, Keyboards::inline($rows)) : $ctx->edit($text, Keyboards::inline($rows));
+    }
+
+    /** «Hozir yuborish»: navbatga qo'yiladi va darhol yuboriladi; natija rostdan aytiladi (har kanal uchun). */
     private static function sendNow(Ctx $ctx, array $data, string $stateName): void
     {
-        $channel = $ctx->app->channels->getOwned($ctx->ownerId(), (int) ($data['channel'] ?? 0));
-        if (!$channel) {
+        $channels = self::targets($ctx, $data);
+        if (!$channels) {
             $ctx->app->states->clear($ctx->userId);
             $ctx->replyMenu($ctx->t('draft_expired'));
             return;
@@ -523,7 +595,7 @@ final class PostHandler
             $ctx->reply($ctx->t('team_no_perm_now'));
             return;
         }
-        if (!self::queueHasRoom($ctx)) {
+        if (!self::queueHasRoom($ctx, count($channels))) {
             return;
         }
         $rec = self::recurrenceFor($ctx, $data, $ctx->app->now());
@@ -533,24 +605,38 @@ final class PostHandler
         if (!$ctx->app->states->take($ctx->userId, $stateName)) {
             return; // ikkinchi parallel bosish — post allaqachon yuborilmoqda
         }
-        $id = $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false, $rec, $ctx->userId);
+        $results = [];
+        foreach ($channels as $channel) {
+            $id = $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false, $rec, $ctx->userId);
+            $r = ['status' => 'retry', 'reason' => ''];
+            if ($ctx->app->posts->claim($id)) {
+                $post = $ctx->app->posts->get($id);
+                $r = (new Scheduler($ctx->app))->deliver($post ?? []);
+            }
+            $results[] = [$channel, $r];
+        }
         self::afterSaved($ctx);
-        if (!$ctx->app->posts->claim($id)) {
-            $ctx->replyMenu($ctx->t('send_retry'));
+        if (count($results) === 1) {
+            [$channel, $r] = $results[0];
+            $name = Html::e((string) $channel['title']);
+            if ($r['status'] === 'sent') {
+                $next = $r['next'] ?? null;
+                $ctx->replyMenu($ctx->t('send_ok', ['channel' => $name]) . ($next !== null
+                    ? "\n🔄 " . $ctx->t('rep_next', ['when' => TimeParser::show($next->format('Y-m-d H:i:s'), $ctx->tz())]) : ''));
+            } elseif ($r['status'] === 'retry') {
+                $ctx->replyMenu($ctx->t('send_retry'));
+            } else {
+                $ctx->replyMenu($ctx->t('send_fail', ['reason' => $ctx->t($r['reason'])]));
+            }
             return;
         }
-        $post = $ctx->app->posts->get($id);
-        $r = (new Scheduler($ctx->app))->deliver($post ?? []);
-        $name = Html::e((string) $channel['title']);
-        if ($r['status'] === 'sent') {
-            $next = $r['next'] ?? null;
-            $ctx->replyMenu($ctx->t('send_ok', ['channel' => $name]) . ($next !== null
-                ? "\n🔄 " . $ctx->t('rep_next', ['when' => TimeParser::show($next->format('Y-m-d H:i:s'), $ctx->tz())]) : ''));
-        } elseif ($r['status'] === 'retry') {
-            $ctx->replyMenu($ctx->t('send_retry'));
-        } else {
-            $ctx->replyMenu($ctx->t('send_fail', ['reason' => $ctx->t($r['reason'])]));
+        $lines = [];
+        foreach ($results as [$channel, $r]) {
+            $name = Html::e((string) $channel['title']);
+            $lines[] = $r['status'] === 'sent' ? '✅ ' . $name : ($r['status'] === 'retry' ? '⏳ ' . $name . ' — ' . $ctx->t('mc_queued')
+                : '❌ ' . $name . ' — ' . $ctx->t((string) $r['reason']));
         }
+        $ctx->replyMenu($ctx->t('mc_result') . "\n\n" . implode("\n", $lines));
     }
 
     /**
@@ -595,10 +681,10 @@ final class PostHandler
         }
     }
 
-    private static function queueHasRoom(Ctx $ctx): bool
+    private static function queueHasRoom(Ctx $ctx, int $n = 1): bool
     {
         $limit = $ctx->app->queueLimit($ctx->ownerId());
-        if ($limit > 0 && $ctx->app->posts->pendingCount($ctx->ownerId()) >= $limit) {
+        if ($limit > 0 && $ctx->app->posts->pendingCount($ctx->ownerId()) + $n > $limit) {
             $ctx->reply($ctx->t('queue_limit', ['max' => $limit]));
             return false;
         }

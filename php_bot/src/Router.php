@@ -546,9 +546,11 @@ final class Router
             ChannelHandler::askDelete($ctx, (int) $m[1]);
         } elseif (preg_match('/^ch:delok:(\d{1,10})$/', $data, $m)) {
             ChannelHandler::delete($ctx, (int) $m[1]);
+        } elseif (preg_match('/^pm:(\d{1,10})$/', $data, $m)) {
+            PostHandler::extraChannels($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|mc)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
         } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);
