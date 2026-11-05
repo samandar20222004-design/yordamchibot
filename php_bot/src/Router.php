@@ -10,6 +10,7 @@ use PostAssist\Handlers\CardHandler;
 use PostAssist\Handlers\ForceSubHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\LinksHandler;
+use PostAssist\Handlers\MarketHandler;
 use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
@@ -25,6 +26,8 @@ use PostAssist\Repo\TrackedLinks;
  */
 final class Router
 {
+    public const GO_TARGETS = ['go_market', 'go_team', 'go_plans', 'go_channels'];
+
     private const MENU_KEYS = ['btn_create_content', 'btn_ai_post', 'btn_my_channels', 'btn_scheduled', 'btn_statistics', 'btn_settings', 'btn_admin'];
 
     private App $app;
@@ -163,6 +166,18 @@ final class Router
                 case 'tz_wait':
                     SettingsHandler::setTimezone($ctx, $text);
                     return;
+                case 'mk_phone':
+                    MarketHandler::phone($ctx);
+                    return;
+                case 'mk_price':
+                    MarketHandler::priceInput($ctx, $state);
+                    return;
+                case 'mk_desc':
+                    MarketHandler::descInput($ctx, $state);
+                    return;
+                case 'mk_msg':
+                    MarketHandler::message($ctx, $state);
+                    return;
                 case 'receipt_wait':
                     CardHandler::receipt($ctx, $state);
                     return;
@@ -217,6 +232,20 @@ final class Router
                     TeamHandler::accept($ctx, $tm[1]); // jamoa taklifi
                     return true;
                 }
+                // Mini App -> bot: faqat ruxsat etilgan bo'limlar (app.php BOT_SECTIONS bilan bir xil).
+                if (isset($args[0]) && in_array($args[0], self::GO_TARGETS, true)) {
+                    $go = $args[0];
+                    if ($go === 'go_market') {
+                        MarketHandler::home($ctx);
+                    } elseif ($go === 'go_team') {
+                        TeamHandler::show($ctx, false);
+                    } elseif ($go === 'go_plans') {
+                        PlansHandler::show($ctx);
+                    } else {
+                        ChannelHandler::show($ctx);
+                    }
+                    return true;
+                }
                 StartHandler::start($ctx);
                 return true;
             case '/help':
@@ -260,6 +289,9 @@ final class Router
             case '/ai':
                 $this->app->states->clear($ctx->userId);
                 AiHandler::start($ctx);
+                return true;
+            case '/market':
+                MarketHandler::home($ctx);
                 return true;
             case '/team':
                 TeamHandler::show($ctx, false);
@@ -383,6 +415,26 @@ final class Router
             AiHandler::edit($ctx, $m[1]);
         } elseif (preg_match('/^in:(post|ai|close)$/', $data, $m)) {
             AiHandler::intakeChoice($ctx, $m[1]);
+        } elseif ($data === 'mk:home') {
+            MarketHandler::home($ctx, true);
+        } elseif ($data === 'mk:cat') {
+            MarketHandler::categories($ctx);
+        } elseif (preg_match('/^mk:l:([a-z]{2,14}):(\d{1,4})$/', $data, $m)) {
+            MarketHandler::listing($ctx, in_array($m[1], \PostAssist\Repo\Market::CATEGORIES, true) ? $m[1] : 'all', (int) $m[2]);
+        } elseif (preg_match('/^mk:(v|ask|rep|hide|del|upd|pc|re|ct|bl|fr|t):(\d{1,10})$/', $data, $m)) {
+            $id = (int) $m[2];
+            $map = ['v' => 'view', 'ask' => 'ask', 'rep' => 'report', 'hide' => 'toggle', 'del' => 'delete', 'upd' => 'refresh', 'pc' => 'pickChannel',
+                're' => 'reply', 'ct' => 'contact', 'bl' => 'block', 'fr' => 'fraud', 't' => 'thread'];
+            $fn = $map[$m[1]];
+            MarketHandler::$fn($ctx, $id);
+        } elseif ($data === 'mk:pub') {
+            MarketHandler::publish($ctx);
+        } elseif ($data === 'mk:my') {
+            MarketHandler::mine($ctx);
+        } elseif ($data === 'mk:th') {
+            MarketHandler::threads($ctx);
+        } elseif (preg_match('/^mk:cs:([a-z]{2,14})$/', $data, $m) && in_array($m[1], \PostAssist\Repo\Market::CATEGORIES, true)) {
+            MarketHandler::saveCategory($ctx, $m[1]);
         } elseif ($data === 'set:team') {
             TeamHandler::show($ctx);
         } elseif ($data === 'tm:inv') {

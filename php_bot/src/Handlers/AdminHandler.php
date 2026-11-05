@@ -100,6 +100,9 @@ final class AdminHandler
                 self::promoDelete($ctx, $args);
                 return true;
         }
+        if (MarketHandler::admin($ctx, $cmd, $args)) {
+            return true;
+        }
         return LinksHandler::adminCommand($ctx, $cmd, $args);
     }
 

@@ -57,7 +57,18 @@ final class Users
 
     public function markUzVerified(int $id): void
     {
-        $this->db->exec('UPDATE users SET uz_verified = 1 WHERE user_id = ?', [$id]);
+        $this->db->exec('UPDATE users SET uz_verified = 1, phone_verified = 1 WHERE user_id = ?', [$id]);
+    }
+
+    /** O'z kontaktini ulashgan (istalgan davlat). Raqam saqlanmaydi. */
+    public function markPhoneVerified(int $id): void
+    {
+        $this->db->exec('UPDATE users SET phone_verified = 1 WHERE user_id = ?', [$id]);
+    }
+
+    public function isPhoneVerified(int $id): bool
+    {
+        return (int) $this->db->value('SELECT phone_verified FROM users WHERE user_id = ?', [$id]) === 1;
     }
 
     public function setTimezone(int $id, ?string $tz): void

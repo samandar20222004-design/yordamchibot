@@ -101,6 +101,7 @@ final class Keyboards
         if ($canAdd) {
             $rows[] = [self::btn(I18n::t('btn_ch_add', $lang), 'ch:add')];
         }
+        $rows[] = [self::btn(I18n::t('btn_mk_market', $lang), 'mk:home')];
         $rows[] = self::navRow($lang);
         return self::inline($rows);
     }

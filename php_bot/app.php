@@ -97,6 +97,13 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       <button class="big ghost" id="open-bot"><span>🤖</span><b data-t="ma_open_bot"></b></button>
     </div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div></div>
+    <div class="card"><h3 data-t="ma_in_bot"></h3>
+      <div class="actions">
+        <button class="big ghost" data-bot="go_market"><span>💰</span><b data-t="ma_go_market"></b></button>
+        <button class="big ghost" data-bot="go_team"><span>👥</span><b data-t="ma_go_team"></b></button>
+        <button class="big ghost" data-bot="go_plans"><span>💎</span><b data-t="ma_plans"></b></button>
+        <button class="big ghost" data-bot="go_channels"><span>📢</span><b data-t="ma_go_channels"></b></button>
+      </div></div>
   </section>
 
   <section class="page" id="p-post">
@@ -222,12 +229,19 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   });
   if (tg && tg.BackButton) { tg.BackButton.onClick(function () { if ($('modal').classList.contains('on')) { closeModal(); } else { go('home'); } }); }
 
-  function openBot() {
+  var BOT_SECTIONS = ['go_market', 'go_team', 'go_plans', 'go_channels'];
+  function openBot(section) {
     if (!me) { return; }
     var url = 'https://t.me/' + me.bot;
+    if (typeof section === 'string' && BOT_SECTIONS.indexOf(section) >= 0) { url += '?start=' + section; }
     if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); setTimeout(function () { tg.close(); }, 300); } else { location.href = url; }
   }
-  $('open-bot').onclick = openBot; $('no-ch-bot').onclick = openBot; $('me-plans').onclick = openBot;
+  $('open-bot').onclick = function () { openBot(); }; $('no-ch-bot').onclick = function () { openBot('go_channels'); };
+  $('me-plans').onclick = function () { openBot('go_plans'); };
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-bot]');
+    if (b) { e.preventDefault(); haptic(); openBot(b.getAttribute('data-bot')); }
+  });
 
   function modal(html) { $('sheet').innerHTML = html; $('modal').classList.add('on'); }
   function closeModal() { $('modal').classList.remove('on'); }

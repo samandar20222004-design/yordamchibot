@@ -310,3 +310,58 @@ CREATE TABLE IF NOT EXISTS team_invites (
     UNIQUE KEY uq_team_token (token_hash),
     KEY idx_team_inv_owner (owner_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================== 💰 Reklama birjasi =====================
+-- Pul botdan O'TMAYDI: bot faqat kanal katalogi va xavfsiz yozishma (kontakt faqat egasining o'zi ruxsat bersa).
+CREATE TABLE IF NOT EXISTS market_listings (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    owner_id BIGINT NOT NULL,
+    channel_id BIGINT NOT NULL,
+    title VARCHAR(255) NULL,
+    username VARCHAR(64) NOT NULL,
+    category VARCHAR(20) NOT NULL DEFAULT 'other',
+    price BIGINT NOT NULL,
+    currency VARCHAR(3) NOT NULL DEFAULT 'UZS',
+    description VARCHAR(500) NULL,
+    subscribers INT NOT NULL DEFAULT 0,
+    status VARCHAR(12) NOT NULL DEFAULT 'active',
+    reports INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uq_market_channel (channel_id),
+    KEY idx_market_cat (status, category, subscribers),
+    KEY idx_market_owner (owner_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS market_threads (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    listing_id INT NOT NULL,
+    buyer_id BIGINT NOT NULL,
+    owner_id BIGINT NOT NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'open',
+    messages INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    last_at DATETIME NOT NULL,
+    UNIQUE KEY uq_market_thread (listing_id, buyer_id),
+    KEY idx_market_thread_buyer (buyer_id, last_at),
+    KEY idx_market_thread_owner (owner_id, last_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS market_messages (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    thread_id INT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    body TEXT NOT NULL,
+    norm_hash CHAR(40) NOT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_market_msg_thread (thread_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Shikoyatlar: e'longa (3 ta -> e'lon yopiladi) va foydalanuvchiga «firibgar» (3 ta -> birjadan ban). Bir kishi — bir marta.
+CREATE TABLE IF NOT EXISTS market_reports (
+    kind VARCHAR(8) NOT NULL,
+    target_id BIGINT NOT NULL,
+    reporter_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (kind, target_id, reporter_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

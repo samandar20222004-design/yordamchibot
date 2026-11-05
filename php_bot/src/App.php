@@ -13,6 +13,7 @@ use PostAssist\Repo\Receipts;
 use PostAssist\Repo\Team;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
+use PostAssist\Repo\Market;
 use PostAssist\Repo\Messages;
 use PostAssist\Repo\Payments;
 use PostAssist\Repo\Posts;
@@ -44,6 +45,7 @@ final class App
     public Broadcasts $broadcasts;
     public ForcedChannels $forced;
     public Team $team;
+    public Market $market;
     public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
@@ -75,6 +77,7 @@ final class App
         $this->broadcasts = new Broadcasts($db);
         $this->forced = new ForcedChannels($db);
         $this->team = new Team($db);
+        $this->market = new Market($db);
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);

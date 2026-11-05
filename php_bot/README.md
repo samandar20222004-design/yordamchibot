@@ -65,6 +65,11 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - **Hammaga xabar:** `/broadcast` → xabar yuboring (matn/rasm/video) → ko'rib «✅ Yuborish». Cron har daqiqada bo'laklab yuboradi; holati `/broadcast_status`, to'xtatish `/broadcast_stop`.
 - **Majburiy obuna:** botni kanalga admin qiling → `/force_add @kanal` (`/force_list`, `/force_del ID`). Foydalanuvchi a'zo bo'lmaguncha bot ishlamaydi (adminlar mustasno).
 
+## 👥 Jamoa va 💰 reklama birjasi
+
+- **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).
+- **Birja**: `/market` yoki kanallar ro'yxatidagi «💰 Birja». Kanal egasi e'lon qo'yadi, reklama beruvchi katalogdan tanlab bot orqali yozadi. Pul bot orqali o'tmaydi. Karta raqami, hamyon va havolalar suhbatda to'siladi; 3 ta shikoyat — avtomatik blok. Admin: `/market_ban ID`, `/market_unban ID`, `/market_userban ID`, `/market_userunban ID`.
+
 ## 📱 Mini App
 
 Qo'shimcha sozlash shart emas: `webhook_url` `https://.../webhook.php` bo'lsa, Mini App manzili avtomatik `.../app.php` bo'ladi.

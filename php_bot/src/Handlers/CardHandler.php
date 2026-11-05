@@ -68,6 +68,7 @@ final class CardHandler
         $digits = (string) preg_replace('/\D+/', '', (string) ($c['phone_number'] ?? ''));
         $ctx->app->states->clear($ctx->userId);
         if (!preg_match('/^998\d{9}$/', $digits)) {
+            $ctx->app->users->markPhoneVerified($ctx->userId);
             $ctx->replyMenu($ctx->t('uz_verify_foreign')); // raqam saqlanmaydi
             return;
         }
