@@ -109,7 +109,44 @@ final class PostRender
     /** Kanal postining klaviaturasi: havolali tugma + reaksiyalar. */
     public static function postRows(array $post, array $counts = []): array
     {
-        return array_merge(self::urlRows($post['button_text'] ?? null, $post['button_url'] ?? null), self::reactionRow($post['reactions'] ?? null, $counts));
+        return array_merge(self::urlRows($post['button_text'] ?? null, $post['button_url'] ?? null), self::hiddenRow($post['hidden_text'] ?? null),
+            self::reactionRow($post['reactions'] ?? null, $counts));
+    }
+
+    /** Post sozlamalari: ovozsiz, havola ko'rinishisiz, pin, nusxa himoyasi. */
+    public const OPTIONS = ['silent', 'nopreview', 'pin', 'protect'];
+
+    /** @param string|array|null $opts @return string[] */
+    public static function options($opts): array
+    {
+        $list = is_array($opts) ? $opts : explode(',', (string) $opts);
+        return array_values(array_intersect(self::OPTIONS, array_map('trim', $list)));
+    }
+
+    /** @param string|array|null $opts */
+    public static function optionsString($opts): ?string
+    {
+        $o = self::options($opts);
+        return $o ? implode(',', $o) : null;
+    }
+
+    /** 🔒 Yashirin matn (faqat obunachilarga): JSON {"l": tugma yorlig'i, "t": matn}. */
+    public static function hiddenJson(string $label, string $text): string
+    {
+        return (string) json_encode(['l' => $label, 't' => $text], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @return array{l:string,t:string}|null */
+    public static function hidden(?string $json): ?array
+    {
+        $h = $json !== null && $json !== '' ? json_decode($json, true) : null;
+        return is_array($h) && trim((string) ($h['t'] ?? '')) !== '' ? ['l' => (string) ($h['l'] ?? '🔒'), 't' => (string) $h['t']] : null;
+    }
+
+    public static function hiddenRow(?string $json): array
+    {
+        $h = self::hidden($json);
+        return $h ? [[['text' => mb_substr($h['l'], 0, 40), 'callback_data' => 'hd']]] : [];
     }
 
     /** @return array<int, array{0:string,1:string}> albom fayllari [[tur, file_id], ...] */
@@ -147,6 +184,14 @@ final class PostRender
     public static function send(Telegram $tg, int $chatId, array $post, string $botUsername, bool $free, array $extraRows = []): array
     {
         $type = (string) $post['post_type'];
+        $opts = self::options($post['options'] ?? null);
+        $flags = [];
+        if (in_array('silent', $opts, true)) {
+            $flags['disable_notification'] = true;
+        }
+        if (in_array('protect', $opts, true)) {
+            $flags['protect_content'] = true;
+        }
         $html = self::watermark((string) ($post['text'] ?? ''), $type === 'album' ? 'photo' : $type, $botUsername, $free);
         if ($type === 'album') {
             $media = [];
@@ -161,12 +206,13 @@ final class PostRender
             if (count($media) < 2) {
                 return ['ok' => false, 'error_code' => 400, 'description' => 'album: not enough media'];
             }
-            return $tg->call('sendMediaGroup', ['chat_id' => $chatId, 'media' => $media]);
+            return $tg->call('sendMediaGroup', ['chat_id' => $chatId, 'media' => $media] + $flags);
         }
         $rows = array_merge(self::postRows($post), $extraRows);
         $markup = $rows ? ['inline_keyboard' => $rows] : null;
         if ($type === 'text') {
-            return $tg->call('sendMessage', ['chat_id' => $chatId, 'text' => $html, 'parse_mode' => 'HTML', 'reply_markup' => $markup]);
+            return $tg->call('sendMessage', ['chat_id' => $chatId, 'text' => $html, 'parse_mode' => 'HTML', 'reply_markup' => $markup] + $flags
+                + (in_array('nopreview', $opts, true) ? ['link_preview_options' => ['is_disabled' => true]] : []));
         }
         $method = ['photo' => 'sendPhoto', 'video' => 'sendVideo', 'animation' => 'sendAnimation',
             'document' => 'sendDocument', 'audio' => 'sendAudio'][$type] ?? null;
@@ -174,7 +220,7 @@ final class PostRender
             return ['ok' => false, 'error_code' => 400, 'description' => 'unsupported post type'];
         }
         return $tg->call($method, ['chat_id' => $chatId, $type => (string) $post['file_id'], 'caption' => $html,
-            'parse_mode' => 'HTML', 'reply_markup' => $markup]);
+            'parse_mode' => 'HTML', 'reply_markup' => $markup] + $flags);
     }
 
     /** Yuborish natijasidan xabar ID'lari (albomda bir nechta). @return array<int, int> */

@@ -23,10 +23,10 @@ final class Messages
             return;
         }
         $extra = array_slice($ids, 1);
-        $this->db->exec('INSERT IGNORE INTO sent_messages (post_id, chat_id, message_id, extra_ids, reactions, button_text, button_url, delete_at, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', [(int) $post['id'], $chatId, $ids[0], $extra ? implode(',', $extra) : null,
+        $this->db->exec('INSERT IGNORE INTO sent_messages (post_id, chat_id, message_id, extra_ids, reactions, button_text, button_url, hidden_text, delete_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [(int) $post['id'], $chatId, $ids[0], $extra ? implode(',', $extra) : null,
             $post['post_type'] === 'album' ? null : ($post['reactions'] ?? null), $post['button_text'] ?? null, $post['button_url'] ?? null,
-            $deleteAtUtcSql, $nowSql]);
+            $post['post_type'] === 'album' ? null : ($post['hidden_text'] ?? null), $deleteAtUtcSql, $nowSql]);
     }
 
     public function find(int $chatId, int $messageId): ?array

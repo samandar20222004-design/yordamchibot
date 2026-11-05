@@ -105,6 +105,12 @@ final class Scheduler
             $ids = PostRender::messageIds($res);
             $deleteAt = (int) ($post['delete_after'] ?? 0) > 0 ? $app->now()->modify('+' . (int) $post['delete_after'] . ' minutes')->format('Y-m-d H:i:s') : null;
             $app->messages->record($post, (int) $post['channel_id'], $ids, $deleteAt, $app->nowSql());
+            if ($ids && in_array('pin', PostRender::options($post['options'] ?? null), true)) {
+                $pin = $app->tg->call('pinChatMessage', ['chat_id' => (int) $post['channel_id'], 'message_id' => $ids[0], 'disable_notification' => true]);
+                if (empty($pin['ok'])) {
+                    $app->log('pin #' . $id . ': ' . ($pin['description'] ?? '')); // post chiqdi, pin bo'lmasa ham xato emas
+                }
+            }
             $next = null;
             if (!empty($post['recurrence_type'])) {
                 $next = Recurrence::next((string) $post['recurrence_type'], (int) $post['recurrence_time'],

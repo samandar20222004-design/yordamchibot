@@ -162,6 +162,16 @@ final class Keyboards
         }
         $rows[] = [self::btn(I18n::t('btn_repeat', $lang), 'p:rep'),
             self::btn((!empty($draft['delete_after']) ? '✅ ' : '') . I18n::t('btn_autodelete', $lang), 'p:ad')];
+        if (!$album) {
+            $hasH = PostRender::hidden($draft['hidden'] ?? null) !== null;
+            $rows[] = [self::btn(I18n::t($hasH ? 'btn_hidden_del' : 'btn_hidden', $lang), $hasH ? 'p:hddel' : 'p:hidden')];
+        }
+        $on = PostRender::options($draft['options'] ?? null);
+        $o = static function (string $k) use ($on, $lang) {
+            return self::btn((in_array($k, $on, true) ? '✅ ' : '') . I18n::t('btn_o_' . $k, $lang), 'p:o_' . $k);
+        };
+        $rows[] = $album ? [$o('silent'), $o('protect')] : [$o('silent'), $o('nopreview')];
+        $rows[] = $album ? [$o('pin')] : [$o('pin'), $o('protect')];
         $rows[] = [self::btn(I18n::t('btn_back', $lang), 'p:back')];
         return self::inline($rows);
     }

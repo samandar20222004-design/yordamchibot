@@ -10,6 +10,7 @@ use PostAssist\Handlers\ContentPlanHandler;
 use PostAssist\Handlers\BroadcastHandler;
 use PostAssist\Handlers\CardHandler;
 use PostAssist\Handlers\ForceSubHandler;
+use PostAssist\Handlers\HiddenHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\MarketHandler;
@@ -164,6 +165,9 @@ final class Router
                     return;
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
+                    return;
+                case 'post_hidden':
+                    PostHandler::hiddenInput($ctx, $state);
                     return;
                 case 'tz_wait':
                     SettingsHandler::setTimezone($ctx, $text);
@@ -377,6 +381,10 @@ final class Router
     private function callback(array $cq): void
     {
         $chat = $cq['message']['chat'] ?? null;
+        if (isset($cq['from']) && is_array($chat) && ($cq['data'] ?? '') === 'hd') {
+            HiddenHandler::press($this->app, $cq); // 🔒 yashirin matn (kanalda yoki preview'da)
+            return;
+        }
         if (isset($cq['from']) && is_array($chat) && preg_match('/^rx:([0-5])$/', (string) ($cq['data'] ?? ''), $rm)) {
             ReactionHandler::press($this->app, $cq, (int) $rm[1]); // kanal postidagi reaksiya tugmasi
             return;
@@ -532,7 +540,7 @@ final class Router
             ChannelHandler::delete($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
         } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);

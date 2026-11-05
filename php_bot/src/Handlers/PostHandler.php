@@ -70,11 +70,11 @@ final class PostHandler
         }
         $data = $state['data'];
         $old = $data['draft'] ?? [];
-        foreach (['button_text', 'button_url', 'reactions', 'delete_after'] as $k) {
+        foreach (['button_text', 'button_url', 'reactions', 'delete_after', 'options', 'hidden'] as $k) {
             $draft[$k] = $old[$k] ?? null;
         }
         if ($draft['type'] === 'album') {
-            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = null; // albomga tugma qo'yib bo'lmaydi
+            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = $draft['hidden'] = null; // albomga tugma qo'yib bo'lmaydi
         }
         $data['draft'] = $draft;
         if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->ownerId(), (int) $data['channel'])) {
@@ -209,7 +209,8 @@ final class PostHandler
         $ctx->app->states->set($ctx->userId, 'post_preview', $data);
         $d = $data['draft'];
         $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
-            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null];
+            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
+            'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null];
         $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled(),
             $d['type'] !== 'album' ? $ctx->app->miniAppUrl('tab=post') : null);
         $free = $ctx->app->isFree($ctx->ownerId());
@@ -247,6 +248,16 @@ final class PostHandler
         }
         if (!empty($data['draft']['reactions'])) {
             $lines[] = '👍 ' . Html::e(str_replace(',', ' ', (string) $data['draft']['reactions']));
+        }
+        $opts = PostRender::options($data['draft']['options'] ?? null);
+        if ($opts) {
+            $lines[] = implode(' · ', array_map(static function ($o) use ($ctx) {
+                return $ctx->t('btn_o_' . $o);
+            }, $opts));
+        }
+        $h = PostRender::hidden($data['draft']['hidden'] ?? null);
+        if ($h !== null) {
+            $lines[] = $ctx->t('hidden_line', ['text' => Html::e(mb_substr($h['t'], 0, 60))]);
         }
         return $lines ? "\n\n" . implode("\n", $lines) : '';
     }
@@ -314,7 +325,45 @@ final class PostHandler
             case 'back':
                 self::preview($ctx, $data);
                 return;
+            case 'hidden':
+                if ($album) {
+                    $ctx->reply($ctx->t('album_no_buttons'));
+                    return;
+                }
+                $ctx->app->states->set($ctx->userId, 'post_hidden', $data);
+                $ctx->reply($ctx->t('hidden_ask', ['max' => self::HIDDEN_MAX]), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
+                return;
+            case 'hddel':
+                $data['draft']['hidden'] = null;
+                self::preview($ctx, $data);
+                return;
         }
+        if (strpos($act, 'o_') === 0) {
+            // sozlama yoqish/o'chirish: ovozsiz, havola ko'rinishisiz, pin, nusxa himoyasi
+            $opt = substr($act, 2);
+            $cur = PostRender::options($data['draft']['options'] ?? null);
+            $cur = in_array($opt, $cur, true) ? array_values(array_diff($cur, [$opt])) : array_merge($cur, [$opt]);
+            $data['draft']['options'] = PostRender::optionsString($cur);
+            $ctx->app->states->set($ctx->userId, $st['state'], $data);
+            $ctx->edit($ctx->t('more_title') . self::extrasText($ctx, $data) . ($album ? "\n\n" . $ctx->t('album_no_buttons') : ''),
+                Keyboards::more($ctx->lang, $data['draft'], $album, $ctx->app->ai->enabled()));
+        }
+    }
+
+    public const HIDDEN_MAX = 180;
+
+    /** 🔒 Yashirin matn kiritildi (holat post_hidden). Telegram ogohlantirish oynasi 200 belgigacha. */
+    public static function hiddenInput(Ctx $ctx, array $state): void
+    {
+        $text = trim((string) ($ctx->message['text'] ?? ''));
+        $len = mb_strlen($text);
+        if ($len < 1 || $len > self::HIDDEN_MAX) {
+            $ctx->reply($ctx->t('hidden_bad', ['max' => self::HIDDEN_MAX]));
+            return;
+        }
+        $data = $state['data'];
+        $data['draft']['hidden'] = PostRender::hiddenJson($ctx->t('hidden_btn_label'), $text);
+        self::preview($ctx, $data);
     }
 
     /** Takrorlash tanlandi: none|daily|weekly|monthly|twice (twice — kechki vaqt so'raladi). */

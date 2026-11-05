@@ -431,3 +431,4 @@ require __DIR__ . '/MarketTest.php';
 require __DIR__ . '/AutopilotTest.php';
 require __DIR__ . '/PaymeTest.php';
 require __DIR__ . '/MiniAppMarketTest.php';
+require __DIR__ . '/FeaturesTest.php';

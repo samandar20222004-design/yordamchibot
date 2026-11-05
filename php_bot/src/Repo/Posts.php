@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace PostAssist\Repo;
 
 use PostAssist\Db;
+use PostAssist\Services\PostRender;
 
 final class Posts
 {
@@ -29,12 +30,13 @@ final class Posts
         $media = !empty($draft['media']) && is_array($draft['media']) ? json_encode(array_values($draft['media']), JSON_UNESCAPED_UNICODE) : null;
         $this->db->exec(
             'INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, file_id, button_text, button_url, media, reactions, delete_after,
-                recurrence_type, recurrence_time, recurrence_day, scheduled_time, notify_owner, created_by, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
+                recurrence_type, recurrence_time, recurrence_day, scheduled_time, notify_owner, created_by, options, hidden_text, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())',
             [$userId, $channelId, $draft['type'], $draft['text'], $draft['file_id'], $draft['button_text'] ?? null,
                 $draft['button_url'] ?? null, $media, $draft['reactions'] ?? null,
                 isset($draft['delete_after']) && (int) $draft['delete_after'] > 0 ? (int) $draft['delete_after'] : null,
-                $rec['type'] ?? null, $rec['time'] ?? null, $rec['day'] ?? null, $utcSql, $notify ? 1 : 0, $createdBy !== null && $createdBy !== $userId ? $createdBy : null]
+                $rec['type'] ?? null, $rec['time'] ?? null, $rec['day'] ?? null, $utcSql, $notify ? 1 : 0, $createdBy !== null && $createdBy !== $userId ? $createdBy : null,
+                PostRender::optionsString($draft['options'] ?? null), $draft['type'] === 'album' ? null : ($draft['hidden'] ?? null)]
         );
         return $this->db->lastId();
     }
