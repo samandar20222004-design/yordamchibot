@@ -41,7 +41,7 @@ final class PlansHandler
         ]);
         $kb = $tier === Plans::ENTERPRISE ? Keyboards::nav($ctx->lang, 'set:show') : Keyboards::inline([
             [Keyboards::btn($ctx->t('btn_buy_pro'), 'pl:t:pro'), Keyboards::btn($ctx->t('btn_buy_ultra'), 'pl:t:ultra')],
-            [Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')],
+            CardHandler::enabled($app) ? [Keyboards::btn($ctx->t('btn_card'), 'pl:card'), Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')] : [Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')],
             Keyboards::navRow($ctx->lang, 'set:show'),
         ]);
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);

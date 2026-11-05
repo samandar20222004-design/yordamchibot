@@ -5,6 +5,9 @@ namespace PostAssist;
 
 use PostAssist\Handlers\AdminHandler;
 use PostAssist\Handlers\AiHandler;
+use PostAssist\Handlers\BroadcastHandler;
+use PostAssist\Handlers\CardHandler;
+use PostAssist\Handlers\ForceSubHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\PlansHandler;
@@ -97,6 +100,9 @@ final class Router
             PlansHandler::paid($ctx, $msg['successful_payment']);
             return;
         }
+        if (!ForceSubHandler::gate($ctx)) {
+            return; // majburiy obuna: avval kanallarga a'zo bo'ling
+        }
         $user = $this->app->users->get($ctx->userId);
         if ($user && (int) $user['is_blocked'] === 1) {
             $this->app->users->markBlocked($ctx->userId, false); // foydalanuvchi botni qayta ochdi
@@ -151,6 +157,17 @@ final class Router
                     return;
                 case 'tz_wait':
                     SettingsHandler::setTimezone($ctx, $text);
+                    return;
+                case 'receipt_wait':
+                    CardHandler::receipt($ctx, $state);
+                    return;
+                case 'uz_verify':
+                    CardHandler::contact($ctx);
+                    return;
+                case 'bc_wait':
+                    if ($this->app->isAdmin($ctx->userId)) {
+                        BroadcastHandler::received($ctx);
+                    }
                     return;
                 case 'ai_topic':
                 case 'ai_style':
@@ -313,6 +330,13 @@ final class Router
             return;
         }
         $data = (string) ($cq['data'] ?? '');
+        if ($data === 'fs:check') {
+            ForceSubHandler::check($ctx);
+            return;
+        }
+        if (!ForceSubHandler::gate($ctx)) {
+            return;
+        }
         if (preg_match('/^lang:(uz|ru|en)$/', $data, $m)) {
             SettingsHandler::setLang($ctx, $m[1]);
         } elseif ($data === 'm:home') {
@@ -347,9 +371,20 @@ final class Router
             AiHandler::edit($ctx, $m[1]);
         } elseif (preg_match('/^in:(post|ai|close)$/', $data, $m)) {
             AiHandler::intakeChoice($ctx, $m[1]);
-        } elseif (preg_match('/^a:(stats|promos|links|help)$/', $data, $m)) {
+        } elseif ($data === 'pl:card') {
+            CardHandler::start($ctx);
+        } elseif (preg_match('/^pl:ct:(pro|ultra)$/', $data, $m)) {
+            CardHandler::periods($ctx, $m[1]);
+        } elseif (preg_match('/^pl:cb:(u?(?:1m|3m|6m|1y))$/', $data, $m)) {
+            CardHandler::details($ctx, $m[1]);
+        } elseif (preg_match('/^rc:(ok|no):(\d{1,10})$/', $data, $m)) {
+            CardHandler::decide($ctx, $m[1], (int) $m[2]);
+        } elseif (preg_match('/^bc:(go|no)$/', $data, $m)) {
+            BroadcastHandler::confirm($ctx, $m[1] === 'go');
+        } elseif (preg_match('/^a:(stats|promos|links|help|bc|fs)$/', $data, $m)) {
             if ($this->app->isAdmin($ctx->userId)) {
-                $m[1] === 'stats' ? AdminHandler::show($ctx) : AdminHandler::command($ctx, '/' . ($m[1] === 'help' ? 'admin_help' : $m[1]), []);
+                $map = ['promos' => '/promos', 'links' => '/links', 'help' => '/admin_help', 'bc' => '/broadcast', 'fs' => '/force_list'];
+                $m[1] === 'stats' ? AdminHandler::show($ctx) : AdminHandler::command($ctx, $map[$m[1]], []);
             }
         } elseif ($data === 'ch:add') {
             ChannelHandler::askAdd($ctx);

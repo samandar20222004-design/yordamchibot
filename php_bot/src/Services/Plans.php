@@ -31,6 +31,11 @@ final class Plans
         'pro' => ['channels' => 10, 'queue' => 300],
         'ultra' => ['channels' => 30, 'queue' => 900],
     ];
+    /** So'mdagi narxlar (karta orqali; Python PAYMENT_PRICE_*_UZS / ULTRA_PRICE_*_UZS). */
+    public const DEFAULT_UZS = [
+        '1m' => 29000, '3m' => 75000, '6m' => 135000, '1y' => 245000,
+        'u1m' => 69000, 'u3m' => 175000, 'u6m' => 335000, 'u1y' => 620000,
+    ];
     /** Kunlik AI so'rovlari (Python FREE_DAILY_AI / PRO_DAILY_AI / ULTRA_DAILY_AI). */
     public const DEFAULT_AI = ['free' => 5, 'pro' => 40, 'ultra' => 100];
     public const NAMES = ['free' => 'FREE', 'pro' => 'PRO', 'ultra' => 'ULTRA', 'enterprise' => 'ENTERPRISE'];
@@ -56,6 +61,27 @@ final class Plans
             }
         }
         return $out;
+    }
+
+    /** @return array<string, int> kalit => so'm (config.php `uzs_prices` bilan o'zgaradi) */
+    public static function uzs(?Config $c = null): array
+    {
+        $prices = self::DEFAULT_UZS;
+        $over = $c !== null ? $c->get('uzs_prices') : null;
+        if (is_array($over)) {
+            foreach ($over as $k => $v) {
+                if (isset($prices[$k]) && (int) $v >= 1000) {
+                    $prices[$k] = (int) $v;
+                }
+            }
+        }
+        return $prices;
+    }
+
+    /** 29000 -> «29 000». */
+    public static function fmtUzs(int $n): string
+    {
+        return number_format($n, 0, '', ' ');
     }
 
     /** Uzoq tarifning 1 oylik narxga nisbatan tejami (butun foiz, Python `plan_discount_percent` bilan bir xil). */

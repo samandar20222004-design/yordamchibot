@@ -49,6 +49,17 @@ final class Users
         $this->db->exec('UPDATE users SET lang = ?, lang_chosen = 1 WHERE user_id = ?', [$lang, $id]);
     }
 
+    /** So'mda to'lash huquqi: telefon O'zbekiston raqami ekani tasdiqlangan yoki avval karta bilan to'lagan. Raqam SAQLANMAYDI. */
+    public function isUzVerified(int $id): bool
+    {
+        return (int) $this->db->value('SELECT uz_verified FROM users WHERE user_id = ?', [$id]) === 1;
+    }
+
+    public function markUzVerified(int $id): void
+    {
+        $this->db->exec('UPDATE users SET uz_verified = 1 WHERE user_id = ?', [$id]);
+    }
+
     public function setTimezone(int $id, ?string $tz): void
     {
         $this->db->exec('UPDATE users SET timezone = ? WHERE user_id = ?', [$tz, $id]);

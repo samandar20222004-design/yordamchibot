@@ -53,6 +53,13 @@ Qo'shimcha sozlash kerak emas: Stars to'lovi uchun provayder tokeni talab qilinm
 
 Admin buyruqlari: `/admin_help` (tarif berish, promo-kodlar, manba havolalari).
 
+## 💳 Karta (so'm), 📣 xabar yuborish, 🔒 majburiy obuna
+
+- **Karta:** `config.php` → `'card_number' => '8600 ...'`, `'card_holder' => '...'`. Foydalanuvchi ⚙️ Sozlamalar → «💎 Tariflar» → «💳 Karta» (o'z +998 raqamini ulashadi, raqam saqlanmaydi) → chek yuboradi → sizga ✅/❌ tugmali xabar keladi.
+  Ko'rilmagan cheklar: `/receipts`. So'm narxlari: `uzs_prices`.
+- **Hammaga xabar:** `/broadcast` → xabar yuboring (matn/rasm/video) → ko'rib «✅ Yuborish». Cron har daqiqada bo'laklab yuboradi; holati `/broadcast_status`, to'xtatish `/broadcast_stop`.
+- **Majburiy obuna:** botni kanalga admin qiling → `/force_add @kanal` (`/force_list`, `/force_del ID`). Foydalanuvchi a'zo bo'lmaguncha bot ishlamaydi (adminlar mustasno).
+
 ## 📱 Mini App
 
 Qo'shimcha sozlash shart emas: `webhook_url` `https://.../webhook.php` bo'lsa, Mini App manzili avtomatik `.../app.php` bo'ladi.

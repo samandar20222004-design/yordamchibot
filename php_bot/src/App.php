@@ -7,6 +7,9 @@ use DateTimeImmutable;
 use DateTimeZone;
 use PostAssist\Repo\AiUsage;
 use PostAssist\Repo\Albums;
+use PostAssist\Repo\Broadcasts;
+use PostAssist\Repo\ForcedChannels;
+use PostAssist\Repo\Receipts;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
 use PostAssist\Repo\Messages;
@@ -36,6 +39,9 @@ final class App
     public Messages $messages;
     public Albums $albums;
     public AiUsage $aiUsage;
+    public Receipts $receipts;
+    public Broadcasts $broadcasts;
+    public ForcedChannels $forced;
     public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
@@ -63,6 +69,9 @@ final class App
         $this->messages = new Messages($db);
         $this->albums = new Albums($db);
         $this->aiUsage = new AiUsage($db, $this->credits);
+        $this->receipts = new Receipts($db);
+        $this->broadcasts = new Broadcasts($db);
+        $this->forced = new ForcedChannels($db);
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);

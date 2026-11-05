@@ -66,6 +66,7 @@ final class Scheduler
                     $stats[$r['status']]++;
                 }
             }
+            \PostAssist\Handlers\BroadcastHandler::work($this->app, $started + $budgetSec);
             $this->autoDelete();
             $this->finishStaleAlbums();
             $this->planMaintenance();

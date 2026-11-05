@@ -24,6 +24,7 @@ final class AdminHandler
         $today = $ctx->app->now()->setTimezone($ctx->app->tz())->setTime(0, 0, 0)->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $now = $ctx->app->nowSql();
         $pay = $ctx->app->payments->totalsSince($today);
+        $card = $ctx->app->receipts->totalsSince($today);
         $ctx->reply($ctx->t('admin_stats', [
             'users' => (int) $db->value('SELECT COUNT(*) FROM users'),
             'users_today' => (int) $db->value('SELECT COUNT(*) FROM users WHERE created_at >= ?', [$today]),
@@ -34,6 +35,8 @@ final class AdminHandler
             'pro' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'pro' AND subscription_expires_at > ?", [$now]),
             'ultra' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'ultra' AND subscription_expires_at > ?", [$now]),
             'stars_today' => $pay['stars'], 'pays_today' => $pay['count'],
+            'card_today' => Plans::fmtUzs($card['uzs']), 'card_count' => $card['count'],
+            'pending_receipts' => (int) $db->value("SELECT COUNT(*) FROM payment_receipts WHERE status = 'pending'"),
         ]), Keyboards::admin($ctx->lang));
     }
 
@@ -45,7 +48,28 @@ final class AdminHandler
         }
         switch ($cmd) {
             case '/admin_help':
-                $ctx->reply($ctx->t('admin_help'), Keyboards::nav($ctx->lang, 'a:stats'));
+                $ctx->reply($ctx->t('admin_help') . "\n\n" . $ctx->t('admin_help2'), Keyboards::nav($ctx->lang, 'a:stats'));
+                return true;
+            case '/broadcast':
+                BroadcastHandler::start($ctx);
+                return true;
+            case '/broadcast_status':
+                BroadcastHandler::status($ctx);
+                return true;
+            case '/broadcast_stop':
+                BroadcastHandler::stop($ctx);
+                return true;
+            case '/force_list':
+                ForceSubHandler::listAll($ctx);
+                return true;
+            case '/force_add':
+                ForceSubHandler::add($ctx, $args);
+                return true;
+            case '/force_del':
+                ForceSubHandler::remove($ctx, $args);
+                return true;
+            case '/receipts':
+                self::receipts($ctx);
                 return true;
             case '/grant_pro':
                 self::grant($ctx, $args);
@@ -77,6 +101,23 @@ final class AdminHandler
                 return true;
         }
         return LinksHandler::adminCommand($ctx, $cmd, $args);
+    }
+
+    /** Hali ko'rib chiqilmagan cheklar (admin xabarini yo'qotib qo'ygan bo'lsa). */
+    private static function receipts(Ctx $ctx): void
+    {
+        $list = $ctx->app->receipts->pendingList(10);
+        if (!$list) {
+            $ctx->reply($ctx->t('receipts_none'), Keyboards::nav($ctx->lang, 'a:stats'));
+            return;
+        }
+        foreach ($list as $r) {
+            $kb = Keyboards::inline([[Keyboards::btn($ctx->t('btn_rc_ok'), 'rc:ok:' . (int) $r['id']), Keyboards::btn($ctx->t('btn_rc_no'), 'rc:no:' . (int) $r['id'])]]);
+            $cap = $ctx->t('receipt_admin_caption', ['id' => (int) $r['id'], 'user' => '<code>' . (int) $r['user_id'] . '</code>', 'plan' => Plans::NAMES[$r['tier']] ?? Html::e((string) $r['tier']),
+                'period' => (int) $r['days'] . ' ' . $ctx->t('days_short'), 'amount' => Plans::fmtUzs((int) $r['amount_uzs']), 'when' => TimeParser::show((string) $r['created_at'], $ctx->tz()), 'dup' => '']);
+            $ctx->app->tg->call($r['media_type'] === 'photo' ? 'sendPhoto' : 'sendDocument', ['chat_id' => $ctx->chatId, $r['media_type'] === 'photo' ? 'photo' : 'document' => $r['file_id'],
+                'caption' => $cap, 'parse_mode' => 'HTML', 'reply_markup' => $kb]);
+        }
     }
 
     private static function grant(Ctx $ctx, array $args): void

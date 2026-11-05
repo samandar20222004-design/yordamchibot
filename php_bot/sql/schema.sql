@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
     ai_credits INT NOT NULL DEFAULT 5,
     referral_rewarded_at DATETIME NULL,
     timezone VARCHAR(64) NULL,
+    uz_verified TINYINT(1) NOT NULL DEFAULT 0,
+    sub_ok_until DATETIME NULL,
     is_blocked TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL,
@@ -227,4 +229,54 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     day DATE NOT NULL,
     used INT NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================== 5-bosqich: karta to'lovi (chek), hammaga xabar, majburiy obuna =====================
+
+-- Karta orqali to'lov cheklari. status: pending -> approved | rejected (qaror bir marta, atomik).
+CREATE TABLE IF NOT EXISTS payment_receipts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    plan_key VARCHAR(8) NOT NULL,
+    tier VARCHAR(16) NOT NULL,
+    days INT NOT NULL,
+    amount_uzs INT NOT NULL,
+    media_type VARCHAR(16) NOT NULL,
+    file_id VARCHAR(255) NOT NULL,
+    file_unique_id VARCHAR(64) NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'pending',
+    decided_by BIGINT NULL,
+    decided_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_receipts_user (user_id, status),
+    KEY idx_receipts_uid (file_unique_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Hammaga xabar: admin xabari copyMessage bilan nusxalanadi; cron bo'laklab yuboradi (last_user_id — kursor).
+CREATE TABLE IF NOT EXISTS broadcasts (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    admin_id BIGINT NOT NULL,
+    from_chat BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'running',
+    total INT NOT NULL DEFAULT 0,
+    sent INT NOT NULL DEFAULT 0,
+    failed INT NOT NULL DEFAULT 0,
+    blocked INT NOT NULL DEFAULT 0,
+    last_user_id BIGINT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    finished_at DATETIME NULL,
+    KEY idx_broadcasts_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Majburiy obuna kanallari: foydalanuvchi shularga a'zo bo'lmaguncha bot ishlamaydi (adminlar bundan mustasno).
+CREATE TABLE IF NOT EXISTS forced_channels (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    title VARCHAR(255) NULL,
+    username VARCHAR(64) NULL,
+    invite_link VARCHAR(255) NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_forced_chat (chat_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

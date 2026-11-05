@@ -30,6 +30,11 @@ return [
     'free_max_channels' => 3,
     'free_max_queued' => 40,
 
+    // 💳 Karta orqali to'lov (so'm). Bo'sh qoldirsangiz — faqat Telegram Stars. Chek adminlarga boradi, ✅ bosilsa tarif yoqiladi.
+    'card_number' => '',          // masalan '8600 1234 5678 9012'
+    'card_holder' => '',          // karta egasi
+    // 'uzs_prices' => ['1m' => 29000, 'u1m' => 69000],   // so'm narxlarini o'zgartirish (standart: PRO 29 000/75 000/135 000/245 000, ULTRA 69 000/175 000/335 000/620 000)
+
     // ✨ AI (bepul kalitlar yetadi; kamida bittasi bo'lsa AI tugmalari chiqadi, birinchisi ishlamasa — keyingisi):
     //  - Google Gemini: https://aistudio.google.com/apikey  (tavsiya, o'zbek tilini yaxshi biladi)
     //  - Groq:          https://console.groq.com/keys

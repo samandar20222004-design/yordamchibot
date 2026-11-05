@@ -219,6 +219,7 @@ final class Keyboards
     {
         return self::inline([
             [self::btn(I18n::t('btn_adm_promos', $lang), 'a:promos'), self::btn(I18n::t('btn_adm_links', $lang), 'a:links')],
+            [self::btn(I18n::t('btn_adm_bc', $lang), 'a:bc'), self::btn(I18n::t('btn_adm_fs', $lang), 'a:fs')],
             [self::btn(I18n::t('btn_adm_help', $lang), 'a:help'), self::btn(I18n::t('btn_refresh', $lang), 'a:stats')],
             self::navRow($lang),
         ]);

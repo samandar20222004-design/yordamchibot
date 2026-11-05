@@ -91,7 +91,7 @@ try {
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
 $ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
-    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage'];
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage', 'payment_receipts', 'broadcasts', 'forced_channels'];
 foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
@@ -102,7 +102,7 @@ $pdo->exec("CREATE TABLE users (user_id BIGINT NOT NULL PRIMARY KEY, username VA
     plan_type VARCHAR(20) NOT NULL DEFAULT 'free', is_blocked TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL, KEY idx_users_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 $changes = PostAssist\Schema::apply($db, $schema);
-T::eq('eski bazani yangilash: 5 ustun (2-bosqich 4 ta + timezone) + 2 indeks qo\'shildi', count($changes), 7);
+T::eq('eski bazani yangilash: 7 ustun (2-bosqich 4 ta, timezone, uz_verified, sub_ok_until) + 2 indeks qo\'shildi', count($changes), 9);
 T::eq('qayta ishga tushirish: o\'zgarish yo\'q (idempotent)', PostAssist\Schema::apply($db, $schema), []);
 T::eq('hamma jadvallar bor', (int) $db->value('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (' . implode(',', array_fill(0, count($ALL_TABLES), '?')) . ')', $ALL_TABLES), count($ALL_TABLES));
 
@@ -424,3 +424,4 @@ require __DIR__ . '/Phase2Test.php';
 require __DIR__ . '/Phase3Test.php';
 require __DIR__ . '/Phase4Test.php';
 require __DIR__ . '/MiniAppTest.php';
+require __DIR__ . '/Phase5Test.php';

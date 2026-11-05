@@ -16,6 +16,8 @@ final class Schema
         ['users', 'ai_credits', 'INT NOT NULL DEFAULT 5'],
         ['users', 'referral_rewarded_at', 'DATETIME NULL'],
         ['users', 'timezone', 'VARCHAR(64) NULL'],
+        ['users', 'uz_verified', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'sub_ok_until', 'DATETIME NULL'],
         ['scheduled_posts', 'media', 'MEDIUMTEXT NULL'],
         ['scheduled_posts', 'reactions', 'VARCHAR(64) NULL'],
         ['scheduled_posts', 'delete_after', 'INT NULL'],

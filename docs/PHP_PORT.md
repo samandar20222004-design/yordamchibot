@@ -23,7 +23,8 @@ PHP versiya alohida papkada — `php_bot/` (o'rnatish: [php_bot/README.md](../ph
 | **3. Kengaytirilgan post** | ixcham preview paneli (5 tugma) + «⚙️ Qo'shimcha»; takroriy postlar (har kuni / har hafta / har oy / kuniga 2 marta, yozgi vaqt hisobga olinadi, cron to'xtab qolsa nusxalar yig'ilmaydi); albom 2–10 fayl (kechikkan qism ham qo'shiladi, jarayon uzilsa cron yig'adi); reaksiya tugmalari (ovoz, sonlar postda); avto-o'chirish (1–48 soat); har foydalanuvchiga vaqt mintaqasi (`/timezone`) | ✅ tayyor |
 | **4. AI va navigatsiya** | «✨ AI post» (mavzu → 5 uslub → tayyor post, «🔄 Boshqa variant»), «✨ AI tahrir» (yaxshilash, qisqartirish, emoji, qayta yozish, UZ/RU/EN tarjima), aqlli qabul (dialogsiz matn/rasm → «Bu bilan nima qilamiz?»), Gemini → Groq → OpenRouter zaxira, kunlik limit (5/40/100) + ballar, xatoda qaytarish; hamma ekranda «◀️ Orqaga» / «🏠 Menyu», inline admin panel | ✅ tayyor |
 | 4b. AI qo'shimcha | rasmdan post (Vision), ovozdan post, kontent-reja | ⏳ |
-| 5. Pul va admin | karta/Payme to'lov, majburiy obuna, reklama, broadcast, to'liq admin panel, promo boshqaruvi | ⏳ |
+| **5. Pul va admin** | karta (so'm) to'lovi: UZ raqam tasdig'i (+998, raqam saqlanmaydi), chek (rasm/PDF), adminlarga ✅/❌ (qaror bir marta, to'lov va tarif bitta tranzaksiyada), takror fayl ogohlantirishi, 3 chekdan ortig'i rad; hammaga xabar (`/broadcast`: copyMessage, cron bo'laklab, kursor, bloklaganlar belgilanadi, to'xtatish/holat); majburiy obuna (`/force_add`: 10 daqiqa kesh, Telegram javob bermasa foydalanuvchi o'tkaziladi); `/receipts`, admin panel tugmalari | ✅ tayyor |
+| 5b. Payme | Payme avtomatik to'lov (merchant API) | ⏳ |
 | 6. Birja va jamoa | reklama birjasi (firibgarlikdan himoya bilan), jamoa va rollar | ⏳ |
 | **7. Mini App** | `app.php` (bitta sahifa, tashqi kutubxonasiz) + `api.php`: initData HMAC imzo tekshiruvi; bosh sahifa (statistika), post muharriri (formatlash, rasm/video yuklash, tugma, reaksiya, takror, avto-o'chirish, jonli ko'rinish, hozir/vaqtli), AI (post yozish, tahrir/tarjima), rejalashtirilganlar (tahrir, bekor), profil (tarif, limit, til, mintaqa); botdagi qoralamani ochish; botda menyu tugmasi, «📱 Mini App», `/app`, preview'da «📱 Mini App'da» | ✅ tayyor |
 
@@ -43,7 +44,7 @@ Har bosqich: kod + uch tilda matn + testlar (unit va haqiqiy MariaDB) + PHP 7.4 
   muddatsiz tarifli foydalanuvchida kod sarflanmaydi.
 - Referal: do'st BIRINCHI postini saqlaganda taklif qiluvchiga 1–3-do'st uchun +3, keyingilari +1 ball (parallel postda ham bir marta).
 - Manba havolasi egasi bo'lsa, yangi kelgan foydalanuvchi uning taklifi hisoblanadi; birinchi tegish; `/mylinks` — faqat sonlar.
-- Hozircha karta/Payme (so'm) to'lovi yo'q — 5-bosqichda; ballar AI funksiyalari bilan (4-bosqich) ishlatiladi.
+- Karta (so'm) to'lovi 5-bosqichda qo'shildi; Payme avtomatik to'lovi hali yo'q.
 
 ## 3-bosqich: qoidalar
 
