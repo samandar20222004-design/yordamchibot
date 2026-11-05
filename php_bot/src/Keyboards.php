@@ -189,6 +189,8 @@ final class Keyboards
         return self::inline([
             [self::btn(I18n::t('btn_rep_daily', $lang), 'pr:daily'), self::btn(I18n::t('btn_rep_weekly', $lang), 'pr:weekly')],
             [self::btn(I18n::t('btn_rep_monthly', $lang), 'pr:monthly'), self::btn(I18n::t('btn_rep_twice', $lang), 'pr:twice')],
+            [self::btn(I18n::t('btn_rep_workdays', $lang), 'pr:workdays')],
+            [self::btn(I18n::t('btn_rep_int2', $lang), 'pr:int2'), self::btn(I18n::t('btn_rep_int3', $lang), 'pr:int3')],
             [self::btn(I18n::t('btn_rep_none', $lang), 'pr:none'), self::btn(I18n::t('btn_back', $lang), 'p:back')],
         ]);
     }

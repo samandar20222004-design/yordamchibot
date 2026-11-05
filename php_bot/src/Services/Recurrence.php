@@ -11,16 +11,19 @@ use DateTimeZone;
  *  - daily   — har kuni `time` (kun boshidan daqiqa) da;
  *  - weekly  — har hafta `day` (1=dushanba … 7=yakshanba) kuni `time` da;
  *  - monthly — har oyning `day`-kuni `time` da (oyda bunday kun bo'lmasa — oyning oxirgi kuni);
- *  - twice   — har kuni ikki marta: `time` (ertalab) va `day` (kechqurun, daqiqa) da.
+ *  - twice   — har kuni ikki marta: `time` (ertalab) va `day` (kechqurun, daqiqa) da;
+ *  - workdays — dushanbadan jumagacha har kuni `time` da (shanba-yakshanba o'tkaziladi);
+ *  - interval — har `day` kunda (2–30) `time` da: keyingisi chiqqan kundan `day` kun keyin.
  * Vaqt egasining mintaqasida hisoblanadi (yozgi vaqt o'tishi PHP DateTime orqali to'g'ri). Keyingi vaqt doim «hozir»dan
  * KEYIN olinadi — cron bir necha kun ishlamay qolsa ham o'tib ketgan nusxalar ketma-ket yuborilmaydi.
  */
 final class Recurrence
 {
-    public const TYPES = ['daily', 'weekly', 'monthly', 'twice'];
+    public const TYPES = ['daily', 'weekly', 'monthly', 'twice', 'workdays', 'interval'];
+    public const INTERVALS = [2, 3];
 
     /** Tanlangan birinchi vaqtdan qoida parametrlari. @return array{type:string,time:int,day:?int}|null */
-    public static function fromFirst(string $type, DateTimeImmutable $firstUtc, DateTimeZone $tz, ?int $secondMinutes = null): ?array
+    public static function fromFirst(string $type, DateTimeImmutable $firstUtc, DateTimeZone $tz, ?int $secondMinutes = null, ?int $everyDays = null): ?array
     {
         if (!in_array($type, self::TYPES, true)) {
             return null;
@@ -32,6 +35,11 @@ final class Recurrence
                 return ['type' => $type, 'time' => $time, 'day' => (int) $l->format('N')];
             case 'monthly':
                 return ['type' => $type, 'time' => $time, 'day' => (int) $l->format('j')];
+            case 'interval':
+                if ($everyDays === null || $everyDays < 2 || $everyDays > 30) {
+                    return null;
+                }
+                return ['type' => $type, 'time' => $time, 'day' => $everyDays];
             case 'twice':
                 if ($secondMinutes === null || $secondMinutes < 0 || $secondMinutes >= 1440 || $secondMinutes === $time) {
                     return null;
@@ -82,6 +90,24 @@ final class Recurrence
                         }
                     }
                 }
+                break;
+            case 'workdays':
+                for ($d = 0; $d <= 7; $d++) {
+                    $dayDt = $today->modify("+{$d} days");
+                    $c = self::at($dayDt, $time);
+                    if ((int) $dayDt->format('N') <= 5 && $c > $now) {
+                        $best = $c;
+                        break;
+                    }
+                }
+                break;
+            case 'interval':
+                if ($day === null || $day < 2 || $day > 30) {
+                    return null;
+                }
+                // chiqqan (bugungi) kundan N kun keyin; bugungi vaqt hali kelmagan bo'lsa — bugun
+                $c = self::at($today, $time);
+                $best = $c > $now ? $c : self::at($today->modify("+{$day} days"), $time);
                 break;
             case 'weekly':
                 if ($day === null || $day < 1 || $day > 7) {

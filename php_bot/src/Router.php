@@ -577,7 +577,7 @@ final class Router
             PostHandler::pickChannel($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|o_comments|mc|tsave)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
-        } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
+        } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice|workdays|int2|int3)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);
         } elseif (preg_match('/^px:([0-3]|c|none)$/', $data, $m)) {
             PostHandler::setReactions($ctx, $m[1]);

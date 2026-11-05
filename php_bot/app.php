@@ -142,7 +142,8 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
         <details id="rx-box"><summary>👍 <span data-t="ma_reactions"></span></summary><div class="chips" id="rx-list" style="margin-top:8px"></div></details>
         <details><summary>🔄 <span data-t="ma_repeat"></span></summary>
           <select id="rep"><option value="" data-t="ma_rep_none"></option><option value="daily" data-t="ma_rep_daily"></option>
-            <option value="weekly" data-t="ma_rep_weekly"></option><option value="monthly" data-t="ma_rep_monthly"></option><option value="twice" data-t="ma_rep_twice"></option></select>
+            <option value="weekly" data-t="ma_rep_weekly"></option><option value="monthly" data-t="ma_rep_monthly"></option><option value="twice" data-t="ma_rep_twice"></option>
+            <option value="workdays" data-t="ma_rep_workdays"></option><option value="interval2" data-t="ma_rep_int2"></option><option value="interval3" data-t="ma_rep_int3"></option></select>
           <div id="t2-box" style="display:none"><label data-t="ma_time2"></label><input type="time" id="t2"></div>
         </details>
         <details><summary>⏳ <span data-t="ma_autodel"></span></summary><select id="ad"></select></details>

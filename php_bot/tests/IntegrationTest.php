@@ -436,3 +436,4 @@ require __DIR__ . '/RssTest.php';
 require __DIR__ . '/TemplatesTest.php';
 require __DIR__ . '/StatsTest.php';
 require __DIR__ . '/CommentsTest.php';
+require __DIR__ . '/ExtrasTest.php';

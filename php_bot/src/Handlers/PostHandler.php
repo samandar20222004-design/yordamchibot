@@ -245,7 +245,7 @@ final class PostHandler
         $lines = [];
         $rep = $data['repeat']['type'] ?? null;
         if ($rep !== null) {
-            $lines[] = '🔄 ' . $ctx->t('rep_' . $rep) . ($rep === 'twice' && isset($data['repeat']['second'])
+            $lines[] = '🔄 ' . $ctx->t('rep_' . $rep, ['n' => (int) ($data['repeat']['n'] ?? 0)]) . ($rep === 'twice' && isset($data['repeat']['second'])
                 ? ' (+' . Recurrence::clock((int) $data['repeat']['second']) . ')' : '');
         }
         $ad = (int) ($data['draft']['delete_after'] ?? 0);
@@ -407,7 +407,11 @@ final class PostHandler
             $ctx->reply($ctx->t('rep_twice_ask'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_back'), 'p:back')]]));
             return;
         }
-        $data['repeat'] = ['type' => $type];
+        if (preg_match('/^int(\d+)$/', $type, $im) && in_array((int) $im[1], Recurrence::INTERVALS, true)) {
+            $data['repeat'] = ['type' => 'interval', 'n' => (int) $im[1]];
+        } else {
+            $data['repeat'] = ['type' => $type];
+        }
         self::preview($ctx, $data);
     }
 
@@ -658,7 +662,8 @@ final class PostHandler
         if ($type === null) {
             return null;
         }
-        $rec = Recurrence::fromFirst((string) $type, $firstUtc, $ctx->tz(), isset($data['repeat']['second']) ? (int) $data['repeat']['second'] : null);
+        $rec = Recurrence::fromFirst((string) $type, $firstUtc, $ctx->tz(), isset($data['repeat']['second']) ? (int) $data['repeat']['second'] : null,
+            isset($data['repeat']['n']) ? (int) $data['repeat']['n'] : null);
         if ($rec === null) {
             $ctx->reply($ctx->t('rep_twice_same'));
             return false;
@@ -677,6 +682,10 @@ final class PostHandler
                 return $ctx->t('rep_monthly_at', ['day' => (int) $rec['day'], 'time' => $t]);
             case 'twice':
                 return $ctx->t('rep_twice_at', ['time' => $t, 'time2' => Recurrence::clock((int) $rec['day'])]);
+            case 'workdays':
+                return $ctx->t('rep_workdays_at', ['time' => $t]);
+            case 'interval':
+                return $ctx->t('rep_interval_at', ['n' => (int) $rec['day'], 'time' => $t]);
         }
         return $ctx->t('rep_daily_at', ['time' => $t]);
     }

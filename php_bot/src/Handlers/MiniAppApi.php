@@ -244,7 +244,14 @@ final class MiniAppApi
         $repeat = (string) ($in['repeat'] ?? '');
         if ($repeat !== '') {
             $second = isset($in['time2']) && $in['time2'] !== '' ? Recurrence::parseClock((string) $in['time2']) : null;
-            $rec = Recurrence::fromFirst($repeat, $utc, $ctx->tz(), $second);
+            $every = null;
+            if (preg_match('/^interval(\d+)$/', $repeat, $im)) {
+                $every = (int) $im[1];
+                $repeat = in_array($every, Recurrence::INTERVALS, true) ? 'interval' : 'bad';
+            } elseif ($repeat === 'interval') {
+                $repeat = 'bad';
+            }
+            $rec = Recurrence::fromFirst($repeat, $utc, $ctx->tz(), $second, $every);
             if ($rec === null) {
                 return [400, ['ok' => false, 'error' => 'repeat']];
             }
