@@ -11,6 +11,7 @@ use PostAssist\Repo\ContentPlans;
 use PostAssist\Repo\RssFeeds;
 use PostAssist\Repo\Templates;
 use PostAssist\Repo\ChannelStats;
+use PostAssist\Repo\Comments;
 use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
@@ -56,6 +57,7 @@ final class App
     public RssFeeds $rss;
     public Templates $templates;
     public ChannelStats $stats;
+    public Comments $comments;
     /** @var \PostAssist\Services\Rss */
     public $rssClient;
     public Ai $ai;
@@ -95,6 +97,7 @@ final class App
         $this->rss = new RssFeeds($db);
         $this->templates = new Templates($db);
         $this->stats = new ChannelStats($db);
+        $this->comments = new Comments($db);
         $this->rssClient = new \PostAssist\Services\Rss();
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
@@ -270,6 +273,14 @@ final class App
         $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
         $map = (array) ($this->config->get('template_limits') ?? []) + ['free' => 3, 'pro' => 20, 'ultra' => 50, 'enterprise' => 100];
         return max(0, (int) ($map[$tier] ?? 0));
+    }
+
+    /** Yuborilgan xabar tugmalari (reaksiya ovozlari va izohlar soni bilan) — qayta chizish uchun. */
+    public function messageRows(array $row): array
+    {
+        $row['comments_count'] = $this->comments->count((int) $row['post_id']);
+        $row['bot'] = $this->config->str('bot_username');
+        return \PostAssist\Services\PostRender::postRows($row, $this->messages->counts((int) $row['chat_id'], (int) $row['message_id']));
     }
 
     /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */

@@ -102,6 +102,10 @@ final class Scheduler
         $app = $this->app;
         $id = (int) $post['id'];
         $owner = (int) $post['user_id'];
+        if ($post['post_type'] !== 'album' && in_array('comments', PostRender::options($post['options'] ?? null), true)) {
+            $post['comments_label'] = I18n::t('cm_btn', I18n::norm((string) ($app->users->get($owner)['lang'] ?? 'uz')));
+            $post['comments_count'] = $app->comments->count($id);
+        }
         $res = PostRender::send($app->tg, (int) $post['channel_id'], $post, $app->config->str('bot_username'), $app->isFree($owner));
         if (!empty($res['ok'])) {
             $ids = PostRender::messageIds($res);

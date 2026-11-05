@@ -26,7 +26,7 @@ final class ReactionHandler
         }
         $r = $app->messages->vote($chat, $mid, $uid, $idx, $app->nowSql());
         $app->tg->answerCallback($id, $r === 'removed' ? '↩️' : $list[$idx]);
-        $rows = PostRender::postRows($row, $app->messages->counts($chat, $mid));
+        $rows = $app->messageRows($row);
         $app->tg->call('editMessageReplyMarkup', ['chat_id' => $chat, 'message_id' => $mid, 'reply_markup' => ['inline_keyboard' => $rows]]);
     }
 }

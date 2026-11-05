@@ -215,7 +215,8 @@ final class PostHandler
         $d = $data['draft'];
         $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
-            'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null];
+            'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null,
+            'comments_label' => in_array('comments', PostRender::options($d['options'] ?? null), true) && $d['type'] !== 'album' ? $ctx->t('cm_btn') : null];
         $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled(),
             $d['type'] !== 'album' ? $ctx->app->miniAppUrl('tab=post') : null);
         $free = $ctx->app->isFree($ctx->ownerId());

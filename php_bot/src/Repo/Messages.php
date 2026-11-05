@@ -23,10 +23,11 @@ final class Messages
             return;
         }
         $extra = array_slice($ids, 1);
-        $this->db->exec('INSERT IGNORE INTO sent_messages (post_id, chat_id, message_id, extra_ids, reactions, button_text, button_url, hidden_text, delete_at, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [(int) $post['id'], $chatId, $ids[0], $extra ? implode(',', $extra) : null,
+        $this->db->exec('INSERT IGNORE INTO sent_messages (post_id, chat_id, message_id, extra_ids, reactions, button_text, button_url, hidden_text, comments_label, delete_at, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [(int) $post['id'], $chatId, $ids[0], $extra ? implode(',', $extra) : null,
             $post['post_type'] === 'album' ? null : ($post['reactions'] ?? null), $post['button_text'] ?? null, $post['button_url'] ?? null,
-            $post['post_type'] === 'album' ? null : ($post['hidden_text'] ?? null), $deleteAtUtcSql, $nowSql]);
+            $post['post_type'] === 'album' ? null : ($post['hidden_text'] ?? null),
+            $post['post_type'] === 'album' ? null : ($post['comments_label'] ?? null), $deleteAtUtcSql, $nowSql]);
     }
 
     public function find(int $chatId, int $messageId): ?array
@@ -111,6 +112,12 @@ final class Messages
     public function setText(int $id, string $html): void
     {
         $this->db->exec('UPDATE sent_messages SET edited_text = ? WHERE id = ?', [$html, $id]);
+    }
+
+    /** Postning oxirgi yuborilgan xabarlari (izoh soni tugmasini yangilash uchun). */
+    public function latestForPost(int $postId, int $limit = 3): array
+    {
+        return $this->db->all('SELECT * FROM sent_messages WHERE post_id = ? AND deleted = 0 ORDER BY id DESC LIMIT ' . max(1, $limit), [$postId]);
     }
 
     public function cleanup(): void

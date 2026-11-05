@@ -91,7 +91,7 @@ try {
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
 $ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
-    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage', 'payment_receipts', 'broadcasts', 'forced_channels', 'team_members', 'team_invites', 'market_listings', 'market_threads', 'market_messages', 'market_reports', 'content_plans', 'autopilots', 'autopilot_drafts', 'payme_orders', 'payme_transactions', 'rss_feeds', 'post_templates', 'channel_stats'];
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage', 'payment_receipts', 'broadcasts', 'forced_channels', 'team_members', 'team_invites', 'market_listings', 'market_threads', 'market_messages', 'market_reports', 'content_plans', 'autopilots', 'autopilot_drafts', 'payme_orders', 'payme_transactions', 'rss_feeds', 'post_templates', 'channel_stats', 'post_comments', 'comment_bans'];
 foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
@@ -435,3 +435,4 @@ require __DIR__ . '/FeaturesTest.php';
 require __DIR__ . '/RssTest.php';
 require __DIR__ . '/TemplatesTest.php';
 require __DIR__ . '/StatsTest.php';
+require __DIR__ . '/CommentsTest.php';

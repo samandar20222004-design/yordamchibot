@@ -110,11 +110,24 @@ final class PostRender
     public static function postRows(array $post, array $counts = []): array
     {
         return array_merge(self::urlRows($post['button_text'] ?? null, $post['button_url'] ?? null), self::hiddenRow($post['hidden_text'] ?? null),
-            self::reactionRow($post['reactions'] ?? null, $counts));
+            self::reactionRow($post['reactions'] ?? null, $counts), self::commentsRow($post));
+    }
+
+    /** 💬 Izohlar: bot chatiga havola (`?start=c_<post>`), yonida izohlar soni. */
+    public static function commentsRow(array $post): array
+    {
+        $label = trim((string) ($post['comments_label'] ?? ''));
+        $bot = (string) ($post['bot'] ?? '');
+        if ($label === '' || $bot === '') {
+            return [];
+        }
+        $pid = (int) ($post['post_id'] ?? $post['id'] ?? 0);
+        $n = (int) ($post['comments_count'] ?? 0);
+        return [[['text' => $label . ($n > 0 ? ' (' . $n . ')' : ''), 'url' => 'https://t.me/' . $bot . '?start=c_' . $pid]]];
     }
 
     /** Post sozlamalari: ovozsiz, havola ko'rinishisiz, pin, nusxa himoyasi. */
-    public const OPTIONS = ['silent', 'nopreview', 'pin', 'protect'];
+    public const OPTIONS = ['silent', 'nopreview', 'pin', 'protect', 'comments'];
 
     /** @param string|array|null $opts @return string[] */
     public static function options($opts): array
@@ -184,6 +197,7 @@ final class PostRender
     public static function send(Telegram $tg, int $chatId, array $post, string $botUsername, bool $free, array $extraRows = []): array
     {
         $type = (string) $post['post_type'];
+        $post['bot'] = $post['bot'] ?? $botUsername;
         $opts = self::options($post['options'] ?? null);
         $flags = [];
         if (in_array('silent', $opts, true)) {

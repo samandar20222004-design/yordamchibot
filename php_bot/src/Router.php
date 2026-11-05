@@ -12,6 +12,7 @@ use PostAssist\Handlers\CardHandler;
 use PostAssist\Handlers\ForceSubHandler;
 use PostAssist\Handlers\HiddenHandler;
 use PostAssist\Handlers\ChannelHandler;
+use PostAssist\Handlers\CommentsHandler;
 use PostAssist\Handlers\LinksHandler;
 use PostAssist\Handlers\MarketHandler;
 use PostAssist\Handlers\PlansHandler;
@@ -170,6 +171,9 @@ final class Router
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
                     return;
+                case 'cm_write':
+                    CommentsHandler::input($ctx, $state);
+                    return;
                 case 'post_tname':
                     TemplateHandler::nameInput($ctx, $state);
                     return;
@@ -256,6 +260,10 @@ final class Router
         switch ($cmd) {
             case '/start':
                 $this->app->states->clear($ctx->userId);
+                if (isset($args[0]) && preg_match('/^c_(\d{1,10})$/', $args[0], $cm)) {
+                    CommentsHandler::open($ctx, (int) $cm[1]); // 💬 kanal postidagi izohlar
+                    return true;
+                }
                 if (isset($args[0]) && preg_match('/^team_([a-f0-9]{24})$/', $args[0], $tm)) {
                     TeamHandler::accept($ctx, $tm[1]); // jamoa taklifi
                     return true;
@@ -567,7 +575,7 @@ final class Router
             PostHandler::extraChannels($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|mc|tsave)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|o_comments|mc|tsave)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
         } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);
@@ -581,6 +589,15 @@ final class Router
             SettingsHandler::setTimezone($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
+        } elseif (preg_match('/^cm:(v|w|x|b):(\d{1,10})$/', $data, $m)) {
+            if ($m[1] === 'v') {
+                $this->app->states->clear($ctx->userId);
+                CommentsHandler::open($ctx, (int) $m[2], true);
+            } elseif ($m[1] === 'w') {
+                CommentsHandler::ask($ctx, (int) $m[2]);
+            } else {
+                CommentsHandler::moderate($ctx, $m[1], (int) $m[2]);
+            }
         } elseif ($data === 'st:show') {
             StatsHandler::show($ctx, true);
         } elseif (preg_match('/^st:(c|r):(\d{1,10})$/', $data, $m)) {

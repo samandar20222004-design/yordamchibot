@@ -485,7 +485,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
 
 
   // ---------- sozlamalar, yashirin matn, yana kanallar
-  var OPTS = ['silent', 'nopreview', 'pin', 'protect'];
+  var OPTS = ['silent', 'nopreview', 'pin', 'protect', 'comments'];
   function renderOpts() {
     $('opt-list').innerHTML = OPTS.map(function (o) {
       return '<span class="chip' + (state.opts.indexOf(o) >= 0 ? ' on' : '') + '" data-opt="' + o + '">' + esc(t('ma_opt_' + o)) + '</span>';

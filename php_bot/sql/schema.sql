@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     recurrence_day INT NULL,
     sent_count INT NOT NULL DEFAULT 0,
     created_by BIGINT NULL,
-    options VARCHAR(40) NULL,
+    options VARCHAR(60) NULL,
     hidden_text TEXT NULL,
     scheduled_time DATETIME NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
@@ -191,6 +191,7 @@ CREATE TABLE IF NOT EXISTS sent_messages (
     edited_text TEXT NULL,
     hidden_opens INT NOT NULL DEFAULT 0,
     hidden_locked INT NOT NULL DEFAULT 0,
+    comments_label VARCHAR(40) NULL,
     delete_at DATETIME NULL,
     delete_attempts INT NOT NULL DEFAULT 0,
     deleted TINYINT(1) NOT NULL DEFAULT 0,
@@ -475,4 +476,25 @@ CREATE TABLE IF NOT EXISTS channel_stats (
     day DATE NOT NULL,
     subscribers INT NOT NULL,
     PRIMARY KEY (channel_id, day)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 18-bosqich: izohlar
+CREATE TABLE IF NOT EXISTS post_comments (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    post_id INT NOT NULL,
+    owner_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    text VARCHAR(1000) NOT NULL,
+    deleted TINYINT(1) NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    KEY idx_pc_post (post_id, deleted, id),
+    KEY idx_pc_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS comment_bans (
+    owner_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (owner_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -93,7 +93,7 @@ final class SentHandler
         $out = PostRender::watermark($html, $limitType, $app->config->str('bot_username'), $app->isFree($ctx->ownerId()));
         $params = ['chat_id' => (int) $m['chat_id'], 'message_id' => (int) $m['message_id'], 'parse_mode' => 'HTML'];
         if ($type !== 'album') {
-            $rows = PostRender::postRows($m, $app->messages->counts((int) $m['chat_id'], (int) $m['message_id']));
+            $rows = $app->messageRows($m);
             if ($rows) {
                 $params['reply_markup'] = ['inline_keyboard' => $rows];
             }

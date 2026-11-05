@@ -176,6 +176,9 @@ final class Keyboards
         };
         $rows[] = $album ? [$o('silent'), $o('protect')] : [$o('silent'), $o('nopreview')];
         $rows[] = $album ? [$o('pin')] : [$o('pin'), $o('protect')];
+        if (!$album) {
+            $rows[] = [$o('comments')];
+        }
         $rows[] = [self::btn(I18n::t('btn_tpl_save', $lang), 'p:tsave')];
         $rows[] = [self::btn(I18n::t('btn_back', $lang), 'p:back')];
         return self::inline($rows);
