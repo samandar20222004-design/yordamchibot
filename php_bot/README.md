@@ -95,6 +95,12 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - Har dushanba 09:00 da haftalik hisobot keladi (o'chirish: 📊 Statistika). `/report` — hozir ko'rish.
 - Takror: «Ish kunlari Du–Ju», «Har 2 kunda», «Har 3 kunda».
 
+## 📊 So'rovnoma va 👑 Mini App admin
+
+- «✍️ Post yaratish» → «📊 So'rovnoma»: savol, keyin variantlar (har biri yangi qatorda). To'g'ri javob oldiga `*` qo'ysangiz — viktorina.
+- Mini App → Men → «👑 Super admin» (faqat `admin_ids`): statistika, tarif berish, foydalanuvchi, promo-kodlar, karta cheklari.
+- Mini App bosh sahifasida «💬 Izohlar»: postlaringizga yozilgan izohlar, javob, o'chirish, bloklash.
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

@@ -256,6 +256,13 @@ final class CardHandler
                 $ctx->reply($ctx->t('receipt_grant_failed', ['id' => $id]));
                 return;
         }
+        self::notifyDecision($app, $r);
+        $clear($ctx->t($r['status'] === 'ok' ? 'receipt_done_ok' : 'receipt_done_no', ['id' => $id]));
+    }
+
+    /** Chek qaroridan keyin foydalanuvchiga xabar (bot va Mini App admin paneli uchun umumiy). */
+    public static function notifyDecision(App $app, array $r): void
+    {
         $rec = $r['receipt'];
         $uid = (int) $rec['user_id'];
         $user = $app->users->get($uid);
@@ -264,10 +271,8 @@ final class CardHandler
             $date = $r['tier'] === Plans::ENTERPRISE ? '♾' : TimeParser::show((string) $r['expires'], $app->tzFor($uid));
             $app->tg->sendMessage($uid, I18n::t($r['kept'] ? 'pay_kept' : 'pay_ok', $lang, ['plan' => Plans::NAMES[$r['tier']] ?? $r['tier'], 'date' => $date,
                 'tz' => Html::e($app->tzFor($uid)->getName())]));
-            $clear($ctx->t('receipt_done_ok', ['id' => $id]));
             return;
         }
-        $app->tg->sendMessage($uid, I18n::t('receipt_user_rejected', $lang, ['id' => $id]));
-        $clear($ctx->t('receipt_done_no', ['id' => $id]));
+        $app->tg->sendMessage($uid, I18n::t('receipt_user_rejected', $lang, ['id' => (int) $rec['id']]));
     }
 }

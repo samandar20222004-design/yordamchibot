@@ -60,6 +60,23 @@ final class MiniAppApi
                     return self::upload($ctx, $file);
                 case 'draft':
                     return [200, self::draft($ctx)];
+                case 'admin_stats':
+                case 'admin_grant':
+                case 'admin_promos':
+                case 'admin_promo_create':
+                case 'admin_promo_toggle':
+                case 'admin_receipts':
+                case 'admin_receipt':
+                case 'admin_user':
+                case 'admin_market_ban':
+                    return MiniAdminApi::handle($ctx, $action, $in);
+                case 'comments':
+                    return [200, self::comments($ctx)];
+                case 'comment_mod':
+                    $c = CommentsHandler::applyModeration($ctx, ($in['act'] ?? '') === 'ban' ? 'b' : 'x', (int) ($in['id'] ?? 0));
+                    return $c !== null ? [200, ['ok' => true]] : [404, ['ok' => false, 'error' => 'not_found']];
+                case 'comment_reply':
+                    return self::commentReply($ctx, $in);
                 case 'templates':
                     return [200, self::templates($ctx)];
                 case 'template':
@@ -644,5 +661,35 @@ final class MiniAppApi
     private static function stats(Ctx $ctx): array
     {
         return ['ok' => true, 'channels' => StatsHandler::channelStats($ctx->app, $ctx->ownerId())];
+    }
+
+    // ------------------------------------------------------------------ 💬 izohlar (egasi uchun)
+
+    private static function comments(Ctx $ctx): array
+    {
+        $own = $ctx->ownerId();
+        return ['ok' => true, 'comments' => array_map(static function ($c) use ($ctx, $own) {
+            $snip = trim(Html::plain((string) $c['post_text']));
+            return ['id' => (int) $c['id'], 'post_id' => (int) $c['post_id'], 'post' => mb_substr($snip !== '' ? $snip : '[' . $c['post_type'] . ']', 0, 60),
+                'name' => (string) $c['name'], 'text' => (string) $c['text'], 'mine' => (int) $c['user_id'] === $own,
+                'at' => TimeParser::show((string) $c['created_at'], $ctx->tz())];
+        }, $ctx->app->comments->recentForOwner($own, 60))];
+    }
+
+    /** Egasi o'z postiga javob yozadi (havola mumkin). */
+    private static function commentReply(Ctx $ctx, array $in): array
+    {
+        $app = $ctx->app;
+        $p = $app->posts->get((int) ($in['post_id'] ?? 0));
+        if (!$p || (int) $p['user_id'] !== $ctx->ownerId() || !in_array('comments', PostRender::options($p['options'] ?? null), true) || !$ctx->can('create')) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $text = trim((string) ($in['text'] ?? ''));
+        if (mb_strlen($text) < CommentsHandler::MIN || mb_strlen($text) > CommentsHandler::MAX) {
+            return [400, ['ok' => false, 'error' => 'comment_len']];
+        }
+        $app->comments->add((int) $p['id'], $ctx->ownerId(), $ctx->userId, $ctx->firstName !== '' ? $ctx->firstName : 'Admin', $text, $app->now());
+        CommentsHandler::refreshButtons($app, (int) $p['id']);
+        return [200, ['ok' => true]];
     }
 }

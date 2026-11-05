@@ -97,6 +97,8 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       <button class="big ghost" id="open-bot"><span>🤖</span><b data-t="ma_open_bot"></b></button>
     </div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div></div>
+    <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
+      <button class="small ghost" id="cm-open" data-t="ma_open"></button></div></div>
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
     <div class="card"><h3 data-t="ma_in_bot"></h3>
       <div class="actions">
@@ -179,7 +181,23 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       <div style="margin-top:10px"><button id="me-plans" data-t="ma_plans"></button></div></div>
     <div class="card"><label data-t="ma_lang"></label><select id="me-lang"><option value="uz">🇺🇿 O'zbekcha</option><option value="ru">🇷🇺 Русский</option><option value="en">🇬🇧 English</option></select>
       <label data-t="ma_tz"></label><select id="me-tz"></select></div>
+    <div class="card" id="me-admin" style="display:none"><button data-go="admin">👑 <span data-t="ma_admin_title"></span></button></div>
     <div class="card muted" data-t="ma_about"></div>
+  </section>
+
+  <section class="page" id="p-admin">
+    <div class="card"><h3>👑 <span data-t="ma_admin_title"></span></h3><div id="ad-stats"><span class="spin">⏳</span></div><div id="ad-chart"></div></div>
+    <div class="card"><h3>🧾 <span data-t="ma_ad_receipts"></span></h3><div id="ad-receipts"></div><div class="muted" data-t="ma_ad_receipt_hint"></div></div>
+    <div class="card"><h3>🎁 <span data-t="ma_ad_grant"></span></h3>
+      <div class="row"><input id="ag-id" inputmode="numeric" placeholder="ID"><select id="ag-tier"><option value="pro">PRO</option><option value="ultra">ULTRA</option></select>
+      <input id="ag-days" inputmode="numeric" value="30"></div><div style="height:8px"></div><button id="ag-go" data-t="ma_ad_grant_btn"></button></div>
+    <div class="card"><h3>🔍 <span data-t="ma_ad_user"></span></h3><div class="row"><input id="au-id" inputmode="numeric" placeholder="ID"><button class="small" id="au-go">🔍</button></div>
+      <div id="au-out" style="margin-top:8px"></div></div>
+    <div class="card"><h3>🏷 <span data-t="ma_ad_promos"></span></h3>
+      <div class="row"><input id="ap-code" placeholder="KOD" maxlength="32"><select id="ap-tier"><option value="pro">PRO</option><option value="ultra">ULTRA</option></select></div>
+      <div class="row" style="margin-top:6px"><input id="ap-days" inputmode="numeric" placeholder="30"><input id="ap-max" inputmode="numeric" placeholder="∞"></div>
+      <div style="height:8px"></div><button class="ghost" id="ap-go" data-t="ma_ad_promo_create"></button><div id="ad-promos" style="margin-top:10px"></div></div>
+    <div class="card muted" data-t="ma_ad_bot_only"></div>
   </section>
 </main>
 
@@ -239,9 +257,10 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-go') === page); });
     if (tg && tg.BackButton) { page === 'home' ? tg.BackButton.hide() : tg.BackButton.show(); }
     if (page === 'queue') { loadQueue(); }
-    if (page === 'home') { loadStats(); }
+    if (page === 'home') { loadStats(); loadComments(); }
     if (page === 'post') { loadTemplates(); }
     if (page === 'market') { loadMarket(); }
+    if (page === 'admin') { loadAdmin(); }
     if (page === 'post') { refreshPreview(); }
     window.scrollTo(0, 0);
   }
@@ -576,6 +595,107 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     $('tn-cancel').onclick = closeModal;
     $('tn-ok').onclick = function () { var n = $('tpl-name').value.trim(); if (!n) { return; } closeModal(); ask(n.slice(0, 40)); };
   };
+
+  // ---------- 💬 izohlar (egasi): ro'yxat, javob, o'chirish, bloklash
+  var cmList = [];
+  function loadComments() {
+    api('comments').then(function (r) {
+      if (!r.ok) { return; }
+      cmList = r.comments;
+      $('cm-card').style.display = cmList.length ? '' : 'none';
+      $('cm-count').textContent = cmList.length ? '(' + cmList.length + ')' : '';
+    });
+  }
+  function showComments() {
+    var html = '<h3>💬 ' + esc(t('ma_cm_title')) + '</h3>' + (cmList.length ? cmList.map(function (c) {
+      return '<div class="card"><div class="muted">📝 ' + esc(c.post) + ' · ' + esc(c.at) + '</div><b>' + (c.mine ? '⭐ ' : '') + esc(c.name) + '</b>: ' + esc(c.text) +
+        '<div class="row" style="margin-top:8px"><button class="small ghost" data-cr="' + c.post_id + '">↩️ ' + esc(t('ma_cm_reply')) + '</button>' +
+        (c.mine ? '' : '<button class="small ghost" data-cx="' + c.id + '">🗑</button><button class="small danger" data-cb="' + c.id + '">🚫</button>') + '</div></div>';
+    }).join('') : '<div class="empty">' + esc(t('ma_cm_empty')) + '</div>') + '<button class="ghost" id="cm-close">' + esc(t('ma_back')) + '</button>';
+    modal(html);
+    $('cm-close').onclick = closeModal;
+    var mod = function (id, act) {
+      var go2 = function (yes) {
+        if (!yes) { return; }
+        api('comment_mod', {id: id, act: act}).then(function (r) { if (!r.ok) { toast(errText(r)); return; } haptic('ok'); loadCommentsThen(); });
+      };
+      if (act === 'ban' && tg && tg.showConfirm) { tg.showConfirm(t('ma_cm_ban_confirm'), go2); } else { go2(true); }
+    };
+    document.querySelectorAll('[data-cx]').forEach(function (b) { b.onclick = function () { mod(parseInt(b.getAttribute('data-cx'), 10), 'del'); }; });
+    document.querySelectorAll('[data-cb]').forEach(function (b) { b.onclick = function () { mod(parseInt(b.getAttribute('data-cb'), 10), 'ban'); }; });
+    document.querySelectorAll('[data-cr]').forEach(function (b) { b.onclick = function () { replyComment(parseInt(b.getAttribute('data-cr'), 10)); }; });
+  }
+  function loadCommentsThen() { api('comments').then(function (r) { if (r.ok) { cmList = r.comments; $('cm-count').textContent = '(' + cmList.length + ')'; showComments(); } }); }
+  function replyComment(pid) {
+    modal('<h3>↩️ ' + esc(t('ma_cm_reply')) + '</h3><textarea id="cm-text" rows="3" maxlength="500"></textarea>' +
+      '<div class="row" style="margin-top:12px"><button class="ghost" id="cr-back">' + esc(t('ma_back')) + '</button><button id="cr-send">' + esc(t('ma_mk_send')) + '</button></div>');
+    $('cr-back').onclick = showComments;
+    $('cr-send').onclick = function () {
+      api('comment_reply', {post_id: pid, text: $('cm-text').value}).then(function (r) { if (!r.ok) { toast(errText(r)); return; } haptic('ok'); toast(t('ma_saved')); loadCommentsThen(); });
+    };
+  }
+  $('cm-open').onclick = function () { haptic(); showComments(); };
+
+  // ---------- 👑 super admin (faqat adminlar; server ham tekshiradi)
+  function loadAdmin() {
+    if (!me || !me.user.is_admin) { go('me'); return; }
+    api('admin_stats').then(function (r) {
+      if (!r.ok) { $('ad-stats').textContent = errText(r); return; }
+      var cell = function (v, k) { return '<div class="stat"><b>' + esc(v) + '</b><span class="muted">' + esc(t(k)) + '</span></div>'; };
+      $('ad-stats').innerHTML = '<div class="stats">' + cell(num(r.users), 'ma_ad_users') + cell('+' + r.users_today, 'ma_ad_today') + cell(r.channels, 'ma_ad_channels') + '</div>' +
+        '<div class="stats">' + cell(r.pro + ' / ' + r.ultra, 'ma_ad_paid') + cell(r.sent_today, 'ma_ad_sent') + cell(r.pending, 'ma_ad_pending') + '</div>' +
+        '<div class="muted">⭐ ' + esc(r.stars_today) + ' (' + esc(r.pays_today) + ') · 💳 ' + esc(r.card_today) + ' (' + esc(r.card_count) + ') · ❌ ' + esc(r.failed_today) + '</div>';
+      var max = Math.max.apply(null, r.new_users.map(function (d) { return d.n; }).concat([1]));
+      $('ad-chart').innerHTML = '<div class="muted" style="margin-top:10px">' + esc(t('ma_ad_new7')) + '</div><div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-top:6px">' +
+        r.new_users.map(function (d) { return '<div style="flex:1;text-align:center"><div style="height:' + Math.max(4, Math.round(d.n / max * 44)) + 'px;background:var(--accent);border-radius:4px"></div><div class="muted" style="font-size:10px">' + esc(d.day) + '</div></div>'; }).join('') + '</div>';
+    });
+    loadReceipts(); loadPromos();
+  }
+  function loadReceipts() {
+    api('admin_receipts').then(function (r) {
+      if (!r.ok) { return; }
+      $('ad-receipts').innerHTML = r.receipts.length ? r.receipts.map(function (x) {
+        return '<div class="card"><b>#' + x.id + '</b> · ' + esc(x.user || '') + ' <code>' + x.user_id + '</code><div class="muted">' + esc(x.plan) + ' · ' + x.days + ' · ' + esc(x.amount) + " · " + esc(x.at) + '</div>' +
+          '<div class="row" style="margin-top:6px"><button class="small" data-rok="' + x.id + '">✅</button><button class="small danger" data-rno="' + x.id + '">❌</button></div></div>';
+      }).join('') : '<div class="muted">' + esc(t('ma_ad_no_receipts')) + '</div>';
+      var dec = function (id, yes) { api('admin_receipt', {id: id, approve: yes}).then(function (x) { toast(x.ok ? t('ma_saved') : errText(x)); loadReceipts(); }); };
+      document.querySelectorAll('[data-rok]').forEach(function (b) { b.onclick = function () { dec(parseInt(b.getAttribute('data-rok'), 10), true); }; });
+      document.querySelectorAll('[data-rno]').forEach(function (b) { b.onclick = function () { dec(parseInt(b.getAttribute('data-rno'), 10), false); }; });
+    });
+  }
+  function loadPromos() {
+    api('admin_promos').then(function (r) {
+      if (!r.ok) { return; }
+      $('ad-promos').innerHTML = r.promos.map(function (p) {
+        return '<div class="row" style="align-items:center;margin-bottom:6px"><div style="flex:3"><b>' + esc(p.code) + '</b> <span class="muted">' + esc(p.tier.toUpperCase()) + ' · ' + p.days + 'd · ' + p.used + '/' + (p.max === null ? '∞' : p.max) + '</span></div>' +
+          '<button class="small ' + (p.active ? 'ghost' : '') + '" data-pt="' + esc(p.code) + '" data-on="' + (p.active ? 0 : 1) + '">' + (p.active ? '⏸' : '▶️') + '</button></div>';
+      }).join('');
+      document.querySelectorAll('[data-pt]').forEach(function (b) {
+        b.onclick = function () { api('admin_promo_toggle', {code: b.getAttribute('data-pt'), active: b.getAttribute('data-on') === '1'}).then(function () { loadPromos(); }); };
+      });
+    });
+  }
+  $('ag-go').onclick = function () {
+    api('admin_grant', {user_id: parseInt($('ag-id').value, 10), tier: $('ag-tier').value, days: parseInt($('ag-days').value, 10)}).then(function (r) {
+      toast(r.ok ? t('ma_ad_granted', {date: r.expires}) : errText(r)); if (r.ok) { haptic('ok'); }
+    });
+  };
+  $('au-go').onclick = function () {
+    var id = parseInt($('au-id').value, 10);
+    api('admin_user', {id: id}).then(function (r) {
+      if (!r.ok) { $('au-out').textContent = errText(r); return; }
+      var u = r.user;
+      $('au-out').innerHTML = '<b>' + esc(u.name) + '</b>' + (u.username ? ' @' + esc(u.username) : '') + '<div class="muted">' + esc(u.tier) + (u.expires ? ' · ' + esc(u.expires) : '') +
+        ' · 📢 ' + u.channels + ' · 📅 ' + u.pending + ' · ✅ ' + u.sent + ' · 🪙 ' + u.credits + '</div><div class="muted">' + esc(t('ma_ad_joined')) + ': ' + esc(u.joined) + (u.blocked ? ' · 🚫 bot' : '') + '</div>' +
+        '<div style="margin-top:8px"><button class="small ' + (u.market_banned ? '' : 'danger') + '" id="au-ban">' + esc(t(u.market_banned ? 'ma_ad_unban' : 'ma_ad_ban')) + '</button></div>';
+      $('au-ban').onclick = function () { api('admin_market_ban', {id: id, ban: !u.market_banned}).then(function (x) { toast(x.ok ? t('ma_saved') : errText(x)); $('au-go').onclick(); }); };
+    });
+  };
+  $('ap-go').onclick = function () {
+    api('admin_promo_create', {code: $('ap-code').value.trim(), tier: $('ap-tier').value, days: parseInt($('ap-days').value || '30', 10), max: $('ap-max').value.trim()}).then(function (r) {
+      toast(r.ok ? t('ma_ad_promo_ok', {code: r.code}) : errText(r)); if (r.ok) { $('ap-code').value = ''; loadPromos(); }
+    });
+  };
   // ---------- yuborish
   $('submit').onclick = function () {
     if (!state.channel) { toast(t('ma_err_channel')); return; }
@@ -698,6 +818,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     $('ai-quota').textContent = quotaText();
     $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = me.ai.enabled ? '' : 'none';
     $('me-name').textContent = '👤 ' + (me.user.name || '');
+    $('me-admin').style.display = me.user.is_admin ? '' : 'none';
     $('me-plan').textContent = t('ma_plan_line', {plan: p.name}) + (p.expires ? ' · ' + t('ma_until', {date: p.expires}) : '');
     var inf = function (n) { return n === 0 ? '∞' : n; };
     $('me-limits').textContent = t('ma_limits', {ch: inf(p.channels_max), q: inf(p.queue_max)});
@@ -748,7 +869,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     if (!ok) { return; }
     $('boot').style.display = 'none';
     var tab = (new URLSearchParams(location.search)).get('tab');
-    go(['home', 'post', 'queue', 'market', 'me'].indexOf(tab) >= 0 ? tab : 'home');
+    go(['home', 'post', 'queue', 'market', 'me', 'admin'].indexOf(tab) >= 0 ? tab : 'home');
     checkDraft();
   });
 })();

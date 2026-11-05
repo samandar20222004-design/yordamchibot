@@ -68,4 +68,11 @@ final class Comments
         return (int) $this->db->value('SELECT COUNT(*) FROM post_comments pc JOIN scheduled_posts sp ON sp.id = pc.post_id
              WHERE pc.owner_id = ? AND sp.channel_id = ? AND pc.deleted = 0 AND pc.created_at >= ?', [$ownerId, $channelId, $sinceUtc->format('Y-m-d H:i:s')]);
     }
+
+    /** Egasining postlaridagi oxirgi izohlar (Mini App uchun). */
+    public function recentForOwner(int $ownerId, int $limit = 50): array
+    {
+        return $this->db->all('SELECT pc.*, sp.text AS post_text, sp.post_type FROM post_comments pc JOIN scheduled_posts sp ON sp.id = pc.post_id
+             WHERE pc.owner_id = ? AND pc.deleted = 0 ORDER BY pc.id DESC LIMIT ' . max(1, $limit), [$ownerId]);
+    }
 }

@@ -122,14 +122,13 @@ final class CommentsHandler
         }
     }
 
-    /** Egasi: 🗑 o'chirish yoki 🚫 bloklash. */
-    public static function moderate(Ctx $ctx, string $act, int $id): void
+    /** O'chirish ('x') yoki bloklash ('b') — faqat egasi (bot va Mini App uchun umumiy). @return array|null izoh */
+    public static function applyModeration(Ctx $ctx, string $act, int $id): ?array
     {
         $app = $ctx->app;
         $c = $app->comments->get($id);
         if ($c === null || (int) $c['owner_id'] !== $ctx->ownerId() || !$ctx->can('delete')) {
-            $ctx->reply($ctx->t('cm_not_found'));
-            return;
+            return null;
         }
         if ($act === 'b') {
             $app->comments->ban((int) $c['owner_id'], (int) $c['user_id'], $app->now());
@@ -137,6 +136,17 @@ final class CommentsHandler
             $app->comments->delete($id);
         }
         self::refreshButtons($app, (int) $c['post_id']);
+        return $c;
+    }
+
+    /** Egasi: 🗑 o'chirish yoki 🚫 bloklash. */
+    public static function moderate(Ctx $ctx, string $act, int $id): void
+    {
+        $c = self::applyModeration($ctx, $act, $id);
+        if ($c === null) {
+            $ctx->reply($ctx->t('cm_not_found'));
+            return;
+        }
         $ctx->edit($ctx->t($act === 'b' ? 'cm_banned_done' : 'cm_deleted', ['name' => Html::e((string) $c['name'])]));
     }
 }
