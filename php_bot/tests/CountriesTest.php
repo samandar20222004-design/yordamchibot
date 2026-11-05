@@ -10,7 +10,7 @@ T::section('AL. Davlatlar va vaqt mintaqasi');
 T::check('200+ davlat/hudud, har birida mintaqa', count(CountryData::ALL) >= 240 && count(array_filter(CountryData::ALL, function ($r) { return !$r[3]; })) === 0);
 $bad = [];
 foreach (CountryData::ALL as $code => $r) {
-    foreach ($r[3] as $z) {
+    foreach (Countries::zones($code) as $z) {
         try {
             new DateTimeZone($z);
         } catch (Throwable $e) {
@@ -18,7 +18,9 @@ foreach (CountryData::ALL as $code => $r) {
         }
     }
 }
-T::eq('hamma mintaqalar PHP\'da mavjud', $bad, []);
+T::eq('hamma mintaqalar shu PHP\'da mavjud (yangi nom bo\'lmasa eskisi)', $bad, []);
+T::check('Ukraina: eski tzdata\'da ham topiladi', in_array(Countries::zones('UA')[0] ?? '', ['Europe/Kyiv', 'Europe/Kiev'], true));
+T::check('davlatlarda mintaqa bo\'sh qolmadi', count(array_filter(array_keys(CountryData::ALL), function ($c) { return !Countries::zones($c); })) === 0);
 foreach (['Germaniya' => 'DE', 'Rossiya' => 'RU', 'Qozog\'iston' => 'KZ', 'qozogiston' => 'KZ', 'Qozogʻiston' => 'KZ', 'AQSH' => 'US', 'США' => 'US',
     'Turkiya' => 'TR', 'Германия' => 'DE', 'Japan' => 'JP', 'Misr' => 'EG', 'Braziliya' => 'BR', 'BAA' => 'AE', 'Angliya' => 'GB', 'Polsha' => 'PL',
     'Indoneziya' => 'ID', 'Avstraliya' => 'AU', 'Koreya' => 'KR', 'fr' => 'FR', 'Oʻzbekiston' => 'UZ'] as $q => $want) {
@@ -35,7 +37,11 @@ $text($GU, 'Germaniya');
 T::eq('bitta mintaqali davlat: darhol o\'rnatiladi', $app->users->get($GU)['timezone'] ?? null, 'Europe/Berlin');
 $text($GU, '/timezone');
 $text($GU, 'Qozog‘iston');
-T::eq('Qozog\'iston (hammasi UTC+5): darhol Almaty', $app->users->get($GU)['timezone'] ?? null, 'Asia/Almaty');
+if (count(Countries::distinctZones('KZ', $clock)) === 1) {
+    T::eq('Qozog\'iston (yangi tzdata: hammasi UTC+5): darhol Almaty', $app->users->get($GU)['timezone'] ?? null, 'Asia/Almaty');
+} else {
+    T::check('Qozog\'iston (eski tzdata: 2 xil vaqt): shahar so\'raladi', strpos($mk(($fake->of('sendMessage') ?: [[]])[0]), 'tz:Asia\\/Almaty') !== false);
+}
 $text($GU, '/timezone');
 $text($GU, 'Rossiya');
 $kbG = $mk(($fake->of('sendMessage') ?: [[]])[0]);
@@ -57,3 +63,15 @@ T::eq('shahar (o\'zbekcha yozilishi)', $app->users->get($GU)['timezone'] ?? null
 $fake->reset();
 $r = MiniAppApi::handle($app, 'tz_search', ['q' => 'Braziliya'], $mkInit(['id' => $GU, 'first_name' => 'G', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $token));
 T::check('Mini App: davlat qidiruvi', $r[0] === 200 && $r[1]['results'][0]['zone'] === 'America/Sao_Paulo' && $r[1]['results'][0]['flag'] === '🇧🇷');
+$r2 = MiniAppApi::handle($app, 'tz_search', ['q' => 'Germaniya'], $mkInit(['id' => $GU, 'first_name' => 'G', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $token));
+T::eq('Mini App: bir xil vaqtli mintaqalar takrorlanmaydi', array_column($r2[1]['results'], 'zone'), ['Europe/Berlin']);
+
+T::section('AM. Mini App: ko\'rinish sozlamalari');
+$appSrc6 = (string) file_get_contents(__DIR__ . '/../app.php');
+foreach (['data-theme=dark', 'data-accent=violet', 'data-size=l', 'data-density=compact', 'data-motion=off', 'data-labels=off', 'pa_ui_v1', 'CloudStorage', 'tz_search', 'id="ui-card"'] as $needle) {
+    T::check("app.php: {$needle}", strpos($appSrc6, $needle) !== false);
+}
+foreach (['uz', 'ru', 'en'] as $l) {
+    $tbl = \PostAssist\I18n::table($l);
+    T::check("[{$l}] ko'rinish matnlari", isset($tbl['ma_ui_title'], $tbl['ma_ui_part_bot'], $tbl['ma_tz_search'], $tbl['tz_pick_zone']));
+}

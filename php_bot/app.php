@@ -75,7 +75,63 @@ nav a.on{color:var(--accent);font-weight:600}
 .banner{background:linear-gradient(135deg,#2f7cf6,#8b5cf6);color:#fff;border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;display:flex;gap:10px;align-items:center}
 .banner button{background:#fff;color:#2f7cf6;width:auto}
 details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inline-block;animation:sp 1s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+
+.ui-hidden{display:none!important}
 #boot{display:grid;place-items:center;height:70vh;color:var(--hint)}
+</style>
+<style id="ui-modern">
+/* ---------- zamonaviy qatlam: mavzu, rang, o'lcham, zichlik (html data-* atributlari, «🎨 Ko'rinish» sozlamalari) */
+:root{--accent2:#8b5cf6;--soft:rgba(47,124,246,.12);--r:20px;--line:rgba(128,128,128,.14)}
+html[data-accent=blue]{--accent:#2f7cf6;--accent2:#22b8f0;--soft:rgba(47,124,246,.13)}
+html[data-accent=violet]{--accent:#7c5cff;--accent2:#c06cff;--soft:rgba(124,92,255,.14)}
+html[data-accent=green]{--accent:#10b981;--accent2:#22d3a6;--soft:rgba(16,185,129,.14)}
+html[data-accent=orange]{--accent:#f97316;--accent2:#fbbf24;--soft:rgba(249,115,22,.14)}
+html[data-accent=pink]{--accent:#ec4899;--accent2:#f472b6;--soft:rgba(236,72,153,.14)}
+html[data-accent=teal]{--accent:#0ea5a4;--accent2:#38bdf8;--soft:rgba(14,165,164,.14)}
+html[data-accent=red]{--accent:#ef4444;--accent2:#fb7185;--soft:rgba(239,68,68,.14)}
+html[data-accent]{--accent-text:#fff;--link:var(--accent)}
+html[data-theme=light]{--bg:#f2f4fa;--card:#ffffff;--text:#11131a;--hint:#868ca0;--shadow:0 8px 28px rgba(20,30,60,.08)}
+html[data-theme=dark]{--bg:#0d1016;--card:#171b25;--text:#eef1f7;--hint:#8a93a8;--shadow:0 10px 30px rgba(0,0,0,.4);--line:rgba(255,255,255,.08)}
+html[data-theme=dark] input,html[data-theme=dark] select,html[data-theme=dark] textarea,html[data-theme=dark] .editor{background:#0f131b;color:var(--text)}
+html[data-size=s] body{font-size:13.5px}html[data-size=l] body{font-size:17px}html[data-size=l] h1{font-size:20px}
+html[data-density=compact] .card{padding:10px 12px;margin-bottom:8px}html[data-density=compact] .stats,html[data-density=compact] .actions{gap:8px;margin-bottom:8px}
+html[data-density=compact] .big{padding:11px 12px}
+html[data-motion=off] *{animation:none!important;transition:none!important}
+body{position:relative;min-height:100vh}
+body::before{content:"";position:fixed;inset:-20% -20% auto -20%;height:70vh;z-index:-1;pointer-events:none;opacity:.55;
+  background:radial-gradient(40% 50% at 20% 20%,var(--soft),transparent 70%),radial-gradient(35% 45% at 85% 10%,var(--soft),transparent 70%);
+  animation:aur 16s ease-in-out infinite alternate}
+@keyframes aur{to{transform:translate3d(4%,3%,0) scale(1.06)}}
+header{background:transparent;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.logo{background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 18px var(--soft);border-radius:12px}
+.card,.stat{border:1px solid var(--line);border-radius:var(--r)}
+.card{transition:transform .15s ease}
+.card h3{font-size:15px;letter-spacing:.1px}
+button,.btn{border-radius:14px;transition:transform .1s ease,filter .15s ease,box-shadow .15s ease}
+button:not(.ghost):not(.danger):not(.small){background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 20px var(--soft)}
+button:active{transform:scale(.97)}
+button.ghost{border:1px solid var(--line);box-shadow:none}
+.big{border-radius:18px}.big span{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--soft);font-size:20px}
+button.big:not(.ghost) span{background:rgba(255,255,255,.22)}
+.stat b{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+input,select,textarea,.editor{border:1px solid var(--line);border-radius:14px;transition:border-color .15s,box-shadow .15s}
+input:focus,select:focus,textarea:focus,.editor:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--soft)}
+.chip{border:1px solid var(--line);transition:all .15s}.chip.on{background:linear-gradient(135deg,var(--accent),var(--accent2));border-color:transparent;box-shadow:0 4px 12px var(--soft)}
+.tag{background:var(--soft);color:var(--text)}
+nav{border:1px solid var(--line);border-radius:22px;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+nav a{position:relative;transition:color .15s}nav a.on::before{content:"";position:absolute;inset:4px 8px;border-radius:14px;background:var(--soft);z-index:-1}
+nav a i{transition:transform .2s}nav a.on i{transform:translateY(-1px) scale(1.12)}
+html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{padding:12px 4px}
+.hero{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:0;position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,.14)}
+.hero .muted{color:rgba(255,255,255,.85)}.hero h3{font-size:19px;margin-bottom:4px}
+.avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-weight:700;background:rgba(255,255,255,.25);color:#fff;font-size:18px;float:right}
+.sw{width:30px;height:30px;border-radius:50%;display:inline-block;margin:0 8px 8px 0;cursor:pointer;border:3px solid transparent;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.sw.on{border-color:var(--text)}
+.set-row{margin:12px 0 4px;font-size:13px;color:var(--hint);font-weight:600}
+.tzr{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-top:6px;cursor:pointer}
+.tzr:active{background:var(--soft)}
+.page.on{animation:in .28s cubic-bezier(.2,.8,.2,1)}
 </style>
 </head>
 <body>
@@ -84,8 +140,8 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   <div id="boot"><div><span class="spin">⏳</span></div></div>
 
   <section class="page" id="p-home">
-    <div class="card"><h3 id="hello"></h3><div class="muted" id="tzline"></div></div>
-    <div class="stats">
+    <div class="card hero" id="home-hero"><div class="avatar" id="avatar">🙂</div><h3 id="hello"></h3><div class="muted" id="tzline"></div></div>
+    <div class="stats" id="home-stats">
       <div class="stat"><b id="s-pending">0</b><span class="muted" data-t="ma_stat_pending"></span></div>
       <div class="stat"><b id="s-sent">0</b><span class="muted" data-t="ma_stat_sent"></span></div>
       <div class="stat"><b id="s-channels">0</b><span class="muted" data-t="ma_stat_channels"></span></div>
@@ -100,7 +156,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
       <button class="small ghost" id="cm-open" data-t="ma_open"></button></div></div>
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
-    <div class="card"><h3 data-t="ma_in_bot"></h3>
+    <div class="card" id="bot-card"><h3 data-t="ma_in_bot"></h3>
       <div class="actions">
         <button class="big ghost" data-bot="go_market"><span>💰</span><b data-t="ma_go_market"></b></button>
         <button class="big ghost" data-bot="go_team"><span>👥</span><b data-t="ma_go_team"></b></button>
@@ -180,7 +236,18 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     <div class="card"><h3 id="me-name"></h3><div class="muted" id="me-plan"></div><div class="muted" id="me-limits"></div>
       <div style="margin-top:10px"><button id="me-plans" data-t="ma_plans"></button></div></div>
     <div class="card"><label data-t="ma_lang"></label><select id="me-lang"><option value="uz">🇺🇿 O'zbekcha</option><option value="ru">🇷🇺 Русский</option><option value="en">🇬🇧 English</option></select>
-      <label data-t="ma_tz"></label><select id="me-tz"></select></div>
+      <label data-t="ma_tz"></label><div class="tzr" id="tz-cur"></div>
+      <input id="tz-q" data-ph="ma_tz_search" style="margin-top:8px"><div id="tz-res"></div></div>
+    <div class="card" id="ui-card"><h3>🎨 <span data-t="ma_ui_title"></span></h3>
+      <div class="set-row" data-t="ma_ui_theme"></div><div class="chips" id="ui-theme"></div>
+      <div class="set-row" data-t="ma_ui_accent"></div><div id="ui-accent"></div>
+      <div class="set-row" data-t="ma_ui_size"></div><div class="chips" id="ui-size"></div>
+      <div class="set-row" data-t="ma_ui_density"></div><div class="chips" id="ui-density"></div>
+      <div class="set-row" data-t="ma_ui_motion"></div><div class="chips" id="ui-motion"></div>
+      <div class="set-row" data-t="ma_ui_labels"></div><div class="chips" id="ui-labels"></div>
+      <div class="set-row" data-t="ma_ui_home"></div><div class="chips" id="ui-home"></div>
+      <div class="set-row" data-t="ma_ui_start"></div><div class="chips" id="ui-start"></div>
+      <div style="margin-top:14px"><button class="ghost small" id="ui-reset">↺ <span data-t="ma_ui_reset"></span></button></div></div>
     <div class="card" id="me-admin" style="display:none"><button data-go="admin">👑 <span data-t="ma_admin_title"></span></button></div>
     <div class="card muted" data-t="ma_about"></div>
   </section>
@@ -247,6 +314,8 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     document.documentElement.lang = lang;
     document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = t(el.getAttribute('data-t')); });
     $('ed').setAttribute('data-ph', t('ma_text_ph'));
+    document.querySelectorAll('input[data-ph]').forEach(function (el) { el.placeholder = t(el.getAttribute('data-ph')); });
+    if (typeof renderUi === 'function') { renderUi(); }
   }
 
   // ---------- navigatsiya (Telegram «Orqaga» tugmasi bilan)
@@ -805,9 +874,6 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   $('me-lang').onchange = function () {
     var l = this.value; api('settings', {lang: l}).then(function (r) { if (r.ok) { lang = l; applyI18n(); render(); toast(t('ma_saved')); } else { toast(errText(r)); } });
   };
-  $('me-tz').onchange = function () {
-    api('settings', {timezone: this.value}).then(function (r) { if (r.ok) { toast(t('ma_saved')); loadMe(); } else { toast(errText(r)); } });
-  };
 
   function render() {
     var p = me.plan;
@@ -818,13 +884,13 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     $('ai-quota').textContent = quotaText();
     $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = me.ai.enabled ? '' : 'none';
     $('me-name').textContent = '👤 ' + (me.user.name || '');
+    $('avatar').textContent = (me.user.name || '🙂').trim().charAt(0).toUpperCase() || '🙂';
     $('me-admin').style.display = me.user.is_admin ? '' : 'none';
     $('me-plan').textContent = t('ma_plan_line', {plan: p.name}) + (p.expires ? ' · ' + t('ma_until', {date: p.expires}) : '');
     var inf = function (n) { return n === 0 ? '∞' : n; };
     $('me-limits').textContent = t('ma_limits', {ch: inf(p.channels_max), q: inf(p.queue_max)});
     $('me-lang').value = me.user.lang;
-    var tzs = me.timezones.slice(); if (tzs.indexOf(me.user.timezone) < 0) { tzs.unshift(me.user.timezone); }
-    $('me-tz').innerHTML = tzs.map(function (z) { return '<option' + (z === me.user.timezone ? ' selected' : '') + '>' + esc(z) + '</option>'; }).join('');
+    renderTz();
     $('ad').innerHTML = '<option value="0">' + esc(t('ma_ad_none')) + '</option>' + me.auto_delete.map(function (m) { return '<option value="' + m + '">' + esc(t('ma_ad_hours', {h: m / 60})) + '</option>'; }).join('');
     $('when').min = me.now_local; $('when-tz').textContent = '🕒 ' + me.user.timezone;
     if (!me.channels.length) { $('no-ch').style.display = ''; $('editor-wrap').style.display = 'none'; }
@@ -860,8 +926,95 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     });
   }
 
+
+  // ---------- 🎨 Ko'rinish: mavzu, rang, o'lcham, zichlik, animatsiya, bosh sahifa bo'limlari, ochilish sahifasi
+  // localStorage (darhol) + Telegram CloudStorage (boshqa qurilmada ham) — faqat shu foydalanuvchining sozlamasi.
+  var UI_KEY = 'pa_ui_v1';
+  var UI_DEF = {theme: 'auto', accent: 'tg', size: 'm', density: 'cozy', motion: 'on', labels: 'on', hide: [], start: 'home'};
+  var ui = JSON.parse(JSON.stringify(UI_DEF));
+  var ACCENTS = {tg: 'var(--tg-theme-button-color,#2f7cf6)', blue: '#2f7cf6', violet: '#7c5cff', green: '#10b981', orange: '#f97316', pink: '#ec4899', teal: '#0ea5a4', red: '#ef4444'};
+  var HOME_PARTS = {stats: 'home-stats', ai: 'ai-card', comments: 'cm-card', channels: 'st-card', bot: 'bot-card'};
+  function uiMerge(o) {
+    if (!o || typeof o !== 'object') { return; }
+    Object.keys(UI_DEF).forEach(function (k) { if (o[k] !== undefined) { ui[k] = o[k]; } });
+    if (!Array.isArray(ui.hide)) { ui.hide = []; }
+  }
+  try { uiMerge(JSON.parse(localStorage.getItem(UI_KEY) || 'null')); } catch (e) {}
+  function applyUi() {
+    var h = document.documentElement;
+    if (ui.theme === 'auto') { h.removeAttribute('data-theme'); } else { h.setAttribute('data-theme', ui.theme); }
+    if (ui.accent === 'tg') { h.removeAttribute('data-accent'); } else { h.setAttribute('data-accent', ui.accent); }
+    h.setAttribute('data-size', ui.size); h.setAttribute('data-density', ui.density);
+    h.setAttribute('data-motion', ui.motion); h.setAttribute('data-labels', ui.labels);
+    Object.keys(HOME_PARTS).forEach(function (k) { var el = $(HOME_PARTS[k]); if (el) { el.classList.toggle('ui-hidden', ui.hide.indexOf(k) >= 0); } });
+    try { if (tg && tg.setHeaderColor && ui.theme !== 'auto') { tg.setHeaderColor(ui.theme === 'dark' ? '#0d1016' : '#f2f4fa'); } } catch (e) {}
+  }
+  function saveUi() {
+    var j = JSON.stringify(ui);
+    try { localStorage.setItem(UI_KEY, j); } catch (e) {}
+    try { if (tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')) { tg.CloudStorage.setItem(UI_KEY, j); } } catch (e) {}
+    applyUi(); renderUi(); haptic();
+  }
+  function chips(id, key, opts) {
+    var box = $(id); if (!box) { return; }
+    box.innerHTML = opts.map(function (o) { return '<span class="chip' + (ui[key] === o[0] ? ' on' : '') + '" data-ui="' + key + '" data-v="' + o[0] + '">' + esc(o[1]) + '</span>'; }).join('');
+  }
+  function renderUi() {
+    if (!$('ui-card')) { return; }
+    chips('ui-theme', 'theme', [['auto', '📱 ' + t('ma_ui_auto')], ['light', '☀️ ' + t('ma_ui_light')], ['dark', '🌙 ' + t('ma_ui_dark')]]);
+    $('ui-accent').innerHTML = Object.keys(ACCENTS).map(function (k) {
+      return '<span class="sw' + (ui.accent === k ? ' on' : '') + '" data-acc="' + k + '" title="' + k + '" style="background:' + ACCENTS[k] + '"></span>';
+    }).join('');
+    chips('ui-size', 'size', [['s', 'A−'], ['m', 'A'], ['l', 'A+']]);
+    chips('ui-density', 'density', [['cozy', t('ma_ui_cozy')], ['compact', t('ma_ui_compact')]]);
+    chips('ui-motion', 'motion', [['on', t('ma_ui_on')], ['off', t('ma_ui_off')]]);
+    chips('ui-labels', 'labels', [['on', t('ma_ui_on')], ['off', t('ma_ui_off')]]);
+    chips('ui-start', 'start', [['home', '🏠 ' + t('ma_tab_home')], ['post', '✍️ ' + t('ma_tab_post')], ['queue', '📅 ' + t('ma_tab_queue')], ['market', '💰 ' + t('ma_tab_market')]]);
+    $('ui-home').innerHTML = Object.keys(HOME_PARTS).map(function (k) {
+      return '<span class="chip' + (ui.hide.indexOf(k) < 0 ? ' on' : '') + '" data-hp="' + k + '">' + esc(t('ma_ui_part_' + k)) + '</span>';
+    }).join('');
+  }
+  document.addEventListener('click', function (e) {
+    var c = e.target.closest('[data-ui]');
+    if (c) { ui[c.getAttribute('data-ui')] = c.getAttribute('data-v'); saveUi(); return; }
+    var a = e.target.closest('[data-acc]');
+    if (a) { ui.accent = a.getAttribute('data-acc'); saveUi(); return; }
+    var hp = e.target.closest('[data-hp]');
+    if (hp) { var k = hp.getAttribute('data-hp'), i = ui.hide.indexOf(k); if (i >= 0) { ui.hide.splice(i, 1); } else { ui.hide.push(k); } saveUi(); }
+  });
+  $('ui-reset').onclick = function () { ui = JSON.parse(JSON.stringify(UI_DEF)); saveUi(); toast(t('ma_saved')); };
+  applyUi();
+  try {
+    if (tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9')) {
+      tg.CloudStorage.getItem(UI_KEY, function (err, v) { if (!err && v) { try { uiMerge(JSON.parse(v)); localStorage.setItem(UI_KEY, v); } catch (e) {} applyUi(); renderUi(); } });
+    }
+  } catch (e) {}
+
+  // ---------- 🌍 vaqt mintaqasi: istalgan davlat yoki shahar bo'yicha qidiruv
+  function renderTz() { if (me) { $('tz-cur').innerHTML = '<span>🕒 <b>' + esc(me.user.timezone) + '</b></span><span class="muted">' + esc(me.now_local.slice(11)) + '</span>'; } }
+  var tzTimer = null;
+  $('tz-q').addEventListener('input', function () {
+    var q = this.value.trim(); clearTimeout(tzTimer);
+    if (q.length < 2) { $('tz-res').innerHTML = ''; return; }
+    tzTimer = setTimeout(function () {
+      api('tz_search', {q: q}).then(function (r) {
+        if (!r.ok) { return; }
+        $('tz-res').innerHTML = r.results.length ? r.results.map(function (x) {
+          return '<div class="tzr" data-tz="' + esc(x.zone) + '"><span>' + esc(x.flag) + ' ' + esc(x.country || x.zone) + '</span><span class="muted">' + esc(x.label) + '</span></div>';
+        }).join('') : '<div class="muted" style="margin-top:6px">' + esc(t('ma_tz_none')) + '</div>';
+      });
+    }, 300);
+  });
+  $('tz-res').addEventListener('click', function (e) {
+    var el = e.target.closest('[data-tz]'); if (!el) { return; }
+    api('settings', {timezone: el.getAttribute('data-tz')}).then(function (r) {
+      if (!r.ok) { toast(errText(r)); return; }
+      $('tz-q').value = ''; $('tz-res').innerHTML = ''; haptic('ok'); toast(t('ma_saved')); loadMe();
+    });
+  });
   // ---------- ishga tushirish
   if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('secondary_bg_color'); } catch (e) {} }
+  applyUi();
   var u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; if (u && u.language_code) { lang = ['uz', 'ru'].indexOf(u.language_code.slice(0, 2)) >= 0 ? u.language_code.slice(0, 2) : 'en'; }
   applyI18n();
   if (!initData) { $('boot').innerHTML = '<div class="empty"><b>📱</b>' + esc(t('ma_err_open_in_tg')) + '</div>'; return; }
@@ -869,7 +1022,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     if (!ok) { return; }
     $('boot').style.display = 'none';
     var tab = (new URLSearchParams(location.search)).get('tab');
-    go(['home', 'post', 'queue', 'market', 'me', 'admin'].indexOf(tab) >= 0 ? tab : 'home');
+    go(['home', 'post', 'queue', 'market', 'me', 'admin'].indexOf(tab) >= 0 ? tab : (['home', 'post', 'queue', 'market'].indexOf(ui.start) >= 0 ? ui.start : 'home'));
     checkDraft();
   });
 })();

@@ -82,10 +82,28 @@ final class Countries
         return (string) $row[['uz' => 0, 'ru' => 1, 'en' => 2][$lang] ?? 0];
     }
 
-    /** @return string[] */
+    /** Yangi nomli mintaqalarning eski nomi (eski tzdata'li hosting, masalan PHP 7.4). */
+    private const OLD_NAMES = ['Europe/Kyiv' => 'Europe/Kiev', 'America/Nuuk' => 'America/Godthab', 'Pacific/Kanton' => 'Pacific/Enderbury',
+        'Asia/Yangon' => 'Asia/Rangoon', 'America/Ciudad_Juarez' => 'America/Ojinaga', 'America/Coyhaique' => 'America/Punta_Arenas'];
+    /** @var array<string,bool>|null */
+    private static ?array $known = null;
+
+    /** Davlat mintaqalari — faqat shu serverdagi PHP biladiganlari (yangi nom bo'lmasa eskisi). @return string[] */
     public static function zones(string $code): array
     {
-        return CountryData::ALL[$code][3] ?? [];
+        if (self::$known === null) {
+            self::$known = array_fill_keys(DateTimeZone::listIdentifiers(), true);
+        }
+        $out = [];
+        foreach (CountryData::ALL[$code][3] ?? [] as $z) {
+            if (!isset(self::$known[$z]) && isset(self::OLD_NAMES[$z])) {
+                $z = self::OLD_NAMES[$z];
+            }
+            if (isset(self::$known[$z]) && !in_array($z, $out, true)) {
+                $out[] = $z;
+            }
+        }
+        return $out;
     }
 
     /**

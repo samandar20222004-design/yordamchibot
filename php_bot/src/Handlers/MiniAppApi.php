@@ -705,7 +705,7 @@ final class MiniAppApi
             $out[] = ['zone' => $z, 'label' => \PostAssist\Services\Countries::zoneLabel($z, $ctx->app->now()), 'country' => '', 'flag' => '🕒'];
         }
         foreach (\PostAssist\Services\Countries::search($q, 6) as $code) {
-            foreach (array_slice(\PostAssist\Services\Countries::zones($code), 0, 12) as $zone) {
+            foreach (array_slice(\PostAssist\Services\Countries::distinctZones($code, $ctx->app->now()), 0, 12) as $zone) {
                 $out[] = ['zone' => $zone, 'label' => \PostAssist\Services\Countries::zoneLabel($zone, $ctx->app->now()),
                     'country' => \PostAssist\Services\Countries::name($code, $ctx->lang), 'flag' => \PostAssist\Services\Countries::flag($code)];
             }
