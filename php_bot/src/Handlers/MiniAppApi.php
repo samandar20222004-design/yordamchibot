@@ -50,7 +50,7 @@ final class MiniAppApi
                 case 'post_update':
                     return self::update($ctx, $in);
                 case 'post_cancel':
-                    $ok = $app->posts->cancel($uid, (int) ($in['id'] ?? 0));
+                    $ok = $ctx->can('delete') && $app->posts->cancel($ctx->ownerId(), (int) ($in['id'] ?? 0));
                     return $ok ? [200, ['ok' => true]] : [404, ['ok' => false, 'error' => 'not_found']];
                 case 'settings':
                     return self::settings($ctx, $in);
@@ -103,26 +103,31 @@ final class MiniAppApi
     private static function me(Ctx $ctx): array
     {
         $app = $ctx->app;
-        $tier = $app->isAdmin($ctx->userId) ? Plans::ENTERPRISE : $app->tier($ctx->userId);
-        $plan = $app->users->plan($ctx->userId);
-        $lim = $app->isAdmin($ctx->userId) ? ['channels' => 0, 'queue' => 0] : Plans::limits($tier, $app->config);
-        $aiLimit = $app->aiLimit($ctx->userId);
+        $own = $ctx->ownerId();
+        $tier = $app->isAdmin($own) ? Plans::ENTERPRISE : $app->tier($own);
+        $plan = $app->users->plan($own);
+        $lim = $app->isAdmin($own) ? ['channels' => 0, 'queue' => 0] : Plans::limits($tier, $app->config);
+        $aiLimit = $app->aiLimit($own);
         $channels = array_map(static function ($c) {
             return ['id' => (int) $c['id'], 'title' => (string) ($c['title'] ?: $c['channel_id']), 'username' => $c['username']];
-        }, $app->channels->listFor($ctx->userId));
-        $stats = $app->posts->userStats($ctx->userId);
+        }, $app->channels->listFor($own));
+        $stats = $app->posts->userStats($own);
         return ['ok' => true,
             'user' => ['id' => $ctx->userId, 'name' => $ctx->firstName, 'lang' => $ctx->lang, 'timezone' => $ctx->tzName(),
                 'is_admin' => $app->isAdmin($ctx->userId)],
-            'plan' => ['tier' => $tier, 'name' => Plans::NAMES[$tier], 'free' => $app->isFree($ctx->userId),
+            'plan' => ['tier' => $tier, 'name' => Plans::NAMES[$tier], 'free' => $app->isFree($own),
                 'expires' => ($tier === Plans::PRO || $tier === Plans::ULTRA) && !empty($plan['subscription_expires_at'])
                     ? TimeParser::show((string) $plan['subscription_expires_at'], $ctx->tz()) : null,
                 'channels_max' => $lim['channels'], 'queue_max' => $lim['queue']],
             'stats' => $stats + ['channels' => count($channels)],
             'ai' => ['enabled' => $app->ai->enabled(), 'limit' => $aiLimit,
-                'left' => $aiLimit === 0 ? null : max(0, $aiLimit - $app->aiUsage->usedOn($ctx->userId, $app->today())),
-                'credits' => $app->credits->balance($ctx->userId)],
+                'left' => $aiLimit === 0 ? null : max(0, $aiLimit - $app->aiUsage->usedOn($own, $app->today())),
+                'credits' => $app->credits->balance($own)],
             'channels' => $channels,
+            'workspace' => $ctx->inTeam() ? ['owner_id' => $own, 'owner' => trim(strip_tags($ctx->workspaceLine())),
+                'perms' => array_values(array_filter(['create', 'send_now', 'delete', 'ai'], static function ($p) use ($ctx) {
+                    return $ctx->can($p);
+                }))] : null,
             'bot' => $app->config->str('bot_username'),
             'now_local' => $app->now()->setTimezone($ctx->tz())->format('Y-m-d\TH:i'),
             'timezones' => array_keys(\PostAssist\Keyboards::TIMEZONES),
@@ -151,7 +156,7 @@ final class MiniAppApi
     {
         return ['ok' => true, 'posts' => array_map(static function ($p) use ($ctx) {
             return self::postOut($ctx, $p);
-        }, $ctx->app->posts->listPending($ctx->userId, 50))];
+        }, $ctx->app->posts->listPending($ctx->ownerId(), 50))];
     }
 
     /** Mahalliy «YYYY-MM-DDTHH:MM» -> UTC (kelajakda, 1 yil ichida) yoki xato kodi. @return DateTimeImmutable|string */
@@ -186,7 +191,10 @@ final class MiniAppApi
     private static function create(Ctx $ctx, array $in): array
     {
         $app = $ctx->app;
-        $channel = $app->channels->getOwned($ctx->userId, (int) ($in['channel_id'] ?? 0));
+        if (!$ctx->can('create') || (($in['when'] ?? 'now') === 'now' && !$ctx->can('send_now'))) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
+        $channel = $app->channels->getOwned($ctx->ownerId(), (int) ($in['channel_id'] ?? 0));
         if (!$channel) {
             return [400, ['ok' => false, 'error' => 'channel']];
         }
@@ -197,8 +205,8 @@ final class MiniAppApi
         if (isset($draft['error'])) {
             return [400, ['ok' => false] + $draft];
         }
-        $limit = $app->queueLimit($ctx->userId);
-        if ($limit > 0 && $app->posts->pendingCount($ctx->userId) >= $limit) {
+        $limit = $app->queueLimit($ctx->ownerId());
+        if ($limit > 0 && $app->posts->pendingCount($ctx->ownerId()) >= $limit) {
             return [400, ['ok' => false, 'error' => 'queue_limit', 'max' => $limit]];
         }
         $now = ($in['when'] ?? 'now') === 'now';
@@ -215,8 +223,8 @@ final class MiniAppApi
                 return [400, ['ok' => false, 'error' => 'repeat']];
             }
         }
-        $id = $app->posts->create($ctx->userId, (int) $channel['channel_id'], $draft, $utc->format('Y-m-d H:i:s'), !$now, $rec);
-        $reward = $app->afterPostSaved($ctx->userId);
+        $id = $app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $draft, $utc->format('Y-m-d H:i:s'), !$now, $rec, $ctx->userId);
+        $reward = $app->afterPostSaved($ctx->ownerId());
         if ($reward !== null) {
             PlansHandler::notifyReward($app, $reward, $ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId);
         }
@@ -287,7 +295,10 @@ final class MiniAppApi
     /** @return array{0:int,1:array} */
     private static function update(Ctx $ctx, array $in): array
     {
-        $p = $ctx->app->posts->getOwnedPending($ctx->userId, (int) ($in['id'] ?? 0));
+        if (!$ctx->can('create')) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
+        $p = $ctx->app->posts->getOwnedPending($ctx->ownerId(), (int) ($in['id'] ?? 0));
         if (!$p) {
             return [404, ['ok' => false, 'error' => 'not_found']];
         }
@@ -309,8 +320,8 @@ final class MiniAppApi
             }
             $utcSql = $utc->format('Y-m-d H:i:s');
         }
-        $ctx->app->posts->updatePending($ctx->userId, (int) $p['id'], $text, $utcSql);
-        return [200, ['ok' => true, 'post' => self::postOut($ctx, $ctx->app->posts->getOwnedPending($ctx->userId, (int) $p['id']) ?? $p)]];
+        $ctx->app->posts->updatePending($ctx->ownerId(), (int) $p['id'], $text, $utcSql);
+        return [200, ['ok' => true, 'post' => self::postOut($ctx, $ctx->app->posts->getOwnedPending($ctx->ownerId(), (int) $p['id']) ?? $p)]];
     }
 
     /** @return array{0:int,1:array} */
@@ -340,6 +351,9 @@ final class MiniAppApi
         if (!$app->ai->enabled()) {
             return [400, ['ok' => false, 'error' => 'ai_disabled']];
         }
+        if (!$ctx->can('ai')) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
         $mode = (string) ($in['mode'] ?? '');
         if ($mode === 'post') {
             $topic = trim((string) ($in['topic'] ?? ''));
@@ -363,14 +377,14 @@ final class MiniAppApi
             return [400, ['ok' => false, 'error' => 'bad_input']];
         }
         $day = $app->today();
-        $src = $app->aiUsage->reserve($ctx->userId, $app->aiLimit($ctx->userId), $day, $app->nowSql());
+        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql());
         if ($src === null) {
             return [429, ['ok' => false, 'error' => 'ai_limit']];
         }
         @set_time_limit(120);
         $res = $app->ai->generate($system, $prompt, $max);
         if (!$res['ok']) {
-            $app->aiUsage->refund($ctx->userId, $src, $day, $app->nowSql());
+            $app->aiUsage->refund($ctx->ownerId(), $src, $day, $app->nowSql());
             return [502, ['ok' => false, 'error' => 'ai_failed']];
         }
         return [200, ['ok' => true, 'text' => $res['text']]];

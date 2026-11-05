@@ -86,7 +86,8 @@ final class Keyboards
         return self::inline([
             [self::btn(I18n::t('btn_lang', $lang), 'set:lang'), self::btn(I18n::t('btn_plans', $lang), 'pl:show')],
             [self::btn(I18n::t('btn_invite', $lang), 'ref:show'), self::btn(I18n::t('btn_promo', $lang), 'promo:ask')],
-            [self::btn(I18n::t('btn_timezone', $lang), 'set:tz'), self::btn(I18n::t('btn_help', $lang), 'set:help')],
+            [self::btn(I18n::t('btn_timezone', $lang), 'set:tz'), self::btn(I18n::t('btn_team', $lang), 'set:team')],
+            [self::btn(I18n::t('btn_help', $lang), 'set:help')],
             self::navRow($lang),
         ]);
     }

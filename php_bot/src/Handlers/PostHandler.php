@@ -26,13 +26,17 @@ final class PostHandler
 {
     public static function begin(Ctx $ctx): void
     {
-        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+        if (!$ctx->can('create')) {
+            $ctx->replyMenu($ctx->t('team_no_perm'));
+            return;
+        }
+        if ($ctx->app->channels->countFor($ctx->ownerId()) === 0) {
             $ctx->replyMenu($ctx->t('ch_need_first'));
             ChannelHandler::askAdd($ctx);
             return;
         }
         $ctx->app->states->set($ctx->userId, 'post_content');
-        $ctx->reply($ctx->t('post_ask_content'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]]));
+        $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]]));
     }
 
     /** Post kontenti keldi (yangi yoki tahrir). */
@@ -73,8 +77,8 @@ final class PostHandler
             $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = null; // albomga tugma qo'yib bo'lmaydi
         }
         $data['draft'] = $draft;
-        if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->userId, (int) $data['channel'])) {
-            $channels = $ctx->app->channels->listFor($ctx->userId);
+        if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->ownerId(), (int) $data['channel'])) {
+            $channels = $ctx->app->channels->listFor($ctx->ownerId());
             if (!$channels) {
                 $ctx->app->states->clear($ctx->userId);
                 $ctx->replyMenu($ctx->t('ch_need_first'));
@@ -190,8 +194,8 @@ final class PostHandler
         if ($st === null) {
             return;
         }
-        if (!$ctx->app->channels->getOwned($ctx->userId, $id)) {
-            $ctx->reply($ctx->t('post_pick_channel'), Keyboards::pickChannel($ctx->app->channels->listFor($ctx->userId), $ctx->lang));
+        if (!$ctx->app->channels->getOwned($ctx->ownerId(), $id)) {
+            $ctx->reply($ctx->t('post_pick_channel'), Keyboards::pickChannel($ctx->app->channels->listFor($ctx->ownerId()), $ctx->lang));
             return;
         }
         $data = $st['data'];
@@ -208,7 +212,7 @@ final class PostHandler
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null];
         $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled(),
             $d['type'] !== 'album' ? $ctx->app->miniAppUrl('tab=post') : null);
-        $free = $ctx->app->isFree($ctx->userId);
+        $free = $ctx->app->isFree($ctx->ownerId());
         $bot = $ctx->app->config->str('bot_username');
         $hint = $ctx->t('post_preview_hint') . self::extrasText($ctx, $data);
         if ($d['type'] === 'album') {
@@ -427,10 +431,14 @@ final class PostHandler
 
     private static function schedule(Ctx $ctx, array $data, DateTimeImmutable $utc, string $stateName): void
     {
-        $channel = $ctx->app->channels->getOwned($ctx->userId, (int) ($data['channel'] ?? 0));
+        $channel = $ctx->app->channels->getOwned($ctx->ownerId(), (int) ($data['channel'] ?? 0));
         if (!$channel) {
             $ctx->app->states->clear($ctx->userId);
             $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        if (!$ctx->can('create')) {
+            $ctx->replyMenu($ctx->t('team_no_perm'));
             return;
         }
         if (!self::queueHasRoom($ctx)) {
@@ -444,7 +452,7 @@ final class PostHandler
             return; // ikkinchi parallel bosish — post allaqachon yaratildi
         }
         $utcSql = $utc->format('Y-m-d H:i:s');
-        $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $utcSql, true, $rec);
+        $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $utcSql, true, $rec, $ctx->userId);
         self::afterSaved($ctx);
         $ctx->replyMenu($ctx->t('post_scheduled', [
             'channel' => Html::e((string) $channel['title']),
@@ -456,10 +464,14 @@ final class PostHandler
     /** «Hozir yuborish»: navbatga qo'yiladi va darhol yuboriladi; natija rostdan aytiladi. */
     private static function sendNow(Ctx $ctx, array $data, string $stateName): void
     {
-        $channel = $ctx->app->channels->getOwned($ctx->userId, (int) ($data['channel'] ?? 0));
+        $channel = $ctx->app->channels->getOwned($ctx->ownerId(), (int) ($data['channel'] ?? 0));
         if (!$channel) {
             $ctx->app->states->clear($ctx->userId);
             $ctx->replyMenu($ctx->t('draft_expired'));
+            return;
+        }
+        if (!$ctx->can('send_now')) {
+            $ctx->reply($ctx->t('team_no_perm_now'));
             return;
         }
         if (!self::queueHasRoom($ctx)) {
@@ -472,7 +484,7 @@ final class PostHandler
         if (!$ctx->app->states->take($ctx->userId, $stateName)) {
             return; // ikkinchi parallel bosish — post allaqachon yuborilmoqda
         }
-        $id = $ctx->app->posts->create($ctx->userId, (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false, $rec);
+        $id = $ctx->app->posts->create($ctx->ownerId(), (int) $channel['channel_id'], $data['draft'], $ctx->app->nowSql(), false, $rec, $ctx->userId);
         self::afterSaved($ctx);
         if (!$ctx->app->posts->claim($id)) {
             $ctx->replyMenu($ctx->t('send_retry'));
@@ -528,7 +540,7 @@ final class PostHandler
     /** Post saqlandi: referal mukofoti (birinchi post) va manba havolasi belgisi. */
     private static function afterSaved(Ctx $ctx): void
     {
-        $r = $ctx->app->afterPostSaved($ctx->userId);
+        $r = $ctx->app->afterPostSaved($ctx->ownerId());
         if ($r !== null) {
             PlansHandler::notifyReward($ctx->app, $r, $ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId);
         }
@@ -536,8 +548,8 @@ final class PostHandler
 
     private static function queueHasRoom(Ctx $ctx): bool
     {
-        $limit = $ctx->app->queueLimit($ctx->userId);
-        if ($limit > 0 && $ctx->app->posts->pendingCount($ctx->userId) >= $limit) {
+        $limit = $ctx->app->queueLimit($ctx->ownerId());
+        if ($limit > 0 && $ctx->app->posts->pendingCount($ctx->ownerId()) >= $limit) {
             $ctx->reply($ctx->t('queue_limit', ['max' => $limit]));
             return false;
         }

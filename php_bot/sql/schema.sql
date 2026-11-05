@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS users (
     timezone VARCHAR(64) NULL,
     uz_verified TINYINT(1) NOT NULL DEFAULT 0,
     sub_ok_until DATETIME NULL,
+    workspace_owner BIGINT NULL,
+    phone_verified TINYINT(1) NOT NULL DEFAULT 0,
+    market_banned TINYINT(1) NOT NULL DEFAULT 0,
     is_blocked TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL,
@@ -61,6 +64,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     recurrence_time INT NULL,
     recurrence_day INT NULL,
     sent_count INT NOT NULL DEFAULT 0,
+    created_by BIGINT NULL,
     scheduled_time DATETIME NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'pending',
     attempt_count INT NOT NULL DEFAULT 0,
@@ -279,4 +283,30 @@ CREATE TABLE IF NOT EXISTS forced_channels (
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_forced_chat (chat_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================== Jamoa va rollar =====================
+
+-- ULTRA egasi + 2 yordamchi. perms: create, send_now, delete, ai (vergul bilan).
+CREATE TABLE IF NOT EXISTS team_members (
+    owner_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
+    perms VARCHAR(64) NOT NULL DEFAULT '',
+    created_at DATETIME NOT NULL,
+    PRIMARY KEY (owner_id, member_id),
+    KEY idx_team_member (member_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Bir martalik taklif havolalari (/start team_<token>); bazada faqat token xeshi.
+CREATE TABLE IF NOT EXISTS team_invites (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    owner_id BIGINT NOT NULL,
+    token_hash CHAR(64) NOT NULL,
+    perms VARCHAR(64) NOT NULL DEFAULT '',
+    expires_at DATETIME NOT NULL,
+    used_by BIGINT NULL,
+    used_at DATETIME NULL,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_team_token (token_hash),
+    KEY idx_team_inv_owner (owner_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

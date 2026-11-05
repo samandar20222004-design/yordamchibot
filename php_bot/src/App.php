@@ -10,6 +10,7 @@ use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
 use PostAssist\Repo\Receipts;
+use PostAssist\Repo\Team;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
 use PostAssist\Repo\Messages;
@@ -42,6 +43,7 @@ final class App
     public Receipts $receipts;
     public Broadcasts $broadcasts;
     public ForcedChannels $forced;
+    public Team $team;
     public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
@@ -72,6 +74,7 @@ final class App
         $this->receipts = new Receipts($db);
         $this->broadcasts = new Broadcasts($db);
         $this->forced = new ForcedChannels($db);
+        $this->team = new Team($db);
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
@@ -194,6 +197,34 @@ final class App
             return null;
         }
         return $query !== '' ? $url . (strpos($url, '?') === false ? '?' : '&') . $query : $url;
+    }
+
+    /** Jamoadagi yordamchi o'rinlari: ULTRA va muddatsiz tarif (hamda admin) — 2, qolganlar — 0 (config `team_seats`). */
+    public function teamSeats(int $ownerId): int
+    {
+        $tier = $this->isAdmin($ownerId) ? Plans::ENTERPRISE : $this->tier($ownerId);
+        if ($tier !== Plans::ULTRA && $tier !== Plans::ENTERPRISE) {
+            return 0;
+        }
+        $n = $this->config->get('team_seats');
+        return $n !== null ? max(0, (int) $n) : 2;
+    }
+
+    /**
+     * Foydalanuvchi hozir kimning ish joyida: o'zi yoki egasi (a'zolik bor va egasining tarifi hali jamoaga ruxsat beradi).
+     * Shart bajarilmasa ish joyi o'ziga qaytariladi.
+     */
+    public function activeOwner(int $userId): int
+    {
+        $owner = $this->team->workspace($userId);
+        if ($owner === null || $owner === $userId) {
+            return $userId;
+        }
+        if ($this->team->perms($owner, $userId) === null || $this->teamSeats($owner) === 0) {
+            $this->team->setWorkspace($userId, null);
+            return $userId;
+        }
+        return $owner;
     }
 
     /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */

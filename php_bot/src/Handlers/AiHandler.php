@@ -25,6 +25,10 @@ final class AiHandler
 
     private static function disabled(Ctx $ctx): bool
     {
+        if (!$ctx->can('ai')) {
+            $ctx->reply($ctx->t('team_no_perm_ai'), Keyboards::nav($ctx->lang));
+            return true;
+        }
         if ($ctx->app->ai->enabled()) {
             return false;
         }
@@ -35,12 +39,12 @@ final class AiHandler
     /** Qolgan so'rovlar: «Bugun: 3/5 · Ball: 7» yoki «cheksiz». */
     public static function quotaLine(Ctx $ctx): string
     {
-        $limit = $ctx->app->aiLimit($ctx->userId);
+        $limit = $ctx->app->aiLimit($ctx->ownerId());
         if ($limit === 0) {
             return $ctx->t('ai_quota_unlimited');
         }
-        $left = max(0, $limit - $ctx->app->aiUsage->usedOn($ctx->userId, $ctx->app->today()));
-        return $ctx->t('ai_quota', ['left' => $left, 'limit' => $limit, 'credits' => $ctx->app->credits->balance($ctx->userId)]);
+        $left = max(0, $limit - $ctx->app->aiUsage->usedOn($ctx->ownerId(), $ctx->app->today()));
+        return $ctx->t('ai_quota', ['left' => $left, 'limit' => $limit, 'credits' => $ctx->app->credits->balance($ctx->ownerId())]);
     }
 
     /** «✨ AI post»: mavzu so'raladi. */
@@ -49,7 +53,7 @@ final class AiHandler
         if (self::disabled($ctx)) {
             return;
         }
-        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+        if ($ctx->app->channels->countFor($ctx->ownerId()) === 0) {
             $ctx->replyMenu($ctx->t('ch_need_first'));
             ChannelHandler::askAdd($ctx);
             return;
@@ -208,7 +212,7 @@ final class AiHandler
             return null;
         }
         $day = $app->today();
-        $src = $app->aiUsage->reserve($ctx->userId, $app->aiLimit($ctx->userId), $day, $app->nowSql());
+        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql());
         if ($src === null) {
             $ctx->reply($ctx->t('ai_limit'), Keyboards::inline([
                 [Keyboards::btn($ctx->t('btn_plans'), 'pl:show'), Keyboards::btn($ctx->t('btn_invite'), 'ref:show')],
@@ -224,7 +228,7 @@ final class AiHandler
             $app->tg->call('deleteMessage', ['chat_id' => $ctx->chatId, 'message_id' => (int) $wait['result']['message_id']]);
         }
         if (!$res['ok']) {
-            $app->aiUsage->refund($ctx->userId, $src, $day, $app->nowSql());
+            $app->aiUsage->refund($ctx->ownerId(), $src, $day, $app->nowSql());
             $app->log('AI xato: ' . ($res['error'] ?? ''));
             $ctx->reply($ctx->t('ai_failed'), Keyboards::nav($ctx->lang));
             return null;
@@ -267,7 +271,7 @@ final class AiHandler
             return;
         }
         $draft = $st['data']['draft'];
-        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+        if ($ctx->app->channels->countFor($ctx->ownerId()) === 0) {
             $ctx->app->states->clear($ctx->userId);
             $ctx->replyMenu($ctx->t('ch_need_first'));
             ChannelHandler::askAdd($ctx);
@@ -305,7 +309,7 @@ final class AiHandler
             $ctx->reply($ctx->t('ai_media_off'), Keyboards::nav($ctx->lang));
             return;
         }
-        if ($ctx->app->channels->countFor($ctx->userId) === 0) {
+        if ($ctx->app->channels->countFor($ctx->ownerId()) === 0) {
             $ctx->replyMenu($ctx->t('ch_need_first'));
             ChannelHandler::askAdd($ctx);
             return;

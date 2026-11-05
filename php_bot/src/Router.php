@@ -16,6 +16,7 @@ use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\ReactionHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
+use PostAssist\Handlers\TeamHandler;
 use PostAssist\Repo\TrackedLinks;
 
 /**
@@ -212,6 +213,10 @@ final class Router
         switch ($cmd) {
             case '/start':
                 $this->app->states->clear($ctx->userId);
+                if (isset($args[0]) && preg_match('/^team_([a-f0-9]{24})$/', $args[0], $tm)) {
+                    TeamHandler::accept($ctx, $tm[1]); // jamoa taklifi
+                    return true;
+                }
                 StartHandler::start($ctx);
                 return true;
             case '/help':
@@ -255,6 +260,9 @@ final class Router
             case '/ai':
                 $this->app->states->clear($ctx->userId);
                 AiHandler::start($ctx);
+                return true;
+            case '/team':
+                TeamHandler::show($ctx, false);
                 return true;
             case '/plans':
                 $this->app->states->clear($ctx->userId);
@@ -375,6 +383,20 @@ final class Router
             AiHandler::edit($ctx, $m[1]);
         } elseif (preg_match('/^in:(post|ai|close)$/', $data, $m)) {
             AiHandler::intakeChoice($ctx, $m[1]);
+        } elseif ($data === 'set:team') {
+            TeamHandler::show($ctx);
+        } elseif ($data === 'tm:inv') {
+            TeamHandler::askPreset($ctx);
+        } elseif (preg_match('/^tm:ip:(all|editor|viewer)$/', $data, $m)) {
+            TeamHandler::invite($ctx, $m[1]);
+        } elseif (preg_match('/^tm:rm:(\d{1,20})$/', $data, $m)) {
+            TeamHandler::askRemove($ctx, (int) $m[1]);
+        } elseif (preg_match('/^tm:rmok:(\d{1,20})$/', $data, $m)) {
+            TeamHandler::remove($ctx, (int) $m[1]);
+        } elseif (preg_match('/^tm:lv:(\d{1,20})$/', $data, $m)) {
+            TeamHandler::leave($ctx, (int) $m[1]);
+        } elseif (preg_match('/^tm:ws:(\d{1,20})$/', $data, $m)) {
+            TeamHandler::switchTo($ctx, (int) $m[1]);
         } elseif ($data === 'pl:card') {
             CardHandler::start($ctx);
         } elseif (preg_match('/^pl:ct:(pro|ultra)$/', $data, $m)) {

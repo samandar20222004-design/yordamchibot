@@ -448,7 +448,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     var p = me.plan;
     $('plan').textContent = p.name; $('plan').className = 'badge ' + (p.tier === 'ultra' ? 'ultra' : p.tier === 'free' ? '' : 'pro');
     $('hello').textContent = t('ma_hello', {name: me.user.name || ''});
-    $('tzline').textContent = '🕒 ' + me.user.timezone;
+    $('tzline').textContent = '🕒 ' + me.user.timezone + (me.workspace ? ' · ' + me.workspace.owner : '');
     $('s-pending').textContent = me.stats.pending; $('s-sent').textContent = me.stats.sent; $('s-channels').textContent = me.stats.channels;
     $('ai-quota').textContent = quotaText();
     $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = me.ai.enabled ? '' : 'none';

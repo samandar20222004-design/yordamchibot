@@ -15,7 +15,7 @@ final class QueueHandler
 
     public static function show(Ctx $ctx, bool $edit = false): void
     {
-        $list = $ctx->app->posts->listPending($ctx->userId, self::LIST_LIMIT);
+        $list = $ctx->app->posts->listPending($ctx->ownerId(), self::LIST_LIMIT);
         if (!$list) {
             $kb = Keyboards::inline([[Keyboards::btn($ctx->t('btn_new_post'), 'p:new'), Keyboards::btn($ctx->t('btn_home'), 'm:home')]]);
             if ($edit) {
@@ -25,7 +25,7 @@ final class QueueHandler
             }
             return;
         }
-        $text = $ctx->t('q_title', ['n' => $ctx->app->posts->pendingCount($ctx->userId)]);
+        $text = $ctx->workspaceLine() . $ctx->t('q_title', ['n' => $ctx->app->posts->pendingCount($ctx->ownerId())]);
         $kb = Keyboards::queue($list, $ctx->lang, $ctx->tz());
         if ($edit) {
             $ctx->edit($text, $kb);
@@ -48,7 +48,7 @@ final class QueueHandler
 
     public static function view(Ctx $ctx, int $id): void
     {
-        $p = $ctx->app->posts->getOwnedPending($ctx->userId, $id);
+        $p = $ctx->app->posts->getOwnedPending($ctx->ownerId(), $id);
         if (!$p) {
             $ctx->edit($ctx->t('q_not_found'), Keyboards::nav($ctx->lang, 'q:list'));
             return;
@@ -73,7 +73,11 @@ final class QueueHandler
 
     public static function askCancel(Ctx $ctx, int $id): void
     {
-        if (!$ctx->app->posts->getOwnedPending($ctx->userId, $id)) {
+        if (!$ctx->can('delete')) {
+            $ctx->edit($ctx->t('team_no_perm'), Keyboards::nav($ctx->lang, 'q:list'));
+            return;
+        }
+        if (!$ctx->app->posts->getOwnedPending($ctx->ownerId(), $id)) {
             $ctx->edit($ctx->t('q_not_found'), Keyboards::nav($ctx->lang, 'q:list'));
             return;
         }
@@ -82,7 +86,7 @@ final class QueueHandler
 
     public static function cancel(Ctx $ctx, int $id): void
     {
-        $ok = $ctx->app->posts->cancel($ctx->userId, $id);
+        $ok = $ctx->can('delete') && $ctx->app->posts->cancel($ctx->ownerId(), $id);
         $ctx->edit($ctx->t($ok ? 'q_deleted' : 'q_not_found', ['id' => $id]), Keyboards::nav($ctx->lang, 'q:list'));
     }
 }
