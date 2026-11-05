@@ -593,4 +593,10 @@ return [
     'ap_no_quota' => "🤖 Autopilot ({channel}): today's AI limit is used up, no post was written. It will continue tomorrow.",
     'ap_stopped_plan' => "🤖 Autopilot stopped: your plan doesn't include it (PRO or ULTRA needed).",
     'ap_stopped_channel' => "🤖 Autopilot stopped: the channel wasn't found or the bot was removed from it.",
+    'btn_payme' => "🟦 Via Payme",
+    'btn_payme_open' => "💳 Pay in Payme",
+    'payme_only_info' => "🟦 <b>Payment via Payme</b>\n\nPlan: <b>{plan}</b> · {period}\nAmount: <b>{amount} UZS</b>\n\nTap the button below — the plan turns on <b>automatically</b> once the payment is confirmed.",
+    'payme_or_card' => "🟦 Or pay <b>via Payme</b> — no receipt needed, the plan turns on automatically.",
+    'payme_go' => "🟦 <b>Payme</b>\n\nPlan: <b>{plan}</b> · {period}\nAmount: <b>{amount} UZS</b>\n\nTap «💳 Pay in Payme». After payment the bot will notify you and turn on the plan. The link is single-use.",
+    'payme_admin_paid' => "🟦 Payme payment: user <code>{id}</code>, {amount} UZS, plan {plan}.",
 ];

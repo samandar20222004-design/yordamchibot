@@ -33,6 +33,10 @@ return [
     // 💳 Karta orqali to'lov (so'm). Bo'sh qoldirsangiz — faqat Telegram Stars. Chek adminlarga boradi, ✅ bosilsa tarif yoqiladi.
     'card_number' => '',          // masalan '8600 1234 5678 9012'
     'card_holder' => '',          // karta egasi
+    // Payme (avtomatik to'lov). Kabinet: business.paycom.uz -> Kassa -> «Endpoint URL»: https://<domen>/<papka>/payme.php
+    'payme_merchant_id' => '',    // kassa ID (merchant)
+    'payme_key' => '',            // kassa kaliti (test yoki asosiy) — HECH KIMGA BERMANG
+    'payme_test' => false,        // true — sinov muhiti (checkout.test.paycom.uz)
     // 'uzs_prices' => ['1m' => 29000, 'u1m' => 69000],   // so'm narxlarini o'zgartirish (standart: PRO 29 000/75 000/135 000/245 000, ULTRA 69 000/175 000/335 000/620 000)
 
     // ✨ AI (bepul kalitlar yetadi; kamida bittasi bo'lsa AI tugmalari chiqadi, birinchisi ishlamasa — keyingisi):

@@ -593,4 +593,10 @@ return [
     'ap_no_quota' => "🤖 Autopilot ({channel}): bugungi AI limiti tugadi, post yozilmadi. Ertaga davom etadi.",
     'ap_stopped_plan' => "🤖 Autopilot to'xtatildi: tarifingizda autopilot yo'q (PRO yoki ULTRA kerak).",
     'ap_stopped_channel' => "🤖 Autopilot to'xtatildi: kanal topilmadi yoki bot kanaldan chiqarilgan.",
+    'btn_payme' => "🟦 Payme orqali",
+    'btn_payme_open' => "💳 Payme'da to'lash",
+    'payme_only_info' => "🟦 <b>Payme orqali to'lov</b>\n\nTarif: <b>{plan}</b> · {period}\nSumma: <b>{amount} so'm</b>\n\nPastdagi tugmani bosing — to'lov tasdiqlangach tarif <b>avtomatik</b> yoqiladi.",
+    'payme_or_card' => "🟦 Yoki <b>Payme orqali</b> to'lang — chek kerak emas, tarif darhol avtomatik yoqiladi.",
+    'payme_go' => "🟦 <b>Payme</b>\n\nTarif: <b>{plan}</b> · {period}\nSumma: <b>{amount} so'm</b>\n\n«💳 Payme'da to'lash» ni bosing. To'lov o'tgach bot o'zi xabar beradi va tarif yoqiladi. Havola bir martalik.",
+    'payme_admin_paid' => "🟦 Payme to'lovi: foydalanuvchi <code>{id}</code>, {amount} so'm, tarif {plan}.",
 ];

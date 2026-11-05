@@ -9,3 +9,8 @@ Options -Indexes
         Deny from all
     </IfModule>
 </FilesMatch>
+
+# Payme: Authorization sarlavhasi PHP'ga yetib borsin (CGI/FastCGI hostinglar uchun)
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>

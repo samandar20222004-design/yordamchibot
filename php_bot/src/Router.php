@@ -509,6 +509,8 @@ final class Router
             CardHandler::start($ctx);
         } elseif (preg_match('/^pl:ct:(pro|ultra)$/', $data, $m)) {
             CardHandler::periods($ctx, $m[1]);
+        } elseif (preg_match('/^pl:pm:(u?(?:1m|3m|6m|1y))$/', $data, $m)) {
+            CardHandler::payme($ctx, $m[1]);
         } elseif (preg_match('/^pl:cb:(u?(?:1m|3m|6m|1y))$/', $data, $m)) {
             CardHandler::details($ctx, $m[1]);
         } elseif (preg_match('/^rc:(ok|no):(\d{1,10})$/', $data, $m)) {

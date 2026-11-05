@@ -65,6 +65,18 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - **Hammaga xabar:** `/broadcast` → xabar yuboring (matn/rasm/video) → ko'rib «✅ Yuborish». Cron har daqiqada bo'laklab yuboradi; holati `/broadcast_status`, to'xtatish `/broadcast_stop`.
 - **Majburiy obuna:** botni kanalga admin qiling → `/force_add @kanal` (`/force_list`, `/force_del ID`). Foydalanuvchi a'zo bo'lmaguncha bot ishlamaydi (adminlar mustasno).
 
+## 🟦 Payme (avtomatik to'lov)
+
+1. business.paycom.uz da kassa oching. «Endpoint URL»: `https://<domen>/PostAssist/payme.php`.
+2. `config.php` ga `payme_merchant_id` (kassa ID) va `payme_key` (kalit) yozing. Avval sinov uchun `payme_test => true` va sinov kalitini qo'ying, keyin asosiy kalitga almashtiring.
+3. Botda: Tariflar → «💳 So'mda» → tarif → «🟦 Payme orqali». To'lov o'tgach tarif o'zi yoqiladi.
+4. Hostingda Payme «Ruxsat yetarli emas» desa — `.htaccess` dagi `SetEnvIf Authorization` qatori ishlamayapti; hosting yordamiga «Authorization sarlavhasini PHP'ga o'tkazish» kerakligini ayting.
+
+## 🤖 Kontent-reja va autopilot
+
+- `/contentplan` — kanal mavzusini yozing, AI 7 ta g'oya beradi; raqamni bosing — shu g'oyadan post.
+- `/autopilot` (PRO — 1, ULTRA — 3) — har kuni belgilangan soatda AI post yozadi. «Tekshirib» rejimida post avval sizga keladi, «Avtomatik» — to'g'ri kanalga. Ishlashi uchun cron har daqiqa ishlab turishi kerak.
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

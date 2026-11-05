@@ -9,6 +9,7 @@ use PostAssist\Html;
 use PostAssist\I18n;
 use PostAssist\Keyboards;
 use PostAssist\Repo\Receipts;
+use PostAssist\Services\Payme;
 use PostAssist\Services\Plans;
 use PostAssist\Services\TimeParser;
 
@@ -19,7 +20,13 @@ use PostAssist\Services\TimeParser;
  */
 final class CardHandler
 {
+    /** So'mda to'lov: karta (chek) yoki Payme — biri sozlangan bo'lsa. */
     public static function enabled(App $app): bool
+    {
+        return self::cardEnabled($app) || Payme::enabled($app);
+    }
+
+    public static function cardEnabled(App $app): bool
     {
         return $app->config->str('card_number') !== '';
     }
@@ -106,7 +113,7 @@ final class CardHandler
         $ctx->edit($ctx->t('card_periods', ['plan' => $icon . ' <b>' . Plans::NAMES[$tier] . '</b>', 'lines' => implode("\n", $lines)]), Keyboards::inline($rows));
     }
 
-    /** Muddat tanlandi: rekvizitlar va chek kutish. */
+    /** Muddat tanlandi: Payme tugmasi va/yoki karta rekvizitlari (chek kutiladi). */
     public static function details(Ctx $ctx, string $key): void
     {
         $app = $ctx->app;
@@ -115,12 +122,47 @@ final class CardHandler
             return;
         }
         $amount = Plans::uzs($app->config)[$key];
+        $rows = [];
+        if (Payme::enabled($app)) {
+            $rows[] = [Keyboards::btn($ctx->t('btn_payme'), 'pl:pm:' . $key)];
+        }
+        $rows[] = Keyboards::navRow($ctx->lang, 'pl:ct:' . $plan['tier']);
+        $vars = ['plan' => Plans::NAMES[$plan['tier']], 'period' => $ctx->t('period_' . $plan['period']), 'amount' => Plans::fmtUzs($amount)];
+        if (!self::cardEnabled($app)) {
+            $ctx->edit($ctx->t('payme_only_info', $vars), Keyboards::inline($rows));
+            return;
+        }
         $app->states->set($ctx->userId, 'receipt_wait', ['key' => $key, 'amount' => $amount]);
         $holder = $app->config->str('card_holder');
-        $ctx->edit($ctx->t('card_pay_info', [
-            'plan' => Plans::NAMES[$plan['tier']], 'period' => $ctx->t('period_' . $plan['period']), 'amount' => Plans::fmtUzs($amount),
+        $ctx->edit($ctx->t('card_pay_info', $vars + [
             'card' => Html::e($app->config->str('card_number')), 'holder' => $holder !== '' ? Html::e($holder) : '—',
-        ]), Keyboards::nav($ctx->lang, 'pl:ct:' . $plan['tier']));
+        ]) . (Payme::enabled($app) ? "\n\n" . $ctx->t('payme_or_card') : ''), Keyboards::inline($rows));
+    }
+
+    /** «Payme orqali»: bir martalik buyurtma va to'lov sahifasi havolasi (tarif Payme tasdiqlagach avtomatik yoqiladi). */
+    public static function payme(Ctx $ctx, string $key): void
+    {
+        $app = $ctx->app;
+        if (!Payme::enabled($app) || !$app->users->isUzVerified($ctx->userId) && !$app->receipts->hasPaid($ctx->userId)) {
+            self::start($ctx);
+            return;
+        }
+        if ($app->isAdmin($ctx->userId) || $app->tier($ctx->userId) === Plans::ENTERPRISE) {
+            $ctx->reply($ctx->t('pay_enterprise'), Keyboards::nav($ctx->lang, 'pl:show'));
+            return;
+        }
+        $pm = new Payme($app);
+        $o = $pm->createOrder($ctx->userId, $key);
+        if ($o === null) {
+            return;
+        }
+        $app->states->clear($ctx->userId);
+        $url = $pm->checkoutUrl($o['order_id'], (int) $o['amount_tiyin'], $ctx->lang);
+        $ctx->edit($ctx->t('payme_go', ['plan' => Plans::NAMES[$o['plan']['tier']], 'period' => $ctx->t('period_' . $o['plan']['period']),
+            'amount' => Plans::fmtUzs(intdiv((int) $o['amount_tiyin'], 100))]), Keyboards::inline([
+            [['text' => $ctx->t('btn_payme_open'), 'url' => $url]],
+            Keyboards::navRow($ctx->lang, 'pl:cb:' . $key),
+        ]));
     }
 
     /** Chek (rasm yoki PDF) keldi — holat `receipt_wait`. */

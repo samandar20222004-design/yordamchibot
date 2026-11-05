@@ -402,3 +402,33 @@ CREATE TABLE IF NOT EXISTS autopilot_drafts (
     created_at DATETIME NOT NULL,
     KEY idx_apd_user (user_id, status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 9-bosqich: Payme (Merchant API)
+CREATE TABLE IF NOT EXISTS payme_orders (
+    order_id VARCHAR(32) NOT NULL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    plan_key VARCHAR(8) NOT NULL,
+    tier VARCHAR(16) NOT NULL,
+    days INT NOT NULL,
+    amount_tiyin BIGINT NOT NULL,
+    status VARCHAR(12) NOT NULL DEFAULT 'pending',
+    created_at DATETIME NOT NULL,
+    KEY idx_pmo_user (user_id, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS payme_transactions (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    payme_id VARCHAR(64) NOT NULL,
+    order_id VARCHAR(32) NOT NULL,
+    user_id BIGINT NOT NULL,
+    amount BIGINT NOT NULL,
+    state TINYINT NOT NULL,
+    payme_time BIGINT NOT NULL,
+    create_time BIGINT NOT NULL,
+    perform_time BIGINT NOT NULL DEFAULT 0,
+    cancel_time BIGINT NOT NULL DEFAULT 0,
+    reason INT NULL,
+    UNIQUE KEY uq_pmt_payme (payme_id),
+    KEY idx_pmt_order (order_id, state),
+    KEY idx_pmt_time (payme_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

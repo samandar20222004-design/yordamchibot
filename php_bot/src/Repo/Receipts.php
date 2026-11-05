@@ -52,7 +52,7 @@ final class Receipts
     /** Karta bilan to'lagan mijozmi (UZ tasdig'idan qayta o'tishi shart emas). */
     public function hasPaid(int $userId): bool
     {
-        return $this->db->value("SELECT 1 FROM payments WHERE user_id = ? AND provider = 'card' LIMIT 1", [$userId]) !== null;
+        return $this->db->value("SELECT 1 FROM payments WHERE user_id = ? AND provider IN ('card', 'payme') LIMIT 1", [$userId]) !== null;
     }
 
     /**
