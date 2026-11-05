@@ -102,7 +102,7 @@ $pdo->exec("CREATE TABLE users (user_id BIGINT NOT NULL PRIMARY KEY, username VA
     plan_type VARCHAR(20) NOT NULL DEFAULT 'free', is_blocked TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL, KEY idx_users_created (created_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 $changes = PostAssist\Schema::apply($db, $schema);
-T::eq('eski bazani yangilash: 10 ustun (2-bosqich 4 ta, timezone, uz_verified, sub_ok_until, workspace_owner, phone_verified, market_banned) + 2 indeks qo\'shildi', count($changes), 12);
+T::eq('eski bazani yangilash: 12 ustun (2-bosqich 4 ta, timezone, uz_verified, sub_ok_until, workspace_owner, phone_verified, market_banned, weekly_report, report_week) + 2 indeks qo\'shildi', count($changes), 14);
 T::eq('qayta ishga tushirish: o\'zgarish yo\'q (idempotent)', PostAssist\Schema::apply($db, $schema), []);
 T::eq('hamma jadvallar bor', (int) $db->value('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (' . implode(',', array_fill(0, count($ALL_TABLES), '?')) . ')', $ALL_TABLES), count($ALL_TABLES));
 

@@ -42,7 +42,8 @@ final class StatsHandler
             $top = $a30['top'] ? trim(\PostAssist\Html::plain((string) $a30['top']['text'])) : '';
             $out[] = ['id' => (int) $c['id'], 'title' => (string) ($c['title'] ?: $cid), 'subscribers' => $now,
                 'd1' => $diff(1), 'd7' => $diff(7), 'd30' => $diff(30), 'series' => $series,
-                'posts7' => $a7['posts'], 'posts30' => $a30['posts'], 'votes30' => $a30['votes'], 'opens30' => $a30['opens'], 'locked30' => $a30['locked'],
+                'posts7' => $a7['posts'], 'votes7' => $a7['votes'], 'opens7' => $a7['opens'], 'comments7' => $app->comments->countForChannel($owner, $cid, $app->now()->modify('-7 days')),
+                'posts30' => $a30['posts'], 'votes30' => $a30['votes'], 'opens30' => $a30['opens'], 'locked30' => $a30['locked'],
                 'top' => $a30['top'] ? ['text' => mb_substr($top !== '' ? $top : '[' . $a30['top']['post_type'] . ']', 0, 80), 'votes' => (int) $a30['top']['n']] : null];
         }
         return $out;
@@ -85,6 +86,10 @@ final class StatsHandler
             $rows[] = [Keyboards::btn('📊 ' . mb_substr($c['title'], 0, 30), 'st:c:' . $c['id'])];
         }
         $rows[] = [Keyboards::btn($ctx->t('btn_scheduled'), 'q:list'), Keyboards::btn($ctx->t('btn_sent_list'), 's:list')];
+        $on = (int) $app->db->value('SELECT weekly_report FROM users WHERE user_id = ?', [$ctx->userId]) === 1;
+        if ($lines) {
+            $rows[] = [Keyboards::btn($ctx->t($on ? 'btn_wr_on' : 'btn_wr_off'), 'st:wk'), Keyboards::btn($ctx->t('btn_wr_now'), 'st:now')];
+        }
         $rows[] = [Keyboards::btn($ctx->t('btn_plans'), 'pl:show'), Keyboards::btn($ctx->t('btn_home'), 'm:home')];
         $text = $ctx->t('stats_user', ['channels' => count($lines), 'pending' => $s['pending'], 'sent' => $s['sent'], 'failed' => $s['failed']])
             . ($lines ? "\n\n" . implode("\n", $lines) . "\n\n" . $ctx->t('st_pick') : '');
@@ -147,5 +152,77 @@ final class StatsHandler
             $app->stats->cleanup($app->now()->modify('-180 days')->format('Y-m-d'));
         }
         return $n;
+    }
+
+    // ------------------------------------------------------------------ 📈 haftalik hisobot
+
+    public static function toggleWeekly(Ctx $ctx): void
+    {
+        $ctx->app->db->exec('UPDATE users SET weekly_report = 1 - weekly_report WHERE user_id = ?', [$ctx->userId]);
+        self::show($ctx, true);
+    }
+
+    /** Hisobot matni (bot tili). null — kanal yo'q. */
+    public static function reportText(App $app, int $owner, string $lang): ?string
+    {
+        $chs = self::channelStats($app, $owner);
+        if (!$chs) {
+            return null;
+        }
+        $parts = [];
+        foreach ($chs as $c) {
+            $p = \PostAssist\I18n::t('wr_channel', $lang, [
+                'title' => Html::e(mb_substr($c['title'], 0, 50)),
+                'subs' => $c['subscribers'] !== null ? number_format($c['subscribers'], 0, '', ' ') : '—',
+                'd7' => self::signed($c['d7']), 'posts' => $c['posts7'], 'votes' => $c['votes7'], 'opens' => $c['opens7'], 'comments' => $c['comments7'],
+            ]);
+            if ($c['posts7'] === 0) {
+                $p .= "\n" . \PostAssist\I18n::t('wr_no_posts', $lang);
+            }
+            $parts[] = $p;
+        }
+        $pending = $app->posts->userStats($owner)['pending'];
+        return \PostAssist\I18n::t('wr_title', $lang) . "\n\n" . implode("\n\n", $parts) . "\n\n" . \PostAssist\I18n::t('wr_queue', $lang, ['n' => $pending]);
+    }
+
+    /** «📈 Hozir ko'rish». */
+    public static function reportNow(Ctx $ctx): void
+    {
+        $t = self::reportText($ctx->app, $ctx->ownerId(), $ctx->lang);
+        $ctx->reply($t ?? $ctx->t('ch_need_first'), Keyboards::nav($ctx->lang, 'st:show'));
+    }
+
+    /** Cron: har dushanba 09:00 dan keyin (egasining mintaqasida), haftada bir marta. @return int yuborilganlar */
+    public static function weekly(App $app, float $deadline): int
+    {
+        $utcWeek = $app->now()->format('o-\\WW');
+        $sent = 0;
+        $rows = $app->db->all('SELECT DISTINCT u.user_id, u.lang, u.report_week FROM users u JOIN channels c ON c.user_id = u.user_id AND c.is_active = 1
+             WHERE u.weekly_report = 1 AND u.is_blocked = 0 AND (u.report_week IS NULL OR u.report_week <> ?) LIMIT 300', [$utcWeek]);
+        foreach ($rows as $u) {
+            if ($sent >= 30 || microtime(true) >= $deadline - 1) {
+                break;
+            }
+            $uid = (int) $u['user_id'];
+            $local = $app->now()->setTimezone($app->tzFor($uid));
+            if ((int) $local->format('N') !== 1 || (int) $local->format('G') < 9) {
+                continue;
+            }
+            $week = $local->format('o-\\WW');
+            if ($app->db->exec('UPDATE users SET report_week = ? WHERE user_id = ? AND (report_week IS NULL OR report_week <> ?)', [$week, $uid, $week]) !== 1) {
+                continue;
+            }
+            $lang = \PostAssist\I18n::norm((string) $u['lang']);
+            $t = self::reportText($app, $uid, $lang);
+            if ($t === null) {
+                continue;
+            }
+            $r = $app->tg->sendMessage($uid, $t . "\n\n" . \PostAssist\I18n::t('wr_off_hint', $lang));
+            if (isset($r['error_code']) && (int) $r['error_code'] === 403) {
+                $app->users->markBlocked($uid, true);
+            }
+            $sent++;
+        }
+        return $sent;
     }
 }

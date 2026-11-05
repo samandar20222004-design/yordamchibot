@@ -61,4 +61,11 @@ final class Comments
     {
         return $this->db->value('SELECT 1 FROM comment_bans WHERE owner_id = ? AND user_id = ?', [$ownerId, $userId]) !== null;
     }
+
+    /** Egasining shu kanaldagi postlariga yozilgan izohlar soni (davr ichida). */
+    public function countForChannel(int $ownerId, int $channelId, DateTimeImmutable $sinceUtc): int
+    {
+        return (int) $this->db->value('SELECT COUNT(*) FROM post_comments pc JOIN scheduled_posts sp ON sp.id = pc.post_id
+             WHERE pc.owner_id = ? AND sp.channel_id = ? AND pc.deleted = 0 AND pc.created_at >= ?', [$ownerId, $channelId, $sinceUtc->format('Y-m-d H:i:s')]);
+    }
 }

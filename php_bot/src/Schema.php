@@ -21,6 +21,8 @@ final class Schema
         ['users', 'workspace_owner', 'BIGINT NULL'],
         ['users', 'phone_verified', 'TINYINT(1) NOT NULL DEFAULT 0'],
         ['users', 'market_banned', 'TINYINT(1) NOT NULL DEFAULT 0'],
+        ['users', 'weekly_report', 'TINYINT(1) NOT NULL DEFAULT 1'],
+        ['users', 'report_week', 'VARCHAR(10) NULL'],
         ['scheduled_posts', 'created_by', 'BIGINT NULL'],
         ['scheduled_posts', 'options', 'VARCHAR(60) NULL'],
         ['scheduled_posts', 'hidden_text', 'TEXT NULL'],

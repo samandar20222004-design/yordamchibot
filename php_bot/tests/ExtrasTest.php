@@ -99,3 +99,45 @@ $app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'text', 'file_id' => 
 $db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$XU]);
 $press($XU, 'bk:g:60');
 T::eq('begona kanalga rejalab bo\'lmaydi', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]), 0);
+
+T::section('AH. Haftalik hisobot');
+$sched = new Scheduler($app, static function (int $us): void {
+});
+$toX = static function () use ($fake, $XU): array {
+    return array_values(array_filter($fake->of('sendMessage'), function ($p) use ($XU) { return (int) $p['chat_id'] === $XU; }));
+};
+$db->exec('UPDATE users SET report_week = NULL, weekly_report = 1 WHERE user_id = ?', [$XU]);
+$clock = new DateTimeImmutable('2027-06-07 03:00:00', new DateTimeZone('UTC')); // dushanba 08:00 Toshkent
+$fake->reset();
+$sched->run(5);
+T::eq('dushanba 08:00 — hali yuborilmaydi', count($toX()), 0);
+$clock = new DateTimeImmutable('2027-06-07 04:10:00', new DateTimeZone('UTC')); // 09:10
+$fake->reset();
+$sched->run(5);
+$rep = $toX();
+T::check('dushanba 09:10 — hisobot keldi (kanal, obunachi, postlar, o\'chirish yo\'li)', count($rep) === 1 && strpos((string) $rep[0]['text'], 'Haftalik hisobot') !== false
+    && strpos((string) $rep[0]['text'], 'Reja kanali') !== false && strpos((string) $rep[0]['text'], 'Statistika') !== false);
+$fake->reset();
+$sched->run(5);
+T::eq('o\'sha hafta qayta yuborilmaydi', count($toX()), 0);
+$clock = new DateTimeImmutable('2027-06-08 04:10:00', new DateTimeZone('UTC'));
+$fake->reset();
+$sched->run(5);
+T::eq('seshanba — yuborilmaydi', count($toX()), 0);
+$text($XU, '📊 Statistika');
+T::check('statistikada hisobot tugmalari', strpos($kbX(), 'st:wk') !== false && strpos($kbX(), 'st:now') !== false && strpos($kbX(), 'yoqiq') !== false);
+$press($XU, 'st:wk');
+T::check('o\'chirildi', (int) $db->value('SELECT weekly_report FROM users WHERE user_id = ?', [$XU]) === 0 && strpos($kbX(), "o'chiq") !== false);
+$clock = new DateTimeImmutable('2027-06-14 04:10:00', new DateTimeZone('UTC'));
+$fake->reset();
+$sched->run(5);
+T::eq('o\'chirilgan — keyingi dushanba ham kelmaydi', count($toX()), 0);
+$press($XU, 'st:wk');
+$fake->forced['sendMessage'] = [];
+$fake->reset();
+$sched->run(5);
+T::eq('qayta yoqilgach — keladi', count($toX()), 1);
+$press($XU, 'st:now');
+T::check('«📈 Haftalik hisobot» — hozir ko\'rish', strpos($fake->lastText(), 'Haftalik hisobot') !== false);
+$text($XU, '/report');
+T::check('/report buyrug\'i', strpos($fake->lastText(), 'Haftalik hisobot') !== false);

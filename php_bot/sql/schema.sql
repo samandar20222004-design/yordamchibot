@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
     workspace_owner BIGINT NULL,
     phone_verified TINYINT(1) NOT NULL DEFAULT 0,
     market_banned TINYINT(1) NOT NULL DEFAULT 0,
+    weekly_report TINYINT(1) NOT NULL DEFAULT 1,
+    report_week VARCHAR(10) NULL,
     is_blocked TINYINT(1) NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     last_active_at DATETIME NULL,

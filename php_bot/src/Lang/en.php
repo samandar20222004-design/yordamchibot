@@ -761,4 +761,12 @@ return [
     'bk_ask_gap' => "⏱ First post: <b>{when}</b>. What interval for the rest?",
     'bk_queue_limit' => "❌ Queue limit is {max}: {free} free, you're adding {n}. Upgrade or reduce the number of posts.",
     'bk_done' => "📦 <b>{n} posts scheduled</b> — {channel} ({tz}):",
+    'btn_wr_on' => "🔔 Report: on",
+    'btn_wr_off' => "🔕 Report: off",
+    'btn_wr_now' => "📈 Weekly report",
+    'wr_title' => "📈 <b>Weekly report</b> (last 7 days)",
+    'wr_channel' => "📢 <b>{title}</b>\n👥 {subs} ({d7})\n📝 Posts: {posts} · 👍 {votes} · 💬 {comments} · 🔒 {opens}",
+    'wr_no_posts' => "💡 No posts this week — regular posting matters for growth. «✍️ Create post» or 🤖 /autopilot.",
+    'wr_queue' => "📅 In queue: {n} posts.",
+    'wr_off_hint' => "<i>The report comes every Monday. Turn off: 📊 Statistics → «🔔 Report».</i>",
 ];

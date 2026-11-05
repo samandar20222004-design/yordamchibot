@@ -336,6 +336,9 @@ final class Router
             case '/market':
                 MarketHandler::home($ctx);
                 return true;
+            case '/report':
+                StatsHandler::reportNow($ctx);
+                return true;
             case '/templates':
                 $this->app->states->clear($ctx->userId);
                 TemplateHandler::show($ctx);
@@ -613,6 +616,10 @@ final class Router
             BulkHandler::pickChannel($ctx, (int) $m[1]);
         } elseif (preg_match('/^bk:g:(\d{2,4})$/', $data, $m)) {
             BulkHandler::gap($ctx, (int) $m[1]);
+        } elseif ($data === 'st:wk') {
+            StatsHandler::toggleWeekly($ctx);
+        } elseif ($data === 'st:now') {
+            StatsHandler::reportNow($ctx);
         } elseif ($data === 'st:show') {
             StatsHandler::show($ctx, true);
         } elseif (preg_match('/^st:(c|r):(\d{1,10})$/', $data, $m)) {

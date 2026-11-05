@@ -88,6 +88,13 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - Post tayyorlab «⚙️ Qo'shimcha» → «💾 Shablon qilish». Keyin «✍️ Post yaratish» → «📝 Shablonlar» yoki `/templates`.
 - «📊 Statistika»: har kanal uchun obunachilar o'sishi (bot har kuni o'lchaydi — cron kerak), grafik, postlar, reaksiyalar.
 
+## 💬 Izohlar, 📦 ko'p post, 📈 hisobot
+
+- «⚙️ Qo'shimcha» → «💬 Izohlar»: postga izoh tugmasi (muhokama guruhi shart emas). Har izoh sizga keladi — o'chirish yoki bloklash mumkin.
+- «✍️ Post yaratish» → «📦 Ko'p post rejasi»: bir nechta postni yuboring, boshlanish vaqti va oraliqni tanlang.
+- Har dushanba 09:00 da haftalik hisobot keladi (o'chirish: 📊 Statistika). `/report` — hozir ko'rish.
+- Takror: «Ish kunlari Du–Ju», «Har 2 kunda», «Har 3 kunda».
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

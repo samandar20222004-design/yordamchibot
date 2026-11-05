@@ -70,6 +70,7 @@ final class Scheduler
             \PostAssist\Handlers\AutopilotHandler::work($this->app, $this, $started + $budgetSec);
             \PostAssist\Handlers\RssHandler::work($this->app, $this, $started + $budgetSec);
             \PostAssist\Handlers\StatsHandler::collect($this->app, $started + $budgetSec);
+            \PostAssist\Handlers\StatsHandler::weekly($this->app, $started + $budgetSec);
             $this->autoDelete();
             $this->finishStaleAlbums();
             $this->planMaintenance();

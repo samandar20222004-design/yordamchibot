@@ -761,4 +761,12 @@ return [
     'bk_ask_gap' => "⏱ Birinchi post: <b>{when}</b>. Keyingilari qanday oraliqda chiqsin?",
     'bk_queue_limit' => "❌ Navbat limiti {max} ta: hozir {free} ta joy bor, siz {n} ta qo'shmoqchisiz. Tarifni oshiring yoki postlarni kamaytiring.",
     'bk_done' => "📦 <b>{n} ta post rejalashtirildi</b> — {channel} ({tz}):",
+    'btn_wr_on' => "🔔 Hisobot: yoqiq",
+    'btn_wr_off' => "🔕 Hisobot: o'chiq",
+    'btn_wr_now' => "📈 Haftalik hisobot",
+    'wr_title' => "📈 <b>Haftalik hisobot</b> (oxirgi 7 kun)",
+    'wr_channel' => "📢 <b>{title}</b>\n👥 {subs} ({d7})\n📝 Postlar: {posts} · 👍 {votes} · 💬 {comments} · 🔒 {opens}",
+    'wr_no_posts' => "💡 Bu hafta post chiqmadi — muntazam post kanal o'sishi uchun muhim. «✍️ Post yaratish» yoki 🤖 /autopilot.",
+    'wr_queue' => "📅 Navbatda: {n} ta post.",
+    'wr_off_hint' => "<i>Hisobot har dushanba keladi. O'chirish: 📊 Statistika → «🔔 Hisobot».</i>",
 ];
