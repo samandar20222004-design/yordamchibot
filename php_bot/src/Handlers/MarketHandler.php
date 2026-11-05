@@ -5,6 +5,7 @@ namespace PostAssist\Handlers;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use PostAssist\App;
 use PostAssist\Ctx;
 use PostAssist\Html;
 use PostAssist\I18n;
@@ -345,54 +346,91 @@ final class MarketHandler
     {
         $app = $ctx->app;
         $text = trim((string) ($ctx->message['text'] ?? ''));
+        $r = self::send($app, $ctx->userId, $state['data'], $text);
+        switch ($r['code']) {
+            case 'len':
+                $ctx->reply($ctx->t('mk_msg_len', ['min' => self::MSG_MIN, 'max' => self::MSG_MAX]));
+                return;
+            case 'not_found':
+                $app->states->clear($ctx->userId);
+                $ctx->replyMenu($ctx->t('mk_not_found'));
+                return;
+            case 'blocked':
+            case 'banned':
+                $app->states->clear($ctx->userId);
+                $ctx->replyMenu($ctx->t($r['code'] === 'banned' ? 'mk_banned' : 'mk_thread_blocked'));
+                return;
+            case 'limit':
+                $app->states->clear($ctx->userId);
+                $ctx->replyMenu($ctx->t('mk_limit', ['n' => Market::REQUESTS_PER_DAY]));
+                return;
+            case 'unsafe':
+                $ctx->reply($ctx->t('mk_blocked_' . $r['reason']));
+                return;
+            case 'full':
+            case 'dup':
+                $ctx->reply($ctx->t('mk_msg_' . $r['code'], ['n' => Market::MAX_MESSAGES]));
+                return;
+        }
+        $app->states->clear($ctx->userId);
+        $ctx->reply($ctx->t('mk_sent'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_mk_threads'), 'mk:th')], Keyboards::navRow($ctx->lang)]));
+    }
+
+    /**
+     * Birja xabari (bot va Mini App uchun umumiy): uzunlik, ban, blok, kunlik so'rov limiti, firibgarlik skaneri,
+     * yozish va ikkinchi tomonga bot orqali yetkazish.
+     * @param array{thread?:int, listing?:int} $target
+     * @return array{code:string, reason?:string, thread?:int} code: ok|len|not_found|blocked|banned|limit|unsafe|full|dup
+     */
+    public static function send(App $app, int $uid, array $target, string $text): array
+    {
+        $text = trim($text);
         $len = mb_strlen($text);
         if ($len < self::MSG_MIN || $len > self::MSG_MAX) {
-            $ctx->reply($ctx->t('mk_msg_len', ['min' => self::MSG_MIN, 'max' => self::MSG_MAX]));
-            return;
+            return ['code' => 'len'];
         }
-        $data = $state['data'];
+        if ($app->market->isBanned($uid)) {
+            return ['code' => 'banned'];
+        }
         $l = null;
-        if (!empty($data['thread'])) {
-            $t = $app->market->thread((int) $data['thread']);
+        if (!empty($target['thread'])) {
+            $t = $app->market->thread((int) $target['thread']);
             if (!$t) {
-                $app->states->clear($ctx->userId);
-                $ctx->replyMenu($ctx->t('mk_not_found'));
-                return;
+                return ['code' => 'not_found'];
             }
         } else {
-            $l = $app->market->get((int) ($data['listing'] ?? 0));
-            if (!$l || $l['status'] !== 'active' || (int) $l['owner_id'] === $ctx->userId) {
-                $app->states->clear($ctx->userId);
-                $ctx->replyMenu($ctx->t('mk_not_found'));
-                return;
+            $l = $app->market->get((int) ($target['listing'] ?? 0));
+            if (!$l || $l['status'] !== 'active' || (int) $l['owner_id'] === $uid) {
+                return ['code' => 'not_found'];
             }
-            $t = $app->market->threadFor((int) $l['id'], $ctx->userId);
+            $t = $app->market->threadFor((int) $l['id'], $uid);
+            if (!$t && $app->market->newThreadsToday($uid, $app->now()->modify('-1 day')->format('Y-m-d H:i:s')) >= Market::REQUESTS_PER_DAY) {
+                return ['code' => 'limit'];
+            }
         }
-        if ($t && ($t['status'] === 'blocked' || ((int) $t['buyer_id'] !== $ctx->userId && (int) $t['owner_id'] !== $ctx->userId))) {
-            $app->states->clear($ctx->userId);
-            $ctx->replyMenu($ctx->t('mk_thread_blocked'));
-            return;
+        if ($t && ((int) $t['buyer_id'] !== $uid && (int) $t['owner_id'] !== $uid)) {
+            return ['code' => 'not_found'];
         }
-        $isOwner = $t && (int) $t['owner_id'] === $ctx->userId;
-        $u = $app->users->get($ctx->userId);
+        if ($t && $t['status'] === 'blocked') {
+            return ['code' => 'blocked'];
+        }
+        $isOwner = $t && (int) $t['owner_id'] === $uid;
+        $u = $app->users->get($uid);
         $age = $u ? ($app->now()->getTimestamp() - (new DateTimeImmutable((string) $u['created_at'], new DateTimeZone('UTC')))->getTimestamp()) / 86400 : null;
         $safe = MarketSafety::assess($text, !$t || (int) $t['messages'] === 0, $age, $isOwner);
         if (!$safe['ok']) {
-            $ctx->reply($ctx->t('mk_blocked_' . $safe['reason']));
-            return;
+            return ['code' => 'unsafe', 'reason' => (string) $safe['reason']];
         }
         if (!$t && $l !== null) {
-            $t = $app->market->thread($app->market->openThread($l, $ctx->userId, $app->now()));
+            $t = $app->market->thread($app->market->openThread($l, $uid, $app->now()));
         }
         if (!$t) {
-            return;
+            return ['code' => 'not_found'];
         }
-        $res = $app->market->addMessage((int) $t['id'], $ctx->userId, $text, MarketSafety::dupHash($text), $app->now());
+        $res = $app->market->addMessage((int) $t['id'], $uid, $text, MarketSafety::dupHash($text), $app->now());
         if ($res !== 'ok') {
-            $ctx->reply($ctx->t('mk_msg_' . $res, ['n' => Market::MAX_MESSAGES]));
-            return;
+            return ['code' => $res];
         }
-        $app->states->clear($ctx->userId);
         $to = $isOwner ? (int) $t['buyer_id'] : (int) $t['owner_id'];
         $tu = $app->users->get($to);
         $lang = I18n::norm($tu['lang'] ?? 'uz');
@@ -405,7 +443,7 @@ final class MarketHandler
             [Keyboards::btn(I18n::t('btn_mk_reply', $lang), 'mk:re:' . (int) $t['id']), Keyboards::btn(I18n::t('btn_mk_contact', $lang), 'mk:ct:' . (int) $t['id'])],
             [Keyboards::btn(I18n::t('btn_mk_fraud', $lang), 'mk:fr:' . (int) $t['id']), Keyboards::btn(I18n::t('btn_mk_block', $lang), 'mk:bl:' . (int) $t['id'])],
         ]));
-        $ctx->reply($ctx->t('mk_sent'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_mk_threads'), 'mk:th')], Keyboards::navRow($ctx->lang)]));
+        return ['code' => 'ok', 'thread' => (int) $t['id']];
     }
 
     /** Suhbatdagi ikkinchi tomon va uning xavfsizligi. */

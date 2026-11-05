@@ -430,3 +430,4 @@ require __DIR__ . '/TeamTest.php';
 require __DIR__ . '/MarketTest.php';
 require __DIR__ . '/AutopilotTest.php';
 require __DIR__ . '/PaymeTest.php';
+require __DIR__ . '/MiniAppMarketTest.php';

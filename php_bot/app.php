@@ -156,6 +156,16 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
 
   <section class="page" id="p-queue"><div id="q-list"></div></section>
 
+  <section class="page" id="p-market">
+    <div class="card"><div class="row"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
+      <button class="small" data-bot="go_market">➕ <span data-t="ma_mk_publish"></span></button></div>
+      <div class="muted" id="mk-note" style="margin-top:8px" data-t="ma_mk_note"></div></div>
+    <div class="chips" id="mk-cats" style="margin-bottom:12px"></div>
+    <div id="mk-mine"></div>
+    <div id="mk-list"></div>
+    <div class="row" id="mk-pager" style="margin-bottom:12px"></div>
+  </section>
+
   <section class="page" id="p-me">
     <div class="card"><h3 id="me-name"></h3><div class="muted" id="me-plan"></div><div class="muted" id="me-limits"></div>
       <div style="margin-top:10px"><button id="me-plans" data-t="ma_plans"></button></div></div>
@@ -169,6 +179,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
   <a href="#" data-go="home" class="on"><i>🏠</i><span data-t="ma_tab_home"></span></a>
   <a href="#" data-go="post"><i>✍️</i><span data-t="ma_tab_post"></span></a>
   <a href="#" data-go="queue"><i>📅</i><span data-t="ma_tab_queue"></span></a>
+  <a href="#" data-go="market"><i>💰</i><span data-t="ma_tab_market"></span></a>
   <a href="#" data-go="me"><i>👤</i><span data-t="ma_tab_me"></span></a>
 </nav>
 
@@ -220,6 +231,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-go') === page); });
     if (tg && tg.BackButton) { page === 'home' ? tg.BackButton.hide() : tg.BackButton.show(); }
     if (page === 'queue') { loadQueue(); }
+    if (page === 'market') { loadMarket(); }
     if (page === 'post') { refreshPreview(); }
     window.scrollTo(0, 0);
   }
@@ -242,6 +254,116 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     var b = e.target.closest('[data-bot]');
     if (b) { e.preventDefault(); haptic(); openBot(b.getAttribute('data-bot')); }
   });
+
+
+  // ---------- 💰 birja: katalog, e'lon, suhbat (e'lon qo'yish va boshqarish — botda)
+  var mk = {cat: null, page: 0};
+  var num = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
+  function mkErr(r) { return r.message || errText(r); }
+  function loadMarket() {
+    $('mk-list').innerHTML = '<div class="empty"><span class="spin">⏳</span></div>';
+    api('market', {cat: mk.cat, page: mk.page}).then(function (r) {
+      if (!r.ok) { $('mk-list').innerHTML = '<div class="empty">' + esc(mkErr(r)) + '</div>'; return; }
+      $('mk-cats').innerHTML = '<span class="chip' + (mk.cat ? '' : ' on') + '" data-cat="">' + esc(t('ma_mk_all')) + '</span>' +
+        r.categories.map(function (c) { return '<span class="chip' + (mk.cat === c.key ? ' on' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.name) + '</span>'; }).join('');
+      document.querySelectorAll('[data-cat]').forEach(function (el) { el.onclick = function () { haptic(); mk.cat = el.getAttribute('data-cat') || null; mk.page = 0; loadMarket(); }; });
+      $('mk-mine').innerHTML = r.mine.length ? '<div class="card"><h3>📢 ' + esc(t('ma_mk_mine')) + '</h3>' + r.mine.map(function (l) {
+        return '<div class="muted">@' + esc(l.username) + ' · ' + esc(l.price) + ' · ' + esc(l.status) + '</div>';
+      }).join('') + '<div style="margin-top:8px"><button class="small ghost" data-bot="go_market">⚙️ ' + esc(t('ma_mk_manage')) + '</button></div></div>' : '';
+      if (r.banned) { $('mk-list').innerHTML = '<div class="card empty"><b>🚫</b>' + esc(t('ma_mk_banned')) + '</div>'; $('mk-pager').innerHTML = ''; return; }
+      if (!r.items.length) { $('mk-list').innerHTML = '<div class="card empty"><b>📭</b>' + esc(t('ma_mk_empty')) + '</div>'; }
+      else {
+        $('mk-list').innerHTML = r.items.map(function (l, i) {
+          return '<div class="card post" data-l="' + i + '"><div class="body"><b>' + esc(l.title || '@' + l.username) + '</b>' +
+            '<div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + '</div><span class="tag">' + esc(l.category_name) + '</span>' +
+            '<span class="tag">💵 ' + esc(l.price) + '</span></div><div>›</div></div>';
+        }).join('');
+        document.querySelectorAll('[data-l]').forEach(function (el) { el.onclick = function () { haptic(); mkView(r.items[parseInt(el.getAttribute('data-l'), 10)].id); }; });
+      }
+      var pg = '';
+      if (r.page > 0) { pg += '<button class="ghost" id="mk-prev">◀️</button>'; }
+      if (r.page + 1 < r.pages) { pg += '<button class="ghost" id="mk-next">▶️</button>'; }
+      $('mk-pager').innerHTML = pg;
+      if ($('mk-prev')) { $('mk-prev').onclick = function () { mk.page--; loadMarket(); }; }
+      if ($('mk-next')) { $('mk-next').onclick = function () { mk.page++; loadMarket(); }; }
+    });
+  }
+  function openChannel(u) {
+    var url = 'https://t.me/' + encodeURIComponent(u);
+    if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); } else { window.open(url, '_blank'); }
+  }
+  function mkView(id) {
+    api('market_view', {id: id}).then(function (r) {
+      if (!r.ok) { toast(mkErr(r)); return; }
+      var l = r.listing;
+      var html = '<h3>' + esc(l.title || '@' + l.username) + '</h3><div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + ' · ' + esc(l.category_name) + '</div>' +
+        '<p><b>💵 ' + esc(l.price) + '</b></p>' + (l.description ? '<p style="white-space:pre-wrap">' + esc(l.description) + '</p>' : '') +
+        '<button class="ghost" id="mk-open">📢 ' + esc(t('ma_mk_open_channel')) + '</button>';
+      if (!l.mine) {
+        html += r.thread ? '<div style="height:8px"></div><button id="mk-chat">💬 ' + esc(t('ma_mk_chat')) + '</button>'
+          : '<label>' + esc(t('ma_mk_write')) + '</label><textarea id="mk-text" rows="4" maxlength="1000" placeholder="' + esc(t('ma_mk_write_ph')) + '"></textarea>' +
+            '<div class="muted">' + esc(t('ma_mk_safety')) + '</div><div style="height:8px"></div><button id="mk-send">' + esc(t('ma_mk_send')) + '</button>';
+      }
+      html += '<div style="height:8px"></div><button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>';
+      modal(html);
+      $('mk-open').onclick = function () { openChannel(l.username); };
+      $('mk-close').onclick = closeModal;
+      if ($('mk-chat')) { $('mk-chat').onclick = function () { mkThread(r.thread); }; }
+      if ($('mk-send')) {
+        $('mk-send').onclick = function () {
+          var b = $('mk-send'); b.disabled = true;
+          api('market_send', {listing: l.id, text: $('mk-text').value}).then(function (x) {
+            b.disabled = false;
+            if (!x.ok) { toast(mkErr(x)); return; }
+            haptic('ok'); toast(t('ma_mk_sent')); mkThread(x.thread);
+          });
+        };
+      }
+    });
+  }
+  function mkThreads() {
+    api('market_threads').then(function (r) {
+      if (!r.ok) { toast(mkErr(r)); return; }
+      modal('<h3>💬 ' + esc(t('ma_mk_threads')) + '</h3>' + (r.threads.length ? r.threads.map(function (x, i) {
+        return '<div class="card post" data-th="' + x.id + '"><div class="body"><b>' + esc(x.title || '@' + x.username) + '</b><div class="muted">' +
+          esc(t(x.role === 'owner' ? 'ma_mk_buyer' : 'ma_mk_owner')) + ' · ' + esc(x.last) + (x.blocked ? ' · 🚫' : '') + '</div></div><div>›</div></div>';
+      }).join('') : '<div class="empty">' + esc(t('ma_mk_no_threads')) + '</div>') + '<button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>');
+      $('mk-close').onclick = closeModal;
+      document.querySelectorAll('[data-th]').forEach(function (el) { el.onclick = function () { mkThread(parseInt(el.getAttribute('data-th'), 10)); }; });
+    });
+  }
+  function mkThread(id) {
+    api('market_thread', {id: id}).then(function (r) {
+      if (!r.ok) { toast(mkErr(r)); return; }
+      var th = r.thread;
+      var html = '<h3>💬 ' + esc(th.title || '@' + th.username) + '</h3><div class="preview" style="max-height:45vh;overflow:auto" id="mk-msgs">' +
+        r.messages.map(function (m) {
+          return '<div style="display:flex;justify-content:' + (m.me ? 'flex-end' : 'flex-start') + ';margin:6px 0"><div class="bubble">' + esc(m.text) +
+            '<div class="muted" style="font-size:11px;text-align:right">' + esc(m.at) + '</div></div></div>';
+        }).join('') + '</div>';
+      if (th.blocked) { html += '<div class="empty">🚫 ' + esc(t('ma_mk_blocked')) + '</div>'; }
+      else {
+        html += '<label>' + esc(t('ma_mk_reply')) + '</label><textarea id="mk-text" rows="3" maxlength="1000"></textarea>' +
+          '<div class="muted">' + esc(t('ma_mk_safety')) + '</div><div style="height:8px"></div><button id="mk-send">' + esc(t('ma_mk_send')) + '</button>';
+      }
+      html += '<div style="height:8px"></div><button class="ghost" data-bot="go_market">🤖 ' + esc(t('ma_mk_in_bot')) + '</button>' +
+        '<div style="height:8px"></div><button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>';
+      modal(html);
+      var box = $('mk-msgs'); box.scrollTop = box.scrollHeight;
+      $('mk-close').onclick = closeModal;
+      if ($('mk-send')) {
+        $('mk-send').onclick = function () {
+          var b = $('mk-send'); b.disabled = true;
+          api('market_send', {thread: id, text: $('mk-text').value}).then(function (x) {
+            b.disabled = false;
+            if (!x.ok) { toast(mkErr(x)); return; }
+            haptic('ok'); mkThread(id);
+          });
+        };
+      }
+    });
+  }
+  $('mk-threads').onclick = function () { haptic(); mkThreads(); };
 
   function modal(html) { $('sheet').innerHTML = html; $('modal').classList.add('on'); }
   function closeModal() { $('modal').classList.remove('on'); }
@@ -517,7 +639,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     if (!ok) { return; }
     $('boot').style.display = 'none';
     var tab = (new URLSearchParams(location.search)).get('tab');
-    go(['home', 'post', 'queue', 'me'].indexOf(tab) >= 0 ? tab : 'home');
+    go(['home', 'post', 'queue', 'market', 'me'].indexOf(tab) >= 0 ? tab : 'home');
     checkDraft();
   });
 })();

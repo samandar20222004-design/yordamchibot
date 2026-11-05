@@ -60,6 +60,16 @@ final class MiniAppApi
                     return self::upload($ctx, $file);
                 case 'draft':
                     return [200, self::draft($ctx)];
+                case 'market':
+                    return [200, self::market($ctx, $in)];
+                case 'market_view':
+                    return self::marketView($ctx, (int) ($in['id'] ?? 0));
+                case 'market_threads':
+                    return [200, self::marketThreads($ctx)];
+                case 'market_thread':
+                    return self::marketThread($ctx, (int) ($in['id'] ?? 0));
+                case 'market_send':
+                    return self::marketSend($ctx, $in);
             }
         } catch (\Throwable $e) {
             $app->log('miniapp ' . $action . ': ' . $e->getMessage());
@@ -453,5 +463,87 @@ final class MiniAppApi
         return ['ok' => true, 'draft' => ['type' => $d['type'], 'file_id' => $d['file_id'], 'text' => (string) $d['text'],
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
             'delete_after' => $d['delete_after'] ?? null, 'channel_id' => (int) ($st['data']['channel'] ?? 0)]];
+    }
+
+    // ------------------------------------------------------------------ 💰 birja (katalog, e'lon, suhbat; e'lon qo'yish — botda)
+
+    private static function listingOut(Ctx $ctx, array $l): array
+    {
+        return ['id' => (int) $l['id'], 'title' => (string) ($l['title'] ?? ''), 'username' => (string) $l['username'],
+            'subscribers' => (int) $l['subscribers'], 'price' => MarketHandler::price($l), 'category' => (string) $l['category'],
+            'category_name' => I18n::t('mkc_' . $l['category'], $ctx->lang), 'description' => (string) ($l['description'] ?? ''),
+            'mine' => (int) $l['owner_id'] === $ctx->userId];
+    }
+
+    private static function market(Ctx $ctx, array $in): array
+    {
+        $app = $ctx->app;
+        $cat = isset($in['cat']) && in_array($in['cat'], \PostAssist\Repo\Market::CATEGORIES, true) ? (string) $in['cat'] : null;
+        $page = max(0, min(500, (int) ($in['page'] ?? 0)));
+        $res = $app->market->catalog($cat, $page);
+        $cats = [];
+        foreach (\PostAssist\Repo\Market::CATEGORIES as $c) {
+            $cats[] = ['key' => $c, 'name' => I18n::t('mkc_' . $c, $ctx->lang)];
+        }
+        return ['ok' => true, 'items' => array_map(static function ($l) use ($ctx) {
+            return self::listingOut($ctx, $l);
+        }, $res['rows']), 'total' => $res['total'], 'page' => $page, 'pages' => (int) ceil($res['total'] / \PostAssist\Repo\Market::PAGE),
+            'categories' => $cats, 'cat' => $cat, 'banned' => $app->market->isBanned($ctx->userId),
+            'mine' => array_map(static function ($l) use ($ctx) {
+                return self::listingOut($ctx, $l) + ['status' => (string) $l['status']];
+            }, $app->market->mine($ctx->userId))];
+    }
+
+    private static function marketView(Ctx $ctx, int $id): array
+    {
+        $l = $ctx->app->market->get($id);
+        if (!$l || ($l['status'] !== 'active' && (int) $l['owner_id'] !== $ctx->userId)) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $t = $ctx->app->market->threadFor($id, $ctx->userId);
+        return [200, ['ok' => true, 'listing' => self::listingOut($ctx, $l), 'thread' => $t ? (int) $t['id'] : null]];
+    }
+
+    private static function marketThreads(Ctx $ctx): array
+    {
+        $uid = $ctx->userId;
+        return ['ok' => true, 'threads' => array_map(static function ($t) use ($uid, $ctx) {
+            return ['id' => (int) $t['id'], 'title' => (string) ($t['title'] ?? ''), 'username' => (string) $t['username'],
+                'role' => (int) $t['owner_id'] === $uid ? 'owner' : 'buyer', 'messages' => (int) $t['messages'],
+                'blocked' => $t['status'] === 'blocked', 'last' => TimeParser::show((string) $t['last_at'], $ctx->tz())];
+        }, $ctx->app->market->threadsOf($uid, 30))];
+    }
+
+    /** Suhbat xabarlari — faqat ishtirokchi ko'radi (IDOR). */
+    private static function marketThread(Ctx $ctx, int $id): array
+    {
+        $t = $ctx->app->market->thread($id);
+        if (!$t || ((int) $t['buyer_id'] !== $ctx->userId && (int) $t['owner_id'] !== $ctx->userId)) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $uid = $ctx->userId;
+        return [200, ['ok' => true, 'thread' => ['id' => (int) $t['id'], 'title' => (string) ($t['title'] ?? ''), 'username' => (string) $t['username'],
+            'blocked' => $t['status'] === 'blocked', 'role' => (int) $t['owner_id'] === $uid ? 'owner' : 'buyer'],
+            'messages' => array_map(static function ($m) use ($uid, $ctx) {
+                return ['me' => (int) $m['sender_id'] === $uid, 'text' => (string) $m['body'], 'at' => TimeParser::show((string) $m['created_at'], $ctx->tz())];
+            }, $ctx->app->market->messages($id, 40))]];
+    }
+
+    /** Yangi so'rov (listing) yoki suhbatga javob (thread) — bot bilan bir xil himoya (MarketHandler::send). */
+    private static function marketSend(Ctx $ctx, array $in): array
+    {
+        $target = !empty($in['thread']) ? ['thread' => (int) $in['thread']] : ['listing' => (int) ($in['listing'] ?? 0)];
+        $r = MarketHandler::send($ctx->app, $ctx->userId, $target, (string) ($in['text'] ?? ''));
+        if ($r['code'] === 'ok') {
+            return [200, ['ok' => true, 'thread' => $r['thread']]];
+        }
+        $key = [
+            'len' => ['mk_msg_len', ['min' => MarketHandler::MSG_MIN, 'max' => MarketHandler::MSG_MAX]],
+            'not_found' => ['mk_not_found', []], 'blocked' => ['mk_thread_blocked', []], 'banned' => ['mk_banned', []],
+            'limit' => ['mk_limit', ['n' => \PostAssist\Repo\Market::REQUESTS_PER_DAY]],
+            'full' => ['mk_msg_full', ['n' => \PostAssist\Repo\Market::MAX_MESSAGES]], 'dup' => ['mk_msg_dup', []],
+            'unsafe' => ['mk_blocked_' . ($r['reason'] ?? 'link'), []],
+        ][$r['code']] ?? ['mk_not_found', []];
+        return [$r['code'] === 'not_found' ? 404 : 400, ['ok' => false, 'error' => $r['code'], 'message' => strip_tags(I18n::t($key[0], $ctx->lang, $key[1]))]];
     }
 }
