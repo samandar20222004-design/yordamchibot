@@ -189,6 +189,8 @@ CREATE TABLE IF NOT EXISTS sent_messages (
     button_url VARCHAR(512) NULL,
     hidden_text TEXT NULL,
     edited_text TEXT NULL,
+    hidden_opens INT NOT NULL DEFAULT 0,
+    hidden_locked INT NOT NULL DEFAULT 0,
     delete_at DATETIME NULL,
     delete_attempts INT NOT NULL DEFAULT 0,
     deleted TINYINT(1) NOT NULL DEFAULT 0,
@@ -454,4 +456,23 @@ CREATE TABLE IF NOT EXISTS rss_feeds (
     created_at DATETIME NOT NULL,
     UNIQUE KEY uq_rss (user_id, channel_ref, url_hash),
     KEY idx_rss_due (active, next_check)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 16-bosqich: post shablonlari
+CREATE TABLE IF NOT EXISTS post_templates (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    name VARCHAR(60) NOT NULL,
+    draft MEDIUMTEXT NOT NULL,
+    used INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    KEY idx_tpl_user (user_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 17-bosqich: kanal statistikasi (kunlik obunachilar)
+CREATE TABLE IF NOT EXISTS channel_stats (
+    channel_id BIGINT NOT NULL,
+    day DATE NOT NULL,
+    subscribers INT NOT NULL,
+    PRIMARY KEY (channel_id, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

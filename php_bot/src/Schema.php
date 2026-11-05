@@ -26,6 +26,8 @@ final class Schema
         ['scheduled_posts', 'hidden_text', 'TEXT NULL'],
         ['sent_messages', 'hidden_text', 'TEXT NULL'],
         ['sent_messages', 'edited_text', 'TEXT NULL'],
+        ['sent_messages', 'hidden_opens', 'INT NOT NULL DEFAULT 0'],
+        ['sent_messages', 'hidden_locked', 'INT NOT NULL DEFAULT 0'],
         ['scheduled_posts', 'media', 'MEDIUMTEXT NULL'],
         ['scheduled_posts', 'reactions', 'VARCHAR(64) NULL'],
         ['scheduled_posts', 'delete_after', 'INT NULL'],

@@ -9,6 +9,8 @@ use PostAssist\Repo\AiUsage;
 use PostAssist\Repo\Autopilots;
 use PostAssist\Repo\ContentPlans;
 use PostAssist\Repo\RssFeeds;
+use PostAssist\Repo\Templates;
+use PostAssist\Repo\ChannelStats;
 use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
@@ -52,6 +54,8 @@ final class App
     public ContentPlans $plans;
     public Autopilots $autopilots;
     public RssFeeds $rss;
+    public Templates $templates;
+    public ChannelStats $stats;
     /** @var \PostAssist\Services\Rss */
     public $rssClient;
     public Ai $ai;
@@ -89,6 +93,8 @@ final class App
         $this->plans = new ContentPlans($db);
         $this->autopilots = new Autopilots($db);
         $this->rss = new RssFeeds($db);
+        $this->templates = new Templates($db);
+        $this->stats = new ChannelStats($db);
         $this->rssClient = new \PostAssist\Services\Rss();
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
@@ -255,6 +261,14 @@ final class App
     {
         $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
         $map = (array) ($this->config->get('rss_limits') ?? []) + ['free' => 0, 'pro' => 3, 'ultra' => 10, 'enterprise' => 20];
+        return max(0, (int) ($map[$tier] ?? 0));
+    }
+
+    /** Shablonlar soni: FREE — 3, PRO — 20, ULTRA — 50, muddatsiz/admin — 100 (config `template_limits`). */
+    public function templateLimit(int $userId): int
+    {
+        $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
+        $map = (array) ($this->config->get('template_limits') ?? []) + ['free' => 3, 'pro' => 20, 'ultra' => 50, 'enterprise' => 100];
         return max(0, (int) ($map[$tier] ?? 0));
     }
 

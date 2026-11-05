@@ -36,7 +36,12 @@ final class PostHandler
             return;
         }
         $ctx->app->states->set($ctx->userId, 'post_content');
-        $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]]));
+        $rows = [];
+        if ($ctx->app->templates->countFor($ctx->ownerId()) > 0) {
+            $rows[] = [Keyboards::btn($ctx->t('btn_tpl_list'), 'tpl:list')];
+        }
+        $rows[] = [Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')];
+        $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline($rows));
     }
 
     /** Post kontenti keldi (yangi yoki tahrir). */
@@ -346,6 +351,9 @@ final class PostHandler
                 return;
             case 'mc':
                 self::extraChannels($ctx);
+                return;
+            case 'tsave':
+                TemplateHandler::saveAsk($ctx);
                 return;
             case 'hddel':
                 $data['draft']['hidden'] = null;

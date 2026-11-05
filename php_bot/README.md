@@ -83,6 +83,11 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - `/sent`: kanalga chiqqan postni tahrirlash yoki kanaldan o'chirish.
 - Post yaratishda «⚙️ Qo'shimcha» → «📢 Yana kanallar»: bitta postni bir nechta kanalga birdan.
 
+## 📝 Shablonlar va 📊 statistika
+
+- Post tayyorlab «⚙️ Qo'shimcha» → «💾 Shablon qilish». Keyin «✍️ Post yaratish» → «📝 Shablonlar» yoki `/templates`.
+- «📊 Statistika»: har kanal uchun obunachilar o'sishi (bot har kuni o'lchaydi — cron kerak), grafik, postlar, reaksiyalar.
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

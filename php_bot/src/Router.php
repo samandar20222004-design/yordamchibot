@@ -20,6 +20,8 @@ use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\ReactionHandler;
 use PostAssist\Handlers\RssHandler;
 use PostAssist\Handlers\SentHandler;
+use PostAssist\Handlers\StatsHandler;
+use PostAssist\Handlers\TemplateHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
 use PostAssist\Handlers\TeamHandler;
@@ -168,6 +170,9 @@ final class Router
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
                     return;
+                case 'post_tname':
+                    TemplateHandler::nameInput($ctx, $state);
+                    return;
                 case 'rss_url':
                     RssHandler::urlInput($ctx, $state);
                     return;
@@ -298,7 +303,7 @@ final class Router
                 $ctx->reply($ctx->t('lang_choose'), Keyboards::languages());
                 return true;
             case '/stats':
-                StartHandler::stats($ctx);
+                StatsHandler::show($ctx);
                 return true;
             case '/app':
             case '/miniapp':
@@ -315,6 +320,10 @@ final class Router
                 return true;
             case '/market':
                 MarketHandler::home($ctx);
+                return true;
+            case '/templates':
+                $this->app->states->clear($ctx->userId);
+                TemplateHandler::show($ctx);
                 return true;
             case '/rss':
                 $this->app->states->clear($ctx->userId);
@@ -379,7 +388,7 @@ final class Router
                 QueueHandler::show($ctx);
                 return;
             case 'btn_statistics':
-                StartHandler::stats($ctx);
+                StatsHandler::show($ctx);
                 return;
             case 'btn_settings':
                 SettingsHandler::show($ctx);
@@ -558,7 +567,7 @@ final class Router
             PostHandler::extraChannels($ctx, (int) $m[1]);
         } elseif (preg_match('/^p:ch:(\d{1,10})$/', $data, $m)) {
             PostHandler::pickChannel($ctx, (int) $m[1]);
-        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|mc)$/', $data, $m)) {
+        } elseif (preg_match('/^p:(now|time|more|btn|btndel|rep|rx|ad|edit|cancel|back|hidden|hddel|o_silent|o_nopreview|o_pin|o_protect|mc|tsave)$/', $data, $m)) {
             PostHandler::action($ctx, $m[1]);
         } elseif (preg_match('/^pr:(none|daily|weekly|monthly|twice)$/', $data, $m)) {
             PostHandler::setRepeat($ctx, $m[1]);
@@ -572,6 +581,20 @@ final class Router
             SettingsHandler::setTimezone($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
+        } elseif ($data === 'st:show') {
+            StatsHandler::show($ctx, true);
+        } elseif (preg_match('/^st:(c|r):(\d{1,10})$/', $data, $m)) {
+            $m[1] === 'c' ? StatsHandler::channel($ctx, (int) $m[2]) : StatsHandler::refresh($ctx, (int) $m[2]);
+        } elseif ($data === 'tpl:list') {
+            TemplateHandler::show($ctx, true);
+        } elseif (preg_match('/^tpl:(u|d|dok):(\d{1,10})$/', $data, $m)) {
+            if ($m[1] === 'u') {
+                TemplateHandler::useTemplate($ctx, (int) $m[2]);
+            } elseif ($m[1] === 'd') {
+                TemplateHandler::askDelete($ctx, (int) $m[2]);
+            } else {
+                TemplateHandler::delete($ctx, (int) $m[2]);
+            }
         } elseif ($data === 'rss:show') {
             $this->app->states->clear($ctx->userId);
             RssHandler::show($ctx);

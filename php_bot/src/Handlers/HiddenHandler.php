@@ -43,6 +43,7 @@ final class HiddenHandler
         $m = $app->tg->call('getChatMember', ['chat_id' => $chatId, 'user_id' => $uid]);
         $status = (string) ($m['result']['status'] ?? '');
         $member = !empty($m['ok']) && (in_array($status, self::MEMBER, true) || ($status === 'restricted' && !empty($m['result']['is_member'])));
+        $app->db->exec('UPDATE sent_messages SET ' . ($member ? 'hidden_opens = hidden_opens + 1' : 'hidden_locked = hidden_locked + 1') . ' WHERE id = ?', [(int) $row['id']]);
         $app->tg->answerCallback($id, $member ? $h['t'] : I18n::t('hidden_need_sub', $lang), true);
     }
 }

@@ -97,6 +97,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
       <button class="big ghost" id="open-bot"><span>🤖</span><b data-t="ma_open_bot"></b></button>
     </div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div></div>
+    <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
     <div class="card"><h3 data-t="ma_in_bot"></h3>
       <div class="actions">
         <button class="big ghost" data-bot="go_market"><span>💰</span><b data-t="ma_go_market"></b></button>
@@ -110,6 +111,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     <div class="banner" id="draft-banner" style="display:none"><div style="flex:1" data-t="ma_draft_found"></div><button class="small" id="draft-load" data-t="ma_open"></button></div>
     <div class="card" id="no-ch" style="display:none"><div class="empty"><b>📢</b><span data-t="ma_no_channels"></span></div><button id="no-ch-bot" data-t="ma_open_bot"></button></div>
     <div id="editor-wrap">
+      <div class="card" id="tpl-card" style="display:none"><div class="row"><select id="tpl-sel"><option value="" data-t="ma_tpl_pick"></option></select></div></div>
       <div class="card"><h3 data-t="ma_channel"></h3><div class="chips" id="ch-list"></div></div>
       <div class="card">
         <div class="media" id="media-box" style="display:none"><span id="media-thumb"></span><div style="flex:1" class="muted" id="media-name"></div><button class="small ghost" id="media-del">✕</button></div>
@@ -154,6 +156,7 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
         <div class="chips"><span class="chip on" data-when="now" data-t="ma_now"></span><span class="chip" data-when="later" data-t="ma_later"></span></div>
         <div id="when-box" style="display:none"><label data-t="ma_when"></label><input type="datetime-local" id="when"><div class="muted" id="when-tz"></div></div>
         <div style="margin-top:12px"><button id="submit" data-t="ma_send_now"></button></div>
+        <div style="margin-top:8px"><button class="ghost" id="tpl-save">💾 <span data-t="ma_tpl_save"></span></button></div>
       </div>
     </div>
   </section>
@@ -235,6 +238,8 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-go') === page); });
     if (tg && tg.BackButton) { page === 'home' ? tg.BackButton.hide() : tg.BackButton.show(); }
     if (page === 'queue') { loadQueue(); }
+    if (page === 'home') { loadStats(); }
+    if (page === 'post') { loadTemplates(); }
     if (page === 'market') { loadMarket(); }
     if (page === 'post') { refreshPreview(); }
     window.scrollTo(0, 0);
@@ -509,6 +514,67 @@ details summary{cursor:pointer;font-weight:600;padding:4px 0}.spin{display:inlin
     });
   }
   $('hid').addEventListener('input', function () { refreshPreview(); });
+
+  // ---------- 📊 statistika (bosh sahifa)
+  function signed(n) { return n === null || n === undefined ? '—' : (n > 0 ? '+' : '') + num(n); }
+  function loadStats() {
+    api('stats').then(function (r) {
+      if (!r.ok || !r.channels.length) { $('st-card').style.display = 'none'; return; }
+      $('st-card').style.display = '';
+      $('st-list').innerHTML = r.channels.map(function (c) {
+        var vals = c.series.map(function (x) { return x.n; }), min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+        var bars = vals.length > 1 ? '<div style="display:flex;align-items:flex-end;gap:3px;height:36px;margin:8px 0">' + vals.map(function (v) {
+          var h = max === min ? 50 : Math.round(15 + (v - min) / (max - min) * 85);
+          return '<div style="flex:1;height:' + h + '%;background:var(--accent);border-radius:3px;opacity:.85"></div>';
+        }).join('') + '</div>' : '<div class="muted" style="margin:6px 0">' + esc(t('ma_st_soon')) + '</div>';
+        return '<div style="margin-bottom:12px"><b>📢 ' + esc(c.title) + '</b><div class="muted">👥 ' + (c.subscribers === null ? '…' : num(c.subscribers)) +
+          ' · 7d ' + signed(c.d7) + ' · 30d ' + signed(c.d30) + '</div>' + bars +
+          '<span class="tag">📝 ' + esc(t('ma_st_posts', {n: c.posts30})) + '</span><span class="tag">👍 ' + esc(c.votes30) + '</span>' +
+          (c.opens30 || c.locked30 ? '<span class="tag">🔒 ' + esc(c.opens30) + ' / ' + esc(c.locked30) + '</span>' : '') + '</div>';
+      }).join('');
+    });
+  }
+
+  // ---------- 📝 shablonlar (muharrir)
+  function loadTemplates() {
+    api('templates').then(function (r) {
+      if (!r.ok) { return; }
+      var sel = $('tpl-sel');
+      sel.innerHTML = '<option value="">' + esc(t('ma_tpl_pick')) + '</option>' + r.templates.map(function (x) {
+        return '<option value="' + x.id + '">' + esc(x.name) + '</option>';
+      }).join('');
+      $('tpl-card').style.display = r.templates.length ? '' : 'none';
+    });
+  }
+  $('tpl-sel').onchange = function () {
+    var id = parseInt(this.value, 10); if (!id) { return; }
+    api('template', {id: id}).then(function (r) {
+      $('tpl-sel').value = '';
+      if (!r.ok) { toast(errText(r)); return; }
+      var d = r.template;
+      setEditor(d.text); $('b-text').value = d.button_text; $('b-url').value = d.button_url;
+      state.reactions = d.reactions; renderReactions(); $('ad').value = String(d.delete_after || 0);
+      state.opts = d.options.slice(); renderOpts(); $('hid').value = d.hidden;
+      state.type = d.type; state.fileId = d.file_id; state.mediaUrl = '';
+      if (d.type !== 'text') { $('media-box').style.display = 'flex'; $('media-add').style.display = 'none'; $('media-thumb').textContent = '🖼'; $('media-name').textContent = t('ma_media_attached'); }
+      refreshPreview(); haptic('ok'); toast(t('ma_tpl_loaded'));
+    });
+  };
+  $('tpl-save').onclick = function () {
+    var ask = function (name) {
+      if (!name) { return; }
+      var body = {name: name, type: state.type, file_id: state.fileId, text: editorHtml(), button_text: $('b-text').value.trim(), button_url: $('b-url').value.trim(),
+        reactions: state.reactions, delete_after: parseInt($('ad').value || '0', 10), options: state.opts, hidden: $('hid').value.trim()};
+      api('template_save', body).then(function (r) {
+        if (!r.ok) { toast(r.error === 'tpl_limit' ? t('ma_tpl_limit', {max: r.max}) : errText(r)); return; }
+        haptic('ok'); toast(t('ma_tpl_saved')); loadTemplates();
+      });
+    };
+    modal('<h3>💾 ' + esc(t('ma_tpl_save')) + '</h3><label>' + esc(t('ma_tpl_name')) + '</label><input id="tpl-name" maxlength="40">' +
+      '<div class="row" style="margin-top:14px"><button class="ghost" id="tn-cancel">' + esc(t('ma_back')) + '</button><button id="tn-ok">' + esc(t('ma_save')) + '</button></div>');
+    $('tn-cancel').onclick = closeModal;
+    $('tn-ok').onclick = function () { var n = $('tpl-name').value.trim(); if (!n) { return; } closeModal(); ask(n.slice(0, 40)); };
+  };
   // ---------- yuborish
   $('submit').onclick = function () {
     if (!state.channel) { toast(t('ma_err_channel')); return; }

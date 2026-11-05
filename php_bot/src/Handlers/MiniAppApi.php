@@ -60,6 +60,14 @@ final class MiniAppApi
                     return self::upload($ctx, $file);
                 case 'draft':
                     return [200, self::draft($ctx)];
+                case 'templates':
+                    return [200, self::templates($ctx)];
+                case 'template':
+                    return self::template($ctx, (int) ($in['id'] ?? 0));
+                case 'template_save':
+                    return self::templateSave($ctx, $in);
+                case 'stats':
+                    return [200, self::stats($ctx)];
                 case 'market':
                     return [200, self::market($ctx, $in)];
                 case 'market_view':
@@ -570,5 +578,60 @@ final class MiniAppApi
             'unsafe' => ['mk_blocked_' . ($r['reason'] ?? 'link'), []],
         ][$r['code']] ?? ['mk_not_found', []];
         return [$r['code'] === 'not_found' ? 404 : 400, ['ok' => false, 'error' => $r['code'], 'message' => strip_tags(I18n::t($key[0], $ctx->lang, $key[1]))]];
+    }
+
+    // ------------------------------------------------------------------ 📝 shablonlar
+
+    private static function templates(Ctx $ctx): array
+    {
+        $out = [];
+        foreach ($ctx->app->templates->listFor($ctx->ownerId()) as $t) {
+            $d = json_decode((string) $t['draft'], true);
+            if (is_array($d) && ($d['type'] ?? '') !== 'album') { // albom Mini App muharririda yo'q
+                $out[] = ['id' => (int) $t['id'], 'name' => (string) $t['name'], 'type' => (string) $d['type']];
+            }
+        }
+        return ['ok' => true, 'templates' => $out, 'max' => $ctx->app->templateLimit($ctx->ownerId())];
+    }
+
+    private static function template(Ctx $ctx, int $id): array
+    {
+        $t = $ctx->app->templates->getOwned($ctx->ownerId(), $id);
+        if ($t === null || ($t['draft']['type'] ?? '') === 'album') {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $d = $t['draft'];
+        $h = PostRender::hidden($d['hidden'] ?? null);
+        $ctx->app->templates->touch($id);
+        return [200, ['ok' => true, 'template' => ['type' => (string) $d['type'], 'file_id' => (string) ($d['file_id'] ?? ''), 'text' => (string) ($d['text'] ?? ''),
+            'button_text' => (string) ($d['button_text'] ?? ''), 'button_url' => (string) ($d['button_url'] ?? ''), 'reactions' => (string) ($d['reactions'] ?? ''),
+            'delete_after' => (int) ($d['delete_after'] ?? 0), 'options' => PostRender::options($d['options'] ?? null), 'hidden' => $h['t'] ?? '']]];
+    }
+
+    private static function templateSave(Ctx $ctx, array $in): array
+    {
+        $app = $ctx->app;
+        $name = trim((string) preg_replace('/\s+/u', ' ', (string) ($in['name'] ?? '')));
+        if ($name === '' || mb_strlen($name) > TemplateHandler::NAME_MAX) {
+            return [400, ['ok' => false, 'error' => 'name']];
+        }
+        $limit = $app->templateLimit($ctx->ownerId());
+        if ($app->templates->countFor($ctx->ownerId()) >= $limit) {
+            return [400, ['ok' => false, 'error' => 'tpl_limit', 'max' => $limit]];
+        }
+        $draft = self::draftFromInput($ctx, $in);
+        if (is_string($draft)) {
+            return [400, ['ok' => false, 'error' => $draft]];
+        }
+        if (isset($draft['error'])) {
+            return [400, ['ok' => false] + $draft];
+        }
+        return [200, ['ok' => true, 'id' => $app->templates->create($ctx->ownerId(), $name, $draft, $app->now())]];
+    }
+
+    /** 📊 Kanal statistikasi (bot bilan bir xil manba: StatsHandler::channelStats). */
+    private static function stats(Ctx $ctx): array
+    {
+        return ['ok' => true, 'channels' => StatsHandler::channelStats($ctx->app, $ctx->ownerId())];
     }
 }
