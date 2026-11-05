@@ -365,3 +365,40 @@ CREATE TABLE IF NOT EXISTS market_reports (
     created_at DATETIME NOT NULL,
     PRIMARY KEY (kind, target_id, reporter_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8-bosqich: AI kontent-reja va autopilot
+CREATE TABLE IF NOT EXISTS content_plans (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    topic VARCHAR(500) NOT NULL,
+    items TEXT NOT NULL,
+    created_at DATETIME NOT NULL,
+    KEY idx_cp_user (user_id, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS autopilots (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    channel_ref INT UNSIGNED NOT NULL,
+    topic VARCHAR(500) NOT NULL,
+    style VARCHAR(16) NOT NULL DEFAULT 'useful',
+    post_time SMALLINT NOT NULL,
+    mode VARCHAR(8) NOT NULL DEFAULT 'review',
+    active TINYINT(1) NOT NULL DEFAULT 1,
+    last_run DATE NULL,
+    recent TEXT NULL,
+    created_at DATETIME NOT NULL,
+    UNIQUE KEY uq_ap_channel (user_id, channel_ref),
+    KEY idx_ap_active (active, last_run)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS autopilot_drafts (
+    id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    autopilot_id INT UNSIGNED NOT NULL,
+    user_id BIGINT NOT NULL,
+    channel_ref INT UNSIGNED NOT NULL,
+    text TEXT NOT NULL,
+    status VARCHAR(8) NOT NULL DEFAULT 'new',
+    created_at DATETIME NOT NULL,
+    KEY idx_apd_user (user_id, status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

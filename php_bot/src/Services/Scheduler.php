@@ -67,6 +67,7 @@ final class Scheduler
                 }
             }
             \PostAssist\Handlers\BroadcastHandler::work($this->app, $started + $budgetSec);
+            \PostAssist\Handlers\AutopilotHandler::work($this->app, $this, $started + $budgetSec);
             $this->autoDelete();
             $this->finishStaleAlbums();
             $this->planMaintenance();

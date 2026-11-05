@@ -5,6 +5,8 @@ namespace PostAssist;
 
 use PostAssist\Handlers\AdminHandler;
 use PostAssist\Handlers\AiHandler;
+use PostAssist\Handlers\AutopilotHandler;
+use PostAssist\Handlers\ContentPlanHandler;
 use PostAssist\Handlers\BroadcastHandler;
 use PostAssist\Handlers\CardHandler;
 use PostAssist\Handlers\ForceSubHandler;
@@ -189,6 +191,15 @@ final class Router
                         BroadcastHandler::received($ctx);
                     }
                     return;
+                case 'cp_topic':
+                    ContentPlanHandler::topicInput($ctx);
+                    return;
+                case 'ap_topic':
+                    AutopilotHandler::topicInput($ctx, $state);
+                    return;
+                case 'ap_time':
+                    AutopilotHandler::time($ctx, $text);
+                    return;
                 case 'ai_topic':
                 case 'ai_style':
                     AiHandler::topicInput($ctx); // uslub o'rniga yana matn yozsa — yangi mavzu
@@ -292,6 +303,14 @@ final class Router
                 return true;
             case '/market':
                 MarketHandler::home($ctx);
+                return true;
+            case '/contentplan':
+                $this->app->states->clear($ctx->userId);
+                ContentPlanHandler::show($ctx);
+                return true;
+            case '/autopilot':
+                $this->app->states->clear($ctx->userId);
+                AutopilotHandler::show($ctx);
                 return true;
             case '/team':
                 TeamHandler::show($ctx, false);
@@ -407,6 +426,43 @@ final class Router
             PostHandler::begin($ctx);
         } elseif ($data === 'p:ai') {
             AiHandler::editMenu($ctx);
+        } elseif ($data === 'cp:show') {
+            $this->app->states->clear($ctx->userId);
+            ContentPlanHandler::show($ctx);
+        } elseif ($data === 'cp:new') {
+            ContentPlanHandler::ask($ctx);
+        } elseif (preg_match('/^cp:w:(\d{1,10}):(\d)$/', $data, $m)) {
+            ContentPlanHandler::write($ctx, (int) $m[1], (int) $m[2]);
+        } elseif ($data === 'ap:show') {
+            $this->app->states->clear($ctx->userId);
+            AutopilotHandler::show($ctx, true);
+        } elseif ($data === 'ap:new') {
+            AutopilotHandler::begin($ctx);
+        } elseif (preg_match('/^ap:st:(news|sales|fun|useful|short)$/', $data, $m)) {
+            AutopilotHandler::style($ctx, $m[1]);
+        } elseif (preg_match('/^ap:t:(\d{4})$/', $data, $m)) {
+            AutopilotHandler::time($ctx, $m[1]);
+        } elseif (preg_match('/^ap:m:(review|auto)$/', $data, $m)) {
+            AutopilotHandler::mode($ctx, $m[1]);
+        } elseif (preg_match('/^ap:(ch|v|tg|mo|del|dok|run):(\d{1,10})$/', $data, $m)) {
+            $id = (int) $m[2];
+            if ($m[1] === 'ch') {
+                AutopilotHandler::pickChannel($ctx, $id);
+            } elseif ($m[1] === 'v') {
+                AutopilotHandler::view($ctx, $id);
+            } elseif ($m[1] === 'tg') {
+                AutopilotHandler::toggle($ctx, $id);
+            } elseif ($m[1] === 'mo') {
+                AutopilotHandler::switchMode($ctx, $id);
+            } elseif ($m[1] === 'del') {
+                AutopilotHandler::askDelete($ctx, $id);
+            } elseif ($m[1] === 'dok') {
+                AutopilotHandler::delete($ctx, $id);
+            } else {
+                AutopilotHandler::testNow($ctx, $id);
+            }
+        } elseif (preg_match('/^apd:(ok|ed|re|no):(\d{1,10})$/', $data, $m)) {
+            AutopilotHandler::draftAction($ctx, $m[1], (int) $m[2]);
         } elseif ($data === 'ai:again') {
             AiHandler::again($ctx);
         } elseif (preg_match('/^ai:s:(news|sales|fun|useful|short)$/', $data, $m)) {

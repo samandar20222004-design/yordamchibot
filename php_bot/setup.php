@@ -73,9 +73,9 @@ $r = $app->tg->call('setWebhook', [
 $out('Webhook: ' . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
 
 $commands = [
-    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'app' => 'Mini App', 'ai' => 'AI bilan post', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
-    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'app' => 'Mini App', 'ai' => 'Пост с AI', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
-    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'app' => 'Mini App', 'ai' => 'Post with AI', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
+    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'app' => 'Mini App', 'ai' => 'AI bilan post', 'contentplan' => 'AI kontent-reja', 'autopilot' => 'Autopilot (har kuni AI post)', 'market' => 'Reklama birjasi', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
+    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'app' => 'Mini App', 'ai' => 'Пост с AI', 'contentplan' => 'AI контент-план', 'autopilot' => 'Автопилот (AI-пост каждый день)', 'market' => 'Биржа рекламы', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
+    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'app' => 'Mini App', 'ai' => 'Post with AI', 'contentplan' => 'AI content plan', 'autopilot' => 'Autopilot (daily AI post)', 'market' => 'Ad market', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
 ];
 foreach (I18n::LANGS as $lang) {
     $list = [];

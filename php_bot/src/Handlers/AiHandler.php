@@ -59,7 +59,10 @@ final class AiHandler
             return;
         }
         $ctx->app->states->set($ctx->userId, 'ai_topic');
-        $ctx->reply($ctx->t('ai_ask_topic') . "\n\n" . self::quotaLine($ctx), Keyboards::nav($ctx->lang));
+        $ctx->reply($ctx->t('ai_ask_topic') . "\n\n" . self::quotaLine($ctx), Keyboards::inline([
+            [Keyboards::btn($ctx->t('btn_cp'), 'cp:show'), Keyboards::btn($ctx->t('btn_ap'), 'ap:show')],
+            Keyboards::navRow($ctx->lang),
+        ]));
     }
 
     public static function topicInput(Ctx $ctx): void
@@ -205,7 +208,7 @@ final class AiHandler
      * AI chaqiruvi: limit band qilinadi, «⏳ yozmoqda» ko'rsatiladi, xatoda limit qaytadi.
      * @return string|null tayyor HTML yoki null (foydalanuvchiga sabab aytildi)
      */
-    private static function run(Ctx $ctx, string $system, string $prompt, int $maxChars, ?array $media = null): ?string
+    public static function run(Ctx $ctx, string $system, string $prompt, int $maxChars, ?array $media = null): ?string
     {
         $app = $ctx->app;
         if (self::disabled($ctx)) {

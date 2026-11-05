@@ -6,6 +6,8 @@ namespace PostAssist;
 use DateTimeImmutable;
 use DateTimeZone;
 use PostAssist\Repo\AiUsage;
+use PostAssist\Repo\Autopilots;
+use PostAssist\Repo\ContentPlans;
 use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
@@ -46,6 +48,8 @@ final class App
     public ForcedChannels $forced;
     public Team $team;
     public Market $market;
+    public ContentPlans $plans;
+    public Autopilots $autopilots;
     public Ai $ai;
     /** @var callable|null webhook.php: Telegram'ga javobni darhol qaytarib, ulanishni yopadi (albom kutish uchun) */
     public $releaseClient = null;
@@ -78,6 +82,8 @@ final class App
         $this->forced = new ForcedChannels($db);
         $this->team = new Team($db);
         $this->market = new Market($db);
+        $this->plans = new ContentPlans($db);
+        $this->autopilots = new Autopilots($db);
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
@@ -228,6 +234,14 @@ final class App
             return $userId;
         }
         return $owner;
+    }
+
+    /** Autopilotlar soni: FREE — 0, PRO — 1, ULTRA — 3, muddatsiz/admin — 10 (config `autopilot_limits`). */
+    public function autopilotLimit(int $userId): int
+    {
+        $tier = $this->isAdmin($userId) ? Plans::ENTERPRISE : $this->tier($userId);
+        $map = (array) ($this->config->get('autopilot_limits') ?? []) + ['free' => 0, 'pro' => 1, 'ultra' => 3, 'enterprise' => 10];
+        return max(0, (int) ($map[$tier] ?? 0));
     }
 
     /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */
