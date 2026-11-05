@@ -58,6 +58,7 @@ final class App
     public Templates $templates;
     public ChannelStats $stats;
     public Comments $comments;
+    public \PostAssist\Services\Look $look;
     /** @var \PostAssist\Services\Rss */
     public $rssClient;
     public Ai $ai;
@@ -98,6 +99,13 @@ final class App
         $this->templates = new Templates($db);
         $this->stats = new ChannelStats($db);
         $this->comments = new Comments($db);
+        $this->look = new \PostAssist\Services\Look($db);
+        $look = $this->look;
+        $tg->setDecorator([$look, 'decorate'], function (string $what, array $res) use ($look): void {
+            // Telegram premium emoji yoki tugma rangini qabul qilmadi — o'sha qatlam o'chiriladi (admin /emoji da qayta yoqadi)
+            $look->set($what === 'premium' ? \PostAssist\Services\Look::KEY_ON : \PostAssist\Services\Look::KEY_STYLES, '0');
+            $this->log('ko\'rinish qatlami o\'chirildi (' . $what . '): ' . mb_substr((string) ($res['description'] ?? ''), 0, 200));
+        });
         $this->rssClient = new \PostAssist\Services\Rss();
         $this->ai = new Ai($config);
         $this->sleeper = static function (int $ms): void {

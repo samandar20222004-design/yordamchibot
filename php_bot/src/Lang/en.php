@@ -429,7 +429,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'fs_none' => "No such channel.",
     'fs_empty' => "🔒 No forced subscription.\n\nAdd: /force_add @channel",
     'fs_list_title' => "🔒 <b>Forced subscription</b> ({n})\n\n{lines}\n\nAdd: /force_add @channel · Remove: /force_del ID",
-    'admin_help2' => "💳 /receipts — receipts awaiting review\n📣 /broadcast — broadcast · /broadcast_status · /broadcast_stop\n🔒 /force_add @channel · /force_list · /force_del ID — forced subscription\n💰 /market_ban ID · /market_unban ID — listing; /market_userban ID · /market_userunban ID — user",
+    'admin_help2' => "💳 /receipts — receipts awaiting review\n📣 /broadcast — broadcast · /broadcast_status · /broadcast_stop\n🔒 /force_add @channel · /force_list · /force_del ID — forced subscription\n💰 /market_ban ID · /market_unban ID — listing; /market_userban ID · /market_userunban ID — user\n/emoji — bot look: premium emoji and colored buttons",
     // ---------- 6-bosqich: rasm va ovozdan post
     'ai_media_off' => "👀 A Gemini key (<code>gemini_api_key</code>) is needed for posts from photos and voice. It will work once the admin sets it up.",
     'ai_media_failed' => "😔 Could not download the file (too big or Telegram did not respond). No request was used — please try again.",
@@ -847,4 +847,13 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_ui_part_bot' => "Bot sections",
     'ma_tz_search' => "Country or city: Germany, Dubai…",
     'ma_tz_none' => "Not found. Try another spelling.",
+    'btn_adm_look' => "✨ Bot look",
+    'btn_look_prem_on' => "✨ Premium on",
+    'btn_look_prem_off' => "⏸ Premium off",
+    'btn_look_st_on' => "🎨 Colors on",
+    'btn_look_st_off' => "⏸ Colors off",
+    'btn_look_clear' => "🗑 Reset icons",
+    'look_title' => "✨ <b>Bot look</b>\n\n🎨 Colored buttons: {styles}\n💫 Premium emoji: {premium} ({n})\n\n<b>Replaced:</b> {have}\n<b>Still plain:</b> {miss}\n\n👉 Send premium (animated) emoji here — several in one message is fine. The bot detects the plain version of each (🤖, ✍️ …) and puts the animated one into bot texts and buttons.\n\n⚠️ Telegram rule: premium emoji only work if the <b>bot owner has Telegram Premium</b> (or the bot has a Fragment username). If not, the bot falls back to the plain look automatically. Colored buttons work without conditions (in recent Telegram versions).",
+    'look_none' => "ℹ️ No premium emoji in this message. Send emoji from a premium pack (not regular ones).",
+    'look_saved' => "✅ Saved {n} icons: {list}",
 ];

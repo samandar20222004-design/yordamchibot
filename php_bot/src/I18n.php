@@ -60,14 +60,22 @@ final class I18n
     /** Berilgan matn qaysi tildagi qaysi kalitga teng (eski klaviatura boshqa tilda qolgan bo'lsa ham ishlaydi). */
     public static function keyOf(string $text, array $keys): ?string
     {
+        // premium belgi qo'yilgan tugmada emoji matndan olinadi — belgisiz matn ham taniladi
+        $bare = self::bare($text);
         foreach (self::LANGS as $l) {
             $tbl = self::table($l);
             foreach ($keys as $k) {
-                if (isset($tbl[$k]) && $tbl[$k] === $text) {
+                if (isset($tbl[$k]) && ($tbl[$k] === $text || ($bare !== '' && self::bare($tbl[$k]) === $bare))) {
                     return $k;
                 }
             }
         }
         return null;
+    }
+
+    /** Boshidagi emoji/belgilarsiz matn. */
+    public static function bare(string $s): string
+    {
+        return trim((string) preg_replace('/^[^\p{L}\p{N}]+/u', '', $s));
     }
 }

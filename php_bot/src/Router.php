@@ -15,6 +15,7 @@ use PostAssist\Handlers\BulkHandler;
 use PostAssist\Handlers\ChannelHandler;
 use PostAssist\Handlers\CommentsHandler;
 use PostAssist\Handlers\LinksHandler;
+use PostAssist\Handlers\LookHandler;
 use PostAssist\Handlers\MarketHandler;
 use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PollHandler;
@@ -172,6 +173,9 @@ final class Router
                     return;
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
+                    return;
+                case 'emoji_wait':
+                    LookHandler::received($ctx);
                     return;
                 case 'poll_q':
                     PollHandler::questionInput($ctx);
@@ -617,6 +621,10 @@ final class Router
             } else {
                 CommentsHandler::moderate($ctx, $m[1], (int) $m[2]);
             }
+        } elseif (preg_match('/^emj:(tg|st|clr)$/', $data, $m)) {
+            LookHandler::action($ctx, $m[1]);
+        } elseif ($data === 'a:look') {
+            LookHandler::show($ctx, true);
         } elseif ($data === 'poll:start') {
             PollHandler::start($ctx);
         } elseif ($data === 'bk:start') {

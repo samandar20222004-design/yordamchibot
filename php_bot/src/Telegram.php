@@ -16,6 +16,10 @@ final class Telegram
     private $transport;
     /** @var callable|null testlar uchun: fn(string $url): ?string */
     private $downloader;
+    /** @var callable|null ko'rinish qatlami: fn(method, params, premium, styles): params */
+    private $decorator;
+    /** @var callable|null qatlam rad etilganda: fn(string $what, array $response) */
+    private $onDecorFail;
 
     public function __construct(string $token, string $base = 'https://api.telegram.org', ?callable $transport = null)
     {
@@ -24,8 +28,55 @@ final class Telegram
         $this->transport = $transport;
     }
 
-    /** @param array<string, mixed> $params */
+    public function setDecorator(?callable $decorator, ?callable $onFail = null): void
+    {
+        $this->decorator = $decorator;
+        $this->onDecorFail = $onFail;
+    }
+
+    /**
+     * So'rov. Ko'rinish qatlami (premium emoji, rangli tugmalar) bo'lsa qo'llanadi; Telegram 400 bilan rad etsa —
+     * avval premium emojisiz, keyin rangsiz qayta yuboriladi va o'sha qatlam o'chiriladi (xabar baribir yetadi).
+     * @param array<string, mixed> $params
+     */
     public function call(string $method, array $params = []): array
+    {
+        if ($this->decorator === null) {
+            unset($params['_raw']);
+            return $this->send($method, $params);
+        }
+        $plain = $params;
+        unset($plain['_raw']);
+        $d = ($this->decorator)($method, $params, true, true);
+        $res = $this->send($method, $d);
+        if (!empty($res['ok']) || (int) ($res['error_code'] ?? 0) !== 400 || $d == $plain) {
+            return $res;
+        }
+        $d2 = ($this->decorator)($method, $params, false, true);
+        if ($d2 != $d) {
+            $res2 = $this->send($method, $d2);
+            if (!empty($res2['ok'])) {
+                if ($this->onDecorFail) {
+                    ($this->onDecorFail)('premium', $res);
+                }
+                return $res2;
+            }
+        }
+        $d3 = ($this->decorator)($method, $params, false, false);
+        if ($d3 != $d2) {
+            $res3 = $this->send($method, $d3);
+            if (!empty($res3['ok'])) {
+                if ($this->onDecorFail) {
+                    ($this->onDecorFail)('styles', $res);
+                }
+                return $res3;
+            }
+        }
+        return $res;
+    }
+
+    /** @param array<string, mixed> $params */
+    private function send(string $method, array $params): array
     {
         foreach ($params as $k => $v) {
             if (is_array($v)) {

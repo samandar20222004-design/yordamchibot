@@ -47,6 +47,9 @@ final class AdminHandler
             return false;
         }
         switch ($cmd) {
+            case '/emoji':
+                LookHandler::show($ctx);
+                return true;
             case '/admin_help':
                 $ctx->reply($ctx->t('admin_help') . "\n\n" . $ctx->t('admin_help2'), Keyboards::nav($ctx->lang, 'a:stats'));
                 return true;

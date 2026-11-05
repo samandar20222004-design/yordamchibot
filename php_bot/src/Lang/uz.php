@@ -429,7 +429,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'fs_none' => "Bunday kanal yo'q.",
     'fs_empty' => "🔒 Majburiy obuna yo'q.\n\nQo'shish: /force_add @kanal",
     'fs_list_title' => "🔒 <b>Majburiy obuna</b> ({n})\n\n{lines}\n\nQo'shish: /force_add @kanal · O'chirish: /force_del ID",
-    'admin_help2' => "💳 /receipts — ko'rib chiqilmagan cheklar\n📣 /broadcast — hammaga xabar · /broadcast_status · /broadcast_stop\n🔒 /force_add @kanal · /force_list · /force_del ID — majburiy obuna\n💰 /market_ban ID · /market_unban ID — e'lon; /market_userban ID · /market_userunban ID — foydalanuvchi",
+    'admin_help2' => "💳 /receipts — ko'rib chiqilmagan cheklar\n📣 /broadcast — hammaga xabar · /broadcast_status · /broadcast_stop\n🔒 /force_add @kanal · /force_list · /force_del ID — majburiy obuna\n💰 /market_ban ID · /market_unban ID — e'lon; /market_userban ID · /market_userunban ID — foydalanuvchi\n/emoji — bot ko'rinishi: premium emoji va rangli tugmalar",
     // ---------- 6-bosqich: rasm va ovozdan post
     'ai_media_off' => "👀 Rasm va ovozdan post yozish uchun Gemini kaliti kerak (<code>gemini_api_key</code>). Admin sozlagach ishlaydi.",
     'ai_media_failed' => "😔 Faylni yuklab bo'lmadi (juda katta yoki Telegram javob bermadi). Limit sarflanmadi — qayta urinib ko'ring.",
@@ -847,4 +847,13 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_ui_part_bot' => "Botdagi bo'limlar",
     'ma_tz_search' => "Davlat yoki shahar: Germaniya, Dubay…",
     'ma_tz_none' => "Topilmadi. Boshqacha yozib ko'ring.",
+    'btn_adm_look' => "✨ Bot ko'rinishi",
+    'btn_look_prem_on' => "✨ Premiumni yoq",
+    'btn_look_prem_off' => "⏸ Premiumni o'chir",
+    'btn_look_st_on' => "🎨 Ranglarni yoq",
+    'btn_look_st_off' => "⏸ Ranglarni o'chir",
+    'btn_look_clear' => "🗑 Tozalash",
+    'look_title' => "✨ <b>Bot ko'rinishi</b>\n\n🎨 Rangli tugmalar: {styles}\n💫 Premium emoji: {premium} ({n} ta)\n\n<b>Almashtirilgan:</b> {have}\n<b>Hali oddiy:</b> {miss}\n\n👉 Premium (jonli) emojilarni shu yerga yuboring — bitta xabarda bir nechtasini ham bo'ladi. Bot har birining oddiy ko'rinishini (🤖, ✍️ …) o'zi aniqlaydi va bot xabarlari hamda tugmalarida o'sha joyga jonli versiyasini qo'yadi.\n\n⚠️ Telegram qoidasi: premium emoji faqat <b>bot egasida Telegram Premium</b> bo'lsa (yoki botga Fragment'da username olingan bo'lsa) ishlaydi. Ishlamasa bot o'zi oddiy ko'rinishga qaytadi. Rangli tugmalar shartsiz ishlaydi (Telegram'ning yangi versiyalarida).",
+    'look_none' => "ℹ️ Bu xabarda premium emoji topilmadi. Premium emoji paketidan emoji yuboring (oddiy emoji emas).",
+    'look_saved' => "✅ {n} ta belgi saqlandi: {list}",
 ];

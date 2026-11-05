@@ -101,6 +101,12 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 - Mini App → Men → «👑 Super admin» (faqat `admin_ids`): statistika, tarif berish, foydalanuvchi, promo-kodlar, karta cheklari.
 - Mini App bosh sahifasida «💬 Izohlar»: postlaringizga yozilgan izohlar, javob, o'chirish, bloklash.
 
+## ✨ Bot ko'rinishi: rangli tugmalar va premium emoji
+
+- Tugmalar o'zi rangli: asosiy amal yashil, o'chirish/bekor qizil, muhim yo'l ko'k (Telegram'ning yangi versiyalarida ko'rinadi).
+- Jonli premium emoji: botda `/emoji` → premium emojilarni yuboring (Telegram'da premium emoji paketidan). Bot 🤖 ✍️ 📢 kabi oddiy belgilarni xabar va tugmalarda jonli versiyasiga almashtiradi.
+- Shart (Telegram qoidasi): bot egasida **Telegram Premium** bo'lishi kerak. Bo'lmasa bot o'zi oddiy ko'rinishga qaytadi — hech narsa buzilmaydi.
+
 ## 👥 Jamoa va 💰 reklama birjasi
 
 - **Jamoa** (ULTRA tarif): Sozlamalar → «👥 Jamoa» yoki `/team` → ruxsat turini tanlang → havolani yordamchiga yuboring. U botda ham, Mini App'da ham sizning kanallaringiz bilan ishlaydi (faqat berilgan ruxsat doirasida).

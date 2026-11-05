@@ -429,7 +429,7 @@ return [
     'fs_none' => "Такого канала нет.",
     'fs_empty' => "🔒 Обязательной подписки нет.\n\nДобавить: /force_add @канал",
     'fs_list_title' => "🔒 <b>Обязательная подписка</b> ({n})\n\n{lines}\n\nДобавить: /force_add @канал · Убрать: /force_del ID",
-    'admin_help2' => "💳 /receipts — непроверенные чеки\n📣 /broadcast — рассылка · /broadcast_status · /broadcast_stop\n🔒 /force_add @канал · /force_list · /force_del ID — обязательная подписка\n💰 /market_ban ID · /market_unban ID — объявление; /market_userban ID · /market_userunban ID — пользователь",
+    'admin_help2' => "💳 /receipts — непроверенные чеки\n📣 /broadcast — рассылка · /broadcast_status · /broadcast_stop\n🔒 /force_add @канал · /force_list · /force_del ID — обязательная подписка\n💰 /market_ban ID · /market_unban ID — объявление; /market_userban ID · /market_userunban ID — пользователь\n/emoji — вид бота: премиум-эмодзи и цветные кнопки",
     // ---------- 6-bosqich: rasm va ovozdan post
     'ai_media_off' => "👀 Для постов из фото и голоса нужен ключ Gemini (<code>gemini_api_key</code>). Заработает после настройки админом.",
     'ai_media_failed' => "😔 Не удалось загрузить файл (слишком большой или Telegram не ответил). Лимит не потрачен — попробуйте ещё раз.",
@@ -847,4 +847,13 @@ return [
     'ma_ui_part_bot' => "Разделы бота",
     'ma_tz_search' => "Страна или город: Германия, Дубай…",
     'ma_tz_none' => "Не найдено. Попробуйте иначе.",
+    'btn_adm_look' => "✨ Вид бота",
+    'btn_look_prem_on' => "✨ Включить премиум",
+    'btn_look_prem_off' => "⏸ Выкл. премиум",
+    'btn_look_st_on' => "🎨 Включить цвета",
+    'btn_look_st_off' => "⏸ Выкл. цвета",
+    'btn_look_clear' => "🗑 Сбросить значки",
+    'look_title' => "✨ <b>Вид бота</b>\n\n🎨 Цветные кнопки: {styles}\n💫 Премиум-эмодзи: {premium} ({n})\n\n<b>Заменены:</b> {have}\n<b>Пока обычные:</b> {miss}\n\n👉 Пришлите сюда премиум (анимированные) эмодзи — можно несколько в одном сообщении. Бот сам определит обычный вид каждого (🤖, ✍️ …) и поставит анимированную версию в тексты и кнопки бота.\n\n⚠️ Правило Telegram: премиум-эмодзи работают, только если у <b>владельца бота есть Telegram Premium</b> (или у бота купленный на Fragment username). Если не сработает — бот сам вернётся к обычному виду. Цветные кнопки работают без условий (в новых версиях Telegram).",
+    'look_none' => "ℹ️ В сообщении нет премиум-эмодзи. Пришлите эмодзи из премиум-набора (не обычные).",
+    'look_saved' => "✅ Сохранено значков: {n} — {list}",
 ];

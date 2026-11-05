@@ -500,3 +500,10 @@ CREATE TABLE IF NOT EXISTS comment_bans (
     created_at DATETIME NOT NULL,
     PRIMARY KEY (owner_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 27-bosqich: bot sozlamalari (premium emoji xaritasi va h.k.)
+CREATE TABLE IF NOT EXISTS bot_settings (
+    k VARCHAR(64) NOT NULL PRIMARY KEY,
+    v MEDIUMTEXT NOT NULL,
+    updated_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

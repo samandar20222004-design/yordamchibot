@@ -199,7 +199,7 @@ final class PostRender
         $type = (string) $post['post_type'];
         $post['bot'] = $post['bot'] ?? $botUsername;
         $opts = self::options($post['options'] ?? null);
-        $flags = [];
+        $flags = ['_raw' => true]; // ko'rinish qatlami post matniga tegmaydi
         if (in_array('silent', $opts, true)) {
             $flags['disable_notification'] = true;
         }
