@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS sent_messages (
     button_text VARCHAR(64) NULL,
     button_url VARCHAR(512) NULL,
     hidden_text TEXT NULL,
+    edited_text TEXT NULL,
     delete_at DATETIME NULL,
     delete_attempts INT NOT NULL DEFAULT 0,
     deleted TINYINT(1) NOT NULL DEFAULT 0,

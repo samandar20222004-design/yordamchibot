@@ -92,6 +92,27 @@ final class Messages
              deleted = CASE WHEN delete_attempts + 1 >= ? THEN 1 ELSE 0 END WHERE id = ?', [$retryAtSql, self::MAX_DELETE_ATTEMPTS, $id]);
     }
 
+    /** 📤 Kanalga chiqqan postlar (egasiniki, o'chirilmagan), oxirgilari birinchi. */
+    public function listSent(int $ownerId, int $limit = 15): array
+    {
+        return $this->db->all('SELECT sm.*, sp.post_type, sp.text, sp.user_id, c.title AS channel_title FROM sent_messages sm
+             JOIN scheduled_posts sp ON sp.id = sm.post_id LEFT JOIN channels c ON c.channel_id = sm.chat_id AND c.user_id = sp.user_id
+             WHERE sp.user_id = ? AND sm.deleted = 0 ORDER BY sm.id DESC LIMIT ' . max(1, $limit), [$ownerId]);
+    }
+
+    /** Faqat egasining yuborilgan xabari (IDOR himoyasi). */
+    public function getOwnedSent(int $ownerId, int $id): ?array
+    {
+        return $this->db->one('SELECT sm.*, sp.post_type, sp.text, sp.user_id, c.title AS channel_title FROM sent_messages sm
+             JOIN scheduled_posts sp ON sp.id = sm.post_id LEFT JOIN channels c ON c.channel_id = sm.chat_id AND c.user_id = sp.user_id
+             WHERE sm.id = ? AND sp.user_id = ? AND sm.deleted = 0', [$id, $ownerId]);
+    }
+
+    public function setText(int $id, string $html): void
+    {
+        $this->db->exec('UPDATE sent_messages SET edited_text = ? WHERE id = ?', [$html, $id]);
+    }
+
     public function cleanup(): void
     {
         // Reaksiya va avto-o'chirish uchun 60 kun yetadi

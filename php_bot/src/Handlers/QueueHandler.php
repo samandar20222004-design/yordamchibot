@@ -17,7 +17,7 @@ final class QueueHandler
     {
         $list = $ctx->app->posts->listPending($ctx->ownerId(), self::LIST_LIMIT);
         if (!$list) {
-            $kb = Keyboards::inline([[Keyboards::btn($ctx->t('btn_new_post'), 'p:new'), Keyboards::btn($ctx->t('btn_home'), 'm:home')]]);
+            $kb = Keyboards::inline([[Keyboards::btn($ctx->t('btn_sent_list'), 's:list')], [Keyboards::btn($ctx->t('btn_new_post'), 'p:new'), Keyboards::btn($ctx->t('btn_home'), 'm:home')]]);
             if ($edit) {
                 $ctx->edit($ctx->t('q_empty'), $kb);
             } else {

@@ -86,3 +86,43 @@ $router->handle(['update_id' => $upd++, 'callback_query' => ['id' => 'r' . $upd,
 $ed = $fake->of('editMessageReplyMarkup');
 T::check('reaksiya ovozidan keyin ham «🔒» tugmasi qoladi', count($ed) === 1 && strpos($mk($ed[0]), '"callback_data":"hd"') !== false && strpos($mk($ed[0]), 'rx:0') !== false);
 T::eq('optionsString: noma\'lum qiymatlar tashlanadi', \PostAssist\Services\PostRender::optionsString('pin,hack,silent'), 'silent,pin');
+
+T::section('X. Yuborilgan postni tahrirlash va o\'chirish');
+$smA = (int) $sm['id'];
+$text($FU, '/sent');
+T::check('/sent: ro\'yxatda yuborilgan postlar', strpos($kbF(), 's:v:' . $smA) !== false && strpos($kbF(), 's:v:' . (int) $sm2['id']) !== false);
+$text($FU, '/queue');
+T::check('navbat ekranida «📤 Yuborilganlar»', strpos($kbF(), 's:list') !== false);
+$press($FU, 's:v:' . $smA);
+T::check('post ko\'rinishi: kanal, matn, tahrir/o\'chirish tugmalari', strpos($fake->lastText(), 'Aksiya kanali') !== false && strpos($fake->lastText(), 'Bahorgi chegirma') !== false
+    && strpos($kbF(), 's:e:' . $smA) !== false && strpos($kbF(), 's:d:' . $smA) !== false);
+$press($ADMIN, 's:v:' . $smA);
+T::check('begona odam ko\'ra olmaydi (IDOR)', strpos($fake->lastText(), 'topilmadi') !== false);
+$press($FU, 's:e:' . $smA);
+T::eq('tahrir: yangi matn kutiladi', $app->states->get($FU)['state'] ?? null, 'sent_edit');
+$send($FU, ['photo' => [['file_id' => 'PH', 'width' => 1, 'height' => 1]]]);
+T::check('rasm yuborilsa — faqat matn', strpos($fake->lastText(), 'Faqat matn') !== false);
+$send($FU, ['text' => 'Yangilangan aksiya: -40%', 'entities' => [['type' => 'bold', 'offset' => 0, 'length' => 11]]]);
+$ed = $fake->of('editMessageText');
+T::check('kanaldagi xabar tahrirlandi: formatlash, nishon (bepul), tugmalar saqlandi', count($ed) === 1 && (int) $ed[0]['chat_id'] === $FC && (int) $ed[0]['message_id'] === $MID
+    && strpos((string) $ed[0]['text'], '<b>Yangilangan</b>') !== false && strpos((string) $ed[0]['text'], '@PostAssistrobot') !== false
+    && strpos($mk($ed[0]), '"callback_data":"hd"') !== false);
+T::check('tahrir natijasi aytildi va belgi qo\'yildi', strpos($fake->lastText(), 'yangilandi') !== false && $app->states->get($FU) === null
+    && strpos((string) $db->value('SELECT edited_text FROM sent_messages WHERE id = ?', [$smA]), 'Yangilangan') !== false);
+$press($FU, 's:e:' . $smA);
+$fake->forced['editMessageText'] = [['ok' => false, 'error_code' => 400, 'description' => 'Bad Request: message to edit not found']];
+$text($FU, 'Yana bir tahrir');
+T::check('Telegram rad etsa: sabab aytiladi, holat saqlanadi', strpos($fake->lastText(), 'Tahrirlab bo\'lmadi') !== false && ($app->states->get($FU)['state'] ?? '') === 'sent_edit');
+$fake->forced['editMessageText'] = [['ok' => false, 'error_code' => 400, 'description' => 'Bad Request: message is not modified']];
+$text($FU, 'Yana bir tahrir');
+T::check('«not modified» — xato emas', strpos($fake->lastText(), 'yangilandi') !== false);
+$press($FU, 's:d:' . $smA);
+T::check('o\'chirish: tasdiq so\'raladi', strpos($kbF(), 's:dok:' . $smA) !== false && count($fake->of('deleteMessage')) === 0);
+$press($ADMIN, 's:dok:' . $smA);
+T::eq('begona odam o\'chira olmaydi', count($fake->of('deleteMessage')), 0);
+$press($FU, 's:dok:' . $smA);
+$dm = $fake->of('deleteMessage');
+T::check('kanaldan o\'chirildi va ro\'yxatdan chiqdi', count($dm) === 1 && (int) $dm[0]['message_id'] === $MID
+    && (int) $db->value('SELECT deleted FROM sent_messages WHERE id = ?', [$smA]) === 1);
+$text($FU, '/sent');
+T::check('o\'chirilgan post ro\'yxatda yo\'q', strpos($kbF(), 's:v:' . $smA) === false);

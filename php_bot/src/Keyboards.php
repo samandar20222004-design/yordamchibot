@@ -255,6 +255,7 @@ final class Keyboards
             $icon = !empty($p['recurrence_type']) ? '🔄 ' : ($p['post_type'] === 'album' ? '🖼 ' : '📄 ');
             $rows[] = [self::btn($icon . $label, 'q:v:' . (int) $p['id'])];
         }
+        $rows[] = [self::btn(I18n::t('btn_sent_list', $lang), 's:list')];
         $rows[] = [self::btn(I18n::t('btn_new_post', $lang), 'p:new'), self::btn(I18n::t('btn_home', $lang), 'm:home')];
         return self::inline($rows);
     }

@@ -18,6 +18,7 @@ use PostAssist\Handlers\PlansHandler;
 use PostAssist\Handlers\PostHandler;
 use PostAssist\Handlers\QueueHandler;
 use PostAssist\Handlers\ReactionHandler;
+use PostAssist\Handlers\SentHandler;
 use PostAssist\Handlers\SettingsHandler;
 use PostAssist\Handlers\StartHandler;
 use PostAssist\Handlers\TeamHandler;
@@ -166,6 +167,9 @@ final class Router
                 case 'post_rx':
                     PostHandler::reactionsInput($ctx, $state);
                     return;
+                case 'sent_edit':
+                    SentHandler::editInput($ctx, $state);
+                    return;
                 case 'post_hidden':
                     PostHandler::hiddenInput($ctx, $state);
                     return;
@@ -307,6 +311,10 @@ final class Router
                 return true;
             case '/market':
                 MarketHandler::home($ctx);
+                return true;
+            case '/sent':
+                $this->app->states->clear($ctx->userId);
+                SentHandler::show($ctx, false);
                 return true;
             case '/contentplan':
                 $this->app->states->clear($ctx->userId);
@@ -554,6 +562,21 @@ final class Router
             SettingsHandler::setTimezone($ctx, $m[1]);
         } elseif (preg_match('/^t:(1h|today18|tom09)$/', $data, $m)) {
             PostHandler::quickTime($ctx, $m[1]);
+        } elseif ($data === 's:list') {
+            $this->app->states->clear($ctx->userId);
+            SentHandler::show($ctx);
+        } elseif (preg_match('/^s:(v|e|d|dok):(\d{1,10})$/', $data, $m)) {
+            $sid = (int) $m[2];
+            if ($m[1] === 'v') {
+                $this->app->states->clear($ctx->userId);
+                SentHandler::view($ctx, $sid);
+            } elseif ($m[1] === 'e') {
+                SentHandler::askEdit($ctx, $sid);
+            } elseif ($m[1] === 'd') {
+                SentHandler::askDelete($ctx, $sid);
+            } else {
+                SentHandler::delete($ctx, $sid);
+            }
         } elseif ($data === 'q:list') {
             QueueHandler::show($ctx, true);
         } elseif (preg_match('/^q:v:(\d{1,10})$/', $data, $m)) {
