@@ -323,4 +323,6 @@ T::eq('post_update: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle
 $srcNav = (string) file_get_contents(__DIR__ . '/../app.php');
 preg_match('#<div class="dock">(.*?)</div>#s', $srcNav, $dockM);
 $dock = $dockM[1] ?? '';
-T::check('pastki panel: 4 bo\'lim + «＋» = 5 ta, emoji emas SVG ikonka', substr_count($dock, 'data-go=') === 5 && substr_count($dock, '<svg') === 5 && strpos($dock, 'id="fab"') !== false);
+T::check('pastki panel: 4 bo\'lim + markaziy «＋» = 5 ta, emoji emas SVG ikonka', substr_count($dock, 'data-go=') === 4 && substr_count($dock, '<svg') === 5 && strpos($dock, 'id="fab"') !== false);
+T::check('app.php: «＋» tezkor amallar oynasi, yaqin postlar, qoralama qurilmada saqlanadi, o\'z logotipi', strpos($srcNav, 'data-qa="') !== false
+    && strpos($srcNav, 'function loadUpcoming') !== false && strpos($srcNav, "DKEY = 'pa_draft_text_v1'") !== false && strpos($srcNav, '<div class="logo"><svg') !== false);

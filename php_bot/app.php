@@ -301,10 +301,39 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .g-teal{background:linear-gradient(135deg,#34d399,#0ea5a4)!important}.g-violet{background:linear-gradient(135deg,#8b7cf6,#6d5cf0)!important}
 .g-pink{background:linear-gradient(135deg,#f472b6,#e5486e)!important}.g-blue{background:linear-gradient(135deg,#60a5fa,#3b6cf6)!important}
 .list.hl-gold{background:linear-gradient(135deg,rgba(247,165,74,.20),rgba(247,165,74,.08))}.list.hl-green{background:linear-gradient(135deg,rgba(155,225,93,.24),rgba(63,191,95,.08))}
+
+/* ---------- o'z uslubimiz: markazda ko'tarilgan «＋», faol bo'lim nuqta bilan, banner va plitkalar */
+.dock{gap:0}
+.dock nav#nav{align-items:flex-end;padding:6px 6px 5px;border-radius:26px;overflow:visible}
+.dock nav#nav a{border-radius:16px;padding:7px 2px 6px;position:relative}
+.dock nav#nav a.on{background:transparent;color:var(--accent)}
+.dock nav#nav a.on::after{content:"";position:absolute;bottom:1px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--accent)}
+.dock nav#nav a.on i svg{stroke-width:2.3}
+.dock .fab{flex:0 0 58px;width:58px!important;height:58px;margin:-26px 6px 2px;border:4px solid var(--bg)!important;border-radius:20px!important;transform:rotate(0);transition:transform .25s}
+.dock .fab:active{transform:scale(.94)}
+.logo svg{width:20px;height:20px}
+.prem{display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin:0 0 6px;padding:14px 16px!important;border-radius:22px!important;color:#2b1700!important;
+  background:linear-gradient(120deg,#ffd76a,#ffb547 55%,#ff8f3d)!important;box-shadow:0 12px 26px -12px rgba(255,143,61,.7)!important;border:0!important}
+.prem-ic{font-size:26px;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.4)}
+.prem-tx{flex:1;display:flex;flex-direction:column;min-width:0}.prem-tx b{font-size:16px}.prem-sub{font-size:12.5px;opacity:.8;font-weight:600}
+.prem-cta{background:#2b1700;color:#ffd76a;font-size:12.5px;font-weight:800;padding:8px 12px;border-radius:12px;white-space:nowrap}
+.mini-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:6px}
+.mini-tiles button{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 4px!important;border-radius:18px!important;background:var(--glass)!important;
+  color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:var(--sh1)!important;font-size:11.5px;font-weight:700}
+.mini-tiles i{font-style:normal;font-size:20px;width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:var(--soft)}
+.qa{display:grid;grid-template-columns:1fr;gap:8px}
+.qa-i{display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;column-gap:12px;text-align:left;padding:12px!important;border-radius:16px!important;
+  background:var(--bg)!important;color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:none!important}
+.qa-i i{grid-row:1/3;font-style:normal;font-size:22px;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--soft)}
+.qa-i b{font-size:15px}.qa-i span{font-size:12px;color:var(--hint);font-weight:500}
+.up-list{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.up{display:flex;gap:12px;align-items:center;padding:10px;border-radius:14px;background:var(--soft)}
+.up-t{flex:0 0 58px;text-align:center;font-weight:800;font-size:16px;line-height:1.1}.up-t small{display:block;font-size:11px;color:var(--hint);font-weight:600}
+.up-b{flex:1;min-width:0;display:flex;flex-direction:column}.up-b b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
 </style>
 </head>
 <body>
-<header><div class="logo">🤖</div><h1>PostAssist</h1><span class="badge" id="plan">…</span></header>
+<header><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3 14.5 21l-4.5-7-7-4.5z"/></svg></div><h1>PostAssist</h1><span class="badge" id="plan">…</span></header>
 <main>
   <div id="boot"><div><span class="spin">⏳</span></div></div>
 
@@ -324,6 +353,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     <div class="card start" id="start-card" style="display:none"><h3 data-t="ma_start_title"></h3>
       <ol class="steps"><li id="stp1" data-t="ma_start_1"></li><li id="stp2" data-t="ma_start_2"></li><li id="stp3" data-t="ma_start_3"></li></ol>
       <button class="small" id="start-go"></button></div>
+    <div class="card" id="up-card" style="display:none"><div class="row" style="align-items:center"><h3 style="flex:2;margin:0" data-t="ma_up_title"></h3>
+      <button class="small ghost" data-go="queue" style="flex:0 0 auto" data-t="ma_all"></button></div><div id="up-list" class="up-list"></div></div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div>
       <div class="set-row" data-t="ma_ai_models"></div><div id="ai-models" class="ai-models"></div></div>
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
@@ -439,8 +470,14 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       <div class="pf-plan"><span id="me-plan"></span><span id="me-limits" hidden></span></div>
     </div>
 
-    <div class="list hl hl-gold"><button class="li" data-go="plans"><i class="ic g-orange">👑</i><span data-t="ma_li_premium"></span><em id="me-prem-tag"></em><b>›</b></button></div>
-    <div class="list hl hl-green"><button class="li" data-go="auto"><i class="ic g-green">✨</i><span data-t="ma_li_ai_studio"></span><b>›</b></button></div>
+    <button class="prem" data-go="plans"><span class="prem-ic">👑</span><span class="prem-tx"><b data-t="ma_prem_title"></b><span id="me-prem-tag" class="prem-sub"></span></span><span class="prem-cta" data-t="ma_prem_cta"></span></button>
+    <div class="grp-t" data-t="ma_li_ai_studio"></div>
+    <div class="mini-tiles">
+      <button data-br="cp:show" data-bt="ma_au_plan"><i>📅</i><span data-t="ma_au_plan"></span></button>
+      <button data-br="ap:show" data-bt="ma_au_ap"><i>🤖</i><span data-t="ma_au_ap"></span></button>
+      <button data-br="rss:show" data-bt="ma_au_rss"><i>📰</i><span data-t="ma_au_rss"></span></button>
+      <button data-go="auto"><i>⋯</i><span data-t="ma_more"></span></button>
+    </div>
     <div class="list">
       <button class="li" data-go="stats"><i class="ic g-teal">📊</i><span data-t="ma_tab_stats"></span><b>›</b></button>
       <button class="li" data-go="market"><i class="ic g-violet">💰</i><span data-t="ma_go_market"></span><b>›</b></button>
@@ -515,12 +552,12 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 
 <div class="dock">
 <nav id="nav">
-  <a href="#" data-go="home" class="on"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></i><span data-t="ma_tab_home"></span></a>
+<a href="#" data-go="home" class="on"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></i><span data-t="ma_tab_home"></span></a>
   <a href="#" data-go="channels"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></i><span data-t="ma_tab_channels"></span></a>
+  <button class="fab" id="fab"  aria-label="+"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
   <a href="#" data-go="queue"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></i><span data-t="ma_tab_posts"></span></a>
   <a href="#" data-go="me"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></i><span data-t="ma_tab_me"></span></a>
 </nav>
-<button class="fab" id="fab" data-go="post" aria-label="+"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
@@ -586,8 +623,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     centerNav(navName);
     if (tg && tg.BackButton) { page === 'home' ? tg.BackButton.hide() : tg.BackButton.show(); }
     if (page === 'queue') { if (opts && opts.seg) { qseg = opts.seg; } loadQueue(); }
-    if (page === 'home') { loadStats(); loadComments(); }
-    if (page === 'post') { loadTemplates(); }
+    if (page === 'home') { loadStats(); loadComments(); loadUpcoming(); }
+    if (page === 'post') { loadTemplates(); restoreLocalDraft(); }
     if (page === 'market') { loadMarket(); }
     if (page === 'admin') { loadAdmin(); }
     if (page === 'plans') { loadPlans(); }
@@ -714,6 +751,41 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     if (o) { e.preventDefault(); haptic(); brOpen(o.getAttribute('data-br'), o.getAttribute('data-bt') || 'ma_tab_auto', BR_NAV[o.getAttribute('data-br')] || (cur === 'me' ? 'me' : cur === 'auto' ? 'auto' : 'home')); }
   });
   var BR_NAV = {'ch:list': 'channels', 'ch:add': 'channels', 'st:show': 'me'};
+
+
+  // ---------- «＋»: tezkor amallar oynasi
+  $('fab').onclick = function (e) {
+    e.preventDefault(); haptic();
+    var acts = [['post', '✍️', 'ma_qa_post', 'ma_qa_post_d'], ['ai', '✨', 'ma_qa_ai', 'ma_qa_ai_d'], ['poll:start', '📊', 'ma_au_poll', 'ma_au_poll_d'],
+      ['bk:start', '📦', 'ma_au_bulk', 'ma_au_bulk_d'], ['tpl:list', '💾', 'ma_au_tpl', 'ma_au_tpl_d']];
+    modal('<h3>' + esc(t('ma_qa_title')) + '</h3><div class="qa">' + acts.map(function (a) {
+      return '<button class="qa-i" data-qa="' + a[0] + '" data-qt="' + a[2] + '"><i>' + a[1] + '</i><b>' + esc(t(a[2])) + '</b><span>' + esc(t(a[3])) + '</span></button>';
+    }).join('') + '</div>');
+    document.querySelectorAll('[data-qa]').forEach(function (b) { b.onclick = function () {
+      var q = b.getAttribute('data-qa'); closeModal();
+      if (q === 'post') { go('post'); } else if (q === 'ai') { go('post'); if (me && me.ai.enabled) { aiStart(); } }
+      else { brOpen(q, b.getAttribute('data-qt'), 'home'); }
+    }; });
+  };
+  // ---------- bosh sahifa: yaqin 3 ta post
+  function loadUpcoming() {
+    api('posts').then(function (r) {
+      if (!r.ok || !r.posts.length) { $('up-card').style.display = 'none'; return; }
+      $('up-card').style.display = '';
+      $('up-list').innerHTML = r.posts.slice(0, 3).map(function (p) {
+        var d = document.createElement('div'); d.innerHTML = p.text;
+        return '<div class="up"><span class="up-t">' + esc(p.when.slice(-5)) + '<small>' + esc(p.when.slice(0, 5)) + '</small></span><span class="up-b"><b>' +
+          esc((d.textContent || '').trim().slice(0, 60) || '[' + p.type + ']') + '</b><span class="muted">📢 ' + esc(p.channel) + (p.repeat ? ' · 🔄' : '') + '</span></span></div>';
+      }).join('');
+    });
+  }
+  // ---------- muharrir: yozilgan matn yo'qolmaydi (qurilmada saqlanadi)
+  var DKEY = 'pa_draft_text_v1';
+  function saveLocalDraft() { try { var h = $('ed').innerHTML; if (plainOf(h)) { localStorage.setItem(DKEY, h); } else { localStorage.removeItem(DKEY); } } catch (e) {} }
+  $('ed').addEventListener('input', function () { clearTimeout(saveLocalDraft.t); saveLocalDraft.t = setTimeout(saveLocalDraft, 600); });
+  function restoreLocalDraft() {
+    try { var h = localStorage.getItem(DKEY); if (h && !plainOf($('ed').innerHTML)) { $('ed').innerHTML = h; refreshPreview(); toast(t('ma_draft_restored')); } } catch (e) {}
+  }
 
   // ---------- 💎 tariflar va Stars to'lovi (Mini App ichida: createInvoiceLink -> tg.openInvoice)
   var pl = {data: null, tier: 'pro', key: null};
@@ -1202,7 +1274,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       }).join(' · ')
         : r.status === 'sent' ? t('ma_sent') : r.status === 'queued' ? t('ma_queued') : t('ma_scheduled', {when: r.when});
       if (r.next) { msg += ' ' + t('ma_next', {when: r.next}); }
-      toast(msg); resetEditor(); loadMe();
+      toast(msg); resetEditor(); try { localStorage.removeItem(DKEY); } catch (e) {} loadMe();
     });
   };
   function resetEditor() {
@@ -1419,7 +1491,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     $('me-st-ch').textContent = me.stats.channels + '/' + inf(p.channels_max);
     $('me-st-q').textContent = me.stats.pending + '/' + inf(p.queue_max);
     $('me-st-ai').textContent = !me.ai.enabled ? '—' : (me.ai.limit === 0 ? '∞' : me.ai.left + '/' + me.ai.limit);
-    if ($('me-prem-tag')) { $('me-prem-tag').textContent = p.tier === 'free' ? t('ma_li_upgrade') : p.name; }
+    if ($('me-prem-tag')) { $('me-prem-tag').textContent = p.tier === 'free' ? t('ma_prem_free') : p.name + (p.expires ? ' · ' + t('ma_until', {date: p.expires.slice(0, 10)}) : ''); }
     $('me-plan-tag').textContent = p.tier === 'free' ? t('ma_li_upgrade') : (p.expires ? t('ma_until', {date: p.expires.slice(0, 10)}) : p.name);
     $('me-lang').value = me.user.lang;
     renderTz();
