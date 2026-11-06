@@ -31,7 +31,7 @@ final class ContentPlanHandler
             return;
         }
         $ctx->app->states->set($ctx->userId, 'cp_topic');
-        $ctx->reply($ctx->t('cp_ask_topic') . "\n\n" . AiHandler::quotaLine($ctx), Keyboards::nav($ctx->lang));
+        $ctx->reply(rtrim($ctx->t('cp_ask_topic') . "\n\n" . AiHandler::quotaLine($ctx)), Keyboards::nav($ctx->lang));
     }
 
     public static function topicInput(Ctx $ctx): void

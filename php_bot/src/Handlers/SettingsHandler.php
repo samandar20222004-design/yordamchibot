@@ -13,9 +13,30 @@ final class SettingsHandler
 {
     public static function show(Ctx $ctx, bool $edit = false): void
     {
-        $tier = $ctx->app->isAdmin($ctx->userId) ? Plans::ENTERPRISE : $ctx->app->tier($ctx->userId);
-        $text = $ctx->t('settings_title', ['lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->tzName()), 'plan' => Plans::NAMES[$tier]]);
-        $kb = Keyboards::settings($ctx->lang);
+        $app = $ctx->app;
+        $tier = $app->isAdmin($ctx->userId) ? Plans::ENTERPRISE : $app->tier($ctx->userId);
+        $row = $app->users->plan($ctx->userId);
+        $until = $ctx->t('set_forever');
+        if ($tier === Plans::FREE) {
+            $until = $ctx->t('set_free_hint');
+        } elseif ($tier !== Plans::ENTERPRISE && !empty($row['subscription_expires_at'])) {
+            $until = $ctx->t('set_until', ['date' => \PostAssist\Services\TimeParser::show((string) $row['subscription_expires_at'], $ctx->tz())]);
+        }
+        $chLimit = $app->channelLimit($ctx->userId);
+        $aiLimit = $app->aiLimit($ctx->ownerId());
+        $aiUsed = $app->aiUsage->usedOn($ctx->ownerId(), $app->today());
+        $inf = '♾';
+        $icons = [Plans::FREE => '🆓', Plans::PRO => '💎', Plans::ULTRA => '🚀', Plans::ENTERPRISE => '👑'];
+        $text = $ctx->t('settings_title', [
+            'name' => Html::e($ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId), 'id' => $ctx->userId,
+            'icon' => $icons[$tier] ?? '💎', 'plan' => Plans::NAMES[$tier], 'until' => $until,
+            'channels' => $app->channels->countFor($ctx->userId) . '/' . ($chLimit === 0 ? $inf : $chLimit),
+            'ai' => $app->ai->enabled() ? ($aiLimit === 0 ? $inf : max(0, $aiLimit - $aiUsed) . '/' . $aiLimit) : '—',
+            'balance' => $app->credits->balance($ctx->userId),
+            'lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->tzName()),
+            'now' => $app->now()->setTimezone($ctx->tz())->format('H:i'),
+        ]);
+        $kb = Keyboards::settings($ctx->lang, $tier, $app->miniAppUrl('tab=me'));
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 

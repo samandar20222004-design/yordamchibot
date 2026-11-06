@@ -33,17 +33,29 @@ final class PlansHandler
         $lim = static function (string $t, string $k) use ($app): int {
             return Plans::limits($t, $app->config)[$k];
         };
+        $ai = static function (string $t) use ($app): int {
+            return Plans::aiDaily($t, $app->config);
+        };
+        $card = CardHandler::enabled($app);
         $text = $ctx->t('plans_title', [
             'plan' => Plans::NAMES[$tier], 'until' => $until,
-            'free_ch' => $lim('free', 'channels'), 'free_q' => $lim('free', 'queue'),
-            'pro_ch' => $lim('pro', 'channels'), 'pro_q' => $lim('pro', 'queue'),
-            'ultra_ch' => $lim('ultra', 'channels'), 'ultra_q' => $lim('ultra', 'queue'),
+            'free_ch' => $lim('free', 'channels'), 'free_q' => $lim('free', 'queue'), 'free_ai' => $ai('free'),
+            'pro_ch' => $lim('pro', 'channels'), 'pro_q' => $lim('pro', 'queue'), 'pro_ai' => $ai('pro'),
+            'ultra_ch' => $lim('ultra', 'channels'), 'ultra_q' => $lim('ultra', 'queue'), 'ultra_ai' => $ai('ultra'),
+            'pay' => $ctx->t($card ? 'plans_pay_both' : 'plans_pay_stars'),
         ]);
-        $kb = $tier === Plans::ENTERPRISE ? Keyboards::nav($ctx->lang, 'set:show') : Keyboards::inline([
-            [Keyboards::btn($ctx->t('btn_buy_pro'), 'pl:t:pro'), Keyboards::btn($ctx->t('btn_buy_ultra'), 'pl:t:ultra')],
-            CardHandler::enabled($app) ? [Keyboards::btn($ctx->t('btn_card'), 'pl:card'), Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')] : [Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')],
-            Keyboards::navRow($ctx->lang, 'set:show'),
-        ]);
+        if ($tier === Plans::ENTERPRISE) {
+            $kb = Keyboards::nav($ctx->lang, 'set:show');
+        } else {
+            // joriy tarif «uzaytirish», yuqorisi «o'tish»; PRO dan ULTRA'ga — faqat ULTRA tugmasi ko'tariladi
+            $proBtn = Keyboards::btn($ctx->t($tier === Plans::PRO ? 'btn_pro_extend' : 'btn_buy_pro'), 'pl:t:pro');
+            $ultraBtn = Keyboards::btn($ctx->t($tier === Plans::ULTRA ? 'btn_ultra_extend' : ($tier === Plans::PRO ? 'btn_ultra_up' : 'btn_buy_ultra')), 'pl:t:ultra');
+            $rows = [$tier === Plans::ULTRA ? [$ultraBtn] : [$proBtn, $ultraBtn]];
+            $rows[] = $card ? [Keyboards::btn($ctx->t('btn_card'), 'pl:card'), Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')]
+                : [Keyboards::btn($ctx->t('btn_promo'), 'promo:ask')];
+            $rows[] = Keyboards::navRow($ctx->lang, 'set:show');
+            $kb = Keyboards::inline($rows);
+        }
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 
@@ -60,9 +72,10 @@ final class PlansHandler
             $pct = Plans::discount($p['stars'], $monthly, $months);
             $label = $ctx->t('period_' . $period);
             $lines[] = '• ' . $label . ': <b>' . $p['stars'] . '⭐</b>' . ($pct > 0 ? $ctx->t('plan_save', ['pct' => $pct]) : '');
-            $rows[] = [Keyboards::btn(self::periodButton($label, $p['stars']), 'pl:b:' . $p['key'])];
+            $rows[] = Keyboards::btn(self::periodButton($label, $p['stars']), 'pl:b:' . $p['key']);
         }
-        $rows[] = [Keyboards::btn($ctx->t('btn_back'), 'pl:show')];
+        $rows = array_chunk($rows, 2);
+        $rows[] = Keyboards::navRow($ctx->lang, 'pl:show');
         $icon = $tier === Plans::ULTRA ? '🚀' : '💎';
         $ctx->edit($ctx->t('plans_periods', ['plan' => $icon . ' <b>' . Plans::NAMES[$tier] . '</b>', 'lines' => implode("\n", $lines)]), Keyboards::inline($rows));
     }
@@ -133,7 +146,7 @@ final class PlansHandler
             $ctx->replyMenu($ctx->t('pay_duplicate', ['plan' => Plans::NAMES[$app->tier($ctx->userId)]]));
             return;
         }
-        $ctx->replyMenu(self::planResult($ctx, $r['kept'] ? 'pay_kept' : 'pay_ok', $r['tier'], (string) $r['expires']));
+        $ctx->reply(self::planResult($ctx, $r['kept'] ? 'pay_kept' : 'pay_ok', $r['tier'], (string) $r['expires']), Keyboards::afterPay($ctx->lang));
         $plan = $r['plan'];
         self::notifyAdmins($app, 'admin_pay_notice', [
             'user' => Html::e($ctx->firstName !== '' ? $ctx->firstName : (string) $ctx->userId), 'id' => $ctx->userId,
@@ -145,7 +158,21 @@ final class PlansHandler
     public static function planResult(Ctx $ctx, string $key, string $tier, string $expires): string
     {
         $date = $tier === Plans::ENTERPRISE || $expires === '' ? '♾' : TimeParser::show($expires, $ctx->tz());
-        return $ctx->t($key, ['plan' => Plans::NAMES[$tier] ?? $tier, 'date' => $date, 'tz' => Html::e($ctx->tzName())]);
+        return $ctx->t($key, ['plan' => Plans::NAMES[$tier] ?? $tier, 'date' => $date, 'tz' => Html::e($ctx->tzName())])
+            . self::perks($ctx->app, $tier, $ctx->lang);
+    }
+
+    /** «Endi sizda»: tarif imkoniyatlari (to'lov/promo natijasi ostida). */
+    public static function perks(App $app, string $tier, string $lang): string
+    {
+        if (!in_array($tier, [Plans::PRO, Plans::ULTRA], true)) {
+            return '';
+        }
+        $lim = Plans::limits($tier, $app->config);
+        $ai = Plans::aiDaily($tier, $app->config);
+        return "\n\n" . I18n::t($tier === Plans::ULTRA ? 'pay_perks_ultra' : 'pay_perks', $lang, [
+            'channels' => $lim['channels'], 'queue' => $lim['queue'], 'ai' => $ai === 0 ? '♾' : $ai,
+        ]);
     }
 
     // ------------------------------------------------------------------ promo-kod
@@ -171,7 +198,7 @@ final class PlansHandler
         $r = $app->promos->redeem($ctx->userId, $code, $app->now());
         if ($r['status'] === 'ok') {
             $app->states->clear($ctx->userId);
-            $ctx->replyMenu(self::planResult($ctx, $r['kept'] ? 'promo_kept' : 'promo_ok', $r['tier'], (string) $r['expires']));
+            $ctx->reply(self::planResult($ctx, $r['kept'] ? 'promo_kept' : 'promo_ok', $r['tier'], (string) $r['expires']), Keyboards::afterPay($ctx->lang));
             return;
         }
         if ($r['status'] !== 'not_found') {

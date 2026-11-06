@@ -467,7 +467,8 @@ final class Payme
                 $tz = $this->app->tzFor($uid);
                 $date = $e['tier'] === Plans::ENTERPRISE || $e['expires'] === null ? '♾' : TimeParser::show((string) $e['expires'], $tz);
                 $this->app->tg->sendMessage($uid, I18n::t($e['kept'] ? 'pay_kept' : 'pay_ok', $lang, ['plan' => Plans::NAMES[$e['tier']] ?? $e['tier'],
-                    'date' => $date, 'tz' => Html::e($tz->getName())]));
+                    'date' => $date, 'tz' => Html::e($tz->getName())]) . PlansHandler::perks($this->app, (string) $e['tier'], $lang),
+                    \PostAssist\Keyboards::afterPay($lang));
                 PlansHandler::notifyAdmins($this->app, 'payme_admin_paid', ['id' => $uid, 'amount' => Plans::fmtUzs((int) $e['amount']), 'plan' => $e['plan_key']]);
             } catch (\Throwable $ex) {
                 $this->app->log('Payme xabar: ' . $ex->getMessage());

@@ -579,9 +579,9 @@ final class Router
             CardHandler::decide($ctx, $m[1], (int) $m[2]);
         } elseif (preg_match('/^bc:(go|no)$/', $data, $m)) {
             BroadcastHandler::confirm($ctx, $m[1] === 'go');
-        } elseif (preg_match('/^a:(stats|promos|links|help|bc|fs)$/', $data, $m)) {
+        } elseif (preg_match('/^a:(stats|promos|links|help|bc|fs|rc)$/', $data, $m)) {
             if ($this->app->isAdmin($ctx->userId)) {
-                $map = ['promos' => '/promos', 'links' => '/links', 'help' => '/admin_help', 'bc' => '/broadcast', 'fs' => '/force_list'];
+                $map = ['promos' => '/promos', 'links' => '/links', 'help' => '/admin_help', 'bc' => '/broadcast', 'fs' => '/force_list', 'rc' => '/receipts'];
                 $m[1] === 'stats' ? AdminHandler::show($ctx) : AdminHandler::command($ctx, $map[$m[1]], []);
             }
         } elseif ($data === 'ch:add') {

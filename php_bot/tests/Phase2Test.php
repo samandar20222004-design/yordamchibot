@@ -28,7 +28,7 @@ T::check('sozlamalar: tarif, taklif, promo tugmalari', strpos($kb, 'pl:show') !=
 T::check('sozlamalarda joriy tarif: FREE', strpos($fake->lastText(), 'Tarif: <b>FREE</b>') !== false);
 $text($U, '/plans');
 T::check('/plans: FREE/PRO/ULTRA limitlari', strpos($fake->lastText(), 'Sizning tarifingiz: <b>FREE</b>') !== false
-    && strpos($fake->lastText(), '10 ta kanal') !== false && strpos($fake->lastText(), '30 ta kanal') !== false);
+    && strpos($fake->lastText(), '📢 10 kanal') !== false && strpos($fake->lastText(), '📢 30 kanal') !== false);
 $press($U, 'pl:t:ultra');
 T::check('ULTRA muddatlari: narx va tejam', strpos($fake->lastText(), '1180⭐') !== false && strpos($fake->lastText(), 'tejam 16%') !== false
     && strpos($mk($fake->of('editMessageText')[0] ?? []), 'pl:b:u1y') !== false);

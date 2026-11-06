@@ -11,25 +11,19 @@ final class Keyboards
     public static function main(string $lang, bool $admin, bool $ai = false, ?string $miniApp = null): array
     {
         $t = static fn (string $k) => ['text' => I18n::t($k, $lang)];
-        $rows = $ai ? [
-            [$t('btn_create_content'), $t('btn_ai_post')],
-            [$t('btn_my_channels'), $t('btn_scheduled')],
-            [$t('btn_statistics'), $t('btn_settings')],
-        ] : [
-            [$t('btn_create_content'), $t('btn_my_channels')],
-            [$t('btn_scheduled'), $t('btn_statistics')],
-            [$t('btn_settings')],
-        ];
-        $last = [];
+        // bitta tekis ro'yxat, 2 tadan qator — yolg'iz «osilib» qolgan tugma bo'lmaydi
+        $all = [$t('btn_create_content')];
+        if ($ai) {
+            $all[] = $t('btn_ai_post');
+        }
+        array_push($all, $t('btn_my_channels'), $t('btn_scheduled'), $t('btn_statistics'), $t('btn_settings'));
         if ($miniApp !== null) {
-            $last[] = ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]];
+            $all[] = ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]];
         }
         if ($admin) {
-            $last[] = $t('btn_admin');
+            $all[] = $t('btn_admin');
         }
-        if ($last) {
-            $rows[] = $last;
-        }
+        $rows = array_chunk($all, 2);
         return ['keyboard' => $rows, 'resize_keyboard' => true, 'is_persistent' => true];
     }
 
@@ -62,6 +56,25 @@ final class Keyboards
             [self::btn(I18n::t('btn_back', $lang), 'p:back')]]);
     }
 
+    /**
+     * Tugmalarni 2 tadan qatorga teradi; toq qolgan oxirgi tugma yoniga bitta tugmali `$tail` qo'shiladi
+     * (aks holda `$tail` alohida qator). Natija — qatorlar ro'yxati.
+     * @param array<int, array> $buttons @param array<int, array> $tail
+     */
+    public static function grid(array $buttons, array $tail = []): array
+    {
+        $rows = array_chunk(array_values($buttons), 2);
+        if ($tail) {
+            $n = count($rows);
+            if ($n > 0 && count($rows[$n - 1]) === 1 && count($tail) === 1) {
+                $rows[$n - 1][] = $tail[0];
+            } else {
+                $rows[] = array_values($tail);
+            }
+        }
+        return $rows;
+    }
+
     public static function inline(array $rows): array
     {
         return ['inline_keyboard' => array_values(array_filter($rows))];
@@ -81,13 +94,29 @@ final class Keyboards
         return self::inline($lang !== null ? [$row, self::navRow($lang, 'set:show')] : [$row]);
     }
 
-    public static function settings(string $lang): array
+    /** Sozlamalar markazi: Hisob (tarif, promo, taklif) · Sozlash (til, vaqt, jamoa) · Yordam / Mini App. */
+    public static function settings(string $lang, string $tier = 'free', ?string $miniApp = null): array
+    {
+        $b = static fn (string $k, string $d) => self::btn(I18n::t($k, $lang), $d);
+        $plan = in_array($tier, ['free'], true) ? 'btn_set_upgrade' : 'btn_set_plan';
+        $last = [$b('btn_help', 'set:help')];
+        if ($miniApp !== null) {
+            array_unshift($last, ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]]);
+        }
+        return self::inline([
+            [$b($plan, 'pl:show'), $b('btn_promo', 'promo:ask')],
+            [$b('btn_lang', 'set:lang'), $b('btn_timezone', 'set:tz')],
+            [$b('btn_team', 'set:team'), $b('btn_invite', 'ref:show')],
+            $last,
+            self::navRow($lang),
+        ]);
+    }
+
+    /** To'lov / promo muvaffaqiyatidan keyin: keyingi qadam. */
+    public static function afterPay(string $lang): array
     {
         return self::inline([
-            [self::btn(I18n::t('btn_lang', $lang), 'set:lang'), self::btn(I18n::t('btn_plans', $lang), 'pl:show')],
-            [self::btn(I18n::t('btn_invite', $lang), 'ref:show'), self::btn(I18n::t('btn_promo', $lang), 'promo:ask')],
-            [self::btn(I18n::t('btn_timezone', $lang), 'set:tz'), self::btn(I18n::t('btn_team', $lang), 'set:team')],
-            [self::btn(I18n::t('btn_help', $lang), 'set:help')],
+            [self::btn(I18n::t('btn_new_post', $lang), 'p:new'), self::btn(I18n::t('btn_set_plan', $lang), 'pl:show')],
             self::navRow($lang),
         ]);
     }
@@ -138,54 +167,53 @@ final class Keyboards
             [self::btn(I18n::t('btn_send_now', $lang), 'p:now'), self::btn(I18n::t('btn_set_time', $lang), 'p:time')],
             [self::btn(I18n::t('btn_more', $lang), 'p:more'), self::btn(I18n::t('btn_edit', $lang), 'p:edit')],
         ];
+        $extra = [];
         if ($aiAgain) {
-            $rows[] = [self::btn(I18n::t('btn_ai_again', $lang), 'ai:again')];
+            $extra[] = self::btn(I18n::t('btn_ai_again', $lang), 'ai:again');
         }
         if ($miniApp !== null) {
-            $rows[] = [['text' => I18n::t('btn_miniapp_continue', $lang), 'web_app' => ['url' => $miniApp]]];
+            $extra[] = ['text' => I18n::t('btn_miniapp_continue', $lang), 'web_app' => ['url' => $miniApp]];
         }
-        $rows[] = [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')];
-        return $rows;
+        return array_merge($rows, self::grid($extra, [self::btn(I18n::t('btn_cancel', $lang), 'p:cancel')]));
     }
 
-    /** «⚙️ Qo'shimcha»: tugma, reaksiya (albomda yo'q), takror, avto-o'chirish. */
-    /** @param array{0:int,1:int} $extra [boshqa kanallar soni, tanlangan qo'shimchalar] */
+    /**
+     * «⚙️ Qo'shimcha»: guruhlab, 2 ustunda — kontent (tugma, reaksiya, yashirin matn, izohlar), vaqt (takror, avto-o'chirish),
+     * yuborish sozlamalari, keyin AI/kanallar va oxirida [💾 Shablon] [◀️ Orqaga].
+     * @param array{0:int,1:int} $extra [boshqa kanallar soni, tanlangan qo'shimchalar]
+     */
     public static function more(string $lang, array $draft, bool $album, bool $ai = false, array $extra = [0, 0]): array
     {
-        $rows = [];
-        if (($extra[0] ?? 0) > 0) {
-            $rows[] = [self::btn(I18n::t('btn_mc', $lang) . (($extra[1] ?? 0) > 0 ? ' (+' . (int) $extra[1] . ')' : ''), 'p:mc')];
-        }
         $poll = ($draft['type'] ?? '') === 'poll';
-        if ($ai && !$poll && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
-            $rows[] = [self::btn(I18n::t('btn_ai_edit', $lang), 'p:ai')];
-        }
-        if (!$album) {
-            $has = !empty($draft['button_url']);
-            $rows[] = [self::btn(I18n::t($has ? 'btn_remove_button' : 'btn_add_button', $lang), $has ? 'p:btndel' : 'p:btn'),
-                self::btn((!empty($draft['reactions']) ? '✅ ' : '') . I18n::t('btn_reactions', $lang), 'p:rx')];
-        }
-        $rows[] = [self::btn(I18n::t('btn_repeat', $lang), 'p:rep'),
-            self::btn((!empty($draft['delete_after']) ? '✅ ' : '') . I18n::t('btn_autodelete', $lang), 'p:ad')];
-        if (!$album) {
-            $hasH = PostRender::hidden($draft['hidden'] ?? null) !== null;
-            $rows[] = [self::btn(I18n::t($hasH ? 'btn_hidden_del' : 'btn_hidden', $lang), $hasH ? 'p:hddel' : 'p:hidden')];
-        }
         $on = PostRender::options($draft['options'] ?? null);
         $o = static function (string $k) use ($on, $lang) {
             return self::btn((in_array($k, $on, true) ? '✅ ' : '') . I18n::t('btn_o_' . $k, $lang), 'p:o_' . $k);
         };
-        $rows[] = $album ? [$o('silent'), $o('protect')] : [$o('silent'), $o('nopreview')];
-        if ($poll && PostRender::pollData($draft)['quiz'] === null) {
-            $rows[] = [$o('multi')];
-        }
-        $rows[] = $album ? [$o('pin')] : [$o('pin'), $o('protect')];
+        $content = [];
         if (!$album) {
-            $rows[] = [$o('comments')];
+            $has = !empty($draft['button_url']);
+            $content[] = self::btn(I18n::t($has ? 'btn_remove_button' : 'btn_add_button', $lang), $has ? 'p:btndel' : 'p:btn');
+            $content[] = self::btn((!empty($draft['reactions']) ? '✅ ' : '') . I18n::t('btn_reactions', $lang), 'p:rx');
+            $hasH = PostRender::hidden($draft['hidden'] ?? null) !== null;
+            $content[] = self::btn(I18n::t($hasH ? 'btn_hidden_del' : 'btn_hidden', $lang), $hasH ? 'p:hddel' : 'p:hidden');
+            $content[] = $o('comments');
         }
-        $rows[] = [self::btn(I18n::t('btn_tpl_save', $lang), 'p:tsave')];
-        $rows[] = [self::btn(I18n::t('btn_back', $lang), 'p:back')];
-        return self::inline($rows);
+        $time = [self::btn(I18n::t('btn_repeat', $lang), 'p:rep'),
+            self::btn((!empty($draft['delete_after']) ? '✅ ' : '') . I18n::t('btn_autodelete', $lang), 'p:ad')];
+        $send = $album ? [$o('silent'), $o('protect'), $o('pin')] : [$o('silent'), $o('nopreview'), $o('pin'), $o('protect')];
+        if ($poll && PostRender::pollData($draft)['quiz'] === null) {
+            $send[] = $o('multi');
+        }
+        $tools = [];
+        if (($extra[0] ?? 0) > 0) {
+            $tools[] = self::btn(I18n::t('btn_mc', $lang) . (($extra[1] ?? 0) > 0 ? ' (+' . (int) $extra[1] . ')' : ''), 'p:mc');
+        }
+        if ($ai && !$poll && trim(Html::plain((string) ($draft['text'] ?? ''))) !== '') {
+            $tools[] = self::btn(I18n::t('btn_ai_edit', $lang), 'p:ai');
+        }
+        // guruhlar ketma-ket, 2 tadan; toq qolsa «Orqaga» oxirgi tugma yoniga tushadi
+        $all = array_merge($content, $time, $send, $tools, [self::btn(I18n::t('btn_tpl_save', $lang), 'p:tsave')]);
+        return self::inline(self::grid($all, [self::btn(I18n::t('btn_back', $lang), 'p:back')]));
     }
 
     public static function repeat(string $lang): array
@@ -246,8 +274,8 @@ final class Keyboards
         return self::inline([
             [self::btn(I18n::t('btn_adm_promos', $lang), 'a:promos'), self::btn(I18n::t('btn_adm_links', $lang), 'a:links')],
             [self::btn(I18n::t('btn_adm_bc', $lang), 'a:bc'), self::btn(I18n::t('btn_adm_fs', $lang), 'a:fs')],
+            [self::btn(I18n::t('btn_adm_rc', $lang), 'a:rc'), self::btn(I18n::t('btn_adm_look', $lang), 'a:look')],
             [self::btn(I18n::t('btn_adm_help', $lang), 'a:help'), self::btn(I18n::t('btn_refresh', $lang), 'a:stats')],
-            [self::btn(I18n::t('btn_adm_look', $lang), 'a:look')],
             self::navRow($lang),
         ]);
     }

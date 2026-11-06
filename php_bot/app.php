@@ -11,7 +11,7 @@ header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$nonce}' https://telegram.org; style-src 'self' 'unsafe-inline'; "
-    . "img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'");
+    . "img-src 'self' blob: data: https://t.me; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'");
 $i18n = [];
 foreach (I18n::LANGS as $l) {
     $i18n[$l] = array_filter(I18n::table($l), static function ($k) {
@@ -132,6 +132,37 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
 .tzr{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin-top:6px;cursor:pointer}
 .tzr:active{background:var(--soft)}
 .page.on{animation:in .28s cubic-bezier(.2,.8,.2,1)}
+/* ---------- guruhlangan ro'yxat (Sozlamalar uslubi) */
+.grp-t{margin:18px 6px 8px;font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--hint)}
+.list{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:12px;box-shadow:var(--shadow)}
+.list .li,.list summary.li{display:flex;align-items:center;gap:12px;width:100%;margin:0;padding:12px 14px;border:0;border-radius:0;
+  background:transparent!important;box-shadow:none!important;color:var(--text);font-weight:500;text-align:left;cursor:pointer;list-style:none;font-size:15px}
+.list summary.li::-webkit-details-marker{display:none}
+.list>*+*{border-top:1px solid var(--line)}
+.li i{font-style:normal;width:32px;height:32px;flex:0 0 32px;border-radius:10px;display:grid;place-items:center;background:var(--soft);font-size:17px}
+.li span{flex:1;min-width:0}.li em{font-style:normal;color:var(--hint);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+.li b{color:var(--hint);font-size:20px;font-weight:400;line-height:1;transition:transform .2s}
+.li:active{background:var(--soft)!important;transform:none}
+details.li-d[open] summary.li b{transform:rotate(90deg)}
+.li-body{padding:4px 14px 14px}
+.li-sel{width:auto;max-width:48%;padding:7px 10px;border-radius:10px;font-size:14px}
+.foot{text-align:center;padding:6px 18px 18px;font-size:12px}
+.prof{padding:18px}.pf-top{display:flex;align-items:center;gap:12px}.pf-who{flex:1;min-width:0}.pf-who h3{margin:0;font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.avatar.lg{width:56px;height:56px;font-size:24px;float:none;flex:0 0 56px;background-size:cover;background-position:center;border:2px solid rgba(255,255,255,.5)}
+.prof .badge{background:rgba(255,255,255,.22);color:#fff;box-shadow:none;position:relative;z-index:1}
+.pf-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px;position:relative;z-index:1}
+.pf-stats div{background:rgba(255,255,255,.16);border-radius:14px;padding:10px 6px;text-align:center}
+.pf-stats b{display:block;font-size:18px}.pf-stats span{font-size:11.5px;opacity:.85}
+.pf-plan{margin-top:12px;font-size:13px;opacity:.9;display:flex;flex-wrap:wrap;gap:4px 10px;position:relative;z-index:1}
+#bot-card .grp-t{margin-top:6px}
+.toolbar{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.toolbar button{width:100%!important;padding:8px 0!important;background:var(--bg)!important;color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:none!important;border-radius:10px!important}
+.toolbar button:active{background:var(--soft)!important}
+.opts .li-body{padding-top:0}.opts .li-body label:first-child{margin-top:0}
+.chips.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:14px;background:var(--bg);border:1px solid var(--line)}
+.chips.seg .chip{text-align:center;border:0;background:transparent}.chips.seg .chip.on{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+
+
 </style>
 </head>
 <body>
@@ -156,12 +187,12 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
       <button class="small ghost" id="cm-open" data-t="ma_open"></button></div></div>
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
-    <div class="card" id="bot-card"><h3 data-t="ma_in_bot"></h3>
-      <div class="actions">
-        <button class="big ghost" data-bot="go_market"><span>💰</span><b data-t="ma_go_market"></b></button>
-        <button class="big ghost" data-bot="go_team"><span>👥</span><b data-t="ma_go_team"></b></button>
-        <button class="big ghost" data-bot="go_plans"><span>💎</span><b data-t="ma_plans"></b></button>
-        <button class="big ghost" data-bot="go_channels"><span>📢</span><b data-t="ma_go_channels"></b></button>
+    <div id="bot-card"><div class="grp-t" data-t="ma_in_bot"></div>
+      <div class="list">
+        <button class="li" data-bot="go_market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+        <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+        <button class="li" data-bot="go_plans"><i>💎</i><span data-t="ma_li_plans"></span><b>›</b></button>
+        <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
       </div></div>
   </section>
 
@@ -192,27 +223,27 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
             <option value="tr_uz">🇺🇿 UZ</option><option value="tr_ru">🇷🇺 RU</option><option value="tr_en">🇬🇧 EN</option></select>
         </div>
       </div>
-      <div class="card">
-        <details><summary>🔗 <span data-t="ma_button"></span></summary>
+      <div class="list opts">
+        <details class="li-d"><summary class="li"><i>🔗</i><span data-t="ma_button"></span><b>›</b></summary><div class="li-body">
           <label data-t="ma_button_text"></label><input id="b-text" maxlength="64">
           <label data-t="ma_button_url"></label><input id="b-url" placeholder="@kanal, t.me/..., sayt.uz">
-        </details>
-        <details id="rx-box"><summary>👍 <span data-t="ma_reactions"></span></summary><div class="chips" id="rx-list" style="margin-top:8px"></div></details>
-        <details><summary>🔄 <span data-t="ma_repeat"></span></summary>
+        </div></details>
+        <details class="li-d" id="rx-box"><summary class="li"><i>👍</i><span data-t="ma_reactions"></span><b>›</b></summary><div class="li-body"><div class="chips" id="rx-list" style="margin-top:8px"></div></div></details>
+        <details class="li-d"><summary class="li"><i>🔄</i><span data-t="ma_repeat"></span><b>›</b></summary><div class="li-body">
           <select id="rep"><option value="" data-t="ma_rep_none"></option><option value="daily" data-t="ma_rep_daily"></option>
             <option value="weekly" data-t="ma_rep_weekly"></option><option value="monthly" data-t="ma_rep_monthly"></option><option value="twice" data-t="ma_rep_twice"></option>
             <option value="workdays" data-t="ma_rep_workdays"></option><option value="interval2" data-t="ma_rep_int2"></option><option value="interval3" data-t="ma_rep_int3"></option></select>
           <div id="t2-box" style="display:none"><label data-t="ma_time2"></label><input type="time" id="t2"></div>
-        </details>
-        <details><summary>⏳ <span data-t="ma_autodel"></span></summary><select id="ad"></select></details>
-        <details><summary>⚙️ <span data-t="ma_opts"></span></summary><div class="chips" id="opt-list" style="margin-top:8px"></div></details>
-        <details><summary>🔒 <span data-t="ma_hidden"></span></summary><div class="muted" data-t="ma_hidden_hint"></div>
-          <textarea id="hid" rows="2" maxlength="180"></textarea></details>
-        <details id="mc-box"><summary>📢 <span data-t="ma_more_channels"></span></summary><div class="chips" id="mc-list" style="margin-top:8px"></div></details>
+        </div></details>
+        <details class="li-d"><summary class="li"><i>⏳</i><span data-t="ma_autodel"></span><b>›</b></summary><div class="li-body"><select id="ad"></select></div></details>
+        <details class="li-d"><summary class="li"><i>⚙️</i><span data-t="ma_opts"></span><b>›</b></summary><div class="li-body"><div class="chips" id="opt-list" style="margin-top:8px"></div></div></details>
+        <details class="li-d"><summary class="li"><i>🔒</i><span data-t="ma_hidden"></span><b>›</b></summary><div class="li-body"><div class="muted" data-t="ma_hidden_hint"></div>
+          <textarea id="hid" rows="2" maxlength="180"></textarea></div></details>
+        <details class="li-d" id="mc-box"><summary class="li"><i>📢</i><span data-t="ma_more_channels"></span><b>›</b></summary><div class="li-body"><div class="chips" id="mc-list" style="margin-top:8px"></div></div></details>
       </div>
       <div class="card"><h3 data-t="ma_preview"></h3><div class="preview"><div class="bubble" id="pv"></div><div id="pv-btn"></div><div id="pv-hid"></div><div id="pv-rx"></div></div></div>
       <div class="card">
-        <div class="chips"><span class="chip on" data-when="now" data-t="ma_now"></span><span class="chip" data-when="later" data-t="ma_later"></span></div>
+        <div class="chips seg"><span class="chip on" data-when="now" data-t="ma_now"></span><span class="chip" data-when="later" data-t="ma_later"></span></div>
         <div id="when-box" style="display:none"><label data-t="ma_when"></label><input type="datetime-local" id="when"><div class="muted" id="when-tz"></div></div>
         <div style="margin-top:12px"><button id="submit" data-t="ma_send_now"></button></div>
         <div style="margin-top:8px"><button class="ghost" id="tpl-save">💾 <span data-t="ma_tpl_save"></span></button></div>
@@ -233,12 +264,33 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
   </section>
 
   <section class="page" id="p-me">
-    <div class="card"><h3 id="me-name"></h3><div class="muted" id="me-plan"></div><div class="muted" id="me-limits"></div>
-      <div style="margin-top:10px"><button id="me-plans" data-t="ma_plans"></button></div></div>
-    <div class="card"><label data-t="ma_lang"></label><select id="me-lang"><option value="uz">🇺🇿 O'zbekcha</option><option value="ru">🇷🇺 Русский</option><option value="en">🇬🇧 English</option></select>
-      <label data-t="ma_tz"></label><div class="tzr" id="tz-cur"></div>
-      <input id="tz-q" data-ph="ma_tz_search" style="margin-top:8px"><div id="tz-res"></div></div>
-    <div class="card" id="ui-card"><h3>🎨 <span data-t="ma_ui_title"></span></h3>
+    <div class="card hero prof">
+      <div class="pf-top"><div class="avatar lg" id="me-av">🙂</div>
+        <div class="pf-who"><h3 id="me-name"></h3><div class="muted" id="me-sub"></div></div><span class="badge" id="me-badge"></span></div>
+      <div class="pf-stats">
+        <div><b id="me-st-ch">0</b><span data-t="ma_stat_channels"></span></div>
+        <div><b id="me-st-q">0</b><span data-t="ma_stat_pending"></span></div>
+        <div><b id="me-st-ai">—</b><span data-t="ma_me_ai_left"></span></div>
+      </div>
+      <div class="pf-plan"><span id="me-plan"></span><span id="me-limits" hidden></span></div>
+    </div>
+
+    <div class="grp-t" data-t="ma_grp_account"></div>
+    <div class="list">
+      <button class="li" id="me-plans"><i>💎</i><span data-t="ma_li_plans"></span><em id="me-plan-tag"></em><b>›</b></button>
+      <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+      <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
+      <button class="li" data-bot="go_market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+    </div>
+
+    <div class="grp-t" data-t="ma_grp_settings"></div>
+    <div class="list">
+      <label class="li"><i>🌐</i><span data-t="ma_lang"></span>
+        <select id="me-lang" class="li-sel"><option value="uz">🇺🇿 O'zbekcha</option><option value="ru">🇷🇺 Русский</option><option value="en">🇬🇧 English</option></select></label>
+      <details class="li-d"><summary class="li"><i>🕒</i><span data-t="ma_tz"></span><em id="tz-short"></em><b>›</b></summary>
+        <div class="li-body"><div class="tzr" id="tz-cur"></div><input id="tz-q" data-ph="ma_tz_search" style="margin-top:8px"><div id="tz-res"></div></div></details>
+      <details class="li-d" id="ui-card"><summary class="li"><i>🎨</i><span data-t="ma_ui_title"></span><em data-t="ma_ui_hint"></em><b>›</b></summary>
+        <div class="li-body">
       <div class="set-row" data-t="ma_ui_theme"></div><div class="chips" id="ui-theme"></div>
       <div class="set-row" data-t="ma_ui_accent"></div><div id="ui-accent"></div>
       <div class="set-row" data-t="ma_ui_size"></div><div class="chips" id="ui-size"></div>
@@ -247,9 +299,15 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
       <div class="set-row" data-t="ma_ui_labels"></div><div class="chips" id="ui-labels"></div>
       <div class="set-row" data-t="ma_ui_home"></div><div class="chips" id="ui-home"></div>
       <div class="set-row" data-t="ma_ui_start"></div><div class="chips" id="ui-start"></div>
-      <div style="margin-top:14px"><button class="ghost small" id="ui-reset">↺ <span data-t="ma_ui_reset"></span></button></div></div>
-    <div class="card" id="me-admin" style="display:none"><button data-go="admin">👑 <span data-t="ma_admin_title"></span></button></div>
-    <div class="card muted" data-t="ma_about"></div>
+      <div style="margin-top:14px"><button class="ghost small" id="ui-reset">↺ <span data-t="ma_ui_reset"></span></button></div></div></details>
+    </div>
+
+    <div class="grp-t" data-t="ma_grp_app"></div>
+    <div class="list">
+      <button class="li" id="me-admin" data-go="admin" style="display:none"><i>👑</i><span data-t="ma_admin_title"></span><b>›</b></button>
+      <button class="li" id="me-bot"><i>🤖</i><span data-t="ma_open_bot"></span><b>›</b></button>
+    </div>
+    <div class="muted foot" data-t="ma_about"></div>
   </section>
 
   <section class="page" id="p-admin">
@@ -347,7 +405,7 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
     if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); setTimeout(function () { tg.close(); }, 300); } else { location.href = url; }
   }
   $('open-bot').onclick = function () { openBot(); }; $('no-ch-bot').onclick = function () { openBot('go_channels'); };
-  $('me-plans').onclick = function () { openBot('go_plans'); };
+  $('me-plans').onclick = function () { openBot('go_plans'); }; $('me-bot').onclick = function () { openBot(); };
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-bot]');
     if (b) { e.preventDefault(); haptic(); openBot(b.getAttribute('data-bot')); }
@@ -883,12 +941,24 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
     $('s-pending').textContent = me.stats.pending; $('s-sent').textContent = me.stats.sent; $('s-channels').textContent = me.stats.channels;
     $('ai-quota').textContent = quotaText();
     $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = me.ai.enabled ? '' : 'none';
-    $('me-name').textContent = '👤 ' + (me.user.name || '');
-    $('avatar').textContent = (me.user.name || '🙂').trim().charAt(0).toUpperCase() || '🙂';
+    var initial = (me.user.name || '🙂').trim().charAt(0).toUpperCase() || '🙂';
+    $('me-name').textContent = me.user.name || '';
+    $('avatar').textContent = initial;
+    var tu = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+    $('me-sub').textContent = (tu.username ? '@' + tu.username + ' · ' : '') + 'ID ' + me.user.id;
+    var av = $('me-av');
+    if (typeof tu.photo_url === 'string' && /^https:\/\/t\.me\//.test(tu.photo_url)) {
+      av.textContent = ''; av.style.backgroundImage = 'url("' + tu.photo_url.replace(/["\\]/g, '') + '")';
+    } else { av.textContent = initial; av.style.backgroundImage = ''; }
+    $('me-badge').textContent = p.name;
     $('me-admin').style.display = me.user.is_admin ? '' : 'none';
-    $('me-plan').textContent = t('ma_plan_line', {plan: p.name}) + (p.expires ? ' · ' + t('ma_until', {date: p.expires}) : '');
+    $('me-plan').textContent = p.expires ? '⏳ ' + t('ma_until', {date: p.expires}) : (p.tier === 'free' ? '✨ ' + t('ma_free_hint') : '♾');
     var inf = function (n) { return n === 0 ? '∞' : n; };
     $('me-limits').textContent = t('ma_limits', {ch: inf(p.channels_max), q: inf(p.queue_max)});
+    $('me-st-ch').textContent = me.stats.channels + '/' + inf(p.channels_max);
+    $('me-st-q').textContent = me.stats.pending + '/' + inf(p.queue_max);
+    $('me-st-ai').textContent = !me.ai.enabled ? '—' : (me.ai.limit === 0 ? '∞' : me.ai.left + '/' + me.ai.limit);
+    $('me-plan-tag').textContent = p.tier === 'free' ? t('ma_li_upgrade') : (p.expires ? t('ma_until', {date: p.expires.slice(0, 10)}) : p.name);
     $('me-lang').value = me.user.lang;
     renderTz();
     $('ad').innerHTML = '<option value="0">' + esc(t('ma_ad_none')) + '</option>' + me.auto_delete.map(function (m) { return '<option value="' + m + '">' + esc(t('ma_ad_hours', {h: m / 60})) + '</option>'; }).join('');
@@ -991,7 +1061,7 @@ html[data-labels=off] nav a span{display:none}html[data-labels=off] nav a{paddin
   } catch (e) {}
 
   // ---------- 🌍 vaqt mintaqasi: istalgan davlat yoki shahar bo'yicha qidiruv
-  function renderTz() { if (me) { $('tz-cur').innerHTML = '<span>🕒 <b>' + esc(me.user.timezone) + '</b></span><span class="muted">' + esc(me.now_local.slice(11)) + '</span>'; } }
+  function renderTz() { if (me) { $('tz-cur').innerHTML = '<span>🕒 <b>' + esc(me.user.timezone) + '</b></span><span class="muted">' + esc(me.now_local.slice(11)) + '</span>'; $('tz-short').textContent = me.user.timezone.split('/').pop().replace(/_/g, ' '); } }
   var tzTimer = null;
   $('tz-q').addEventListener('input', function () {
     var q = this.value.trim(); clearTimeout(tzTimer);

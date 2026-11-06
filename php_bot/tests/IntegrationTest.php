@@ -441,3 +441,4 @@ require __DIR__ . '/PollTest.php';
 require __DIR__ . '/MiniAdminTest.php';
 require __DIR__ . '/CountriesTest.php';
 require __DIR__ . '/LookTest.php';
+require __DIR__ . '/UxTest.php';

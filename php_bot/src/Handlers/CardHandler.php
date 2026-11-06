@@ -93,8 +93,23 @@ final class CardHandler
         ]));
     }
 
+    /** So'mda to'lashga ruxsat: tasdiqlangan O'zbekiston raqami yoki avval so'mda to'lagan (tugmani chetlab o'tishga qarshi). */
+    private static function uzAllowed(Ctx $ctx): bool
+    {
+        $app = $ctx->app;
+        if (self::enabled($app) && !$app->isAdmin($ctx->userId) && $app->tier($ctx->userId) !== Plans::ENTERPRISE
+            && ($app->users->isUzVerified($ctx->userId) || $app->receipts->hasPaid($ctx->userId))) {
+            return true;
+        }
+        self::start($ctx);
+        return false;
+    }
+
     public static function periods(Ctx $ctx, string $tier): void
     {
+        if (!self::uzAllowed($ctx)) {
+            return;
+        }
         $cat = Plans::catalog($ctx->app->config);
         $uzs = Plans::uzs($ctx->app->config);
         $prefix = $tier === Plans::ULTRA ? 'u' : '';
@@ -106,8 +121,9 @@ final class CardHandler
             $pct = Plans::discount($uzs[$key], $monthly, $months);
             $label = $ctx->t('period_' . $period);
             $lines[] = '• ' . $label . ': <b>' . Plans::fmtUzs($uzs[$key]) . '</b> ' . $ctx->t('som') . ($pct > 0 ? $ctx->t('plan_save', ['pct' => $pct]) : '');
-            $rows[] = [Keyboards::btn($label . ' — ' . Plans::fmtUzs($uzs[$key]), 'pl:cb:' . $cat[$key]['key'])];
+            $rows[] = Keyboards::btn($label . ' — ' . Plans::fmtUzs($uzs[$key]), 'pl:cb:' . $cat[$key]['key']);
         }
+        $rows = array_chunk($rows, 2);
         $rows[] = Keyboards::navRow($ctx->lang, 'pl:card');
         $icon = $tier === Plans::ULTRA ? '🚀' : '💎';
         $ctx->edit($ctx->t('card_periods', ['plan' => $icon . ' <b>' . Plans::NAMES[$tier] . '</b>', 'lines' => implode("\n", $lines)]), Keyboards::inline($rows));
@@ -118,7 +134,7 @@ final class CardHandler
     {
         $app = $ctx->app;
         $plan = Plans::catalog($app->config)[$key] ?? null;
-        if ($plan === null || !self::enabled($app)) {
+        if ($plan === null || !self::uzAllowed($ctx)) {
             return;
         }
         $amount = Plans::uzs($app->config)[$key];
@@ -270,7 +286,7 @@ final class CardHandler
         if ($r['status'] === 'ok') {
             $date = $r['tier'] === Plans::ENTERPRISE ? '♾' : TimeParser::show((string) $r['expires'], $app->tzFor($uid));
             $app->tg->sendMessage($uid, I18n::t($r['kept'] ? 'pay_kept' : 'pay_ok', $lang, ['plan' => Plans::NAMES[$r['tier']] ?? $r['tier'], 'date' => $date,
-                'tz' => Html::e($app->tzFor($uid)->getName())]));
+                'tz' => Html::e($app->tzFor($uid)->getName())]) . PlansHandler::perks($app, (string) $r['tier'], $lang), Keyboards::afterPay($lang));
             return;
         }
         $app->tg->sendMessage($uid, I18n::t('receipt_user_rejected', $lang, ['id' => (int) $rec['id']]));

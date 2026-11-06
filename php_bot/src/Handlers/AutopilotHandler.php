@@ -40,13 +40,14 @@ final class AutopilotHandler
             $rows[] = [Keyboards::btn(((int) $a['active'] === 1 ? '✅ ' : '⏸ ') . Recurrence::clock((int) $a['post_time']) . ' · '
                 . mb_substr((string) ($a['channel_title'] ?? '—'), 0, 30), 'ap:v:' . (int) $a['id'])];
         }
+        $btns = [];
         if ($limit === 0) {
-            $rows[] = [Keyboards::btn($ctx->t('btn_plans'), 'pl:show')];
+            $btns[] = Keyboards::btn($ctx->t('btn_plans'), 'pl:show');
         } elseif (count($list) < $limit) {
-            $rows[] = [Keyboards::btn($ctx->t('btn_ap_add'), 'ap:new')];
+            $btns[] = Keyboards::btn($ctx->t('btn_ap_add'), 'ap:new');
         }
-        $rows[] = [Keyboards::btn($ctx->t('btn_cp'), 'cp:show')];
-        $rows[] = Keyboards::navRow($ctx->lang);
+        $btns[] = Keyboards::btn($ctx->t('btn_cp'), 'cp:show');
+        $rows = array_merge($rows, Keyboards::grid($btns, Keyboards::navRow($ctx->lang)));
         $text = $ctx->t('ap_intro') . "\n\n" . ($limit === 0 ? $ctx->t('ap_paid') : ($list ? $ctx->t('ap_count', ['n' => count($list), 'max' => $limit]) : $ctx->t('ap_none')));
         $edit ? $ctx->edit($text, Keyboards::inline($rows)) : $ctx->reply($text, Keyboards::inline($rows));
     }

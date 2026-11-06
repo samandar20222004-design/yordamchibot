@@ -36,12 +36,13 @@ final class PostHandler
             return;
         }
         $ctx->app->states->set($ctx->userId, 'post_content');
-        $rows = [];
+        $btns = [];
         if ($ctx->app->templates->countFor($ctx->ownerId()) > 0) {
-            $rows[] = [Keyboards::btn($ctx->t('btn_tpl_list'), 'tpl:list')];
+            $btns[] = Keyboards::btn($ctx->t('btn_tpl_list'), 'tpl:list');
         }
-        $rows[] = [Keyboards::btn($ctx->t('btn_bulk'), 'bk:start'), Keyboards::btn($ctx->t('btn_poll'), 'poll:start')];
-        $rows[] = [Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')];
+        $btns[] = Keyboards::btn($ctx->t('btn_bulk'), 'bk:start');
+        $btns[] = Keyboards::btn($ctx->t('btn_poll'), 'poll:start');
+        $rows = Keyboards::grid($btns, [Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]);
         $ctx->reply($ctx->workspaceLine() . $ctx->t('post_ask_content'), Keyboards::inline($rows));
     }
 
