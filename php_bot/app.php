@@ -261,13 +261,6 @@ input,select,textarea{padding:12px 13px}
 .pl-cmp table{width:100%;border-collapse:collapse;font-size:13.5px}.pl-cmp th{font-size:12px;color:var(--hint);font-weight:800;padding:4px}
 .pl-cmp td{text-align:center;padding:7px 4px;border-top:1px solid var(--line);font-weight:600}.pl-cmp td:first-child{text-align:left}
 
-/* ---------- karusel navigatsiya: yonga suriladi, tanlangan bo'lim o'rtaga keladi */
-nav#nav{display:flex;overflow-x:auto;gap:4px;padding:4px;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
-nav#nav::-webkit-scrollbar{display:none}
-nav#nav::before,nav#nav::after{content:"";flex:0 0 calc(50% - 44px)}
-nav#nav a{flex:0 0 76px;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px 7px;transition:transform .25s,opacity .25s;opacity:.7}
-nav#nav a.on{opacity:1;transform:scale(1.06)}
-nav#nav a i{font-size:22px}
 .hint{margin:0 4px 12px;padding:10px 12px;border-radius:14px;background:var(--soft);font-size:13px;line-height:1.45;color:var(--text)}
 .chips.seg3{grid-template-columns:repeat(3,1fr);margin-bottom:12px}.chips.seg3 .chip{font-size:12.5px;padding:8px 4px}
 .errline{margin-top:6px;font-size:12px;color:var(--danger);word-break:break-word}
@@ -286,6 +279,28 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
 .br-input input{flex:1}.br-input button{width:52px;padding:0}
 .steps{margin:0 0 12px;padding-left:20px;line-height:1.9;font-size:14px;color:var(--hint)}.steps li.now{color:var(--text);font-weight:700}.steps li.done{text-decoration:line-through;opacity:.6}
 .card.start{border:1px solid var(--accent)}
+
+/* ---------- pastki panel: 4 bo'lim + «＋» (jami 5), chiziqli ikonkalar */
+.dock{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));width:min(560px,calc(100% - 24px));display:flex;align-items:center;gap:10px;z-index:9}
+.dock nav#nav{position:static;transform:none;flex:1;width:auto;display:flex;gap:2px;padding:5px;border-radius:32px;background:var(--glass);
+  border:1px solid var(--line);box-shadow:0 10px 34px -10px rgba(16,24,40,.35);backdrop-filter:blur(18px) saturate(170%);-webkit-backdrop-filter:blur(18px) saturate(170%)}
+.dock nav#nav a{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 7px;border-radius:26px;color:var(--hint);font-size:11px;font-weight:600;text-decoration:none;transition:background .2s,color .2s}
+.dock nav#nav a::before{display:none!important}
+.dock nav#nav a i{width:24px;height:24px;display:block;transform:none!important}
+.dock nav#nav a i svg{width:24px;height:24px;display:block}
+.dock nav#nav a.on{color:var(--text);background:rgba(128,128,128,.14)}
+.dock nav#nav a.on i{color:var(--accent)}
+html[data-labels=off] .dock nav#nav a span{display:none}html[data-labels=off] .dock nav#nav a{padding:12px 2px}
+.fab{flex:0 0 62px;width:62px!important;height:62px;padding:0!important;border-radius:50%!important;display:grid;place-items:center;color:#fff!important;
+  background:linear-gradient(135deg,var(--accent),var(--accent2))!important;box-shadow:0 12px 28px -8px var(--accent)!important}
+.fab svg{width:28px;height:28px}
+.fab.on{box-shadow:0 0 0 4px var(--soft),0 12px 28px -8px var(--accent)!important}
+body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+.li i.ic{color:#fff;box-shadow:none;font-size:16px}
+.g-orange{background:linear-gradient(135deg,#f7a54a,#f07c2b)!important}.g-green{background:linear-gradient(135deg,#9be15d,#3fbf5f)!important}
+.g-teal{background:linear-gradient(135deg,#34d399,#0ea5a4)!important}.g-violet{background:linear-gradient(135deg,#8b7cf6,#6d5cf0)!important}
+.g-pink{background:linear-gradient(135deg,#f472b6,#e5486e)!important}.g-blue{background:linear-gradient(135deg,#60a5fa,#3b6cf6)!important}
+.list.hl-gold{background:linear-gradient(135deg,rgba(247,165,74,.20),rgba(247,165,74,.08))}.list.hl-green{background:linear-gradient(135deg,rgba(155,225,93,.24),rgba(63,191,95,.08))}
 </style>
 </head>
 <body>
@@ -303,7 +318,7 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
     <div class="actions">
       <button class="big" data-go="post"><span>✍️</span><b data-t="ma_new_post"></b></button>
       <button class="big ghost" id="home-ai"><span>✨</span><b data-t="ma_ai_post"></b></button>
-      <button class="big ghost" data-go="queue"><span>📅</span><b data-t="ma_tab_queue"></b></button>
+      <button class="big ghost" data-go="queue"><span>📅</span><b data-t="ma_tab_posts"></b></button>
       <button class="big ghost" data-go="auto"><span>🤖</span><b data-t="ma_tab_auto"></b></button>
     </div>
     <div class="card start" id="start-card" style="display:none"><h3 data-t="ma_start_title"></h3>
@@ -316,10 +331,10 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
     <div id="bot-card"><div class="grp-t" data-t="ma_in_bot"></div>
       <div class="list">
-        <button class="li" data-br="ch:list" data-bt="ma_tab_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
-        <button class="li" data-br="set:team" data-bt="ma_go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
-        <button class="li" data-br="ref:show" data-bt="ma_li_invite"><i>🤝</i><span data-t="ma_li_invite"></span><b>›</b></button>
-        <button class="li" data-go="plans"><i>💎</i><span data-t="ma_li_plans"></span><b>›</b></button>
+        <button class="li" data-go="stats"><i class="ic g-teal">📊</i><span data-t="ma_tab_stats"></span><b>›</b></button>
+        <button class="li" data-go="market"><i class="ic g-violet">💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+        <button class="li" data-br="set:team" data-bt="ma_go_team"><i class="ic g-blue">👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+        <button class="li" data-go="plans"><i class="ic g-orange">👑</i><span data-t="ma_li_premium"></span><b>›</b></button>
       </div></div>
   </section>
 
@@ -424,11 +439,18 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
       <div class="pf-plan"><span id="me-plan"></span><span id="me-limits" hidden></span></div>
     </div>
 
+    <div class="list hl hl-gold"><button class="li" data-go="plans"><i class="ic g-orange">👑</i><span data-t="ma_li_premium"></span><em id="me-prem-tag"></em><b>›</b></button></div>
+    <div class="list hl hl-green"><button class="li" data-go="auto"><i class="ic g-green">✨</i><span data-t="ma_li_ai_studio"></span><b>›</b></button></div>
+    <div class="list">
+      <button class="li" data-go="stats"><i class="ic g-teal">📊</i><span data-t="ma_tab_stats"></span><b>›</b></button>
+      <button class="li" data-go="market"><i class="ic g-violet">💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+      <button class="li" data-br="ref:show" data-bt="ma_li_invite"><i class="ic g-pink">🤝</i><span data-t="ma_li_invite"></span><b>›</b></button>
+    </div>
+
     <div class="grp-t" data-t="ma_grp_account"></div>
     <div class="list">
       <button class="li" id="me-plans"><i>💎</i><span data-t="ma_li_plans"></span><em id="me-plan-tag"></em><b>›</b></button>
       <button class="li" data-br="set:team" data-bt="ma_go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
-      <button class="li" data-br="ref:show" data-bt="ma_li_invite"><i>🤝</i><span data-t="ma_li_invite"></span><b>›</b></button>
       <button class="li" data-br="promo:ask" data-bt="ma_li_promo"><i>🎁</i><span data-t="ma_li_promo"></span><b>›</b></button>
     </div>
 
@@ -491,16 +513,15 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
   </section>
 </main>
 
+<div class="dock">
 <nav id="nav">
-  <a href="#" data-go="home" class="on"><i>🏠</i><span data-t="ma_tab_home"></span></a>
-  <a href="#" data-go="post"><i>✍️</i><span data-t="ma_tab_post"></span></a>
-  <a href="#" data-go="queue"><i>📅</i><span data-t="ma_tab_queue"></span></a>
-  <a href="#" data-go="auto"><i>🤖</i><span data-t="ma_tab_auto"></span></a>
-  <a href="#" data-go="channels"><i>📢</i><span data-t="ma_tab_channels"></span></a>
-  <a href="#" data-go="stats"><i>📈</i><span data-t="ma_tab_stats"></span></a>
-  <a href="#" data-go="market"><i>💰</i><span data-t="ma_tab_market"></span></a>
-  <a href="#" data-go="me"><i>👤</i><span data-t="ma_tab_me"></span></a>
+  <a href="#" data-go="home" class="on"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg></i><span data-t="ma_tab_home"></span></a>
+  <a href="#" data-go="channels"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></i><span data-t="ma_tab_channels"></span></a>
+  <a href="#" data-go="queue"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></i><span data-t="ma_tab_posts"></span></a>
+  <a href="#" data-go="me"><i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></i><span data-t="ma_tab_me"></span></a>
 </nav>
+<button class="fab" id="fab" data-go="post" aria-label="+"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
 <div class="toast" id="toast"></div>
@@ -546,18 +567,19 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
 
   // ---------- navigatsiya (Telegram «Orqaga» tugmasi bilan)
   var cur = 'home', qseg = 'sched';
-  var BR_PAGES = {channels: {d: 'ch:list', t: 'ma_tab_channels'}, stats: {d: 'st:show', t: 'ma_tab_stats'}};
-  var NAV_OF = {plans: 'me', admin: 'me', bot: null};
+  var BR_PAGES = {channels: {d: 'ch:list', t: 'ma_tab_channels'}, stats: {d: 'st:show', t: 'ma_tab_stats', nav: 'me'}};
+  var NAV_OF = {plans: 'me', admin: 'me', auto: 'home', market: 'me', post: null, bot: null};
   function centerNav(name) {
     var nav = $('nav'), a = nav.querySelector('a[data-go="' + name + '"]');
     nav.querySelectorAll('a').forEach(function (x) { x.classList.toggle('on', x === a); });
+    var fab = $('fab'); if (fab) { fab.classList.toggle('on', cur === 'post'); }
     if (a) { try { nav.scrollTo({left: a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2, behavior: 'smooth'}); } catch (e) { nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2; } }
   }
   function go(page, opts) {
     var leaving = cur === 'bot' && page !== 'bot';
     if (leaving) { brLeave(); }
     var navName = page;
-    if (BR_PAGES[page]) { brOpen(BR_PAGES[page].d, BR_PAGES[page].t, page); return; }
+    if (BR_PAGES[page]) { brOpen(BR_PAGES[page].d, BR_PAGES[page].t, BR_PAGES[page].nav || page); return; }
     cur = page;
     document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('on', p.id === 'p-' + page); });
     if (page === 'bot') { navName = br.nav; } else if (NAV_OF.hasOwnProperty(page)) { navName = NAV_OF[page]; }
@@ -691,7 +713,7 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
     var o = e.target.closest('[data-br]');
     if (o) { e.preventDefault(); haptic(); brOpen(o.getAttribute('data-br'), o.getAttribute('data-bt') || 'ma_tab_auto', BR_NAV[o.getAttribute('data-br')] || (cur === 'me' ? 'me' : cur === 'auto' ? 'auto' : 'home')); }
   });
-  var BR_NAV = {'ch:list': 'channels', 'ch:add': 'channels', 'st:show': 'stats'};
+  var BR_NAV = {'ch:list': 'channels', 'ch:add': 'channels', 'st:show': 'me'};
 
   // ---------- 💎 tariflar va Stars to'lovi (Mini App ichida: createInvoiceLink -> tg.openInvoice)
   var pl = {data: null, tier: 'pro', key: null};
@@ -1397,6 +1419,7 @@ button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important
     $('me-st-ch').textContent = me.stats.channels + '/' + inf(p.channels_max);
     $('me-st-q').textContent = me.stats.pending + '/' + inf(p.queue_max);
     $('me-st-ai').textContent = !me.ai.enabled ? '—' : (me.ai.limit === 0 ? '∞' : me.ai.left + '/' + me.ai.limit);
+    if ($('me-prem-tag')) { $('me-prem-tag').textContent = p.tier === 'free' ? t('ma_li_upgrade') : p.name; }
     $('me-plan-tag').textContent = p.tier === 'free' ? t('ma_li_upgrade') : (p.expires ? t('ma_until', {date: p.expires.slice(0, 10)}) : p.name);
     $('me-lang').value = me.user.lang;
     renderTz();

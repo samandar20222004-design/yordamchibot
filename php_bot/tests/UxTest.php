@@ -318,3 +318,9 @@ $call2('post_update', ['id' => $fid, 'button_text' => '', 'button_url' => '', 'r
 $row = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [$fid]);
 T::check('post_update: bo\'sh qiymatlar tugma/takror/yashirin matnni o\'chiradi', $row['button_text'] === null && $row['recurrence_type'] === null && $row['hidden_text'] === null && $row['delete_after'] === null);
 T::eq('post_update: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'post_update', ['id' => $fid, 'text' => 'hack'], $initZ)[0], 404);
+
+// --- pastki panel: ko'pi bilan 5 ta tugma (4 bo'lim + «＋»), ikonkalar SVG
+$srcNav = (string) file_get_contents(__DIR__ . '/../app.php');
+preg_match('#<div class="dock">(.*?)</div>#s', $srcNav, $dockM);
+$dock = $dockM[1] ?? '';
+T::check('pastki panel: 4 bo\'lim + «＋» = 5 ta, emoji emas SVG ikonka', substr_count($dock, 'data-go=') === 5 && substr_count($dock, '<svg') === 5 && strpos($dock, 'id="fab"') !== false);

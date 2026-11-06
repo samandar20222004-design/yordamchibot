@@ -262,7 +262,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_tab_home' => 'Bosh',
     'ma_tab_post' => 'Post',
     'ma_tab_queue' => 'Reja',
-    'ma_tab_me' => 'Men',
+    'ma_tab_me' => "Profil",
     'ma_hello' => 'Salom, {name}! 👋',
     'ma_stat_pending' => 'navbatda',
     'ma_stat_sent' => 'yuborilgan',
@@ -949,4 +949,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_deleted' => "O'chirildi",
     'ma_err_edit_fail' => "Kanalda tahrirlab bo'lmadi:",
     'ma_err_delete_fail' => "Kanaldan o'chirib bo'lmadi.",
+    'ma_tab_posts' => "Postlar",
+    'ma_li_premium' => "Premium",
+    'ma_li_ai_studio' => "AI va avtomatlar",
 ];

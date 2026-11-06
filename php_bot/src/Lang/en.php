@@ -262,7 +262,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_tab_home' => 'Home',
     'ma_tab_post' => 'Post',
     'ma_tab_queue' => 'Plan',
-    'ma_tab_me' => 'Me',
+    'ma_tab_me' => "Profile",
     'ma_hello' => 'Hi, {name}! 👋',
     'ma_stat_pending' => 'queued',
     'ma_stat_sent' => 'sent',
@@ -949,4 +949,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_deleted' => "Deleted",
     'ma_err_edit_fail' => "Could not edit in the channel:",
     'ma_err_delete_fail' => "Could not delete from the channel.",
+    'ma_tab_posts' => "Posts",
+    'ma_li_premium' => "Premium",
+    'ma_li_ai_studio' => "AI & automation",
 ];

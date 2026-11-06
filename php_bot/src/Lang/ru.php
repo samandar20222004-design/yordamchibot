@@ -262,7 +262,7 @@ return [
     'ma_tab_home' => 'Главная',
     'ma_tab_post' => 'Пост',
     'ma_tab_queue' => 'План',
-    'ma_tab_me' => 'Профиль',
+    'ma_tab_me' => "Профиль",
     'ma_hello' => 'Привет, {name}! 👋',
     'ma_stat_pending' => 'в очереди',
     'ma_stat_sent' => 'отправлено',
@@ -949,4 +949,7 @@ return [
     'ma_deleted' => "Удалено",
     'ma_err_edit_fail' => "Не удалось изменить в канале:",
     'ma_err_delete_fail' => "Не удалось удалить из канала.",
+    'ma_tab_posts' => "Посты",
+    'ma_li_premium' => "Премиум",
+    'ma_li_ai_studio' => "AI и автоматика",
 ];
