@@ -17,9 +17,7 @@ final class Keyboards
             $all[] = $t('btn_ai_post');
         }
         array_push($all, $t('btn_my_channels'), $t('btn_scheduled'), $t('btn_statistics'), $t('btn_settings'));
-        if ($miniApp !== null) {
-            $all[] = ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]];
-        }
+        // Mini App bu yerda yo'q: u Telegram'ning «Mini App» menyu tugmasida (setup.php o'rnatadi) — ikki marta turmasin
         if ($admin) {
             $all[] = $t('btn_admin');
         }

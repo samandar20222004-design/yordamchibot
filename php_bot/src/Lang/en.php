@@ -5,7 +5,7 @@ return [
     'btn_my_channels' => '📢 My channels',
     'btn_scheduled' => '📅 Scheduled',
     'btn_statistics' => '📊 Statistics',
-    'btn_settings' => '⚙️ Settings / More',
+    'btn_settings' => "⚙️ Settings",
     'btn_admin' => '👑 Admin panel',
 
     'start_new' => "👋 Hi, <b>{name}</b>!\nI'm PostAssist — a posting assistant for your Telegram channel.\n\n🚀 <b>To get started:</b>\n1️⃣ Add the bot to your channel as an <b>admin</b> (with permission to post).\n2️⃣ Tap «📢 My channels» → «➕ Connect» and forward me any post from the channel.\n3️⃣ «✍️ Create post» — write a post, send it now or schedule it.",
@@ -853,7 +853,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'btn_look_st_on' => "🎨 Colors on",
     'btn_look_st_off' => "⏸ Colors off",
     'btn_look_clear' => "🗑 Reset icons",
-    'look_title' => "✨ <b>Bot look</b>\n\n🎨 Colored buttons: {styles}\n💫 Premium emoji: {premium} ({n})\n\n<b>Replaced:</b> {have}\n<b>Still plain:</b> {miss}\n\n👉 Send premium (animated) emoji here — several in one message is fine. The bot detects the plain version of each (🤖, ✍️ …) and puts the animated one into bot texts and buttons.\n\n⚠️ Telegram rule: premium emoji only work if the <b>bot owner has Telegram Premium</b> (or the bot has a Fragment username). If not, the bot falls back to the plain look automatically. Colored buttons work without conditions (in recent Telegram versions).",
+    'look_title' => "✨ <b>Bot look</b>\n\n🎨 Colored buttons: {styles}\n💫 Premium emoji: {premium} ({n})\n\n<b>Replaced:</b> {have}\n<b>Still plain:</b> {miss}\n\n👉 Send premium (animated) emoji here — several in one message is fine. The bot detects the plain version of each (🤖, ✍️ …) and puts the animated one into bot texts and buttons.\n\n⚠️ Telegram rule: premium emoji only work if the <b>bot owner has Telegram Premium</b> (or the bot has a Fragment username). If not, the bot falls back to the plain look automatically.\n\n💎 Colored buttons and live icons are shown <b>only to Telegram Premium users</b> (all buttons in one style). Everyone else sees a plain, uniform bot.",
     'look_none' => "ℹ️ No premium emoji in this message. Send emoji from a premium pack (not regular ones).",
     'look_saved' => "✅ Saved {n} icons: {list}",
     'set_until' => "· until {date}",
@@ -877,4 +877,5 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_li_upgrade' => "Get PRO",
     'ma_ui_hint' => "Theme, color",
     'ma_free_hint' => "With PRO — no badge and higher limits",
+    'ma_forever' => "Lifetime",
 ];

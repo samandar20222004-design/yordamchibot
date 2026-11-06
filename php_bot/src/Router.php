@@ -54,6 +54,7 @@ final class Router
         if ($uid > 0 && $this->app->db->exec('INSERT IGNORE INTO processed_updates (update_id, created_at) VALUES (?, UTC_TIMESTAMP())', [$uid]) === 0) {
             return; // Telegram qayta yubordi — allaqachon ishlangan
         }
+        $this->app->look->setViewer(null); // oldingi yangilanish egasining ko'rinishi keyingisiga o'tmasin
         if (isset($update['my_chat_member'])) {
             ChannelHandler::memberChanged($this->app, $update['my_chat_member']);
             return;
@@ -74,6 +75,7 @@ final class Router
     private function ctxFor(array $from, int $chatId, ?array $message, ?array $callback, ?int $referrer = null): ?Ctx
     {
         $userId = (int) ($from['id'] ?? 0);
+        $this->app->look->setViewer($userId > 0 ? !empty($from['is_premium']) : null);
         if ($userId <= 0 || !empty($from['is_bot'])) {
             return null;
         }

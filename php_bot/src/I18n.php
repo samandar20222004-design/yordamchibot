@@ -58,10 +58,18 @@ final class I18n
     }
 
     /** Berilgan matn qaysi tildagi qaysi kalitga teng (eski klaviatura boshqa tilda qolgan bo'lsa ham ishlaydi). */
+    /** Eski tugma yorliqlari (foydalanuvchida eski klaviatura qolgan bo'lsa ham taniladi). */
+    public const ALIASES = ['btn_settings' => ["Sozlamalar / Ko'proq", 'Настройки / Ещё', 'Settings / More']];
+
     public static function keyOf(string $text, array $keys): ?string
     {
         // premium belgi qo'yilgan tugmada emoji matndan olinadi — belgisiz matn ham taniladi
         $bare = self::bare($text);
+        foreach ($keys as $k) {
+            if ($bare !== '' && in_array($bare, self::ALIASES[$k] ?? [], true)) {
+                return $k;
+            }
+        }
         foreach (self::LANGS as $l) {
             $tbl = self::table($l);
             foreach ($keys as $k) {

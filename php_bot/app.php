@@ -164,6 +164,83 @@ details.li-d[open] summary.li b{transform:rotate(90deg)}
 
 
 </style>
+<style id="ui-premium">
+/* ---------- premium qatlam: yangi tipografika, shisha kartalar, gradient urg'u, ixcham birja, Telegram Premium belgisi */
+:root{--r:22px;--glass:rgba(255,255,255,.72);--ring:0 0 0 1px var(--line);--sh1:0 1px 2px rgba(16,24,40,.04),0 8px 24px -8px rgba(16,24,40,.12);
+  --sh2:0 18px 40px -14px rgba(47,124,246,.45);--gold1:#f7c948;--gold2:#e08a1e}
+html[data-theme=dark]{--glass:rgba(23,27,37,.72);--sh1:0 1px 0 rgba(255,255,255,.04) inset,0 10px 30px -10px rgba(0,0,0,.6)}
+@media (prefers-color-scheme:dark){html:not([data-theme=light]){--glass:rgba(23,27,37,.72)}}
+html,body{font-family:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:-.1px}
+h1,h3,.stat b,.pf-who h3{letter-spacing:-.4px}
+main{padding:0 16px;max-width:640px;margin:0 auto}
+header{padding:12px 16px 10px;max-width:640px;margin:0 auto}
+header h1{font-size:19px;font-weight:800;background:linear-gradient(90deg,var(--text),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo{width:36px;height:36px;border-radius:12px;box-shadow:0 8px 22px -6px var(--accent)}
+.badge{font-weight:800;font-size:11px;letter-spacing:.6px;padding:5px 11px;border:1px solid var(--line)}
+html[data-tgp="1"] #plan::before{content:"⭐ ";}
+.card,.stat,.list{background:var(--glass);backdrop-filter:blur(18px) saturate(160%);-webkit-backdrop-filter:blur(18px) saturate(160%);box-shadow:var(--sh1)}
+.card{padding:16px;margin-bottom:14px}
+.card h3{font-size:15.5px;font-weight:750}
+.muted{line-height:1.45}
+/* hero va profil */
+.hero{background:radial-gradient(120% 140% at 0% 0%,var(--accent) 0%,transparent 55%),radial-gradient(120% 140% at 100% 100%,var(--accent2) 0%,transparent 60%),linear-gradient(135deg,var(--accent),var(--accent2));
+  box-shadow:var(--sh2);padding:20px}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.18),transparent 40%);pointer-events:none}
+.hero::after{right:-50px;top:-60px;width:200px;height:200px;background:radial-gradient(circle,rgba(255,255,255,.22),transparent 70%)}
+.hero h3{font-size:21px;font-weight:800}
+.avatar{box-shadow:0 6px 16px rgba(0,0,0,.18)}
+html[data-tgp="1"] .avatar.lg{border:0;box-shadow:0 0 0 3px var(--gold1),0 0 0 6px rgba(247,201,72,.25),0 8px 20px rgba(0,0,0,.2)}
+#me-badge{background:linear-gradient(135deg,var(--gold1),var(--gold2));color:#3b2300;border:0;font-weight:800;box-shadow:0 6px 16px -4px rgba(224,138,30,.6)}
+.pf-stats div{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(6px)}
+.pf-stats b{font-size:19px;font-weight:800}
+/* statistika plitkalari */
+.stats{gap:10px}.stat{padding:14px 8px}.stat b{font-size:24px;font-weight:800}.stat span{font-size:12px}
+/* katta amal tugmalari */
+.actions{gap:10px}
+.big{min-height:64px;padding:14px;font-size:15px;font-weight:700;border-radius:20px;line-height:1.2}
+.big b{font-weight:700}
+button.big.ghost{background:var(--glass);box-shadow:var(--sh1)}
+button.big:not(.ghost){box-shadow:var(--sh2)}
+.big span{flex:0 0 40px;width:40px;height:40px;border-radius:13px}
+/* tugmalar */
+button,.btn{font-weight:700;letter-spacing:-.1px;padding:13px 16px}
+button.small{padding:8px 12px;border-radius:12px}
+button.ghost{background:var(--glass)}
+/* ro'yxat qatorlari */
+.list{border-radius:var(--r)}
+.list .li,.list summary.li{padding:13px 14px;font-weight:600}
+.li i{border-radius:11px;background:linear-gradient(135deg,var(--soft),transparent);box-shadow:inset 0 0 0 1px var(--line)}
+.grp-t{font-size:11.5px;letter-spacing:.9px;margin:20px 8px 8px}
+/* chiplar */
+.chip{font-weight:600;font-size:13.5px;padding:7px 13px;background:var(--glass)}
+.chips.scroll{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin:0 -16px 12px;padding:2px 16px 4px;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity;scroll-padding:0 16px}
+.chips.scroll::-webkit-scrollbar{display:none}
+.chips.scroll .chip{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
+/* birja: ixcham */
+.mk-head{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.mk-head button{width:100%;padding:10px 12px;font-size:14px}
+.mk-note{font-size:12px;margin:0 4px 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mk-item{align-items:center;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.mk-av{flex:0 0 42px;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-weight:800;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.mk-item .tag{margin-top:6px}.chev{color:var(--hint);font-size:22px}
+.empty.slim{padding:22px 10px}.empty.slim b{font-size:30px;margin-bottom:4px}
+.empty{font-size:14px}
+/* navbat kartasi */
+.post{gap:12px}.post .body b{font-weight:700}
+/* pastki panel */
+nav{left:50%;right:auto;transform:translateX(-50%);width:min(560px,calc(100% - 20px));background:var(--glass);padding:4px;border-radius:24px;
+  box-shadow:0 12px 40px -10px rgba(16,24,40,.35)}
+nav a{padding:7px 2px 6px;border-radius:18px;font-size:10.5px;font-weight:600}
+nav a.on{color:#fff}
+nav a.on::before{inset:0;border-radius:18px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 18px -6px var(--accent)}
+nav a i{font-size:21px;margin-bottom:1px}
+/* modal va maydonlar */
+.sheet{border-radius:26px 26px 0 0;background:var(--card)}
+.sheet::before{content:"";display:block;width:40px;height:5px;border-radius:3px;background:var(--line);margin:-6px auto 12px}
+input,select,textarea{padding:12px 13px}
+.toast{border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.25);font-weight:600}
+.preview{border-radius:20px}
+</style>
 </head>
 <body>
 <header><div class="logo">🤖</div><h1>PostAssist</h1><span class="badge" id="plan">…</span></header>
@@ -254,10 +331,10 @@ details.li-d[open] summary.li b{transform:rotate(90deg)}
   <section class="page" id="p-queue"><div id="q-list"></div></section>
 
   <section class="page" id="p-market">
-    <div class="card"><div class="row"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
+    <div class="mk-head"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
       <button class="small" data-bot="go_market">➕ <span data-t="ma_mk_publish"></span></button></div>
-      <div class="muted" id="mk-note" style="margin-top:8px" data-t="ma_mk_note"></div></div>
-    <div class="chips" id="mk-cats" style="margin-bottom:12px"></div>
+    <div class="muted mk-note" id="mk-note" data-t="ma_mk_note"></div>
+    <div class="chips scroll" id="mk-cats"></div>
     <div id="mk-mine"></div>
     <div id="mk-list"></div>
     <div class="row" id="mk-pager" style="margin-bottom:12px"></div>
@@ -427,12 +504,12 @@ details.li-d[open] summary.li b{transform:rotate(90deg)}
         return '<div class="muted">@' + esc(l.username) + ' · ' + esc(l.price) + ' · ' + esc(l.status) + '</div>';
       }).join('') + '<div style="margin-top:8px"><button class="small ghost" data-bot="go_market">⚙️ ' + esc(t('ma_mk_manage')) + '</button></div></div>' : '';
       if (r.banned) { $('mk-list').innerHTML = '<div class="card empty"><b>🚫</b>' + esc(t('ma_mk_banned')) + '</div>'; $('mk-pager').innerHTML = ''; return; }
-      if (!r.items.length) { $('mk-list').innerHTML = '<div class="card empty"><b>📭</b>' + esc(t('ma_mk_empty')) + '</div>'; }
+      if (!r.items.length) { $('mk-list').innerHTML = '<div class="empty slim"><b>📭</b>' + esc(t('ma_mk_empty')) + '</div>'; }
       else {
         $('mk-list').innerHTML = r.items.map(function (l, i) {
-          return '<div class="card post" data-l="' + i + '"><div class="body"><b>' + esc(l.title || '@' + l.username) + '</b>' +
+          return '<div class="card post mk-item" data-l="' + i + '"><div class="mk-av">' + esc(((l.title || l.username || '?').trim().charAt(0) || '?').toUpperCase()) + '</div><div class="body"><b class="t">' + esc(l.title || '@' + l.username) + '</b>' +
             '<div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + '</div><span class="tag">' + esc(l.category_name) + '</span>' +
-            '<span class="tag">💵 ' + esc(l.price) + '</span></div><div>›</div></div>';
+            '<span class="tag">💵 ' + esc(l.price) + '</span></div><div class="chev">›</div></div>';
         }).join('');
         document.querySelectorAll('[data-l]').forEach(function (el) { el.onclick = function () { haptic(); mkView(r.items[parseInt(el.getAttribute('data-l'), 10)].id); }; });
       }
@@ -950,9 +1027,11 @@ details.li-d[open] summary.li b{transform:rotate(90deg)}
     if (typeof tu.photo_url === 'string' && /^https:\/\/t\.me\//.test(tu.photo_url)) {
       av.textContent = ''; av.style.backgroundImage = 'url("' + tu.photo_url.replace(/["\\]/g, '') + '")';
     } else { av.textContent = initial; av.style.backgroundImage = ''; }
-    $('me-badge').textContent = p.name;
+    var tgp = !!tu.is_premium;
+    document.documentElement.setAttribute('data-tgp', tgp ? '1' : '0');
+    $('me-badge').textContent = tgp ? '⭐ Premium' : ''; $('me-badge').style.display = tgp ? '' : 'none';
     $('me-admin').style.display = me.user.is_admin ? '' : 'none';
-    $('me-plan').textContent = p.expires ? '⏳ ' + t('ma_until', {date: p.expires}) : (p.tier === 'free' ? '✨ ' + t('ma_free_hint') : '♾');
+    $('me-plan').textContent = p.expires ? '⏳ ' + t('ma_until', {date: p.expires}) : (p.tier === 'free' ? '✨ ' + t('ma_free_hint') : '♾ ' + t('ma_forever'));
     var inf = function (n) { return n === 0 ? '∞' : n; };
     $('me-limits').textContent = t('ma_limits', {ch: inf(p.channels_max), q: inf(p.queue_max)});
     $('me-st-ch').textContent = me.stats.channels + '/' + inf(p.channels_max);

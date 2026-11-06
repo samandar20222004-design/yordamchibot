@@ -24,6 +24,8 @@ final class Look
 
     private Db $db;
     private ?array $cache = null;
+    /** Joriy yangilanish egasida Telegram Premium bormi (null — noma'lum: fon xabarlari, oddiy ko'rinish). */
+    private ?bool $viewer = null;
 
     public function __construct(Db $db)
     {
@@ -49,6 +51,20 @@ final class Look
     {
         $this->db->exec('INSERT INTO bot_settings (k, v, updated_at) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at)', [$k, $v]);
         $this->cache = null;
+    }
+
+    /**
+     * Rangli tugmalar va jonli emoji FAQAT Telegram Premium foydalanuvchiga (shaxsiy chatda) — boshqalarga hammasi bir xil oddiy
+     * ko'rinish, aralash (bir tugma ko'k, boshqasi oddiy) holat bo'lmaydi.
+     */
+    public function setViewer(?bool $premium): void
+    {
+        $this->viewer = $premium;
+    }
+
+    public function viewer(): ?bool
+    {
+        return $this->viewer;
     }
 
     public static function norm(string $e): string
@@ -134,8 +150,9 @@ final class Look
         }
         unset($p['_raw']);
         $private = isset($p['chat_id']) && is_numeric($p['chat_id']) && (int) $p['chat_id'] > 0;
-        $map = $premium && $private && $this->premiumOn() ? $this->map() : [];
-        $styles = $styles && $this->stylesOn();
+        $vip = $private && $this->viewer === true;
+        $map = $premium && $vip && $this->premiumOn() ? $this->map() : [];
+        $styles = $styles && $vip && $this->stylesOn();
         if (isset($p['reply_markup']) && is_array($p['reply_markup'])) {
             foreach (['inline_keyboard', 'keyboard'] as $kind) {
                 if (!isset($p['reply_markup'][$kind]) || !is_array($p['reply_markup'][$kind])) {
@@ -146,8 +163,15 @@ final class Look
                         if (!is_array($btn) || !isset($btn['text'])) {
                             continue;
                         }
-                        if ($styles && !isset($btn['style']) && ($st = self::styleFor((string) ($btn['callback_data'] ?? ''))) !== null) {
-                            $btn['style'] = $st;
+                        if ($styles && !isset($btn['style'])) {
+                            // premium: hamma tugma rangli — asosiy amal yashil, o'chirish qizil, qolgani ko'k (bir xil uslub)
+                            $st = self::styleFor((string) ($btn['callback_data'] ?? ''));
+                            if ($st === null && $kind === 'inline_keyboard') {
+                                $st = 'primary';
+                            }
+                            if ($st !== null) {
+                                $btn['style'] = $st;
+                            }
                         }
                         if ($map && !isset($btn['icon_custom_emoji_id']) && ($lead = $this->leading((string) $btn['text'], $map)) !== null) {
                             $rest = trim(substr((string) $btn['text'], strlen($lead[0])));

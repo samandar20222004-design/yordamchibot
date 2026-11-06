@@ -5,7 +5,7 @@ return [
     'btn_my_channels' => '📢 Kanallarim',
     'btn_scheduled' => '📅 Rejalashtirilgan',
     'btn_statistics' => '📊 Statistika',
-    'btn_settings' => "⚙️ Sozlamalar / Ko'proq",
+    'btn_settings' => "⚙️ Sozlamalar",
     'btn_admin' => '👑 Admin panel',
 
     'start_new' => "👋 Salom, <b>{name}</b>!\nMen PostAssist — Telegram kanalingiz uchun post yordamchisiman.\n\n🚀 <b>Boshlash uchun:</b>\n1️⃣ Botni kanalingizga <b>admin</b> qilib qo'shing (xabar joylash huquqi bilan).\n2️⃣ «📢 Kanallarim» → «➕ Kanal ulash» ni bosing va kanaldan bitta postni menga forward qiling.\n3️⃣ «✍️ Post yaratish» — postni yozing, darhol yuboring yoki vaqtini belgilang.",
@@ -853,7 +853,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'btn_look_st_on' => "🎨 Ranglarni yoq",
     'btn_look_st_off' => "⏸ Ranglarni o'chir",
     'btn_look_clear' => "🗑 Tozalash",
-    'look_title' => "✨ <b>Bot ko'rinishi</b>\n\n🎨 Rangli tugmalar: {styles}\n💫 Premium emoji: {premium} ({n} ta)\n\n<b>Almashtirilgan:</b> {have}\n<b>Hali oddiy:</b> {miss}\n\n👉 Premium (jonli) emojilarni shu yerga yuboring — bitta xabarda bir nechtasini ham bo'ladi. Bot har birining oddiy ko'rinishini (🤖, ✍️ …) o'zi aniqlaydi va bot xabarlari hamda tugmalarida o'sha joyga jonli versiyasini qo'yadi.\n\n⚠️ Telegram qoidasi: premium emoji faqat <b>bot egasida Telegram Premium</b> bo'lsa (yoki botga Fragment'da username olingan bo'lsa) ishlaydi. Ishlamasa bot o'zi oddiy ko'rinishga qaytadi. Rangli tugmalar shartsiz ishlaydi (Telegram'ning yangi versiyalarida).",
+    'look_title' => "✨ <b>Bot ko'rinishi</b>\n\n🎨 Rangli tugmalar: {styles}\n💫 Premium emoji: {premium} ({n} ta)\n\n<b>Almashtirilgan:</b> {have}\n<b>Hali oddiy:</b> {miss}\n\n👉 Premium (jonli) emojilarni shu yerga yuboring — bitta xabarda bir nechtasini ham bo'ladi. Bot har birining oddiy ko'rinishini (🤖, ✍️ …) o'zi aniqlaydi va bot xabarlari hamda tugmalarida o'sha joyga jonli versiyasini qo'yadi.\n\n⚠️ Telegram qoidasi: premium emoji faqat <b>bot egasida Telegram Premium</b> bo'lsa (yoki botga Fragment'da username olingan bo'lsa) ishlaydi. Ishlamasa bot o'zi oddiy ko'rinishga qaytadi.\n\n💎 Rangli tugmalar va jonli belgilar <b>faqat Telegram Premium foydalanuvchilarga</b> ko'rinadi (hamma tugma bir xil uslubda). Boshqalarga bot oddiy, bir xil ko'rinishda.",
     'look_none' => "ℹ️ Bu xabarda premium emoji topilmadi. Premium emoji paketidan emoji yuboring (oddiy emoji emas).",
     'look_saved' => "✅ {n} ta belgi saqlandi: {list}",
     'set_until' => "· {date} gacha",
@@ -877,4 +877,5 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_li_upgrade' => "PRO olish",
     'ma_ui_hint' => "Mavzu, rang",
     'ma_free_hint' => "PRO bilan — belgisiz postlar va ko'proq limit",
+    'ma_forever' => "Muddatsiz",
 ];

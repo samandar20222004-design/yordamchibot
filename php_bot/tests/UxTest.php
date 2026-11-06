@@ -75,7 +75,10 @@ $lastKb = static function () use ($fake, $mk): string {
 };
 $X = 7701;
 $textU($X, '/start');
+$textU($X, '⚙️ Sozlamalar');
+T::check('yangi qisqa yorliq «⚙️ Sozlamalar» ishlaydi', strpos($fake->lastText(), 'ID <code>') !== false);
 $textU($X, '⚙️ Sozlamalar / Ko\'proq');
+T::check('eski yorliq ham taniladi', strpos($fake->lastText(), 'ID <code>') !== false);
 $st = $fake->lastText();
 T::check('Sozlamalar: profil kartasi (ism, ID, tarif, kanallar, AI qoldig\'i, ball, til, mintaqa)', strpos($st, 'ID <code>' . $X . '</code>') !== false
     && strpos($st, 'Tarif: <b>FREE</b>') !== false && strpos($st, 'Kanallar: <b>0/') !== false && strpos($st, 'AI (bugun qoldi): <b>5/5</b>') !== false
@@ -137,3 +140,11 @@ T::check('admin «🧾 Cheklar» ishlaydi', $fake->of('sendMessage', 'editMessag
 foreach ([$X, $Y] as $id) {
     $appU->states->clear($id);
 }
+
+// --- pastki menyu: Mini App takrorlanmaydi, qisqa «⚙️ Sozlamalar» (2 qatorga sinmaydi)
+$mainKb = json_encode(Keyboards::main('uz', true, false, 'https://x.uz/app.php'), JSON_UNESCAPED_UNICODE);
+T::check('pastki menyu: Mini App yo\'q, «⚙️ Sozlamalar» qisqa', strpos($mainKb, 'web_app') === false && strpos($mainKb, '"⚙️ Sozlamalar"') !== false);
+// --- Mini App premium qatlami va ixcham birja
+$appSrcU = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: premium uslub qatlami, Telegram Premium belgisi, ixcham birja', strpos($appSrcU, 'id="ui-premium"') !== false
+    && strpos($appSrcU, "setAttribute('data-tgp'") !== false && strpos($appSrcU, 'class="chips scroll" id="mk-cats"') !== false && strpos($appSrcU, 'class="mk-head"') !== false);

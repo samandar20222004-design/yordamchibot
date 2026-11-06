@@ -151,7 +151,7 @@ $router2 = new PostAssist\Router($app2);
 $fake->reset();
 $router2->handle(['update_id' => $upd++, 'message' => ['message_id' => 1, 'from' => $from($W), 'chat' => ['id' => $W, 'type' => 'private'], 'text' => '/app']]);
 T::check('/app: web_app tugmasi', strpos($mk($fake->of('sendMessage')[0] ?? []), 'web_app') !== false && strpos($mk($fake->of('sendMessage')[0] ?? []), 'app.php') !== false);
-T::check('asosiy menyuda «📱 Mini App» (web_app)', strpos(json_encode(Keyboards::main('uz', false, false, 'https://bot.uz/app.php')), 'web_app') !== false);
+T::check('asosiy (pastki) menyuda Mini App takrorlanmaydi — u Telegram menyu tugmasida', strpos(json_encode(Keyboards::main('uz', false, false, 'https://bot.uz/app.php')), 'web_app') === false);
 $fake->reset();
 $router2->handle(['update_id' => $upd++, 'message' => ['message_id' => 2, 'from' => $from($W), 'chat' => ['id' => $W, 'type' => 'private'], 'text' => '/newpost']]);
 $fake->reset();

@@ -11,10 +11,20 @@ T::eq('rang: asosiy / xavfli / yo\'l', [Look::styleFor('p:now'), Look::styleFor(
 $look = $app->look;
 $look->clearMap();
 $look->set(Look::KEY_STYLES, '1');
+$look->setViewer(false);
+$d0 = $look->decorate('sendMessage', ['chat_id' => 5, 'text' => '🤖 Salom', 'parse_mode' => 'HTML',
+    'reply_markup' => ['inline_keyboard' => [[['text' => '🚀 Yubor', 'callback_data' => 'p:now'], ['text' => '⚙️ Sozlash', 'callback_data' => 'set:show']]]]]);
+T::check('Premium\'siz foydalanuvchi: hamma tugma bir xil oddiy (rang yo\'q)', !isset($d0['reply_markup']['inline_keyboard'][0][0]['style'])
+    && !isset($d0['reply_markup']['inline_keyboard'][0][1]['style']));
+$look->setViewer(null);
+$dn = $look->decorate('sendMessage', ['chat_id' => 5, 'text' => 'x', 'reply_markup' => ['inline_keyboard' => [[['text' => 'a', 'callback_data' => 'p:now']]]]]);
+T::check('noma\'lum (fon xabari): oddiy', !isset($dn['reply_markup']['inline_keyboard'][0][0]['style']));
+$look->setViewer(true);
 $d = $look->decorate('sendMessage', ['chat_id' => 5, 'text' => '🤖 Salom', 'parse_mode' => 'HTML',
     'reply_markup' => ['inline_keyboard' => [[['text' => '🚀 Yubor', 'callback_data' => 'p:now'], ['text' => 'Sayt', 'url' => 'https://x.uz']]]]]);
-T::check('premiumsiz: faqat rang, matn o\'zgarmaydi', $d['text'] === '🤖 Salom' && $d['reply_markup']['inline_keyboard'][0][0]['style'] === 'success'
-    && !isset($d['reply_markup']['inline_keyboard'][0][1]['style']) && !isset($d['reply_markup']['inline_keyboard'][0][0]['icon_custom_emoji_id']));
+T::check('Premium foydalanuvchi, belgilar o\'rgatilmagan: hamma tugma rangli (asosiy yashil, qolgani ko\'k), matn o\'zgarmaydi', $d['text'] === '🤖 Salom'
+    && $d['reply_markup']['inline_keyboard'][0][0]['style'] === 'success' && $d['reply_markup']['inline_keyboard'][0][1]['style'] === 'primary'
+    && !isset($d['reply_markup']['inline_keyboard'][0][0]['icon_custom_emoji_id']));
 $look->addMap(['🤖' => '5368324170671202286', '✍️' => '5395444784611480792']);
 $d = $look->decorate('sendMessage', ['chat_id' => 5, 'text' => "🤖 <b>Salom</b> ✍️ <code>🤖</code>", 'parse_mode' => 'HTML',
     'reply_markup' => ['inline_keyboard' => [[['text' => '✍️ Yozish', 'callback_data' => 'cm:w:1']]], ['keyboard' => []]]]);
@@ -45,12 +55,18 @@ T::check('3 ta belgi saqlandi', count($look->map()) === 3 && $look->premiumOn() 
 $PE = 9996;
 $text($PE, '/start');
 $mm = $fake->of('sendMessage');
+T::check('Premium\'siz foydalanuvchi menyusida jonli belgi yo\'q', strpos((string) (end($mm)['reply_markup'] ?? ''), 'icon_custom_emoji_id') === false);
+$fake->reset();
+$router->handle(['update_id' => $upd++, 'message' => ['message_id' => $upd, 'date' => 0, 'chat' => ['id' => $PE, 'type' => 'private'], 'text' => '/start',
+    'from' => ['id' => $PE, 'is_bot' => false, 'first_name' => 'P', 'language_code' => 'uz', 'is_premium' => true]]]);
+$mm = $fake->of('sendMessage');
 $kbS = json_encode(json_decode((string) (end($mm)['reply_markup'] ?? '{}'), true), JSON_UNESCAPED_UNICODE);
 T::check('bosh menyu tugmasida premium belgi (✍️ Post yaratish)', strpos($kbS, '5395444784611480792') !== false && strpos($kbS, '"text":"Post yaratish"') !== false);
 $text($PE, 'Post yaratish');
 T::check('belgisiz tugma matni ham menyu sifatida taniladi', ($app->states->get($PE)['state'] ?? '') === 'post_content' || strpos($fake->lastText(), 'kanal') !== false);
 // Telegram rad etsa: oddiy holda qayta yuboriladi va premium o'chadi
 $fake->reset();
+$look->setViewer(true);
 $fake->forced['sendMessage'] = [['ok' => false, 'error_code' => 400, 'description' => "Bad Request: can't use custom emoji"], ['ok' => true, 'result' => ['message_id' => 1]]];
 $r = $app->tg->sendMessage($PE, '🤖 Sinov', ['inline_keyboard' => [[['text' => '✍️ Yozish', 'callback_data' => 'x']]]]);
 $sm = $fake->of('sendMessage');
