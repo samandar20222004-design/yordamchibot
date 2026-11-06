@@ -90,6 +90,26 @@ final class Posts
             || $this->getOwnedPending($userId, $id) !== null; // qiymat o'zgarmagan bo'lsa ham muvaffaqiyat
     }
 
+    /** Navbatdagi postning qo'shimcha maydonlarini yangilash (tugma, reaksiya, takror, avto-o'chirish, kanal …) — faqat ruxsat etilgan ustunlar. */
+    public function updateFields(int $userId, int $id, array $cols): bool
+    {
+        $allowed = ['button_text', 'button_url', 'reactions', 'delete_after', 'options', 'hidden_text', 'channel_id', 'recurrence_type', 'recurrence_time', 'recurrence_day'];
+        $sets = [];
+        $args = [];
+        foreach ($cols as $k => $v) {
+            if (in_array($k, $allowed, true)) {
+                $sets[] = "`{$k}` = ?";
+                $args[] = $v;
+            }
+        }
+        if (!$sets) {
+            return false;
+        }
+        $args[] = $id;
+        $args[] = $userId;
+        return $this->db->exec('UPDATE scheduled_posts SET ' . implode(', ', $sets) . " WHERE id = ? AND user_id = ? AND status = 'pending'", $args) >= 0;
+    }
+
     /** Faqat egasi va faqat hali chiqmagan postni bekor qiladi. */
     public function cancel(int $userId, int $id): bool
     {

@@ -260,6 +260,32 @@ input,select,textarea{padding:12px 13px}
 .pl-alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.pl-alt button{width:100%}
 .pl-cmp table{width:100%;border-collapse:collapse;font-size:13.5px}.pl-cmp th{font-size:12px;color:var(--hint);font-weight:800;padding:4px}
 .pl-cmp td{text-align:center;padding:7px 4px;border-top:1px solid var(--line);font-weight:600}.pl-cmp td:first-child{text-align:left}
+
+/* ---------- karusel navigatsiya: yonga suriladi, tanlangan bo'lim o'rtaga keladi */
+nav#nav{display:flex;overflow-x:auto;gap:4px;padding:4px;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+nav#nav::-webkit-scrollbar{display:none}
+nav#nav::before,nav#nav::after{content:"";flex:0 0 calc(50% - 44px)}
+nav#nav a{flex:0 0 76px;scroll-snap-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 2px 7px;transition:transform .25s,opacity .25s;opacity:.7}
+nav#nav a.on{opacity:1;transform:scale(1.06)}
+nav#nav a i{font-size:22px}
+.hint{margin:0 4px 12px;padding:10px 12px;border-radius:14px;background:var(--soft);font-size:13px;line-height:1.45;color:var(--text)}
+.chips.seg3{grid-template-columns:repeat(3,1fr);margin-bottom:12px}.chips.seg3 .chip{font-size:12.5px;padding:8px 4px}
+.errline{margin-top:6px;font-size:12px;color:var(--danger);word-break:break-word}
+.auto-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:14px!important;border-radius:20px!important;min-height:128px;background:var(--glass)!important;color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:var(--sh1)!important}
+.tile i{font-style:normal;font-size:24px;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:var(--soft);margin-bottom:4px}
+.tile b{font-size:15px}.tile span{font-size:12px;font-weight:500;color:var(--hint);line-height:1.35}
+.br-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.br-head b{font-size:17px;font-weight:800}.br-head button{width:auto}
+.bscreen{padding:16px}.bscreen.old{opacity:.55}.btxt{line-height:1.55;font-size:14.5px;word-break:break-word}.btxt code{font-size:13px}
+.brow{display:grid;gap:8px;margin-top:10px}.brow.n1{grid-template-columns:1fr}.brow.n2{grid-template-columns:1fr 1fr}.brow.n3{grid-template-columns:1fr 1fr 1fr}
+.bbtn{display:flex;align-items:center;justify-content:center;text-align:center;min-height:44px;padding:10px 8px;border-radius:14px;font-weight:700;font-size:14px;text-decoration:none;cursor:pointer;
+  border:1px solid var(--line);background:var(--glass);color:var(--text);box-shadow:var(--sh1);word-break:break-word;width:100%}
+.bbtn:active{background:var(--soft)}
+button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important;box-shadow:var(--sh1)!important;border:1px solid var(--line)!important}
+.br-input{position:sticky;bottom:96px;display:flex;gap:8px;margin-top:10px;padding:8px;border-radius:18px;background:var(--glass);border:1px solid var(--line);box-shadow:var(--sh1);backdrop-filter:blur(14px)}
+.br-input input{flex:1}.br-input button{width:52px;padding:0}
+.steps{margin:0 0 12px;padding-left:20px;line-height:1.9;font-size:14px;color:var(--hint)}.steps li.now{color:var(--text);font-weight:700}.steps li.done{text-decoration:line-through;opacity:.6}
+.card.start{border:1px solid var(--accent)}
 </style>
 </head>
 <body>
@@ -278,8 +304,11 @@ input,select,textarea{padding:12px 13px}
       <button class="big" data-go="post"><span>✍️</span><b data-t="ma_new_post"></b></button>
       <button class="big ghost" id="home-ai"><span>✨</span><b data-t="ma_ai_post"></b></button>
       <button class="big ghost" data-go="queue"><span>📅</span><b data-t="ma_tab_queue"></b></button>
-      <button class="big ghost" id="open-bot"><span>🤖</span><b data-t="ma_open_bot"></b></button>
+      <button class="big ghost" data-go="auto"><span>🤖</span><b data-t="ma_tab_auto"></b></button>
     </div>
+    <div class="card start" id="start-card" style="display:none"><h3 data-t="ma_start_title"></h3>
+      <ol class="steps"><li id="stp1" data-t="ma_start_1"></li><li id="stp2" data-t="ma_start_2"></li><li id="stp3" data-t="ma_start_3"></li></ol>
+      <button class="small" id="start-go"></button></div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div>
       <div class="set-row" data-t="ma_ai_models"></div><div id="ai-models" class="ai-models"></div></div>
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
@@ -287,16 +316,16 @@ input,select,textarea{padding:12px 13px}
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
     <div id="bot-card"><div class="grp-t" data-t="ma_in_bot"></div>
       <div class="list">
-        <button class="li" data-go="market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
-        <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+        <button class="li" data-br="ch:list" data-bt="ma_tab_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
+        <button class="li" data-br="set:team" data-bt="ma_go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+        <button class="li" data-br="ref:show" data-bt="ma_li_invite"><i>🤝</i><span data-t="ma_li_invite"></span><b>›</b></button>
         <button class="li" data-go="plans"><i>💎</i><span data-t="ma_li_plans"></span><b>›</b></button>
-        <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
       </div></div>
   </section>
 
   <section class="page" id="p-post">
     <div class="banner" id="draft-banner" style="display:none"><div style="flex:1" data-t="ma_draft_found"></div><button class="small" id="draft-load" data-t="ma_open"></button></div>
-    <div class="card" id="no-ch" style="display:none"><div class="empty"><b>📢</b><span data-t="ma_no_channels"></span></div><button id="no-ch-bot" data-t="ma_open_bot"></button></div>
+    <div class="card" id="no-ch" style="display:none"><div class="empty"><b>📢</b><span data-t="ma_no_channels"></span></div><button id="no-ch-bot" data-t="ma_add_channel"></button></div>
     <div id="editor-wrap">
       <div class="card" id="tpl-card" style="display:none"><div class="row"><select id="tpl-sel"><option value="" data-t="ma_tpl_pick"></option></select></div></div>
       <div class="card"><h3 data-t="ma_channel"></h3><div class="chips" id="ch-list"></div></div>
@@ -349,11 +378,33 @@ input,select,textarea{padding:12px 13px}
     </div>
   </section>
 
-  <section class="page" id="p-queue"><div id="q-list"></div></section>
+  <section class="page" id="p-queue">
+    <div class="hint" data-t="ma_hint_queue"></div>
+    <div class="chips seg seg3" id="q-seg"><span class="chip on" data-seg="sched" data-t="ma_q_sched"></span><span class="chip" data-seg="sent" data-t="ma_q_sent"></span><span class="chip" data-seg="failed" data-t="ma_q_failed"></span></div>
+    <div id="q-list"></div>
+  </section>
+
+  <section class="page" id="p-auto">
+    <div class="hint" data-t="ma_hint_auto"></div>
+    <div class="auto-grid">
+      <button class="tile" data-br="cp:show" data-bt="ma_au_plan"><i>📅</i><b data-t="ma_au_plan"></b><span data-t="ma_au_plan_d"></span></button>
+      <button class="tile" data-br="ap:show" data-bt="ma_au_ap"><i>🤖</i><b data-t="ma_au_ap"></b><span data-t="ma_au_ap_d"></span></button>
+      <button class="tile" data-br="rss:show" data-bt="ma_au_rss"><i>📰</i><b data-t="ma_au_rss"></b><span data-t="ma_au_rss_d"></span></button>
+      <button class="tile" data-br="bk:start" data-bt="ma_au_bulk"><i>📦</i><b data-t="ma_au_bulk"></b><span data-t="ma_au_bulk_d"></span></button>
+      <button class="tile" data-br="poll:start" data-bt="ma_au_poll"><i>📊</i><b data-t="ma_au_poll"></b><span data-t="ma_au_poll_d"></span></button>
+      <button class="tile" data-br="tpl:list" data-bt="ma_au_tpl"><i>💾</i><b data-t="ma_au_tpl"></b><span data-t="ma_au_tpl_d"></span></button>
+    </div>
+  </section>
+
+  <section class="page" id="p-bot">
+    <div class="br-head"><button class="ghost small" id="br-back">‹ <span data-t="ma_back"></span></button><b id="br-title"></b></div>
+    <div id="br-body"></div>
+    <div class="br-input" id="br-input" style="display:none"><input id="br-text" data-ph="ma_br_type" maxlength="4000"><button id="br-send">➤</button></div>
+  </section>
 
   <section class="page" id="p-market">
     <div class="mk-head"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
-      <button class="small" data-bot="go_market">➕ <span data-t="ma_mk_publish"></span></button></div>
+      <button class="small" data-br="mk:pub" data-bt="ma_mk_publish">➕ <span data-t="ma_mk_publish"></span></button></div>
     <div class="muted mk-note" id="mk-note" data-t="ma_mk_note"></div>
     <div class="chips scroll" id="mk-cats"></div>
     <div id="mk-mine"></div>
@@ -376,9 +427,9 @@ input,select,textarea{padding:12px 13px}
     <div class="grp-t" data-t="ma_grp_account"></div>
     <div class="list">
       <button class="li" id="me-plans"><i>💎</i><span data-t="ma_li_plans"></span><em id="me-plan-tag"></em><b>›</b></button>
-      <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
-      <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
-      <button class="li" data-go="market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+      <button class="li" data-br="set:team" data-bt="ma_go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
+      <button class="li" data-br="ref:show" data-bt="ma_li_invite"><i>🤝</i><span data-t="ma_li_invite"></span><b>›</b></button>
+      <button class="li" data-br="promo:ask" data-bt="ma_li_promo"><i>🎁</i><span data-t="ma_li_promo"></span><b>›</b></button>
     </div>
 
     <div class="grp-t" data-t="ma_grp_settings"></div>
@@ -403,6 +454,7 @@ input,select,textarea{padding:12px 13px}
     <div class="grp-t" data-t="ma_grp_app"></div>
     <div class="list">
       <button class="li" id="me-admin" data-go="admin" style="display:none"><i>👑</i><span data-t="ma_admin_title"></span><b>›</b></button>
+      <button class="li" data-br="set:help" data-bt="ma_li_help"><i>❓</i><span data-t="ma_li_help"></span><b>›</b></button>
       <button class="li" id="me-bot"><i>🤖</i><span data-t="ma_open_bot"></span><b>›</b></button>
     </div>
     <div class="muted foot" data-t="ma_about"></div>
@@ -416,8 +468,8 @@ input,select,textarea{padding:12px 13px}
     <div class="pl-grid" id="pl-periods"></div>
     <button id="pl-buy" class="pl-buy"></button>
     <div class="pl-alt">
-      <button class="ghost small" id="pl-uzs" data-bot="go_plans">🇺🇿 <span data-t="ma_pl_uzs"></span></button>
-      <button class="ghost small" data-bot="go_plans">🎁 <span data-t="ma_pl_promo"></span></button>
+      <button class="ghost small" id="pl-uzs" data-br="pl:card" data-bt="ma_pl_uzs">🇺🇿 <span data-t="ma_pl_uzs"></span></button>
+      <button class="ghost small" data-br="promo:ask" data-bt="ma_pl_promo">🎁 <span data-t="ma_pl_promo"></span></button>
     </div>
     <div class="card pl-cmp" id="pl-cmp"></div>
     <div class="muted foot" data-t="ma_pl_note"></div>
@@ -439,10 +491,13 @@ input,select,textarea{padding:12px 13px}
   </section>
 </main>
 
-<nav>
+<nav id="nav">
   <a href="#" data-go="home" class="on"><i>🏠</i><span data-t="ma_tab_home"></span></a>
   <a href="#" data-go="post"><i>✍️</i><span data-t="ma_tab_post"></span></a>
   <a href="#" data-go="queue"><i>📅</i><span data-t="ma_tab_queue"></span></a>
+  <a href="#" data-go="auto"><i>🤖</i><span data-t="ma_tab_auto"></span></a>
+  <a href="#" data-go="channels"><i>📢</i><span data-t="ma_tab_channels"></span></a>
+  <a href="#" data-go="stats"><i>📈</i><span data-t="ma_tab_stats"></span></a>
   <a href="#" data-go="market"><i>💰</i><span data-t="ma_tab_market"></span></a>
   <a href="#" data-go="me"><i>👤</i><span data-t="ma_tab_me"></span></a>
 </nav>
@@ -490,13 +545,25 @@ input,select,textarea{padding:12px 13px}
   }
 
   // ---------- navigatsiya (Telegram «Orqaga» tugmasi bilan)
-  var cur = 'home';
-  function go(page) {
+  var cur = 'home', qseg = 'sched';
+  var BR_PAGES = {channels: {d: 'ch:list', t: 'ma_tab_channels'}, stats: {d: 'st:show', t: 'ma_tab_stats'}};
+  var NAV_OF = {plans: 'me', admin: 'me', bot: null};
+  function centerNav(name) {
+    var nav = $('nav'), a = nav.querySelector('a[data-go="' + name + '"]');
+    nav.querySelectorAll('a').forEach(function (x) { x.classList.toggle('on', x === a); });
+    if (a) { try { nav.scrollTo({left: a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2, behavior: 'smooth'}); } catch (e) { nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2; } }
+  }
+  function go(page, opts) {
+    var leaving = cur === 'bot' && page !== 'bot';
+    if (leaving) { brLeave(); }
+    var navName = page;
+    if (BR_PAGES[page]) { brOpen(BR_PAGES[page].d, BR_PAGES[page].t, page); return; }
     cur = page;
     document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('on', p.id === 'p-' + page); });
-    document.querySelectorAll('nav a').forEach(function (a) { a.classList.toggle('on', a.getAttribute('data-go') === page); });
+    if (page === 'bot') { navName = br.nav; } else if (NAV_OF.hasOwnProperty(page)) { navName = NAV_OF[page]; }
+    centerNav(navName);
     if (tg && tg.BackButton) { page === 'home' ? tg.BackButton.hide() : tg.BackButton.show(); }
-    if (page === 'queue') { loadQueue(); }
+    if (page === 'queue') { if (opts && opts.seg) { qseg = opts.seg; } loadQueue(); }
     if (page === 'home') { loadStats(); loadComments(); }
     if (page === 'post') { loadTemplates(); }
     if (page === 'market') { loadMarket(); }
@@ -509,7 +576,11 @@ input,select,textarea{padding:12px 13px}
     var g = e.target.closest('[data-go]');
     if (g) { e.preventDefault(); haptic(); go(g.getAttribute('data-go')); }
   });
-  if (tg && tg.BackButton) { tg.BackButton.onClick(function () { if ($('modal').classList.contains('on')) { closeModal(); } else { go('home'); } }); }
+  if (tg && tg.BackButton) { tg.BackButton.onClick(function () {
+    if ($('modal').classList.contains('on')) { closeModal(); }
+    else if (cur === 'bot' && br.stack.length > 1) { brBack(); }
+    else { go('home'); }
+  }); }
 
   var BOT_SECTIONS = ['go_market', 'go_team', 'go_plans', 'go_channels'];
   function openBot(section) {
@@ -518,7 +589,7 @@ input,select,textarea{padding:12px 13px}
     if (typeof section === 'string' && BOT_SECTIONS.indexOf(section) >= 0) { url += '?start=' + section; }
     if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); setTimeout(function () { tg.close(); }, 300); } else { location.href = url; }
   }
-  $('open-bot').onclick = function () { openBot(); }; $('no-ch-bot').onclick = function () { openBot('go_channels'); };
+  $('no-ch-bot').onclick = function () { brOpen('ch:add', 'ma_tab_channels', 'channels'); };
   $('me-plans').onclick = function () { haptic(); go('plans'); }; $('me-bot').onclick = function () { openBot(); };
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-bot]');
@@ -526,6 +597,101 @@ input,select,textarea{padding:12px 13px}
   });
 
 
+
+
+  // ---------- 🌉 bot ekranlari Mini App ichida (kanallar, avtopilot, kontent-reja, RSS, shablonlar, jamoa, taklif, promo …)
+  var br = {stack: [], nav: 'home', title: '', busy: false, state: null};
+  function tgHtml(src) {
+    var doc = new DOMParser().parseFromString('<body>' + String(src).replace(/<\/?tg-emoji[^>]*>/g, '') + '</body>', 'text/html');
+    var ok = {B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, STRIKE: 1, CODE: 1, PRE: 1, BLOCKQUOTE: 1};
+    function walk(n) {
+      var out = '';
+      n.childNodes.forEach(function (c) {
+        if (c.nodeType === 3) { out += esc(c.nodeValue); }
+        else if (c.nodeType === 1) {
+          var inner = walk(c), tag = c.tagName;
+          if (tag === 'A') {
+            var h = c.getAttribute('href') || '';
+            out += /^https?:\/\/|^tg:\/\//.test(h) ? '<a href="' + esc(h) + '" target="_blank" rel="noopener">' + inner + '</a>' : inner;
+          } else if (ok[tag]) { var lt = tag.toLowerCase(); out += '<' + lt + '>' + inner + '</' + lt + '>'; }
+          else { out += inner; }
+        }
+      });
+      return out;
+    }
+    return walk(doc.body).replace(/\n/g, '<br>');
+  }
+  function brRows(rows) {
+    return rows.map(function (r) {
+      var cls = 'brow n' + Math.min(r.length, 3);
+      return '<div class="' + cls + '">' + r.map(function (b) {
+        if (b.u) { return '<a class="bbtn" href="' + esc(b.u) + '" target="_blank" rel="noopener">' + esc(b.t) + '</a>'; }
+        return '<button class="bbtn" data-bd="' + esc(b.d) + '">' + esc(b.t) + '</button>';
+      }).join('') + '</div>';
+    }).join('');
+  }
+  function brRender(r) {
+    var html = '';
+    (r.screens || []).forEach(function (sc, i) {
+      var last = i === r.screens.length - 1;
+      html += '<div class="card bscreen' + (last ? '' : ' old') + '">' + (sc.text ? '<div class="btxt">' + tgHtml(sc.text) + '</div>' : '') + (last ? brRows(sc.rows || []) : '') + '</div>';
+    });
+    if (!r.screens || !r.screens.length) { html = '<div class="card bscreen"><div class="btxt">' + esc(t('ma_br_done')) + '</div></div>'; }
+    if (r.menu && (!r.screens || !r.screens.some(function (x) { return x.rows && x.rows.length; }))) {
+      html += '<div class="row" style="margin-top:6px"><button data-go="home">🏠 ' + esc(t('ma_tab_home')) + '</button></div>';
+    }
+    if (r.bot_link) { html += '<button class="ghost" id="br-bot">🤖 ' + esc(t('ma_br_in_bot')) + '</button>'; }
+    $('br-body').innerHTML = html;
+    br.state = r.state || null;
+    $('br-input').style.display = br.state ? '' : 'none';
+    $('br-text').value = '';
+    if ($('br-bot')) { $('br-bot').onclick = function () { openBot(); }; }
+    window.scrollTo(0, 0);
+  }
+  function brCall(arg, push) {
+    if (br.busy) { return; }
+    br.busy = true;
+    $('br-body').insertAdjacentHTML('afterbegin', '<div class="empty slim" id="br-spin"><span class="spin">⏳</span></div>');
+    api('bridge', arg).then(function (r) {
+      br.busy = false;
+      var sp = $('br-spin'); if (sp) { sp.remove(); }
+      if (!r.ok) { toast(errText(r)); return; }
+      if (push !== false) { br.stack.push(r); }
+      brRender(r);
+      haptic();
+    });
+  }
+  function brOpen(d, titleKey, navName) {
+    br.stack = []; br.nav = navName || 'home'; br.title = titleKey;
+    if (cur === 'bot') { brLeave(); }
+    cur = 'bot';
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.toggle('on', p.id === 'p-bot'); });
+    $('br-title').textContent = t(titleKey);
+    $('br-body').innerHTML = '';
+    centerNav(br.nav);
+    if (tg && tg.BackButton) { tg.BackButton.show(); }
+    brCall({d: d});
+  }
+  function brBack() { br.stack.pop(); brRender(br.stack[br.stack.length - 1]); }
+  function brLeave() { if (br.state) { api('bridge_reset', {}); br.state = null; } br.stack = []; }
+  $('br-back').onclick = function () { haptic(); if (br.stack.length > 1) { brBack(); } else { go('home'); } };
+  $('br-send').onclick = function () { var v = $('br-text').value.trim(); if (v) { brCall({t: v}); } };
+  $('br-text').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('br-send').click(); } });
+  // bot tugmalari: Mini App'ning o'z bo'limiga yo'naltiriladiganlar
+  var BR_MAP = {'m:home': 'home', 'p:new': 'post', 'q:list': 'queue', 'pl:show': 'plans', 'mk:market': 'market', 'set:show': 'me'};
+  function brNavigate(d) {
+    if (BR_MAP[d]) { go(BR_MAP[d]); return true; }
+    if (d === 's:list') { go('queue', {seg: 'sent'}); return true; }
+    if (/^p:/.test(d)) { go('post'); return true; }
+    return false;
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-bd]');
+    if (b) { e.preventDefault(); var d = b.getAttribute('data-bd'); if (!brNavigate(d)) { brCall({d: d}); } return; }
+    var o = e.target.closest('[data-br]');
+    if (o) { e.preventDefault(); haptic(); brOpen(o.getAttribute('data-br'), o.getAttribute('data-bt') || 'ma_tab_auto', BR_NAV[o.getAttribute('data-br')] || (cur === 'me' ? 'me' : cur === 'auto' ? 'auto' : 'home')); }
+  });
+  var BR_NAV = {'ch:list': 'channels', 'ch:add': 'channels', 'st:show': 'stats'};
 
   // ---------- 💎 tariflar va Stars to'lovi (Mini App ichida: createInvoiceLink -> tg.openInvoice)
   var pl = {data: null, tier: 'pro', key: null};
@@ -598,7 +764,7 @@ input,select,textarea{padding:12px 13px}
       document.querySelectorAll('[data-cat]').forEach(function (el) { el.onclick = function () { haptic(); mk.cat = el.getAttribute('data-cat') || null; mk.page = 0; loadMarket(); }; });
       $('mk-mine').innerHTML = r.mine.length ? '<div class="card"><h3>📢 ' + esc(t('ma_mk_mine')) + '</h3>' + r.mine.map(function (l) {
         return '<div class="muted">@' + esc(l.username) + ' · ' + esc(l.price) + ' · ' + esc(l.status) + '</div>';
-      }).join('') + '<div style="margin-top:8px"><button class="small ghost" data-bot="go_market">⚙️ ' + esc(t('ma_mk_manage')) + '</button></div></div>' : '';
+      }).join('') + '<div style="margin-top:8px"><button class="small ghost" data-br="mk:my" data-bt="ma_mk_manage">⚙️ ' + esc(t('ma_mk_manage')) + '</button></div></div>' : '';
       if (r.banned) { $('mk-list').innerHTML = '<div class="card empty"><b>🚫</b>' + esc(t('ma_mk_banned')) + '</div>'; $('mk-pager').innerHTML = ''; return; }
       if (!r.items.length) { $('mk-list').innerHTML = '<div class="empty slim"><b>📭</b>' + esc(t('ma_mk_empty')) + '</div>'; }
       else {
@@ -675,7 +841,7 @@ input,select,textarea{padding:12px 13px}
         html += '<label>' + esc(t('ma_mk_reply')) + '</label><textarea id="mk-text" rows="3" maxlength="1000"></textarea>' +
           '<div class="muted">' + esc(t('ma_mk_safety')) + '</div><div style="height:8px"></div><button id="mk-send">' + esc(t('ma_mk_send')) + '</button>';
       }
-      html += '<div style="height:8px"></div><button class="ghost" data-bot="go_market">🤖 ' + esc(t('ma_mk_in_bot')) + '</button>' +
+      html += '<div style="height:8px"></div><button class="ghost" data-br="mk:home" data-bt="ma_go_market">🤖 ' + esc(t('ma_mk_in_bot')) + '</button>' +
         '<div style="height:8px"></div><button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>';
       modal(html);
       var box = $('mk-msgs'); box.scrollTop = box.scrollHeight;
@@ -718,16 +884,16 @@ input,select,textarea{padding:12px 13px}
   function setEditor(html) { $('ed').innerHTML = String(html || '').replace(/\n/g, '<br>'); refreshPreview(); }
   function plainLen(html) { var d = document.createElement('div'); d.innerHTML = html; var s = d.textContent || ''; var n = 0; for (var ch of s) { n += ch.codePointAt(0) > 0xffff ? 2 : 1; } return n; }
 
-  document.querySelectorAll('.toolbar button').forEach(function (b) {
-    b.addEventListener('mousedown', function (e) { e.preventDefault(); });
-    b.onclick = function () {
-      var c = b.getAttribute('data-cmd'); $('ed').focus(); haptic();
-      if (c === 'link') { var u = prompt(t('ma_link_ph'), 'https://'); if (u) { document.execCommand('createLink', false, u); } }
-      else if (c === 'code' || c === 'quote') { wrap(c === 'code' ? 'code' : 'blockquote'); }
-      else if (c === 'clear') { document.execCommand('removeFormat'); document.execCommand('unlink'); }
-      else { document.execCommand(c); }
-      refreshPreview();
-    };
+  document.addEventListener('mousedown', function (e) { if (e.target.closest('.toolbar button')) { e.preventDefault(); } });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('.toolbar button'); if (!b) { return; }
+    var box = b.closest('.card, .sheet'), edEl = (box && box.querySelector('.editor')) || $('ed');
+    var c = b.getAttribute('data-cmd'); edEl.focus(); haptic();
+    if (c === 'link') { var u = prompt(t('ma_link_ph'), 'https://'); if (u) { document.execCommand('createLink', false, u); } }
+    else if (c === 'code' || c === 'quote') { wrap(c === 'code' ? 'code' : 'blockquote'); }
+    else if (c === 'clear') { document.execCommand('removeFormat'); document.execCommand('unlink'); }
+    else { document.execCommand(c); }
+    if (edEl === $('ed')) { refreshPreview(); }
   });
   function wrap(tag) {
     var sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { return; }
@@ -1061,7 +1227,7 @@ input,select,textarea{padding:12px 13px}
   }
 
   // ---------- navbat
-  function loadQueue() {
+  function loadSched() {
     $('q-list').innerHTML = '<div class="empty"><span class="spin">⏳</span></div>';
     api('posts').then(function (r) {
       if (!r.ok) { $('q-list').innerHTML = '<div class="empty">' + esc(errText(r)) + '</div>'; return; }
@@ -1088,16 +1254,109 @@ input,select,textarea{padding:12px 13px}
     };
     if (tg && tg.showConfirm) { tg.showConfirm(t('ma_confirm_cancel'), done); } else { done(confirm(t('ma_confirm_cancel'))); }
   }
-  function editPost(p) {
-    modal('<h3>✏️ ' + esc(t('ma_edit_post')) + '</h3><div class="editor" id="ed2" contenteditable="true"></div>' +
-      '<label>' + esc(t('ma_when')) + '</label><input type="datetime-local" id="when2" value="' + esc(p.when_local) + '">' +
-      '<div class="row" style="margin-top:14px"><button class="ghost" id="e-cancel">' + esc(t('ma_back')) + '</button><button id="e-save">' + esc(t('ma_save')) + '</button></div>');
-    $('ed2').innerHTML = String(p.text || '').replace(/\n/g, '<br>');
+  var TOOLBAR = '<div class="toolbar"><button data-cmd="bold"><b>B</b></button><button data-cmd="italic"><i>I</i></button><button data-cmd="underline"><u>U</u></button>' +
+    '<button data-cmd="strikeThrough"><s>S</s></button><button data-cmd="link">🔗</button><button data-cmd="code">&lt;/&gt;</button><button data-cmd="quote">❝</button><button data-cmd="clear">⌫</button></div>';
+  var REPEATS = ['', 'daily', 'weekly', 'monthly', 'twice', 'workdays', 'interval2', 'interval3'];
+  var REP_KEY = {'': 'ma_rep_none', daily: 'ma_rep_daily', weekly: 'ma_rep_weekly', monthly: 'ma_rep_monthly', twice: 'ma_rep_twice', workdays: 'ma_rep_workdays', interval2: 'ma_rep_int2', interval3: 'ma_rep_int3'};
+  function plainOf(html) { var d = document.createElement('div'); d.innerHTML = String(html || ''); return (d.textContent || '').trim(); }
+  function qseg_update() { document.querySelectorAll('[data-seg]').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-seg') === qseg); }); }
+  function loadQueue() {
+    qseg_update();
+    if (qseg === 'sent') { return loadSent(); }
+    if (qseg === 'failed') { return loadFailed(); }
+    return loadSched();
+  }
+  document.querySelectorAll('[data-seg]').forEach(function (c) { c.onclick = function () { haptic(); qseg = c.getAttribute('data-seg'); loadQueue(); }; });
+  function loadSent() {
+    $('q-list').innerHTML = '<div class="empty slim"><span class="spin">⏳</span></div>';
+    api('sent_list').then(function (r) {
+      if (!r.ok) { $('q-list').innerHTML = '<div class="empty">' + esc(errText(r)) + '</div>'; return; }
+      if (!r.items.length) { $('q-list').innerHTML = '<div class="empty slim"><b>📭</b>' + esc(t('ma_sent_empty')) + '</div>'; return; }
+      $('q-list').innerHTML = r.items.map(function (m, i) {
+        var pl = plainOf(m.text);
+        return '<div class="card post"><div class="body"><b>✅ ' + esc(m.when) + '</b><div class="muted">📢 ' + esc(m.channel) + '</div>' +
+          '<div class="t">' + (m.type !== 'text' ? '🖼 ' : '') + esc(pl || '[' + m.type + ']') + '</div>' + (m.edited ? '<span class="tag">✏️ ' + esc(t('ma_edited')) + '</span>' : '') +
+          '</div><div>' + (m.editable ? '<button class="small ghost" data-se="' + i + '">✏️</button><div style="height:6px"></div>' : '') +
+          '<button class="small danger" data-sd="' + m.id + '">🗑</button></div></div>';
+      }).join('');
+      document.querySelectorAll('[data-se]').forEach(function (b) { b.onclick = function () { editSent(r.items[parseInt(b.getAttribute('data-se'), 10)]); }; });
+      document.querySelectorAll('[data-sd]').forEach(function (b) { b.onclick = function () {
+        var id = parseInt(b.getAttribute('data-sd'), 10);
+        var done = function (yes) { if (yes) { api('sent_delete', {id: id}).then(function (x) { toast(x.ok ? t('ma_deleted') : errText(x)); if (x.ok) { haptic('ok'); loadSent(); } }); } };
+        if (tg && tg.showConfirm) { tg.showConfirm(t('ma_confirm_sent_del'), done); } else { done(confirm(t('ma_confirm_sent_del'))); }
+      }; });
+    });
+  }
+  function editSent(m) {
+    modal('<h3>✏️ ' + esc(t('ma_edit_sent')) + '</h3><div class="muted" style="margin-bottom:8px">' + esc(t('ma_edit_sent_hint')) + '</div>' + TOOLBAR +
+      '<div class="editor" id="ed3" contenteditable="true"></div><div class="row" style="margin-top:14px"><button class="ghost" id="e-cancel">' + esc(t('ma_back')) + '</button><button id="e-save">' + esc(t('ma_save')) + '</button></div>');
+    $('ed3').innerHTML = String(m.text || '').replace(/\n/g, '<br>');
     $('e-cancel').onclick = closeModal;
     $('e-save').onclick = function () {
-      var body = {id: p.id, text: toHtml($('ed2')).replace(/\n+$/, '')};
+      var btn = this; btn.disabled = true;
+      api('sent_edit', {id: m.id, text: toHtml($('ed3')).replace(/\n+$/, '')}).then(function (r) {
+        btn.disabled = false;
+        if (!r.ok) { toast(errText(r)); return; }
+        closeModal(); toast(t('ma_saved')); haptic('ok'); loadSent();
+      });
+    };
+  }
+  function loadFailed() {
+    $('q-list').innerHTML = '<div class="empty slim"><span class="spin">⏳</span></div>';
+    api('failed_list').then(function (r) {
+      if (!r.ok) { $('q-list').innerHTML = '<div class="empty">' + esc(errText(r)) + '</div>'; return; }
+      if (!r.items.length) { $('q-list').innerHTML = '<div class="empty slim"><b>🎉</b>' + esc(t('ma_failed_empty')) + '</div>'; return; }
+      $('q-list').innerHTML = r.items.map(function (p) {
+        return '<div class="card post"><div class="body"><b>⚠️ ' + esc(p.when) + '</b><div class="muted">📢 ' + esc(p.channel) + '</div>' +
+          '<div class="t">' + esc(plainOf(p.text) || '[' + p.type + ']') + '</div><div class="errline">' + esc(p.error || '') + '</div></div>' +
+          '<div><button class="small" data-rt="' + p.id + '">↻ ' + esc(t('ma_retry')) + '</button></div></div>';
+      }).join('');
+      document.querySelectorAll('[data-rt]').forEach(function (b) { b.onclick = function () {
+        api('post_retry', {id: parseInt(b.getAttribute('data-rt'), 10)}).then(function (x) { toast(x.ok ? t('ma_retry_ok') : errText(x)); if (x.ok) { haptic('ok'); loadFailed(); loadMe(); } });
+      }; });
+    });
+  }
+  // to'liq tahrirlash: matn va format, kanal, vaqt, takror, tugma, reaksiya, yashirin matn, sozlamalar, avto-o'chirish
+  function editPost(p) {
+    var ed = {opts: (p.options || []).slice(), rx: p.reactions || ''};
+    var chOpts = me.channels.map(function (c) { return '<option value="' + c.id + '"' + (c.id === p.channel_ref ? ' selected' : '') + '>' + esc(c.title) + '</option>'; }).join('');
+    var repOpts = REPEATS.map(function (k) { return '<option value="' + k + '"' + (k === p.repeat_key ? ' selected' : '') + '>' + esc(t(REP_KEY[k])) + '</option>'; }).join('');
+    var adOpts = '<option value="0">' + esc(t('ma_ad_none')) + '</option>' + me.auto_delete.map(function (m) { return '<option value="' + m + '"' + (m === p.delete_after ? ' selected' : '') + '>' + esc(t('ma_ad_hours', {h: m / 60})) + '</option>'; }).join('');
+    modal('<h3>✏️ ' + esc(t('ma_edit_post')) + '</h3>' + (p.type !== 'poll' ? TOOLBAR + '<div class="editor" id="ed2" contenteditable="true"></div>' : '<div class="muted">' + esc(t('ma_poll_text_bot')) + '</div>') +
+      '<label>' + esc(t('ma_channel')) + '</label><select id="e-ch">' + chOpts + '</select>' +
+      '<label>' + esc(t('ma_when')) + '</label><input type="datetime-local" id="when2" value="' + esc(p.when_local) + '">' +
+      '<label>' + esc(t('ma_repeat')) + '</label><select id="e-rep">' + repOpts + '</select>' +
+      '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div>' +
+      '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="row"><input id="e-bt" maxlength="64" placeholder="' + esc(t('ma_button_text')) + '" value="' + esc(p.button ? p.button[0] : '') + '">' +
+      '<input id="e-bu" placeholder="@kanal, t.me/..., sayt.uz" value="' + esc(p.button ? p.button[1] : '') + '"></div>' +
+      '<label>👍 ' + esc(t('ma_reactions')) + '</label><div class="chips" id="e-rx"></div>' +
+      '<label>⏳ ' + esc(t('ma_autodel')) + '</label><select id="e-ad">' + adOpts + '</select>' +
+      (p.type !== 'album' ? '<label>🔒 ' + esc(t('ma_hidden')) + '</label><textarea id="e-hid" rows="2" maxlength="180">' + esc(p.hidden || '') + '</textarea>' : '') +
+      '<label>⚙️ ' + esc(t('ma_opts')) + '</label><div class="chips" id="e-opts"></div>' +
+      '<div class="row" style="margin-top:16px"><button class="ghost" id="e-cancel">' + esc(t('ma_back')) + '</button><button id="e-save">' + esc(t('ma_save')) + '</button></div>');
+    if ($('ed2')) { $('ed2').innerHTML = String(p.text || '').replace(/\n/g, '<br>'); }
+    function drawRx() {
+      $('e-rx').innerHTML = [''].concat(me.reaction_sets).map(function (set) {
+        return '<span class="chip' + (ed.rx === set ? ' on' : '') + '" data-erx="' + esc(set) + '">' + (set ? esc(set.split(',').join(' ')) : esc(t('ma_rx_none'))) + '</span>';
+      }).join('');
+      document.querySelectorAll('[data-erx]').forEach(function (c) { c.onclick = function () { ed.rx = c.getAttribute('data-erx'); drawRx(); }; });
+    }
+    function drawOpts() {
+      $('e-opts').innerHTML = OPTS.map(function (o) { return '<span class="chip' + (ed.opts.indexOf(o) >= 0 ? ' on' : '') + '" data-eo="' + o + '">' + esc(t('ma_opt_' + o)) + '</span>'; }).join('');
+      document.querySelectorAll('[data-eo]').forEach(function (c) { c.onclick = function () { var o = c.getAttribute('data-eo'), i = ed.opts.indexOf(o); if (i >= 0) { ed.opts.splice(i, 1); } else { ed.opts.push(o); } drawOpts(); }; });
+    }
+    drawRx(); drawOpts();
+    $('e-rep').onchange = function () { $('e-t2').style.display = this.value === 'twice' ? '' : 'none'; };
+    $('e-cancel').onclick = closeModal;
+    $('e-save').onclick = function () {
+      var btn = this, body = {id: p.id, channel_id: parseInt($('e-ch').value, 10), button_text: $('e-bt').value.trim(), button_url: $('e-bu').value.trim(),
+        reactions: ed.rx, delete_after: parseInt($('e-ad').value, 10) || 0, options: ed.opts.join(','), repeat: $('e-rep').value};
+      if ($('ed2')) { body.text = toHtml($('ed2')).replace(/\n+$/, ''); }
+      if ($('e-hid')) { body.hidden = $('e-hid').value.trim(); }
+      if (body.repeat === 'twice') { body.time2 = $('e-time2').value; }
       if ($('when2').value && $('when2').value !== p.when_local) { body.when = $('when2').value; }
-      api('post_update', body).then(function (r) { if (!r.ok) { toast(errText(r)); return; } closeModal(); toast(t('ma_saved')); haptic('ok'); loadQueue(); });
+      btn.disabled = true;
+      api('post_update', body).then(function (r) { btn.disabled = false; if (!r.ok) { toast(errText(r)); return; } closeModal(); toast(t('ma_saved')); haptic('ok'); loadQueue(); });
     };
   }
 
@@ -1149,6 +1408,12 @@ input,select,textarea{padding:12px 13px}
       if (!me.channels.some(function (c) { return c.id === state.channel; })) { state.channel = me.channels[0].id; }
     }
     renderChannels(); renderReactions(); renderOpts(); refreshPreview();
+    // yangi foydalanuvchi uchun 3 qadamli ko'rsatma
+    var step = !me.channels.length ? 1 : (me.stats.sent + me.stats.pending === 0 ? 2 : 0);
+    $('start-card').style.display = step ? '' : 'none';
+    ['stp1', 'stp2', 'stp3'].forEach(function (id, i) { $(id).className = i + 1 < step ? 'done' : (i + 1 === step ? 'now' : ''); });
+    $('start-go').textContent = t(step === 1 ? 'ma_start_add' : 'ma_start_post');
+    $('start-go').onclick = function () { if (step === 1) { brOpen('ch:add', 'ma_tab_channels', 'channels'); } else { go('post'); } };
   }
   function loadMe() {
     return api('me').then(function (r) {
@@ -1278,7 +1543,7 @@ input,select,textarea{padding:12px 13px}
     if (!ok) { return; }
     $('boot').style.display = 'none';
     var tab = (new URLSearchParams(location.search)).get('tab');
-    go(['home', 'post', 'queue', 'market', 'me', 'admin', 'plans'].indexOf(tab) >= 0 ? tab : (['home', 'post', 'queue', 'market'].indexOf(ui.start) >= 0 ? ui.start : 'home'));
+    go(['home', 'post', 'queue', 'auto', 'channels', 'stats', 'market', 'me', 'admin', 'plans'].indexOf(tab) >= 0 ? tab : (['home', 'post', 'queue', 'market'].indexOf(ui.start) >= 0 ? ui.start : 'home'));
     checkDraft();
   });
 })();

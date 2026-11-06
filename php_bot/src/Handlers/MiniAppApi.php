@@ -87,6 +87,21 @@ final class MiniAppApi
                     return self::templateSave($ctx, $in);
                 case 'stats':
                     return [200, self::stats($ctx)];
+                case 'bridge':
+                    return MiniAppBridge::run($app, $user, $in);
+                case 'bridge_reset':
+                    $app->states->clear($uid);
+                    return [200, ['ok' => true]];
+                case 'sent_list':
+                    return [200, self::sentList($ctx)];
+                case 'sent_edit':
+                    return self::sentEdit($ctx, $in);
+                case 'sent_delete':
+                    return self::sentDelete($ctx, (int) ($in['id'] ?? 0));
+                case 'failed_list':
+                    return [200, self::failedList($ctx)];
+                case 'post_retry':
+                    return self::postRetry($ctx, (int) ($in['id'] ?? 0));
                 case 'plans':
                     return [200, self::plans($ctx)];
                 case 'invoice':
@@ -229,6 +244,106 @@ final class MiniAppApi
         return [200, ['ok' => true, 'url' => $r['result']]];
     }
 
+    // ------------------------------------------------------------------ kuzatish: yuborilgan va chiqmagan postlar
+
+    private static function sentOut(Ctx $ctx, array $m): array
+    {
+        $html = (string) ($m['edited_text'] ?? $m['text'] ?? '');
+        return ['id' => (int) $m['id'], 'type' => (string) $m['post_type'], 'text' => $html, 'channel' => (string) ($m['channel_title'] ?? $m['chat_id']),
+            'when' => TimeParser::show((string) $m['created_at'], $ctx->tz()), 'edited' => $m['edited_text'] !== null,
+            'editable' => $m['post_type'] !== 'poll', 'post_id' => (int) $m['post_id']];
+    }
+
+    private static function sentList(Ctx $ctx): array
+    {
+        return ['ok' => true, 'items' => array_map(static function ($m) use ($ctx) {
+            return self::sentOut($ctx, $m);
+        }, $ctx->app->messages->listSent($ctx->ownerId(), 30))];
+    }
+
+    /** Kanalga chiqib bo'lgan postning matnini tahrirlash (editMessageText/Caption) — botdagi /sent bilan bir xil qoidalar. */
+    private static function sentEdit(Ctx $ctx, array $in): array
+    {
+        $app = $ctx->app;
+        if (!$ctx->can('create')) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
+        $id = (int) ($in['id'] ?? 0);
+        $m = $app->messages->getOwnedSent($ctx->ownerId(), $id);
+        if ($m === null) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $type = (string) $m['post_type'];
+        if ($type === 'poll') {
+            return [400, ['ok' => false, 'error' => 'poll_text']];
+        }
+        $html = self::cleanText((string) ($in['text'] ?? ''), $type);
+        if (is_array($html)) {
+            return [400, ['ok' => false, 'error' => 'too_long', 'len' => $html[1], 'max' => $html[2]]];
+        }
+        if ($type === 'text' && trim(Html::plain($html)) === '') {
+            return [400, ['ok' => false, 'error' => 'empty']];
+        }
+        $limitType = $type === 'album' ? 'photo' : $type;
+        $out = PostRender::watermark($html, $limitType, $app->config->str('bot_username'), $app->isFree($ctx->ownerId()));
+        $params = ['chat_id' => (int) $m['chat_id'], 'message_id' => (int) $m['message_id'], 'parse_mode' => 'HTML'];
+        if ($type !== 'album') {
+            $rows = $app->messageRows($m);
+            if ($rows) {
+                $params['reply_markup'] = ['inline_keyboard' => $rows];
+            }
+        }
+        $res = $type === 'text' ? $app->tg->call('editMessageText', $params + ['text' => $out]) : $app->tg->call('editMessageCaption', $params + ['caption' => $out]);
+        if (empty($res['ok']) && strpos((string) ($res['description'] ?? ''), 'not modified') === false) {
+            return [502, ['ok' => false, 'error' => 'edit_fail', 'reason' => $ctx->t(PostRender::reasonKey($res))]];
+        }
+        $app->messages->setText($id, $html);
+        return [200, ['ok' => true]];
+    }
+
+    private static function sentDelete(Ctx $ctx, int $id): array
+    {
+        $app = $ctx->app;
+        $m = $ctx->can('delete') ? $app->messages->getOwnedSent($ctx->ownerId(), $id) : null;
+        if ($m === null) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $ids = array_merge([(int) $m['message_id']], array_map('intval', array_filter(explode(',', (string) ($m['extra_ids'] ?? '')))));
+        $ok = true;
+        foreach ($ids as $mid) {
+            $r = $app->tg->call('deleteMessage', ['chat_id' => (int) $m['chat_id'], 'message_id' => $mid]);
+            $ok = $ok && (!empty($r['ok']) || strpos(strtolower((string) ($r['description'] ?? '')), 'not found') !== false);
+        }
+        if (!$ok) {
+            return [502, ['ok' => false, 'error' => 'delete_fail']];
+        }
+        $app->messages->markDeleted($id);
+        return [200, ['ok' => true]];
+    }
+
+    /** Chiqmagan (xato bilan tugagan) postlar va sabablari. */
+    private static function failedList(Ctx $ctx): array
+    {
+        $rows = $ctx->app->db->all("SELECT p.*, c.title AS channel_title FROM scheduled_posts p LEFT JOIN channels c ON c.channel_id = p.channel_id
+             WHERE p.user_id = ? AND p.status = 'failed' ORDER BY p.id DESC LIMIT 20", [$ctx->ownerId()]);
+        return ['ok' => true, 'items' => array_map(static function ($p) use ($ctx) {
+            $o = self::postOut($ctx, $p);
+            $o['error'] = (string) ($p['last_error'] ?? '');
+            return $o;
+        }, $rows)];
+    }
+
+    /** Chiqmagan postni qayta navbatga (hozirga) qo'yish. */
+    private static function postRetry(Ctx $ctx, int $id): array
+    {
+        if (!$ctx->can('send_now')) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
+        $n = $ctx->app->db->exec("UPDATE scheduled_posts SET status = 'pending', last_error = NULL, attempt_count = 0, scheduled_time = UTC_TIMESTAMP()
+             WHERE id = ? AND user_id = ? AND status = 'failed'", [$id, $ctx->ownerId()]);
+        return $n > 0 ? [200, ['ok' => true]] : [404, ['ok' => false, 'error' => 'not_found']];
+    }
+
     private static function postOut(Ctx $ctx, array $p): array
     {
         $rec = null;
@@ -242,7 +357,13 @@ final class MiniAppApi
             'when_local' => (new DateTimeImmutable((string) $p['scheduled_time'], new DateTimeZone('UTC')))->setTimezone($ctx->tz())->format('Y-m-d\TH:i'),
             'repeat' => $rec, 'sent_count' => (int) $p['sent_count'], 'button' => $p['button_text'] ? [$p['button_text'], $p['button_url']] : null,
             'reactions' => $p['reactions'], 'delete_after' => $p['delete_after'] !== null ? (int) $p['delete_after'] : null,
-            'media_count' => $p['post_type'] === 'album' ? count(PostRender::albumMedia($p)) : ($p['file_id'] ? 1 : 0)];
+            'media_count' => $p['post_type'] === 'album' ? count(PostRender::albumMedia($p)) : ($p['file_id'] ? 1 : 0),
+            // to'liq tahrirlash uchun xom qiymatlar
+            'channel_ref' => (int) (($ctx->app->channels->byChannelId((int) $p['channel_id']) ?? [])['id'] ?? 0),
+            'options' => PostRender::options($p['options'] ?? null),
+            'hidden' => (string) ((PostRender::hidden($p['hidden_text'] ?? null) ?? [])['t'] ?? ''),
+            'repeat_key' => empty($p['recurrence_type']) ? '' : ($p['recurrence_type'] === 'interval' ? 'interval' . (int) $p['recurrence_day'] : (string) $p['recurrence_type']),
+            'time2' => ($p['recurrence_type'] ?? '') === 'twice' && $p['recurrence_day'] !== null ? Recurrence::clock((int) $p['recurrence_day']) : ''];
     }
 
     private static function posts(Ctx $ctx): array
@@ -449,7 +570,84 @@ final class MiniAppApi
             }
             $utcSql = $utc->format('Y-m-d H:i:s');
         }
+        // to'liq tahrirlash: tugma, reaksiya, yashirin matn, sozlamalar, avto-o'chirish, kanal, takror
+        $cols = [];
+        if (array_key_exists('button_text', $in) || array_key_exists('button_url', $in)) {
+            $bt = trim((string) ($in['button_text'] ?? ''));
+            $bu = trim((string) ($in['button_url'] ?? ''));
+            if ($bt === '' && $bu === '') {
+                $cols['button_text'] = null;
+                $cols['button_url'] = null;
+            } else {
+                $url = Links::normalize($bu);
+                if ($bt === '' || mb_strlen($bt) > 64 || $url === null) {
+                    return [400, ['ok' => false, 'error' => 'button']];
+                }
+                $cols['button_text'] = $bt;
+                $cols['button_url'] = $url;
+            }
+        }
+        if (array_key_exists('reactions', $in)) {
+            if ((string) $in['reactions'] === '') {
+                $cols['reactions'] = null;
+            } else {
+                $r = PostRender::parseReactions((string) $in['reactions']);
+                if ($r === null) {
+                    return [400, ['ok' => false, 'error' => 'reactions']];
+                }
+                $cols['reactions'] = $r;
+            }
+        }
+        if (array_key_exists('options', $in)) {
+            $cols['options'] = PostRender::optionsString(is_array($in['options']) ? $in['options'] : (string) $in['options']);
+        }
+        if (array_key_exists('hidden', $in) && $p['post_type'] !== 'album') {
+            $hidden = trim((string) $in['hidden']);
+            if ($hidden === '') {
+                $cols['hidden_text'] = null;
+            } elseif (mb_strlen($hidden) > PostHandler::HIDDEN_MAX) {
+                return [400, ['ok' => false, 'error' => 'hidden']];
+            } else {
+                $cols['hidden_text'] = PostRender::hiddenJson($ctx->t('hidden_btn_label'), $hidden);
+            }
+        }
+        if (array_key_exists('delete_after', $in)) {
+            $ad = (int) $in['delete_after'];
+            if ($ad > 0 && !in_array($ad, \PostAssist\Keyboards::AUTO_DELETE, true)) {
+                return [400, ['ok' => false, 'error' => 'delete_after']];
+            }
+            $cols['delete_after'] = $ad > 0 ? $ad : null;
+        }
+        if (!empty($in['channel_id'])) {
+            $c = $ctx->app->channels->getOwned($ctx->ownerId(), (int) $in['channel_id']);
+            if (!$c) {
+                return [400, ['ok' => false, 'error' => 'channel']];
+            }
+            $cols['channel_id'] = (int) $c['channel_id'];
+        }
+        if (array_key_exists('repeat', $in)) {
+            $repeat = (string) $in['repeat'];
+            if ($repeat === '') {
+                $cols += ['recurrence_type' => null, 'recurrence_time' => null, 'recurrence_day' => null];
+            } else {
+                $base = $utcSql !== null ? new DateTimeImmutable($utcSql, new DateTimeZone('UTC')) : new DateTimeImmutable((string) $p['scheduled_time'], new DateTimeZone('UTC'));
+                $second = isset($in['time2']) && $in['time2'] !== '' ? Recurrence::parseClock((string) $in['time2']) : null;
+                $every = null;
+                if (preg_match('/^interval(\d+)$/', $repeat, $im)) {
+                    $every = (int) $im[1];
+                    $repeat = in_array($every, Recurrence::INTERVALS, true) ? 'interval' : 'bad';
+                }
+                $rec = Recurrence::fromFirst($repeat, $base, $ctx->tz(), $second, $every);
+                if ($rec === null) {
+                    return [400, ['ok' => false, 'error' => 'repeat']];
+                }
+                $cols += ['recurrence_type' => $rec['type'], 'recurrence_time' => $rec['time'], 'recurrence_day' => $rec['day']];
+            }
+        }
         $ctx->app->posts->updatePending($ctx->ownerId(), (int) $p['id'], $text, $utcSql);
+        if ($cols) {
+            $ctx->app->posts->updateFields($ctx->ownerId(), (int) $p['id'], $cols);
+        }
         return [200, ['ok' => true, 'post' => self::postOut($ctx, $ctx->app->posts->getOwnedPending($ctx->ownerId(), (int) $p['id']) ?? $p)]];
     }
 

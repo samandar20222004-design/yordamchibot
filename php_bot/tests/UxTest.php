@@ -180,3 +180,141 @@ T::check('admin (muddatsiz): sahifa ochiladi, sotib olish bloklangan', PostAssis
 T::check('me: AI modellar ro\'yxati', ($meZ['ai']['models'][0]['name'] ?? '') === 'gemini' && $meZ['ai']['media'] === true);
 T::check('app.php: tarif sahifasi va openInvoice', strpos($appSrcU, 'id="p-plans"') !== false && strpos($appSrcU, 'tg.openInvoice(r.url') !== false
     && strpos($appSrcU, "api('invoice'") !== false && strpos($appSrcU, 'requestFullscreen') !== false);
+
+// --- Mini App ko'prigi: botdagi ekranlar Mini App ichida (xabar chatga ketmaydi, ekran sifatida qaytadi)
+$B = 7710;
+$initB = $mkInitU(['id' => $B, 'first_name' => 'B', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+$br = static function (array $in) use ($appU, $initB, $fake): array {
+    $fake->reset();
+    return PostAssist\Handlers\MiniAppApi::handle($appU, 'bridge', $in, $initB);
+};
+[$st, $r] = $br(['d' => 'ap:show']);
+T::check('ko\'prik: autopilot ekrani Mini App\'ga qaytdi (matn + tugmalar), chatga xabar ketmadi', $st === 200 && !empty($r['screens']) && strpos($r['screens'][0]['text'], 'AI') !== false
+    && !empty($r['screens'][0]['rows']) && $fake->of('sendMessage') === [] && $fake->of('editMessageText') === []);
+T::check('ko\'prik: haqiqiy Telegram mijozi tiklandi', $appU->tg !== null);
+[$st, $r] = $br(['d' => 'rss:show']);
+T::check('ko\'prik: RSS ekrani', $st === 200 && !empty($r['screens']));
+[$st, $r] = $br(['d' => 'ref:show']);
+T::check('ko\'prik: taklif ekrani havola bilan', strpos($r['screens'][0]['text'], 'ref_' . $B) !== false);
+[$st, $r] = $br(['d' => 'promo:ask']);
+T::eq('ko\'prik: promo so\'raldi — matn kutilmoqda', $r['state'] ?? null, 'promo_wait');
+[$st, $r] = $br(['t' => 'NOMA\'LUMKOD']);
+T::check('ko\'prik: matn yuborish (promo) javob qaytardi', $st === 200 && !empty($r['screens']));
+PostAssist\Handlers\MiniAppApi::handle($appU, 'bridge_reset', [], $initB);
+T::eq('bridge_reset: holat tozalandi', $appU->states->get($B), null);
+T::eq('ko\'prik: bo\'sh so\'rov rad', $br([])[0], 400);
+[$st, $r] = $br(['d' => 'm:home']);
+T::check('ko\'prik: m:home — bosh menyu belgisi', $st === 200 && $r['menu'] === true);
+
+// --- kuzatish: yuborilgan va chiqmagan postlar
+$call2 = static function (string $a, array $in = []) use ($appU, $initB): array {
+    return PostAssist\Handlers\MiniAppApi::handle($appU, $a, $in, $initB);
+};
+T::check('sent_list / failed_list ishlaydi (bo\'sh)', $call2('sent_list')[1]['items'] === [] && $call2('failed_list')[1]['items'] === []);
+T::eq('sent_edit: topilmasa 404', $call2('sent_edit', ['id' => 99999, 'text' => 'x'])[0], 404);
+T::eq('sent_delete: topilmasa 404', $call2('sent_delete', ['id' => 99999])[0], 404);
+T::eq('post_retry: topilmasa 404', $call2('post_retry', ['id' => 99999])[0], 404);
+
+// --- Mini App: hamma matn kalitlari 3 tilda bor (data-t, data-bt, data-ph va JS dagi t('...'))
+$srcAll = (string) file_get_contents(__DIR__ . '/../app.php');
+preg_match_all('/(?:data-t|data-bt|data-ph)="(ma_[a-z0-9_]+)"|\bt\(\'(ma_[a-z0-9_]+)\'|\'(ma_(?:opt|rep|ad|err)_[a-z0-9_]+)\'/', $srcAll, $mmk);
+$keysUsed = array_unique(array_filter(array_merge($mmk[1], $mmk[2], $mmk[3]), static function ($k) {
+    return (string) $k !== '' && substr((string) $k, -1) !== '_'; // dinamik old qo'shimchalar (ma_opt_ + nom)
+}));
+$missing = [];
+foreach (['uz', 'ru', 'en'] as $lg) {
+    $tbl = PostAssist\I18n::table($lg);
+    foreach ($keysUsed as $k) {
+        if (!isset($tbl[$k]) || trim((string) $tbl[$k]) === '') {
+            $missing[] = $lg . ':' . $k;
+        }
+    }
+}
+if ($missing) {
+    echo '    yo\'q: ' . implode(' ', array_slice($missing, 0, 30)) . "\n";
+}
+T::check('Mini App: ' . count($keysUsed) . ' ta matn kaliti uz/ru/en da bor (' . implode(',', array_slice($missing, 0, 5)) . ')', $missing === []);
+$ma = [];
+foreach (['uz', 'ru', 'en'] as $lg) {
+    $ma[$lg] = array_keys(array_filter(PostAssist\I18n::table($lg), static function ($k) {
+        return strpos($k, 'ma_') === 0;
+    }, ARRAY_FILTER_USE_KEY));
+}
+T::check('ma_* kalitlari uch tilda bir xil to\'plam', !array_diff($ma['uz'], $ma['ru']) && !array_diff($ma['uz'], $ma['en']) && !array_diff($ma['ru'], $ma['uz']) && !array_diff($ma['en'], $ma['uz']));
+$allKeys = [];
+foreach (['uz', 'ru', 'en'] as $lg) {
+    $allKeys[$lg] = array_keys(PostAssist\I18n::table($lg));
+}
+T::check('butun bot matnlari uch tilda bir xil to\'plam (' . count($allKeys['uz']) . ' kalit)', !array_diff($allKeys['uz'], $allKeys['ru']) && !array_diff($allKeys['uz'], $allKeys['en']) && !array_diff($allKeys['ru'], $allKeys['en']));
+T::check('app.php: karusel nav, ko\'prik, yuborilgan postlar, to\'liq tahrirlash', strpos($srcAll, 'id="nav"') !== false && strpos($srcAll, "api('bridge'") !== false
+    && strpos($srcAll, "api('sent_edit'") !== false && strpos($srcAll, "api('failed_list')") !== false && strpos($srcAll, 'id="e-rep"') !== false && strpos($srcAll, 'centerNav') !== false);
+
+// --- ko'prik orqali oqimlar: kanal ulash, so'rovnoma, kontent-reja; chiqqan postni tahrirlash/o'chirish
+$BC = -1001000000777;
+$fake->chats['@brkanal'] = ['id' => $BC, 'type' => 'channel', 'title' => 'Ko\'prik kanali', 'username' => 'brkanal'];
+$fake->members["{$BC}|{$BOT}"] = ['status' => 'administrator', 'can_post_messages' => true];
+$fake->members["{$BC}|{$B}"] = ['status' => 'creator'];
+$before = $appU->channels->countFor($B);
+[$st, $r] = $br(['d' => 'ch:add']);
+T::eq('ko\'prik: kanal ulash — matn kutilmoqda', $r['state'] ?? null, 'ch_wait');
+[$st, $r] = $br(['t' => '@brkanal']);
+T::check('ko\'prik: @username bilan kanal ulandi (bot admin tekshiruvi haqiqiy)', $appU->channels->countFor($B) === $before + 1 && strpos((string) ($r['screens'][0]['text'] ?? ''), 'prik kanali') !== false);
+[$st, $r] = $br(['d' => 'ch:list']);
+T::check('ko\'prik: kanallar ro\'yxatida yangi kanal tugmasi', strpos(json_encode($r['screens'], JSON_UNESCAPED_UNICODE), 'Ko\'prik kanali') !== false);
+[$st, $r] = $br(['d' => 'poll:start']);
+T::eq('ko\'prik: so\'rovnoma — savol kutilmoqda', $r['state'] ?? null, 'poll_q');
+$br(['t' => 'Qaysi biri yaxshi?']);
+[$st, $r] = $br(['t' => "Birinchi\nIkkinchi\nUchinchi"]);
+T::check('ko\'prik: so\'rovnoma tayyor — preview ekrani va tugmalar (p:now)', strpos(json_encode($r['screens']), 'p:now') !== false || strpos(json_encode($r['screens']), 'p:') !== false);
+PostAssist\Handlers\MiniAppApi::handle($appU, 'bridge_reset', [], $initB);
+[$st, $r] = $br(['d' => 'cp:show']);
+T::check('ko\'prik: kontent-reja ekrani', $st === 200 && !empty($r['screens']));
+[$st, $r] = $br(['d' => 'tpl:list']);
+T::check('ko\'prik: shablonlar ekrani', $st === 200);
+[$st, $r] = $br(['d' => 'st:show']);
+T::check('ko\'prik: tahlil ekrani', $st === 200 && !empty($r['screens']));
+[$st, $r] = $br(['d' => 'set:team']);
+T::check('ko\'prik: jamoa ekrani', $st === 200 && !empty($r['screens']));
+[$st, $r] = $br(['d' => 'set:help']);
+T::check('ko\'prik: yordam matni', $st === 200 && strpos($r['screens'][0]['text'], '/start') !== false);
+
+// chiqqan post: tahrirlash va o'chirish (kanalda haqiqiy editMessage/deleteMessage chaqiriladi)
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at) VALUES (?, ?, 'text', 'Eski matn', 'sent', UTC_TIMESTAMP(), UTC_TIMESTAMP())", [$B, $BC]);
+$pidB = $db->lastId();
+$db->exec("INSERT INTO sent_messages (post_id, chat_id, message_id, created_at) VALUES (?, ?, 555, UTC_TIMESTAMP())", [$pidB, $BC]);
+$smid = $db->lastId();
+[$st, $r] = $call2('sent_list');
+T::check('sent_list: chiqqan post ko\'rinadi', $st === 200 && count($r['items']) === 1 && $r['items'][0]['editable'] === true && $r['items'][0]['channel'] !== '');
+$fake->reset();
+[$st, $r] = $call2('sent_edit', ['id' => $smid, 'text' => '<b>Yangi</b> matn']);
+$em = $fake->of('editMessageText')[0] ?? [];
+T::check('sent_edit: kanaldagi xabar tahrirlandi (editMessageText, to\'g\'ri chat va id)', $st === 200 && (int) ($em['chat_id'] ?? 0) === $BC && (int) ($em['message_id'] ?? 0) === 555
+    && strpos((string) ($em['text'] ?? ''), 'Yangi') !== false);
+T::eq('sent_edit: bo\'sh matn rad', $call2('sent_edit', ['id' => $smid, 'text' => '   '])[0], 400);
+T::eq('sent_edit: boshqa odamning posti — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'sent_edit', ['id' => $smid, 'text' => 'x'], $initZ)[0], 404);
+$fake->reset();
+T::eq('sent_delete: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'sent_delete', ['id' => $smid], $initZ)[0], 404);
+[$st, $r] = $call2('sent_delete', ['id' => $smid]);
+T::check('sent_delete: kanaldan o\'chirildi', $st === 200 && ($fake->of('deleteMessage')[0]['message_id'] ?? 0) == 555 && $call2('sent_list')[1]['items'] === []);
+
+// chiqmagan post: ro'yxat va qayta navbatga
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at, last_error) VALUES (?, ?, 'text', 'Chiqmadi', 'failed', UTC_TIMESTAMP(), UTC_TIMESTAMP(), 'Bot admin emas')", [$B, $BC]);
+$fid = $db->lastId();
+[$st, $r] = $call2('failed_list');
+T::check('failed_list: sabab bilan', count($r['items']) === 1 && $r['items'][0]['error'] === 'Bot admin emas');
+T::eq('post_retry: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'post_retry', ['id' => $fid], $initZ)[0], 404);
+T::eq('post_retry: qayta navbatga', $call2('post_retry', ['id' => $fid])[0], 200);
+T::eq('post_retry: holat pending', $db->value('SELECT status FROM scheduled_posts WHERE id = ?', [$fid]), 'pending');
+
+// navbatdagi postni TO'LIQ tahrirlash
+[$st, $r] = $call2('post_update', ['id' => $fid, 'text' => 'Yangilangan', 'button_text' => 'Batafsil', 'button_url' => 'sayt.uz', 'reactions' => '', 'delete_after' => 60,
+    'options' => 'silent,pin', 'hidden' => 'Sir', 'repeat' => 'daily', 'channel_id' => $appU->channels->countFor($B) ? (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$BC]) : 0]);
+$row = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [$fid]);
+T::check('post_update: matn, tugma, avto-o\'chirish, sozlamalar, yashirin matn, takror saqlandi', $st === 200 && $row['text'] === 'Yangilangan' && $row['button_text'] === 'Batafsil'
+    && $row['button_url'] === 'https://sayt.uz' && (int) $row['delete_after'] === 60 && $row['options'] === 'silent,pin' && strpos((string) $row['hidden_text'], 'Sir') !== false && $row['recurrence_type'] === 'daily');
+T::check('post_update: javobda xom qiymatlar (repeat_key, options, hidden, channel_ref)', $r['post']['repeat_key'] === 'daily' && $r['post']['options'] === ['silent', 'pin'] && $r['post']['hidden'] === 'Sir' && $r['post']['channel_ref'] > 0);
+T::eq('post_update: tugmasiz URL rad', $call2('post_update', ['id' => $fid, 'button_text' => 'x', 'button_url' => 'bu url emas'])[0], 400);
+$call2('post_update', ['id' => $fid, 'button_text' => '', 'button_url' => '', 'repeat' => '', 'hidden' => '', 'delete_after' => 0, 'options' => '']);
+$row = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [$fid]);
+T::check('post_update: bo\'sh qiymatlar tugma/takror/yashirin matnni o\'chiradi', $row['button_text'] === null && $row['recurrence_type'] === null && $row['hidden_text'] === null && $row['delete_after'] === null);
+T::eq('post_update: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'post_update', ['id' => $fid, 'text' => 'hack'], $initZ)[0], 404);
