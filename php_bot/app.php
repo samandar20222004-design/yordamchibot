@@ -173,7 +173,7 @@ html[data-theme=dark]{--glass:rgba(23,27,37,.72);--sh1:0 1px 0 rgba(255,255,255,
 html,body{font-family:"SF Pro Text",-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:-.1px}
 h1,h3,.stat b,.pf-who h3{letter-spacing:-.4px}
 main{padding:0 16px;max-width:640px;margin:0 auto}
-header{padding:12px 16px 10px;max-width:640px;margin:0 auto}
+header{padding:calc(12px + var(--tg-safe-area-inset-top,0px) + var(--tg-content-safe-area-inset-top,0px)) 16px 10px;max-width:640px;margin:0 auto}
 header h1{font-size:19px;font-weight:800;background:linear-gradient(90deg,var(--text),var(--accent));-webkit-background-clip:text;background-clip:text;color:transparent}
 .logo{width:36px;height:36px;border-radius:12px;box-shadow:0 8px 22px -6px var(--accent)}
 .badge{font-weight:800;font-size:11px;letter-spacing:.6px;padding:5px 11px;border:1px solid var(--line)}
@@ -240,6 +240,26 @@ nav a i{font-size:21px;margin-bottom:1px}
 input,select,textarea{padding:12px 13px}
 .toast{border-radius:16px;box-shadow:0 12px 30px rgba(0,0,0,.25);font-weight:600}
 .preview{border-radius:20px}
+
+.ai-models{display:flex;flex-direction:column;gap:6px}.aim{display:flex;align-items:center;gap:8px;padding:9px 11px;border-radius:12px;background:var(--soft);font-size:13.5px}
+.aim .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(47,179,107,.2)}.aim .muted{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aim em{font-style:normal;font-size:11px;font-weight:800;padding:2px 7px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.pl-hero h3{margin:0 0 4px}.banner.warn{background:linear-gradient(135deg,#f59e0b,#ef4444)}
+#pl-tiers{margin-bottom:12px}
+.pl-feat{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}.pf{display:flex;gap:8px;align-items:center;font-size:13.5px;font-weight:600}
+.pf i{font-style:normal;width:28px;height:28px;flex:0 0 28px;border-radius:9px;display:grid;place-items:center;background:var(--soft)}
+.pl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.pp{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:14px!important;text-align:left;border-radius:18px!important;
+  background:var(--glass)!important;color:var(--text)!important;border:2px solid var(--line)!important;box-shadow:var(--sh1)!important}
+.pp.on{border-color:var(--accent)!important;box-shadow:0 0 0 4px var(--soft),var(--sh1)!important}
+.pp b{font-size:15px}.pp .st{font-size:20px;font-weight:800;background:linear-gradient(135deg,var(--gold2),var(--gold1));-webkit-background-clip:text;background-clip:text;color:transparent}
+.pp .muted{font-size:12px}.pp .save{font-size:11.5px;font-weight:800;color:var(--ok)}.pp .ghosty{visibility:hidden}
+.pp .hot{position:absolute;top:-9px;right:10px;font-style:normal;font-size:10.5px;font-weight:800;padding:3px 8px;border-radius:10px;color:#3b2300;
+  background:linear-gradient(135deg,var(--gold1),var(--gold2))}
+.pl-buy{padding:16px!important;font-size:16px;margin-bottom:10px}
+.pl-alt{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}.pl-alt button{width:100%}
+.pl-cmp table{width:100%;border-collapse:collapse;font-size:13.5px}.pl-cmp th{font-size:12px;color:var(--hint);font-weight:800;padding:4px}
+.pl-cmp td{text-align:center;padding:7px 4px;border-top:1px solid var(--line);font-weight:600}.pl-cmp td:first-child{text-align:left}
 </style>
 </head>
 <body>
@@ -260,15 +280,16 @@ input,select,textarea{padding:12px 13px}
       <button class="big ghost" data-go="queue"><span>📅</span><b data-t="ma_tab_queue"></b></button>
       <button class="big ghost" id="open-bot"><span>🤖</span><b data-t="ma_open_bot"></b></button>
     </div>
-    <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div></div>
+    <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div>
+      <div class="set-row" data-t="ma_ai_models"></div><div id="ai-models" class="ai-models"></div></div>
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
       <button class="small ghost" id="cm-open" data-t="ma_open"></button></div></div>
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
     <div id="bot-card"><div class="grp-t" data-t="ma_in_bot"></div>
       <div class="list">
-        <button class="li" data-bot="go_market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+        <button class="li" data-go="market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
         <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
-        <button class="li" data-bot="go_plans"><i>💎</i><span data-t="ma_li_plans"></span><b>›</b></button>
+        <button class="li" data-go="plans"><i>💎</i><span data-t="ma_li_plans"></span><b>›</b></button>
         <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
       </div></div>
   </section>
@@ -357,7 +378,7 @@ input,select,textarea{padding:12px 13px}
       <button class="li" id="me-plans"><i>💎</i><span data-t="ma_li_plans"></span><em id="me-plan-tag"></em><b>›</b></button>
       <button class="li" data-bot="go_team"><i>👥</i><span data-t="ma_go_team"></span><b>›</b></button>
       <button class="li" data-bot="go_channels"><i>📢</i><span data-t="ma_go_channels"></span><b>›</b></button>
-      <button class="li" data-bot="go_market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
+      <button class="li" data-go="market"><i>💰</i><span data-t="ma_go_market"></span><b>›</b></button>
     </div>
 
     <div class="grp-t" data-t="ma_grp_settings"></div>
@@ -385,6 +406,21 @@ input,select,textarea{padding:12px 13px}
       <button class="li" id="me-bot"><i>🤖</i><span data-t="ma_open_bot"></span><b>›</b></button>
     </div>
     <div class="muted foot" data-t="ma_about"></div>
+  </section>
+
+  <section class="page" id="p-plans">
+    <div class="card hero pl-hero"><h3 data-t="ma_pl_title"></h3><div class="muted" id="pl-cur"></div></div>
+    <div class="banner warn" id="pl-block" style="display:none"></div>
+    <div class="chips seg" id="pl-tiers"><span class="chip on" data-tier="pro">💎 PRO</span><span class="chip" data-tier="ultra">🚀 ULTRA</span></div>
+    <div class="card pl-feat" id="pl-feat"></div>
+    <div class="pl-grid" id="pl-periods"></div>
+    <button id="pl-buy" class="pl-buy"></button>
+    <div class="pl-alt">
+      <button class="ghost small" id="pl-uzs" data-bot="go_plans">🇺🇿 <span data-t="ma_pl_uzs"></span></button>
+      <button class="ghost small" data-bot="go_plans">🎁 <span data-t="ma_pl_promo"></span></button>
+    </div>
+    <div class="card pl-cmp" id="pl-cmp"></div>
+    <div class="muted foot" data-t="ma_pl_note"></div>
   </section>
 
   <section class="page" id="p-admin">
@@ -465,6 +501,7 @@ input,select,textarea{padding:12px 13px}
     if (page === 'post') { loadTemplates(); }
     if (page === 'market') { loadMarket(); }
     if (page === 'admin') { loadAdmin(); }
+    if (page === 'plans') { loadPlans(); }
     if (page === 'post') { refreshPreview(); }
     window.scrollTo(0, 0);
   }
@@ -482,12 +519,71 @@ input,select,textarea{padding:12px 13px}
     if (tg && tg.openTelegramLink) { tg.openTelegramLink(url); setTimeout(function () { tg.close(); }, 300); } else { location.href = url; }
   }
   $('open-bot').onclick = function () { openBot(); }; $('no-ch-bot').onclick = function () { openBot('go_channels'); };
-  $('me-plans').onclick = function () { openBot('go_plans'); }; $('me-bot').onclick = function () { openBot(); };
+  $('me-plans').onclick = function () { haptic(); go('plans'); }; $('me-bot').onclick = function () { openBot(); };
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-bot]');
     if (b) { e.preventDefault(); haptic(); openBot(b.getAttribute('data-bot')); }
   });
 
+
+
+  // ---------- 💎 tariflar va Stars to'lovi (Mini App ichida: createInvoiceLink -> tg.openInvoice)
+  var pl = {data: null, tier: 'pro', key: null};
+  function loadPlans() {
+    $('pl-periods').innerHTML = '<div class="empty slim"><span class="spin">⏳</span></div>';
+    api('plans').then(function (r) {
+      if (!r.ok) { $('pl-periods').innerHTML = '<div class="empty slim">' + esc(errText(r)) + '</div>'; return; }
+      pl.data = r;
+      if (r.current === 'ultra') { pl.tier = 'ultra'; }
+      renderPlans();
+    });
+  }
+  function tierOf(k) { return pl.data.tiers.filter(function (x) { return x.tier === k; })[0]; }
+  function renderPlans() {
+    var r = pl.data, tr = tierOf(pl.tier), p = me ? me.plan : null;
+    $('pl-cur').textContent = t('ma_pl_current', {plan: p ? p.name : r.current}) + (p && p.expires ? ' · ' + t('ma_until', {date: p.expires}) : '');
+    $('pl-block').style.display = r.blocked ? '' : 'none';
+    $('pl-block').textContent = r.blocked ? t(r.blocked === 'helper' ? 'ma_pl_helper' : 'ma_pl_enterprise') : '';
+    $('pl-uzs').style.display = r.uzs ? '' : 'none';
+    document.querySelectorAll('[data-tier]').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-tier') === pl.tier); });
+    var f = [['📢', t('ma_pl_f_channels', {n: tr.channels})], ['📅', t('ma_pl_f_queue', {n: tr.queue})], ['✨', t('ma_pl_f_ai', {n: tr.ai})],
+      ['✅', t('ma_pl_f_nobadge')]];
+    if (tr.team) { f.push(['👥', t('ma_pl_f_team', {n: tr.team})]); }
+    f.push(['🔄', t('ma_pl_f_more')]);
+    $('pl-feat').innerHTML = f.map(function (x) { return '<div class="pf"><i>' + x[0] + '</i><span>' + esc(x[1]) + '</span></div>'; }).join('');
+    if (!tr.periods.some(function (x) { return x.key === pl.key; })) { pl.key = tr.periods[tr.periods.length - 1].key; }
+    var best = tr.periods[tr.periods.length - 1].key;
+    $('pl-periods').innerHTML = tr.periods.map(function (x) {
+      return '<button class="pp' + (x.key === pl.key ? ' on' : '') + '" data-pk="' + esc(x.key) + '">' + (x.key === best ? '<em class="hot">' + esc(t('ma_pl_best')) + '</em>' : '') +
+        '<b>' + esc(x.label) + '</b><span class="st">⭐ ' + num(x.stars) + '</span><span class="muted">' + esc(t('ma_pl_per_month', {n: num(x.per_month)})) + '</span>' +
+        (x.save > 0 ? '<span class="save">−' + x.save + '%</span>' : '<span class="save ghosty">&nbsp;</span>') + '</button>';
+    }).join('');
+    document.querySelectorAll('[data-pk]').forEach(function (b) { b.onclick = function () { haptic(); pl.key = b.getAttribute('data-pk'); renderPlans(); }; });
+    var sel = tr.periods.filter(function (x) { return x.key === pl.key; })[0];
+    var verb = r.current === pl.tier ? 'ma_pl_extend' : 'ma_pl_buy';
+    $('pl-buy').textContent = t(verb, {plan: tr.name, stars: num(sel.stars)});
+    $('pl-buy').disabled = !!r.blocked;
+    $('pl-cmp').innerHTML = '<h3>' + esc(t('ma_pl_compare')) + '</h3><table><tr><th></th>' + r.tiers.map(function (x) { return '<th>' + esc(x.name) + '</th>'; }).join('') + '</tr>' +
+      [['📢', 'channels'], ['📅', 'queue'], ['✨', 'ai']].map(function (row) {
+        return '<tr><td>' + row[0] + '</td>' + r.tiers.map(function (x) { return '<td>' + num(x[row[1]]) + '</td>'; }).join('') + '</tr>';
+      }).join('') + '<tr><td>🤖</td>' + r.tiers.map(function (x) { return '<td>' + (x.badge ? '✓' : '—') + '</td>'; }).join('') + '</tr>' +
+      '<tr><td>👥</td>' + r.tiers.map(function (x) { return '<td>' + (x.team ? '+' + x.team : '—') + '</td>'; }).join('') + '</tr></table>' +
+      '<div class="muted" style="margin-top:6px">📢 ' + esc(t('ma_stat_channels')) + ' · 📅 ' + esc(t('ma_stat_pending')) + ' · ✨ ' + esc(t('ma_pl_ai_day')) + ' · 🤖 ' + esc(t('ma_pl_badge')) + '</div>';
+  }
+  document.querySelectorAll('[data-tier]').forEach(function (c) { c.onclick = function () { haptic(); pl.tier = c.getAttribute('data-tier'); pl.key = null; renderPlans(); }; });
+  $('pl-buy').onclick = function () {
+    if (!pl.key || (pl.data && pl.data.blocked)) { return; }
+    var btn = this; btn.disabled = true;
+    api('invoice', {key: pl.key}).then(function (r) {
+      btn.disabled = false;
+      if (!r.ok) { toast(r.error === 'enterprise' ? t('ma_pl_enterprise') : errText(r)); return; }
+      var done = function (status) {
+        if (status === 'paid') { haptic('ok'); toast(t('ma_pl_paid')); setTimeout(function () { loadMe().then(function () { loadPlans(); }); }, 1500); }
+        else if (status === 'failed') { toast(t('ma_pl_failed')); }
+      };
+      if (tg && tg.openInvoice) { tg.openInvoice(r.url, done); } else { location.href = r.url; }
+    });
+  };
 
   // ---------- 💰 birja: katalog, e'lon, suhbat (e'lon qo'yish va boshqarish — botda)
   var mk = {cat: null, page: 0};
@@ -1016,8 +1112,13 @@ input,select,textarea{padding:12px 13px}
     $('hello').textContent = t('ma_hello', {name: me.user.name || ''});
     $('tzline').textContent = '🕒 ' + me.user.timezone + (me.workspace ? ' · ' + me.workspace.owner : '');
     $('s-pending').textContent = me.stats.pending; $('s-sent').textContent = me.stats.sent; $('s-channels').textContent = me.stats.channels;
-    $('ai-quota').textContent = quotaText();
-    $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = me.ai.enabled ? '' : 'none';
+    $('ai-quota').textContent = me.ai.enabled ? quotaText() : t('ma_ai_none');
+    var MN = {gemini: 'Google Gemini', groq: 'Groq', openrouter: 'OpenRouter'};
+    $('ai-models').innerHTML = (me.ai.models || []).map(function (m, i) {
+      return '<div class="aim"><span class="dot"></span><b>' + esc(MN[m.name] || m.name) + '</b><span class="muted">' + esc(m.model) + '</span>' +
+        (i === 0 ? '<em>' + esc(t('ma_ai_main')) + '</em>' : '') + '</div>';
+    }).join('') + (me.ai.media ? '<div class="muted" style="margin-top:6px">📷🎙 ' + esc(t('ma_ai_media')) + '</div>' : '');
+    $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = '';
     var initial = (me.user.name || '🙂').trim().charAt(0).toUpperCase() || '🙂';
     $('me-name').textContent = me.user.name || '';
     $('avatar').textContent = initial;
@@ -1162,7 +1263,13 @@ input,select,textarea{padding:12px 13px}
     });
   });
   // ---------- ishga tushirish
-  if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('secondary_bg_color'); } catch (e) {} }
+  if (tg) {
+    tg.ready(); tg.expand();
+    try { tg.setHeaderColor('secondary_bg_color'); } catch (e) {}
+    // to'liq ekran (Telegram 8.0+, telefonda): yuqori tizim tugmalari ostiga kontent tushmasin — xavfsiz zona CSS'da
+    try { if (tg.isVersionAtLeast && tg.isVersionAtLeast('8.0') && /android|iphone|ipad/i.test(navigator.userAgent) && tg.requestFullscreen) { tg.requestFullscreen(); } } catch (e) {}
+    try { if (tg.disableVerticalSwipes) { tg.disableVerticalSwipes(); } } catch (e) {}
+  }
   applyUi();
   var u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user; if (u && u.language_code) { lang = ['uz', 'ru'].indexOf(u.language_code.slice(0, 2)) >= 0 ? u.language_code.slice(0, 2) : 'en'; }
   applyI18n();
@@ -1171,7 +1278,7 @@ input,select,textarea{padding:12px 13px}
     if (!ok) { return; }
     $('boot').style.display = 'none';
     var tab = (new URLSearchParams(location.search)).get('tab');
-    go(['home', 'post', 'queue', 'market', 'me', 'admin'].indexOf(tab) >= 0 ? tab : (['home', 'post', 'queue', 'market'].indexOf(ui.start) >= 0 ? ui.start : 'home'));
+    go(['home', 'post', 'queue', 'market', 'me', 'admin', 'plans'].indexOf(tab) >= 0 ? tab : (['home', 'post', 'queue', 'market'].indexOf(ui.start) >= 0 ? ui.start : 'home'));
     checkDraft();
   });
 })();

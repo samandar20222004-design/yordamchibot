@@ -156,7 +156,8 @@ $fake->reset();
 $router2->handle(['update_id' => $upd++, 'message' => ['message_id' => 2, 'from' => $from($W), 'chat' => ['id' => $W, 'type' => 'private'], 'text' => '/newpost']]);
 $fake->reset();
 $router2->handle(['update_id' => $upd++, 'message' => ['message_id' => 3, 'from' => $from($W), 'chat' => ['id' => $W, 'type' => 'private'], 'text' => 'Mini App sinov']]);
-T::check('post preview\'da «📱 Mini App\'da» (tab=post)', strpos($mk($fake->of('sendMessage')[0] ?? []), 'app.php?tab=post') !== false, $fake->texts() . ' | ' . $mk($fake->of('sendMessage')[0] ?? []));
+T::check('post preview\'da Mini App tugmasi yo\'q (chalkashlik edi; Mini App menyu tugmasida)', strpos($mk($fake->of('sendMessage')[0] ?? []), 'web_app') === false
+    && strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:now') !== false);
 $app->states->clear($W);
 
 // app.php sahifasi

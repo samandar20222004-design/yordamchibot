@@ -87,6 +87,10 @@ final class MiniAppApi
                     return self::templateSave($ctx, $in);
                 case 'stats':
                     return [200, self::stats($ctx)];
+                case 'plans':
+                    return [200, self::plans($ctx)];
+                case 'invoice':
+                    return self::invoice($ctx, $in);
                 case 'market':
                     return [200, self::market($ctx, $in)];
                 case 'market_view':
@@ -157,7 +161,10 @@ final class MiniAppApi
                     ? TimeParser::show((string) $plan['subscription_expires_at'], $ctx->tz()) : null,
                 'channels_max' => $lim['channels'], 'queue_max' => $lim['queue']],
             'stats' => $stats + ['channels' => count($channels)],
-            'ai' => ['enabled' => $app->ai->enabled(), 'limit' => $aiLimit,
+            'ai' => ['enabled' => $app->ai->enabled(), 'limit' => $aiLimit, 'media' => $app->ai->mediaEnabled(),
+                'models' => array_map(static function ($p) {
+                    return ['name' => $p['name'], 'model' => $p['model']];
+                }, $app->ai->providers()),
                 'left' => $aiLimit === 0 ? null : max(0, $aiLimit - $app->aiUsage->usedOn($own, $app->today())),
                 'credits' => $app->credits->balance($own)],
             'channels' => $channels,
@@ -171,6 +178,55 @@ final class MiniAppApi
             'reaction_sets' => PostRender::REACTION_SETS,
             'auto_delete' => \PostAssist\Keyboards::AUTO_DELETE,
         ];
+    }
+
+    /** 💎 Tariflar: har tarif uchun limitlar va 4 muddat (Stars narxi, tejam), so'mda to'lash botda. */
+    private static function plans(Ctx $ctx): array
+    {
+        $app = $ctx->app;
+        $cat = Plans::catalog($app->config);
+        $tiers = [];
+        foreach ([Plans::FREE, Plans::PRO, Plans::ULTRA] as $t) {
+            $lim = Plans::limits($t, $app->config);
+            $row = ['tier' => $t, 'name' => Plans::NAMES[$t], 'channels' => $lim['channels'], 'queue' => $lim['queue'],
+                'ai' => Plans::aiDaily($t, $app->config), 'badge' => $t === Plans::FREE, 'team' => $t === Plans::ULTRA ? 2 : 0, 'periods' => []];
+            if ($t !== Plans::FREE) {
+                $prefix = $t === Plans::ULTRA ? 'u' : '';
+                $monthly = $cat[$prefix . '1m']['stars'];
+                foreach (Plans::PERIODS as [$period, $months]) {
+                    $p = $cat[$prefix . $period];
+                    $row['periods'][] = ['key' => $p['key'], 'period' => $period, 'months' => $months, 'label' => $ctx->t('period_' . $period),
+                        'stars' => $p['stars'], 'per_month' => (int) round($p['stars'] / $months), 'save' => Plans::discount($p['stars'], $monthly, $months)];
+                }
+            }
+            $tiers[] = $row;
+        }
+        $own = $ctx->ownerId();
+        $tier = $app->isAdmin($own) ? Plans::ENTERPRISE : $app->tier($own);
+        $blocked = $tier === Plans::ENTERPRISE ? 'enterprise' : ($own !== $ctx->userId ? 'helper' : null);
+        return ['ok' => true, 'current' => $tier, 'tiers' => $tiers, 'blocked' => $blocked, 'uzs' => CardHandler::enabled($app)];
+    }
+
+    /** Stars hisob-fakturasi havolasi (Mini App ichida tg.openInvoice). To'lov webhook'dagi successful_payment orqali yoziladi. */
+    private static function invoice(Ctx $ctx, array $body): array
+    {
+        $app = $ctx->app;
+        $plan = Plans::catalog($app->config)[(string) ($body['key'] ?? '')] ?? null;
+        if ($plan === null) {
+            return [400, ['ok' => false, 'error' => 'bad_input']];
+        }
+        if ($app->isAdmin($ctx->userId) || $app->tier($ctx->userId) === Plans::ENTERPRISE) {
+            return [400, ['ok' => false, 'error' => 'enterprise']];
+        }
+        if ($ctx->ownerId() !== $ctx->userId) {
+            return [403, ['ok' => false, 'error' => 'no_perm']]; // yordamchi egasining tarifini sotib olmaydi
+        }
+        $r = $app->tg->call('createInvoiceLink', PlansHandler::invoiceParams($app, $ctx->lang, $ctx->userId, $plan));
+        if (empty($r['ok']) || !is_string($r['result'] ?? null)) {
+            $app->log('createInvoiceLink: ' . ($r['description'] ?? ''));
+            return [502, ['ok' => false, 'error' => 'network']];
+        }
+        return [200, ['ok' => true, 'url' => $r['result']]];
     }
 
     private static function postOut(Ctx $ctx, array $p): array

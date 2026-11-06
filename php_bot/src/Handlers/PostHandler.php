@@ -219,8 +219,8 @@ final class PostHandler
             'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
             'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null,
             'comments_label' => in_array('comments', PostRender::options($d['options'] ?? null), true) && !in_array($d['type'], ['album', 'poll'], true) ? $ctx->t('cm_btn') : null];
-        $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled(),
-            !in_array($d['type'], ['album', 'poll'], true) ? $ctx->app->miniAppUrl('tab=post') : null);
+        // Mini App tugmasi preview'da yo'q (chalkashtirardi): Mini App Telegram menyu tugmasida, qoralama u yerda ham ochiladi
+        $rows = Keyboards::previewRows($ctx->lang, (!empty($data['ai']['topic']) || !empty($data['ai']['photo']) || !empty($data['ai']['voice'])) && $ctx->app->ai->enabled());
         $free = $ctx->app->isFree($ctx->ownerId());
         $bot = $ctx->app->config->str('bot_username');
         $hint = $ctx->t('post_preview_hint') . self::extrasText($ctx, $data);

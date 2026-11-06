@@ -36,7 +36,7 @@ final class SettingsHandler
             'lang' => I18n::NAMES[$ctx->lang], 'tz' => Html::e($ctx->tzName()),
             'now' => $app->now()->setTimezone($ctx->tz())->format('H:i'),
         ]);
-        $kb = Keyboards::settings($ctx->lang, $tier, $app->miniAppUrl('tab=me'));
+        $kb = Keyboards::settings($ctx->lang, $tier); // Mini App — Telegram menyu tugmasida, bu yerda takrorlanmaydi
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 

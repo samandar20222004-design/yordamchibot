@@ -97,22 +97,27 @@ final class PlansHandler
             $ctx->reply($ctx->t('pay_enterprise'), Keyboards::nav($ctx->lang, 'pl:show'));
             return;
         }
-        $name = Plans::NAMES[$plan['tier']];
-        $period = $ctx->t('period_' . $plan['period']);
-        $lim = Plans::limits($plan['tier'], $app->config);
-        $res = $app->tg->call('sendInvoice', [
-            'chat_id' => $ctx->chatId,
-            'title' => mb_substr($ctx->t('invoice_title', ['plan' => $name, 'period' => $period]), 0, 32),
-            'description' => mb_substr($ctx->t('invoice_desc', ['plan' => $name, 'period' => $period, 'channels' => $lim['channels'], 'queue' => $lim['queue']]), 0, 255),
-            'payload' => Payments::payload($plan['key'], $ctx->userId),
-            'provider_token' => '',
-            'currency' => 'XTR',
-            'prices' => [['label' => $name . ' · ' . $period, 'amount' => $plan['stars']]],
-        ]);
+        $res = $app->tg->call('sendInvoice', ['chat_id' => $ctx->chatId] + self::invoiceParams($app, $ctx->lang, $ctx->userId, $plan));
         if (empty($res['ok'])) {
             $app->log('sendInvoice: ' . ($res['description'] ?? ''));
             $ctx->reply($ctx->t('send_fail', ['reason' => $ctx->t('reason_network')]));
         }
+    }
+
+    /** Stars hisob-faktura maydonlari (bot sendInvoice va Mini App createInvoiceLink uchun bitta manba). */
+    public static function invoiceParams(App $app, string $lang, int $userId, array $plan): array
+    {
+        $name = Plans::NAMES[$plan['tier']];
+        $period = I18n::t('period_' . $plan['period'], $lang);
+        $lim = Plans::limits($plan['tier'], $app->config);
+        return [
+            'title' => mb_substr(I18n::t('invoice_title', $lang, ['plan' => $name, 'period' => $period]), 0, 32),
+            'description' => mb_substr(I18n::t('invoice_desc', $lang, ['plan' => $name, 'period' => $period, 'channels' => $lim['channels'], 'queue' => $lim['queue']]), 0, 255),
+            'payload' => Payments::payload($plan['key'], $userId),
+            'provider_token' => '',
+            'currency' => 'XTR',
+            'prices' => [['label' => $name . ' · ' . $period, 'amount' => $plan['stars']]],
+        ];
     }
 
     /** pre_checkout_query: Telegram 10 soniya kutadi — faqat tekshiruv, bazaga yozilmaydi. */

@@ -93,20 +93,16 @@ final class Keyboards
     }
 
     /** Sozlamalar markazi: Hisob (tarif, promo, taklif) · Sozlash (til, vaqt, jamoa) · Yordam / Mini App. */
-    public static function settings(string $lang, string $tier = 'free', ?string $miniApp = null): array
+    public static function settings(string $lang, string $tier = 'free'): array
     {
         $b = static fn (string $k, string $d) => self::btn(I18n::t($k, $lang), $d);
         $plan = in_array($tier, ['free'], true) ? 'btn_set_upgrade' : 'btn_set_plan';
-        $last = [$b('btn_help', 'set:help')];
-        if ($miniApp !== null) {
-            array_unshift($last, ['text' => I18n::t('btn_miniapp', $lang), 'web_app' => ['url' => $miniApp]]);
-        }
+        $last = [$b('btn_help', 'set:help'), self::btn(I18n::t('btn_home', $lang), 'm:home')];
         return self::inline([
             [$b($plan, 'pl:show'), $b('btn_promo', 'promo:ask')],
             [$b('btn_lang', 'set:lang'), $b('btn_timezone', 'set:tz')],
             [$b('btn_team', 'set:team'), $b('btn_invite', 'ref:show')],
             $last,
-            self::navRow($lang),
         ]);
     }
 

@@ -84,10 +84,10 @@ T::check('Sozlamalar: profil kartasi (ism, ID, tarif, kanallar, AI qoldig\'i, ba
     && strpos($st, 'Tarif: <b>FREE</b>') !== false && strpos($st, 'Kanallar: <b>0/') !== false && strpos($st, 'AI (bugun qoldi): <b>5/5</b>') !== false
     && strpos($st, 'Ball:') !== false && strpos($st, 'Asia/Tashkent') !== false);
 $kb = $lastKb();
-T::check('Sozlamalar: FREE da «💎 PRO olish», guruhlangan tugmalar, Mini App', strpos($kb, 'PRO olish') !== false && strpos($kb, 'set:tz') !== false
-    && strpos($kb, 'set:team') !== false && strpos($kb, 'ref:show') !== false && strpos($kb, 'web_app') !== false && strpos($kb, 'm:home') !== false);
+T::check('Sozlamalar: FREE da «💎 PRO olish», guruhlangan tugmalar, Mini App tugmasi yo\'q', strpos($kb, 'PRO olish') !== false && strpos($kb, 'set:tz') !== false
+    && strpos($kb, 'set:team') !== false && strpos($kb, 'ref:show') !== false && strpos($kb, 'web_app') === false && strpos($kb, 'm:home') !== false);
 $s = json_decode($kb, true)['inline_keyboard'] ?? [];
-T::check('Sozlamalar: 2 ustunli, navigatsiya oxirida', $rowsOk($s) && end($s)[0]['callback_data'] === 'm:home');
+T::check('Sozlamalar: 2 ustunli, oxirida [Yordam][Menyu]', $rowsOk($s) && end($s)[0]['callback_data'] === 'set:help' && end($s)[1]['callback_data'] === 'm:home');
 
 // --- so'mda to'lov: tasdiqsiz muddat/karta tugmasini chetlab o'tib bo'lmaydi
 $pressU($X, 'pl:ct:pro');
@@ -148,3 +148,35 @@ T::check('pastki menyu: Mini App yo\'q, «⚙️ Sozlamalar» qisqa', strpos($ma
 $appSrcU = (string) file_get_contents(__DIR__ . '/../app.php');
 T::check('app.php: premium uslub qatlami, Telegram Premium belgisi, ixcham birja', strpos($appSrcU, 'id="ui-premium"') !== false
     && strpos($appSrcU, "setAttribute('data-tgp'") !== false && strpos($appSrcU, 'class="chips scroll" id="mk-cats"') !== false && strpos($appSrcU, 'class="mk-head"') !== false);
+
+// --- Mini App: tariflar va Stars to'lovi (createInvoiceLink)
+$mkInitU = static function (array $user, int $authDate, string $tok) {
+    $pairs = ['auth_date' => (string) $authDate, 'query_id' => 'AAH', 'user' => json_encode($user, JSON_UNESCAPED_UNICODE)];
+    ksort($pairs);
+    $lines = [];
+    foreach ($pairs as $k => $v) {
+        $lines[] = $k . '=' . $v;
+    }
+    $pairs['hash'] = hash_hmac('sha256', implode("\n", $lines), hash_hmac('sha256', $tok, 'WebAppData', true));
+    return http_build_query($pairs);
+};
+$Z = 7703;
+$initZ = $mkInitU(['id' => $Z, 'first_name' => 'Z', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+[$st, $pr] = PostAssist\Handlers\MiniAppApi::handle($appU, 'plans', [], $initZ);
+$pro = $pr['tiers'][1] ?? [];
+T::check('Mini App plans: 3 tarif, PRO 4 muddat (oylik … yillik), tejam va oylik narx', $st === 200 && count($pr['tiers']) === 3 && count($pro['periods'] ?? []) === 4
+    && $pro['periods'][3]['key'] === '1y' && $pro['periods'][3]['save'] > 0 && $pro['periods'][3]['per_month'] < $pro['periods'][0]['stars'] && $pr['blocked'] === null && $pr['uzs'] === true);
+$fake->reset();
+$fake->forced['createInvoiceLink'] = [['ok' => true, 'result' => 'https://t.me/$abc123']];
+[$st, $ir] = PostAssist\Handlers\MiniAppApi::handle($appU, 'invoice', ['key' => '1y'], $initZ);
+$ci = $fake->of('createInvoiceLink')[0] ?? [];
+T::check('Mini App invoice: Stars havolasi, to\'g\'ri summa va payload (bot bilan bir xil)', $st === 200 && ($ir['url'] ?? '') === 'https://t.me/$abc123'
+    && ($ci['currency'] ?? '') === 'XTR' && ($ci['payload'] ?? '') === Payments::payload('1y', $Z) && strpos((string) ($ci['prices'] ?? ''), '1650') !== false);
+T::eq('noto\'g\'ri kalit rad', PostAssist\Handlers\MiniAppApi::handle($appU, 'invoice', ['key' => '2y'], $initZ)[0], 400);
+$initA = $mkInitU(['id' => $ADMIN, 'first_name' => 'A', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+T::check('admin (muddatsiz): sahifa ochiladi, sotib olish bloklangan', PostAssist\Handlers\MiniAppApi::handle($appU, 'plans', [], $initA)[1]['blocked'] === 'enterprise'
+    && PostAssist\Handlers\MiniAppApi::handle($appU, 'invoice', ['key' => '1m'], $initA)[1]['error'] === 'enterprise');
+[$st, $meZ] = PostAssist\Handlers\MiniAppApi::handle($appU, 'me', [], $initZ);
+T::check('me: AI modellar ro\'yxati', ($meZ['ai']['models'][0]['name'] ?? '') === 'gemini' && $meZ['ai']['media'] === true);
+T::check('app.php: tarif sahifasi va openInvoice', strpos($appSrcU, 'id="p-plans"') !== false && strpos($appSrcU, 'tg.openInvoice(r.url') !== false
+    && strpos($appSrcU, "api('invoice'") !== false && strpos($appSrcU, 'requestFullscreen') !== false);
