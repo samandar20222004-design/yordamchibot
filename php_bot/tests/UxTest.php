@@ -326,3 +326,29 @@ $dock = $dockM[1] ?? '';
 T::check('pastki panel: 4 bo\'lim + markaziy «＋» = 5 ta, emoji emas SVG ikonka', substr_count($dock, 'data-go=') === 4 && substr_count($dock, '<svg') === 5 && strpos($dock, 'id="fab"') !== false);
 T::check('app.php: «＋» tezkor amallar oynasi, yaqin postlar, qoralama qurilmada saqlanadi, o\'z logotipi', strpos($srcNav, 'data-qa="') !== false
     && strpos($srcNav, 'function loadUpcoming') !== false && strpos($srcNav, "DKEY = 'pa_draft_text_v1'") !== false && strpos($srcNav, '<div class="logo"><svg') !== false);
+
+// --- til almashtirish (Mini App): bazada saqlanadi, bot menyusi ham yangi tilga o'tadi, «me» yangi tilni qaytaradi
+$fake->reset();
+[$st, $r] = PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['lang' => 'ru'], $initB);
+$lm = $fake->of('sendMessage')[0] ?? [];
+T::check('til ru: bot pastki menyusi ruscha yuborildi', $st === 200 && (int) ($lm['chat_id'] ?? 0) === $B && strpos($mk($lm), 'Настройки') !== false);
+T::eq('til ru: me.user.lang', PostAssist\Handlers\MiniAppApi::handle($appU, 'me', [], $initB)[1]['user']['lang'], 'ru');
+$fake->reset();
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['lang' => 'ru'], $initB);
+T::eq('o\'sha til qayta tanlansa bot xabar yubormaydi', $fake->of('sendMessage'), []);
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['lang' => 'uz'], $initB);
+T::eq('noto\'g\'ri til rad', PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['lang' => 'xx'], $initB)[0], 400);
+$appSrcL = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: til almashganda me yangilanadi (eski tilga qaytmaydi), sahifa keshlanmaydi', strpos($appSrcL, 'me.user.lang = l') !== false
+    && strpos($appSrcL, "header('Cache-Control: no-cache, no-store, must-revalidate')") !== false && strpos($appSrcL, 'refreshPage()') !== false);
+T::check('setup.php: Mini App manzili versiya bilan (?v=)', strpos((string) file_get_contents(__DIR__ . '/../setup.php'), "miniAppUrl('v='") !== false);
+$fake->reset();
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['lang' => 'en'], $initB);
+$cm = $fake->of('setMyCommands')[0] ?? [];
+T::check('til en: «/» buyruqlar menyusi shu chat uchun inglizcha', strpos((string) ($cm['scope'] ?? ''), (string) $B) !== false && strpos((string) ($cm['commands'] ?? ''), 'Main menu') !== false);
+$fake->reset();
+$textU($B, '/start');
+$pressU($B, 'lang:ru');
+$cm = $fake->of('setMyCommands')[0] ?? [];
+T::check('botda til ru: buyruqlar menyusi ham ruscha', strpos((string) ($cm['commands'] ?? ''), 'Главное меню') !== false);
+$pressU($B, 'lang:uz');

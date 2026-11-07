@@ -964,4 +964,6 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_qa_ai' => "Post with AI",
     'ma_qa_ai_d' => "Name a topic — AI writes a ready post",
     'ma_draft_restored' => "Your last text was restored",
+    'ma_url_ph' => "@channel, t.me/..., site.com",
+    'ma_ad_code_ph' => "CODE",
 ];

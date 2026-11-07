@@ -136,6 +136,7 @@ final class SettingsHandler
         $lang = I18n::norm($lang);
         $ctx->app->users->setLang($ctx->userId, $lang);
         $ctx->lang = $lang;
+        \PostAssist\Services\BotCommands::applyForChat($ctx->app, $ctx->userId, $lang); // «/» menyu ham shu tilda
         $ctx->replyMenu($ctx->t('lang_set'));
     }
 }

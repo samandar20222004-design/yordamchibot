@@ -72,16 +72,8 @@ $r = $app->tg->call('setWebhook', [
 ]);
 $out('Webhook: ' . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
 
-$commands = [
-    'uz' => ['start' => 'Bosh menyu', 'newpost' => 'Yangi post', 'app' => 'Mini App', 'ai' => 'AI bilan post', 'contentplan' => 'AI kontent-reja', 'autopilot' => 'Autopilot (har kuni AI post)', 'market' => 'Reklama birjasi', 'rss' => 'RSS avtopost', 'templates' => 'Shablonlar', 'report' => 'Haftalik hisobot', 'stats' => 'Statistika', 'sent' => 'Yuborilgan postlar', 'queue' => 'Rejalashtirilgan postlar', 'channels' => 'Kanallarim', 'settings' => 'Sozlamalar', 'plans' => 'Tariflar', 'invite' => 'Do\'stlarni taklif qilish', 'help' => 'Yordam'],
-    'ru' => ['start' => 'Главное меню', 'newpost' => 'Новый пост', 'app' => 'Mini App', 'ai' => 'Пост с AI', 'contentplan' => 'AI контент-план', 'autopilot' => 'Автопилот (AI-пост каждый день)', 'market' => 'Биржа рекламы', 'rss' => 'RSS-автопостинг', 'templates' => 'Шаблоны', 'report' => 'Недельный отчёт', 'stats' => 'Статистика', 'sent' => 'Отправленные посты', 'queue' => 'Запланированные посты', 'channels' => 'Мои каналы', 'settings' => 'Настройки', 'plans' => 'Тарифы', 'invite' => 'Пригласить друзей', 'help' => 'Помощь'],
-    'en' => ['start' => 'Main menu', 'newpost' => 'New post', 'app' => 'Mini App', 'ai' => 'Post with AI', 'contentplan' => 'AI content plan', 'autopilot' => 'Autopilot (daily AI post)', 'market' => 'Ad market', 'rss' => 'RSS autopost', 'templates' => 'Templates', 'report' => 'Weekly report', 'stats' => 'Statistics', 'sent' => 'Sent posts', 'queue' => 'Scheduled posts', 'channels' => 'My channels', 'settings' => 'Settings', 'plans' => 'Plans', 'invite' => 'Invite friends', 'help' => 'Help'],
-];
 foreach (I18n::LANGS as $lang) {
-    $list = [];
-    foreach ($commands[$lang] as $c => $d) {
-        $list[] = ['command' => $c, 'description' => $d];
-    }
+    $list = \PostAssist\Services\BotCommands::forLang($lang);
     $params = ['commands' => $list];
     if ($lang !== 'uz') {
         $params['language_code'] = $lang;
@@ -89,7 +81,8 @@ foreach (I18n::LANGS as $lang) {
     $r = $app->tg->call('setMyCommands', $params);
     $out("Buyruqlar ({$lang}): " . (!empty($r['ok']) ? 'OK' : 'XATO — ' . ($r['description'] ?? '')));
 }
-$mini = $app->miniAppUrl();
+// ?v= — har yangilanishda yangi manzil: Telegram eski (keshdagi) Mini App'ni ochmaydi
+$mini = $app->miniAppUrl('v=' . (string) @filemtime(__DIR__ . '/app.php'));
 if ($mini !== null) {
     $r = $app->tg->call('setChatMenuButton', ['menu_button' => ['type' => 'web_app', 'text' => 'Mini App', 'web_app' => ['url' => $mini]]]);
     $out('Mini App menyu tugmasi: ' . (!empty($r['ok']) ? 'OK — ' . $mini : 'XATO — ' . ($r['description'] ?? '')));

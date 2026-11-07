@@ -10,6 +10,10 @@ $nonce = base64_encode(random_bytes(16));
 header('Content-Type: text/html; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: no-referrer');
+// Telegram ichidagi brauzer sahifani keshlab eski versiyani ko'rsatmasin
+header('Cache-Control: no-cache, no-store, must-revalidate');
+header('Pragma: no-cache');
+header('Expires: 0');
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-{$nonce}' https://telegram.org; style-src 'self' 'unsafe-inline'; "
     . "img-src 'self' blob: data: https://t.me; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'");
 $i18n = [];
@@ -399,7 +403,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       <div class="list opts">
         <details class="li-d"><summary class="li"><i>🔗</i><span data-t="ma_button"></span><b>›</b></summary><div class="li-body">
           <label data-t="ma_button_text"></label><input id="b-text" maxlength="64">
-          <label data-t="ma_button_url"></label><input id="b-url" placeholder="@kanal, t.me/..., sayt.uz">
+          <label data-t="ma_button_url"></label><input id="b-url" data-ph="ma_url_ph">
         </div></details>
         <details class="li-d" id="rx-box"><summary class="li"><i>👍</i><span data-t="ma_reactions"></span><b>›</b></summary><div class="li-body"><div class="chips" id="rx-list" style="margin-top:8px"></div></div></details>
         <details class="li-d"><summary class="li"><i>🔄</i><span data-t="ma_repeat"></span><b>›</b></summary><div class="li-body">
@@ -543,7 +547,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     <div class="card"><h3>🔍 <span data-t="ma_ad_user"></span></h3><div class="row"><input id="au-id" inputmode="numeric" placeholder="ID"><button class="small" id="au-go">🔍</button></div>
       <div id="au-out" style="margin-top:8px"></div></div>
     <div class="card"><h3>🏷 <span data-t="ma_ad_promos"></span></h3>
-      <div class="row"><input id="ap-code" placeholder="KOD" maxlength="32"><select id="ap-tier"><option value="pro">PRO</option><option value="ultra">ULTRA</option></select></div>
+      <div class="row"><input id="ap-code" data-ph="ma_ad_code_ph" maxlength="32"><select id="ap-tier"><option value="pro">PRO</option><option value="ultra">ULTRA</option></select></div>
       <div class="row" style="margin-top:6px"><input id="ap-days" inputmode="numeric" placeholder="30"><input id="ap-max" inputmode="numeric" placeholder="∞"></div>
       <div style="height:8px"></div><button class="ghost" id="ap-go" data-t="ma_ad_promo_create"></button><div id="ad-promos" style="margin-top:10px"></div></div>
     <div class="card muted" data-t="ma_ad_bot_only"></div>
@@ -611,6 +615,11 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     nav.querySelectorAll('a').forEach(function (x) { x.classList.toggle('on', x === a); });
     var fab = $('fab'); if (fab) { fab.classList.toggle('on', cur === 'post'); }
     if (a) { try { nav.scrollTo({left: a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2, behavior: 'smooth'}); } catch (e) { nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2; } }
+  }
+  // joriy sahifani yangi til/ma'lumot bilan qayta chizish
+  function refreshPage() {
+    if (cur === 'bot') { if (br.stack.length) { var last = br.lastArg; $('br-title').textContent = t(br.title); if (last && last.d) { br.stack.pop(); brCall(last); } } return; }
+    go(cur);
   }
   function go(page, opts) {
     var leaving = cur === 'bot' && page !== 'bot';
@@ -709,6 +718,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   }
   function brCall(arg, push) {
     if (br.busy) { return; }
+    if (arg && arg.d) { br.lastArg = arg; }
     br.busy = true;
     $('br-body').insertAdjacentHTML('afterbegin', '<div class="empty slim" id="br-spin"><span class="spin">⏳</span></div>');
     api('bridge', arg).then(function (r) {
@@ -717,6 +727,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       if (!r.ok) { toast(errText(r)); return; }
       if (push !== false) { br.stack.push(r); }
       brRender(r);
+      if (arg && arg.d && /^lang:/.test(arg.d)) { loadMe(); } // botdagi til tanlovi — Mini App ham darhol o'sha tilga
       haptic();
     });
   }
@@ -732,7 +743,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     brCall({d: d});
   }
   function brBack() { br.stack.pop(); brRender(br.stack[br.stack.length - 1]); }
-  function brLeave() { if (br.state) { api('bridge_reset', {}); br.state = null; } br.stack = []; }
+  function brLeave() { if (br.state) { api('bridge_reset', {}); br.state = null; } br.stack = []; loadMe(); } // bot ekranida o'zgargan narsa (yangi kanal, tarif, til) Mini App'ga ham tushsin
   $('br-back').onclick = function () { haptic(); if (br.stack.length > 1) { brBack(); } else { go('home'); } };
   $('br-send').onclick = function () { var v = $('br-text').value.trim(); if (v) { brCall({t: v}); } };
   $('br-text').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('br-send').click(); } });
@@ -1422,7 +1433,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       '<label>' + esc(t('ma_repeat')) + '</label><select id="e-rep">' + repOpts + '</select>' +
       '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div>' +
       '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="row"><input id="e-bt" maxlength="64" placeholder="' + esc(t('ma_button_text')) + '" value="' + esc(p.button ? p.button[0] : '') + '">' +
-      '<input id="e-bu" placeholder="@kanal, t.me/..., sayt.uz" value="' + esc(p.button ? p.button[1] : '') + '"></div>' +
+      '<input id="e-bu" placeholder="' + esc(t('ma_url_ph')) + '" value="' + esc(p.button ? p.button[1] : '') + '"></div>' +
       '<label>👍 ' + esc(t('ma_reactions')) + '</label><div class="chips" id="e-rx"></div>' +
       '<label>⏳ ' + esc(t('ma_autodel')) + '</label><select id="e-ad">' + adOpts + '</select>' +
       (p.type !== 'album' ? '<label>🔒 ' + esc(t('ma_hidden')) + '</label><textarea id="e-hid" rows="2" maxlength="180">' + esc(p.hidden || '') + '</textarea>' : '') +
@@ -1456,7 +1467,15 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 
   // ---------- profil
   $('me-lang').onchange = function () {
-    var l = this.value; api('settings', {lang: l}).then(function (r) { if (r.ok) { lang = l; applyI18n(); render(); toast(t('ma_saved')); } else { toast(errText(r)); } });
+    var sel = this, l = sel.value, prev = me ? me.user.lang : lang;
+    sel.disabled = true;
+    api('settings', {lang: l}).then(function (r) {
+      sel.disabled = false;
+      if (!r.ok) { sel.value = prev; toast(errText(r)); return; }
+      lang = l; if (me) { me.user.lang = l; }
+      // server tarjima qilgan matnlar (takror, sana, tarif) ham yangi tilda bo'lsin — hammasi qayta yuklanadi
+      loadMe().then(function () { applyI18n(); refreshPage(); toast(t('ma_saved')); });
+    });
   };
 
   function render() {

@@ -964,4 +964,6 @@ return [
     'ma_qa_ai' => "Пост с AI",
     'ma_qa_ai_d' => "Назовите тему — AI напишет готовый пост",
     'ma_draft_restored' => "Последний текст восстановлен",
+    'ma_url_ph' => "@канал, t.me/..., site.uz",
+    'ma_ad_code_ph' => "КОД",
 ];

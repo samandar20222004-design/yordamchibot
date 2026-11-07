@@ -658,7 +658,15 @@ final class MiniAppApi
             if (!in_array($in['lang'], I18n::LANGS, true)) {
                 return [400, ['ok' => false, 'error' => 'lang']];
             }
-            $ctx->app->users->setLang($ctx->userId, (string) $in['lang']);
+            $new = (string) $in['lang'];
+            $changed = $new !== $ctx->lang;
+            $ctx->app->users->setLang($ctx->userId, $new);
+            if ($changed) {
+                // botdagi pastki menyu ham yangi tilga o'tsin (aks holda eski tilda qolib ketadi)
+                $ctx->lang = $new;
+                $ctx->replyMenu($ctx->t('lang_set'));
+                \PostAssist\Services\BotCommands::applyForChat($ctx->app, $ctx->userId, $new);
+            }
         }
         if (isset($in['timezone'])) {
             $tz = SettingsHandler::resolveTimezone((string) $in['timezone']);

@@ -964,4 +964,6 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_qa_ai' => "AI bilan post",
     'ma_qa_ai_d' => "Mavzuni ayting — AI tayyor post yozadi",
     'ma_draft_restored' => "Oxirgi yozganingiz tiklandi",
+    'ma_url_ph' => "@kanal, t.me/..., sayt.uz",
+    'ma_ad_code_ph' => "KOD",
 ];
