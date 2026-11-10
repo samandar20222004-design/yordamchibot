@@ -381,3 +381,125 @@ T::check('Mini App post_now: yuborildi', $st === 200 && ($r['status'] ?? '') ===
 $appSrcQ = (string) file_get_contents(__DIR__ . '/../app.php');
 T::check('app.php: kunlar lentasi, qidiruv, Hozir/Nusxa tugmalari', strpos($appSrcQ, 'function renderDays') !== false && strpos($appSrcQ, 'id="q-search"') !== false
     && strpos($appSrcQ, "api('post_now'") !== false && strpos($appSrcQ, 'function applyToEditor') !== false);
+
+// --- bir nechta havolali tugma (qatorlar; qatorda 3 tagacha)
+$pb = PostAssist\Services\Links::parseButtons("Sayt - sayt.uz | Kanal - @kanalim\nBatafsil - t.me/kanalim/5");
+T::check('parseButtons: 2 qator, birinchisida 2 tugma', is_array($pb) && count($pb) === 2 && count($pb[0]) === 2 && $pb[0][1][1] === 'https://t.me/kanalim'
+    && $pb[1][0][0] === 'Batafsil');
+T::eq('parseButtons: eski «Matn | havola» — bitta tugma', PostAssist\Services\Links::parseButtons('Batafsil | sayt.uz'), [[['Batafsil', 'https://sayt.uz']]]);
+T::eq('parseButtons: noto\'g\'ri qator — rad', PostAssist\Services\Links::parseButtons("Sayt - sayt.uz\nyomon"), null);
+T::eq('parseButtons: qatorda 4 tugma — rad', PostAssist\Services\Links::parseButtons('a - a.uz | b - b.uz | c - c.uz | d - d.uz'), null);
+T::eq('parseButtons: 9 qator — rad', PostAssist\Services\Links::parseButtons(implode("\n", array_fill(0, 9, 'a - a.uz'))), null);
+T::eq('cleanButtons: {t,u} va [t,u], bo\'sh tugmalar tashlanadi', PostAssist\Services\Links::cleanButtons([[['t' => 'A', 'u' => 'a.uz'], ['B', '@bkanal']], [['t' => '', 'u' => '']]]),
+    [[['A', 'https://a.uz'], ['B', 'https://t.me/bkanal']]]);
+T::eq('cleanButtons: havolasiz tugma — xato', PostAssist\Services\Links::cleanButtons([[['t' => 'A', 'u' => '']]]), null);
+T::eq('cleanButtons: massiv emas — bo\'sh', PostAssist\Services\Links::cleanButtons('x'), []);
+T::eq('buttonsJson: bitta tugma — eski ustunlar yetadi (null)', PostAssist\Services\PostRender::buttonsJson([[['A', 'https://a.uz']]]), null);
+
+$urlRows = static function (array $markup): array {
+    $out = [];
+    foreach ($markup['inline_keyboard'] ?? [] as $r) {
+        $u = [];
+        foreach ($r as $b) {
+            if (isset($b['url'])) {
+                $u[] = $b['url'];
+            }
+        }
+        if ($u) {
+            $out[] = $u;
+        }
+    }
+    return $out;
+};
+$appU->states->clear($B);
+$textU($B, '/newpost');
+$textU($B, 'Ko\'p tugmali post');
+if (($appU->states->get($B)['state'] ?? '') === 'post_pick') {
+    $pressU($B, 'p:ch:' . (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$BC]));
+}
+$pressU($B, 'p:btn');
+$textU($B, "Sayt - sayt.uz | Kanal - @kanalim\nBatafsil - t.me/kanalim/5");
+$pvb = $fake->of('sendMessage')[0] ?? [];
+$pvm = json_decode((string) ($pvb['reply_markup'] ?? '{}'), true) ?: [];
+T::eq('bot: preview — tugmalar qatorlari aynan shunday', array_slice($urlRows($pvm), 0, 2), [['https://sayt.uz', 'https://t.me/kanalim'], ['https://t.me/kanalim/5']]);
+$fake->reset();
+$pressU($B, 'p:now');
+$sentB = null;
+foreach ($fake->of('sendMessage') as $c) {
+    if ((string) ($c['chat_id'] ?? '') === (string) $BC) {
+        $sentB = $c;
+    }
+}
+T::eq('kanalga: 2 qator url tugma', $urlRows(json_decode((string) ($sentB['reply_markup'] ?? '{}'), true) ?: []), [['https://sayt.uz', 'https://t.me/kanalim'], ['https://t.me/kanalim/5']]);
+$smB = $db->one('SELECT * FROM sent_messages WHERE chat_id = ? ORDER BY id DESC LIMIT 1', [$BC]);
+T::check('sent_messages.buttons saqlandi', $smB !== null && count(json_decode((string) $smB['buttons'], true) ?: []) === 2);
+T::eq('qayta chizish (reaksiya/izoh): tugmalar yo\'qolmaydi', $urlRows(['inline_keyboard' => $appU->messageRows($smB)]), [['https://sayt.uz', 'https://t.me/kanalim'], ['https://t.me/kanalim/5']]);
+
+$bcId = (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$BC]);
+[$st, $r] = $call2('post_create', ['channel_id' => $bcId, 'text' => 'Mini tugmalar', 'when' => $clock->modify('+2 day')->format('Y-m-d') . 'T10:00',
+    'buttons' => [[['t' => 'Bir', 'u' => 'bir.uz'], ['t' => 'Ikki', 'u' => 'ikki.uz']], [['t' => 'Uch', 'u' => '@uchkanal']]]]);
+T::check('Mini App post_create: 3 tugma (2+1) saqlandi', $st === 200 && count(PostAssist\Services\PostRender::buttonList($db->one('SELECT * FROM scheduled_posts WHERE id = ?', [(int) ($r['id'] ?? 0)]) ?? [])) === 2, json_encode($r));
+$mpid = (int) ($r['id'] ?? 0);
+T::eq('Mini App post_create: noto\'g\'ri tugma — 400', $call2('post_create', ['channel_id' => $bcId, 'text' => 'x', 'buttons' => [[['t' => 'A', 'u' => '']]]])[0], 400);
+[$st, $r] = $call2('post_update', ['id' => $mpid, 'buttons' => [[['t' => 'Yangi', 'u' => 'yangi.uz']]]]);
+$mp = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [$mpid]);
+T::check('post_update: bitta tugmaga tushdi (eski ustunlar)', $st === 200 && $mp['buttons'] === null && $mp['button_url'] === 'https://yangi.uz');
+[$st, $r] = $call2('post_update', ['id' => $mpid, 'buttons' => []]);
+$mp = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [$mpid]);
+T::check('post_update: tugmalar olib tashlandi', $st === 200 && $mp['button_url'] === null && PostAssist\Services\PostRender::buttonList($mp) === []);
+[$st, $r] = $call2('template_save', ['name' => 'Tugmali', 'text' => 'Shablon', 'buttons' => [[['t' => 'A', 'u' => 'a.uz'], ['t' => 'B', 'u' => 'b.uz']]]]);
+T::check('shablon: tugmalar saqlandi va qaytdi', $st === 200 && count($call2('template', ['id' => (int) $r['id']])[1]['template']['buttons'][0] ?? []) === 2);
+$appSrcB = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: tugma muharriri (qatorlar)', strpos($appSrcB, 'function btnEditor') !== false && strpos($appSrcB, "btnRead('b-rows')") !== false && strpos($appSrcB, "btnRead('e-rows')") !== false);
+
+// --- 🏆 eng yaxshi postlar va ⏰ eng yaxshi vaqt
+$SB = 7720;
+$textU($SB, '/start');
+$SBC = -1001000000720;
+$db->exec("INSERT INTO channels (user_id, channel_id, title, is_active, created_at) VALUES (?, ?, 'Vaqt kanali', 1, UTC_TIMESTAMP())", [$SB, $SBC]);
+$tzSB = $appU->tzFor($SB);
+$bt0 = PostAssist\Handlers\StatsHandler::bestTime($appU, $SB, $tzSB);
+T::check('eng yaxshi vaqt: ma\'lumot yo\'q — umumiy tavsiya 09/13/20', $bt0['data'] === false && $bt0['hours'] === [9, 13, 20] && $bt0['posts'] === 0);
+$mid = 5000;
+$mkSent = static function (string $utc, int $votes, string $txt) use ($db, $SB, $SBC, &$mid): void {
+    $db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at) VALUES (?, ?, 'text', ?, 'sent', ?, ?)", [$SB, $SBC, $txt, $utc, $utc]);
+    $pid = $db->lastId();
+    $mid++;
+    $db->exec('INSERT INTO sent_messages (post_id, chat_id, message_id, created_at) VALUES (?, ?, ?, ?)', [$pid, $SBC, $mid, $utc]);
+    for ($v = 0; $v < $votes; $v++) {
+        $db->exec('INSERT INTO reaction_votes (chat_id, message_id, user_id, idx, created_at) VALUES (?, ?, ?, 0, ?)', [$SBC, $mid, 90000 + $v, $utc]);
+    }
+};
+foreach ([2, 3, 4, 5] as $k => $ago) {
+    $mkSent($clock->modify('-' . $ago . ' days')->format('Y-m-d') . ' 15:00:00', 2 + $k, 'Kechki post ' . $k); // Toshkent 20:00
+}
+$mkSent($clock->modify('-2 days')->format('Y-m-d') . ' 04:00:00', 0, 'Ertalabki post A'); // 09:00
+$mkSent($clock->modify('-3 days')->format('Y-m-d') . ' 04:00:00', 1, 'Ertalabki post B');
+$mkSent($clock->modify('-200 days')->format('Y-m-d') . ' 04:00:00', 50, 'Juda eski post'); // 90 kundan eski — hisobga olinmaydi
+$bt = PostAssist\Handlers\StatsHandler::bestTime($appU, $SB, $tzSB);
+T::check('eng yaxshi vaqt: 20:00 birinchi, 09:00 keyin (mahalliy soat)', $bt['data'] === true && $bt['posts'] === 6 && $bt['hours'] === [20, 9], json_encode($bt));
+$tp = PostAssist\Handlers\StatsHandler::topPosts($appU, $SB, $tzSB);
+T::check('top postlar: ballsiz post yo\'q, eng faoli birinchi, eski post kirmaydi', count($tp) === 5 && $tp[0]['text'] === 'Kechki post 3' && $tp[0]['votes'] === 5
+    && strpos(json_encode($tp, JSON_UNESCAPED_UNICODE), 'Juda eski') === false && strpos(json_encode($tp, JSON_UNESCAPED_UNICODE), 'Ertalabki post A') === false);
+$pressU($SB, 'st:show');
+T::check('bot: Statistika — «Top postlar» va «Eng yaxshi vaqt» tugmalari', strpos($lastKb(), 'st:top') !== false && strpos($lastKb(), 'st:best') !== false);
+$pressU($SB, 'st:top');
+T::check('bot: top postlar ro\'yxati + ko\'rishlar haqida izoh', strpos($fake->lastText(), '1. «Kechki post 3»') !== false && strpos($fake->lastText(), 'ko\'rishlar sonini bermaydi') !== false
+    && strpos($lastKb(), 'st:show') !== false);
+$pressU($SB, 'st:best');
+T::check('bot: eng yaxshi vaqt — 20:00 va eng faol kun', strpos($fake->lastText(), '<b>20:00</b>') !== false && strpos($fake->lastText(), 'Eng faol kun') !== false
+    && strpos($fake->lastText(), '6 ta post') !== false);
+$initSB = $mkInitU(['id' => $SB, 'first_name' => 'S', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+[$st, $r] = PostAssist\Handlers\MiniAppApi::handle($appU, 'stats', [], $initSB);
+T::check('Mini App stats: top va best', $st === 200 && count($r['top']) === 5 && $r['best']['hours'][0] === 20);
+[$st, $r] = PostAssist\Handlers\MiniAppApi::handle($appU, 'best_time', [], $initSB);
+T::check('Mini App best_time', $st === 200 && $r['ok'] === true && $r['data'] === true && $r['hours'][0] === 20);
+$pressU($B, 'lang:ru');
+$pressU($SB, 'lang:ru');
+$pressU($SB, 'st:best');
+T::check('ru: лучшее время', strpos($fake->lastText(), 'Лучшее время') !== false);
+$pressU($SB, 'lang:uz');
+$pressU($B, 'lang:uz');
+$appSrcS = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: statistikada top/vaqt, tezkor vaqtda «⭐ Eng yaxshi»', strpos($appSrcS, 'function topHtml') !== false && strpos($appSrcS, "api('best_time')") !== false
+    && strpos($appSrcS, "t('ma_q_best'") !== false);

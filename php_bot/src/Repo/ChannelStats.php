@@ -58,6 +58,19 @@ final class ChannelStats
         return ['posts' => (int) ($r['posts'] ?? 0), 'votes' => $votes, 'opens' => (int) ($r['opens'] ?? 0), 'locked' => (int) ($r['locked'] ?? 0), 'top' => $top];
     }
 
+    /**
+     * Egasining yuborilgan postlari (since dan): reaksiya ovozlari, izohlar (egasining o'zinikisiz), yashirin matn ochilishi.
+     * Telegram botlarga ko'rishlar sonini bermaydi — faqat bot o'zi ko'radigan faollik.
+     */
+    public function engagement(int $ownerId, string $sinceSql, int $limit = 500): array
+    {
+        return $this->db->all('SELECT sm.id, sm.post_id, sm.chat_id, sm.created_at, sm.hidden_opens AS opens, sp.text, sp.post_type, c.title,
+               (SELECT COUNT(*) FROM reaction_votes v WHERE v.chat_id = sm.chat_id AND v.message_id = sm.message_id) AS votes,
+               (SELECT COUNT(*) FROM post_comments pc WHERE pc.post_id = sm.post_id AND pc.deleted = 0 AND pc.user_id <> sp.user_id) AS comments
+             FROM sent_messages sm JOIN scheduled_posts sp ON sp.id = sm.post_id LEFT JOIN channels c ON c.channel_id = sm.chat_id
+             WHERE sp.user_id = ? AND sm.created_at >= ? ORDER BY sm.id DESC LIMIT ' . max(1, min(2000, $limit)), [$ownerId, $sinceSql]);
+    }
+
     public function cleanup(string $beforeDay): void
     {
         $this->db->exec('DELETE FROM channel_stats WHERE day < ?', [$beforeDay]);

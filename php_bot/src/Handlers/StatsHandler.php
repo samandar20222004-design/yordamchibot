@@ -85,6 +85,7 @@ final class StatsHandler
                 . ' (' . $ctx->t('st_week') . ' ' . self::signed($c['d7']) . ')';
             $rows[] = [Keyboards::btn('📊 ' . mb_substr($c['title'], 0, 30), 'st:c:' . $c['id'])];
         }
+        $rows[] = [Keyboards::btn($ctx->t('btn_st_top'), 'st:top'), Keyboards::btn($ctx->t('btn_st_best'), 'st:best')];
         $rows[] = [Keyboards::btn($ctx->t('btn_scheduled'), 'q:list'), Keyboards::btn($ctx->t('btn_sent_list'), 's:list')];
         $on = (int) $app->db->value('SELECT weekly_report FROM users WHERE user_id = ?', [$ctx->userId]) === 1;
         if ($lines) {
@@ -152,6 +153,111 @@ final class StatsHandler
             $app->stats->cleanup($app->now()->modify('-180 days')->format('Y-m-d'));
         }
         return $n;
+    }
+
+    // ------------------------------------------------------------------ 🏆 eng yaxshi postlar va ⏰ eng yaxshi vaqt
+
+    /** Aniq tavsiya uchun kamida shuncha post (va kamida bitta faollik) kerak. */
+    public const BEST_MIN_POSTS = 5;
+    /** Ma'lumot kam bo'lsa umumiy tavsiya (mahalliy soat). */
+    public const DEFAULT_HOURS = [9, 13, 20];
+
+    /** Post balli: reaksiya + izoh×2 + yashirin matn ochilishi. */
+    public static function score(array $r): int
+    {
+        return (int) $r['votes'] + 2 * (int) $r['comments'] + (int) $r['opens'];
+    }
+
+    /** Oxirgi $days kundagi eng faol postlar (ball > 0). */
+    public static function topPosts(App $app, int $owner, \DateTimeZone $tz, int $days = 30, int $n = 10): array
+    {
+        $rows = $app->stats->engagement($owner, $app->now()->modify('-' . $days . ' days')->format('Y-m-d H:i:s'));
+        $out = [];
+        foreach ($rows as $r) {
+            $sc = self::score($r);
+            if ($sc <= 0) {
+                continue;
+            }
+            $plain = trim(Html::plain((string) $r['text']));
+            $out[] = ['id' => (int) $r['id'], 'post_id' => (int) $r['post_id'], 'text' => mb_substr($plain !== '' ? $plain : '[' . $r['post_type'] . ']', 0, 60),
+                'channel' => mb_substr((string) ($r['title'] ?: $r['chat_id']), 0, 40), 'votes' => (int) $r['votes'], 'comments' => (int) $r['comments'],
+                'opens' => (int) $r['opens'], 'score' => $sc, 'at' => \PostAssist\Services\TimeParser::show((string) $r['created_at'], $tz)];
+        }
+        usort($out, static function ($a, $b) {
+            return $b['score'] <=> $a['score'] ?: $b['id'] <=> $a['id'];
+        });
+        return array_slice($out, 0, $n);
+    }
+
+    /**
+     * Eng yaxshi soatlar (egasining mintaqasida) — oxirgi 90 kundagi postlar faolligi bo'yicha.
+     * @return array{data:bool, posts:int, hours:int[], day:?int} day: 0=yakshanba..6
+     */
+    public static function bestTime(App $app, int $owner, \DateTimeZone $tz): array
+    {
+        $rows = $app->stats->engagement($owner, $app->now()->modify('-90 days')->format('Y-m-d H:i:s'));
+        $hours = [];
+        $days = [];
+        $total = 0;
+        foreach ($rows as $r) {
+            $local = (new \DateTimeImmutable((string) $r['created_at'], new \DateTimeZone('UTC')))->setTimezone($tz);
+            $sc = self::score($r);
+            $total += $sc;
+            $h = (int) $local->format('G');
+            $d = (int) $local->format('w');
+            $hours[$h] = [($hours[$h][0] ?? 0) + 1, ($hours[$h][1] ?? 0) + $sc];
+            $days[$d] = [($days[$d][0] ?? 0) + 1, ($days[$d][1] ?? 0) + $sc];
+        }
+        if (count($rows) < self::BEST_MIN_POSTS || $total <= 0) {
+            return ['data' => false, 'posts' => count($rows), 'hours' => self::DEFAULT_HOURS, 'day' => null];
+        }
+        $rank = static function (array $b, int $min): array {
+            $ok = array_filter($b, static function ($x) use ($min) {
+                return $x[0] >= $min && $x[1] > 0;
+            });
+            uksort($ok, static function ($a, $c) use ($ok) {
+                $d = $ok[$c][1] / $ok[$c][0] <=> $ok[$a][1] / $ok[$a][0];
+                return $d ?: $ok[$c][0] <=> $ok[$a][0];
+            });
+            return array_keys($ok);
+        };
+        $best = $rank($hours, 2) ?: $rank($hours, 1);
+        $bestDay = $rank($days, 2);
+        return ['data' => true, 'posts' => count($rows), 'hours' => array_slice($best, 0, 3), 'day' => $bestDay ? (int) $bestDay[0] : null];
+    }
+
+    public static function showTop(Ctx $ctx): void
+    {
+        $top = self::topPosts($ctx->app, $ctx->ownerId(), $ctx->tz());
+        $lines = [];
+        foreach ($top as $i => $p) {
+            $lines[] = $ctx->t('st_top_row', ['i' => $i + 1, 'text' => Html::e($p['text']), 'votes' => $p['votes'], 'comments' => $p['comments'],
+                'opens' => $p['opens'], 'channel' => Html::e($p['channel']), 'date' => $p['at']]);
+        }
+        $text = $ctx->t('st_top_title') . "\n\n" . ($lines ? implode("\n\n", $lines) : $ctx->t('st_top_empty')) . "\n\n" . $ctx->t('st_views_note');
+        $ctx->edit($text, Keyboards::inline([
+            [Keyboards::btn($ctx->t('btn_st_best'), 'st:best'), Keyboards::btn($ctx->t('btn_sent_list'), 's:list')],
+            Keyboards::navRow($ctx->lang, 'st:show'),
+        ]));
+    }
+
+    public static function showBest(Ctx $ctx): void
+    {
+        $b = self::bestTime($ctx->app, $ctx->ownerId(), $ctx->tz());
+        $fmt = implode(', ', array_map(static function ($h) {
+            return '<b>' . sprintf('%02d:00', $h) . '</b>';
+        }, $b['hours']));
+        if ($b['data']) {
+            $wd = explode(',', $ctx->t('st_wd_full'));
+            $text = $ctx->t('st_best', ['posts' => $b['posts'], 'tz' => Html::e($ctx->tzName()), 'hours' => $fmt])
+                . ($b['day'] !== null && isset($wd[$b['day']]) ? "\n" . $ctx->t('st_best_day', ['day' => $wd[$b['day']]]) : '');
+        } else {
+            $text = $ctx->t('st_best_none', ['min' => self::BEST_MIN_POSTS, 'posts' => $b['posts'], 'tz' => Html::e($ctx->tzName()), 'hours' => $fmt]);
+        }
+        $ctx->edit($text . "\n\n" . $ctx->t('st_views_note'), Keyboards::inline([
+            [Keyboards::btn($ctx->t('btn_st_top'), 'st:top'), Keyboards::btn($ctx->t('btn_new_post'), 'p:new')],
+            Keyboards::navRow($ctx->lang, 'st:show'),
+        ]));
     }
 
     // ------------------------------------------------------------------ 📈 haftalik hisobot

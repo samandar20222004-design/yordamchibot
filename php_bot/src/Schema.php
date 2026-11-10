@@ -38,6 +38,8 @@ final class Schema
         ['scheduled_posts', 'recurrence_time', 'INT NULL'],
         ['scheduled_posts', 'recurrence_day', 'INT NULL'],
         ['scheduled_posts', 'sent_count', 'INT NOT NULL DEFAULT 0'],
+        ['scheduled_posts', 'buttons', 'TEXT NULL'],
+        ['sent_messages', 'buttons', 'TEXT NULL'],
     ];
     /** @var array<int, array{0:string,1:string,2:string}> [jadval, indeks, ustunlar] */
     private const INDEXES = [

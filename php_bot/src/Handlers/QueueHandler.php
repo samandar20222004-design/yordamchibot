@@ -184,7 +184,8 @@ final class QueueHandler
         $media = $p['media'] ?? null;
         $media = is_string($media) ? json_decode($media, true) : $media;
         $draft = ['type' => (string) $p['post_type'], 'file_id' => $p['file_id'], 'text' => (string) $p['text'], 'media' => is_array($media) ? $media : null,
-            'button_text' => $p['button_text'], 'button_url' => $p['button_url'], 'reactions' => $p['reactions'],
+            'button_text' => $p['button_text'], 'button_url' => $p['button_url'],
+            'buttons' => \PostAssist\Services\PostRender::buttonList($p) ?: null, 'reactions' => $p['reactions'],
             'delete_after' => $p['delete_after'] !== null ? (int) $p['delete_after'] : null, 'options' => $p['options'] ?? null, 'hidden' => $p['hidden_text'] ?? null];
         PostHandler::applyDraft($ctx, ['state' => 'post_content', 'data' => ['draft' => $draft]], $draft);
     }

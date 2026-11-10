@@ -77,11 +77,11 @@ final class PostHandler
         }
         $data = $state['data'];
         $old = $data['draft'] ?? [];
-        foreach (['button_text', 'button_url', 'reactions', 'delete_after', 'options', 'hidden'] as $k) {
+        foreach (['button_text', 'button_url', 'buttons', 'reactions', 'delete_after', 'options', 'hidden'] as $k) {
             $draft[$k] = $old[$k] ?? null;
         }
         if ($draft['type'] === 'album' || $draft['type'] === 'poll') {
-            $draft['button_text'] = $draft['button_url'] = $draft['reactions'] = $draft['hidden'] = null; // albom/so'rovnomaga tugma qo'yilmaydi
+            $draft['button_text'] = $draft['button_url'] = $draft['buttons'] = $draft['reactions'] = $draft['hidden'] = null; // albom/so'rovnomaga tugma qo'yilmaydi
         }
         $data['draft'] = $draft;
         if (empty($data['channel']) || !$ctx->app->channels->getOwned($ctx->ownerId(), (int) $data['channel'])) {
@@ -216,7 +216,7 @@ final class PostHandler
         $ctx->app->states->set($ctx->userId, 'post_preview', $data);
         $d = $data['draft'];
         $post = ['post_type' => $d['type'], 'text' => $d['text'], 'file_id' => $d['file_id'], 'media' => $d['media'] ?? null,
-            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'reactions' => $d['reactions'] ?? null,
+            'button_text' => $d['button_text'] ?? null, 'button_url' => $d['button_url'] ?? null, 'buttons' => $d['buttons'] ?? null, 'reactions' => $d['reactions'] ?? null,
             'options' => $d['options'] ?? null, 'hidden_text' => $d['hidden'] ?? null,
             'comments_label' => in_array('comments', PostRender::options($d['options'] ?? null), true) && !in_array($d['type'], ['album', 'poll'], true) ? $ctx->t('cm_btn') : null];
         // Mini App tugmasi preview'da yo'q (chalkashtirardi): Mini App Telegram menyu tugmasida, qoralama u yerda ham ochiladi
@@ -320,6 +320,7 @@ final class PostHandler
             case 'btndel':
                 $data['draft']['button_text'] = null;
                 $data['draft']['button_url'] = null;
+                $data['draft']['buttons'] = null;
                 self::preview($ctx, $data);
                 return;
             case 'rep':
@@ -474,14 +475,16 @@ final class PostHandler
 
     public static function buttonInput(Ctx $ctx, array $state): void
     {
-        $parsed = Links::parseButton((string) ($ctx->message['text'] ?? ''));
-        if ($parsed === null) {
+        $rows = Links::parseButtons((string) ($ctx->message['text'] ?? ''));
+        if ($rows === null) {
             $ctx->reply($ctx->t('post_btn_bad'));
             return;
         }
         $data = $state['data'];
-        $data['draft']['button_text'] = $parsed[0];
-        $data['draft']['button_url'] = $parsed[1];
+        // birinchi tugma eski ustunlarda ham turadi (eski versiya bilan moslik), to'liq joylashuv — buttons
+        $data['draft']['button_text'] = $rows[0][0][0];
+        $data['draft']['button_url'] = $rows[0][0][1];
+        $data['draft']['buttons'] = $rows;
         self::preview($ctx, $data);
     }
 

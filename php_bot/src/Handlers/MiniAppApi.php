@@ -87,6 +87,8 @@ final class MiniAppApi
                     return self::templateSave($ctx, $in);
                 case 'stats':
                     return [200, self::stats($ctx)];
+                case 'best_time':
+                    return [200, ['ok' => true] + StatsHandler::bestTime($app, $ctx->ownerId(), $ctx->tz())];
                 case 'bridge':
                     return MiniAppBridge::run($app, $user, $in);
                 case 'bridge_reset':
@@ -384,6 +386,7 @@ final class MiniAppApi
             'media_count' => $p['post_type'] === 'album' ? count(PostRender::albumMedia($p)) : ($p['file_id'] ? 1 : 0),
             // to'liq tahrirlash uchun xom qiymatlar
             'file_id' => $p['post_type'] === 'album' ? '' : (string) ($p['file_id'] ?? ''),
+            'buttons' => PostRender::buttonList($p),
             'channel_ref' => (int) (($ctx->app->channels->byChannelId((int) $p['channel_id']) ?? [])['id'] ?? 0),
             'options' => PostRender::options($p['options'] ?? null),
             'hidden' => (string) ((PostRender::hidden($p['hidden_text'] ?? null) ?? [])['t'] ?? ''),
@@ -538,6 +541,16 @@ final class MiniAppApi
             $draft['button_text'] = $bt;
             $draft['button_url'] = $url;
         }
+        // bir nechta tugma (qatorlar): bo'lsa birinchisi eski ustunlarga ham yoziladi
+        if (isset($in['buttons'])) {
+            $rows = Links::cleanButtons($in['buttons']);
+            if ($rows === null) {
+                return 'button';
+            }
+            $draft['buttons'] = $rows ?: null;
+            $draft['button_text'] = $rows ? $rows[0][0][0] : $draft['button_text'];
+            $draft['button_url'] = $rows ? $rows[0][0][1] : $draft['button_url'];
+        }
         if (!empty($in['reactions'])) {
             $r = PostRender::parseReactions((string) $in['reactions']);
             if ($r === null) {
@@ -611,6 +624,15 @@ final class MiniAppApi
                 $cols['button_text'] = $bt;
                 $cols['button_url'] = $url;
             }
+        }
+        if (isset($in['buttons']) && $p['post_type'] !== 'album' && $p['post_type'] !== 'poll') {
+            $rows = Links::cleanButtons($in['buttons']);
+            if ($rows === null) {
+                return [400, ['ok' => false, 'error' => 'button']];
+            }
+            $cols['buttons'] = PostRender::buttonsJson($rows);
+            $cols['button_text'] = $rows ? $rows[0][0][0] : null;
+            $cols['button_url'] = $rows ? $rows[0][0][1] : null;
         }
         if (array_key_exists('reactions', $in)) {
             if ((string) $in['reactions'] === '') {
@@ -922,7 +944,7 @@ final class MiniAppApi
         $ctx->app->templates->touch($id);
         return [200, ['ok' => true, 'template' => ['type' => (string) $d['type'], 'file_id' => (string) ($d['file_id'] ?? ''), 'text' => (string) ($d['text'] ?? ''),
             'button_text' => (string) ($d['button_text'] ?? ''), 'button_url' => (string) ($d['button_url'] ?? ''), 'reactions' => (string) ($d['reactions'] ?? ''),
-            'delete_after' => (int) ($d['delete_after'] ?? 0), 'options' => PostRender::options($d['options'] ?? null), 'hidden' => $h['t'] ?? '']]];
+            'delete_after' => (int) ($d['delete_after'] ?? 0), 'options' => PostRender::options($d['options'] ?? null), 'hidden' => $h['t'] ?? '', 'buttons' => PostRender::buttonList($d)]]];
     }
 
     private static function templateSave(Ctx $ctx, array $in): array
@@ -949,7 +971,8 @@ final class MiniAppApi
     /** 📊 Kanal statistikasi (bot bilan bir xil manba: StatsHandler::channelStats). */
     private static function stats(Ctx $ctx): array
     {
-        return ['ok' => true, 'channels' => StatsHandler::channelStats($ctx->app, $ctx->ownerId())];
+        return ['ok' => true, 'channels' => StatsHandler::channelStats($ctx->app, $ctx->ownerId()),
+            'top' => StatsHandler::topPosts($ctx->app, $ctx->ownerId(), $ctx->tz(), 30, 5), 'best' => StatsHandler::bestTime($ctx->app, $ctx->ownerId(), $ctx->tz())];
     }
 
     // ------------------------------------------------------------------ 💬 izohlar (egasi uchun)

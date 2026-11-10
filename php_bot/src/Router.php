@@ -644,6 +644,10 @@ final class Router
             StatsHandler::toggleWeekly($ctx);
         } elseif ($data === 'st:now') {
             StatsHandler::reportNow($ctx);
+        } elseif ($data === 'st:top') {
+            StatsHandler::showTop($ctx);
+        } elseif ($data === 'st:best') {
+            StatsHandler::showBest($ctx);
         } elseif ($data === 'st:show') {
             StatsHandler::show($ctx, true);
         } elseif (preg_match('/^st:(c|r):(\d{1,10})$/', $data, $m)) {

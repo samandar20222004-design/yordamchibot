@@ -346,6 +346,12 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .danger-t{color:var(--danger)!important}
 .when-q{margin:10px 0 2px}
 .chip.on{color:#fff!important}
+
+.bed{display:flex;flex-direction:column;gap:8px}.bed-row{display:flex;flex-wrap:wrap;gap:6px;padding:8px;border-radius:14px;background:var(--bg);border:1px dashed var(--line)}
+.bed-btn{flex:1 1 140px;display:grid;grid-template-columns:1fr auto;gap:4px;min-width:0}.bed-btn .bt{grid-column:1}.bed-btn .bu{grid-column:1;font-size:13px}
+.bed-btn .bx{grid-column:2;grid-row:1/3;width:auto!important;padding:4px 8px!important;align-self:center}.badd{width:auto!important;align-self:flex-start}
+.st-sub{margin-top:12px;padding-top:10px;border-top:1px solid var(--line,rgba(127,127,127,.18))}.st-top{display:flex;gap:10px;margin-top:8px;align-items:flex-start}.st-n{flex:0 0 22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.pbrow{display:flex;gap:4px;max-width:92%}.pbrow .pbtn{flex:1;max-width:none}
 </style>
 </head>
 <body>
@@ -414,8 +420,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       </div>
       <div class="list opts">
         <details class="li-d"><summary class="li"><i>🔗</i><span data-t="ma_button"></span><b>›</b></summary><div class="li-body">
-          <label data-t="ma_button_text"></label><input id="b-text" maxlength="64">
-          <label data-t="ma_button_url"></label><input id="b-url" data-ph="ma_url_ph">
+          <div class="muted" data-t="ma_btns_hint" style="margin-bottom:6px"></div><div class="bed" id="b-rows"></div>
         </div></details>
         <details class="li-d" id="rx-box"><summary class="li"><i>👍</i><span data-t="ma_reactions"></span><b>›</b></summary><div class="li-body"><div class="chips" id="rx-list" style="margin-top:8px"></div></div></details>
         <details class="li-d"><summary class="li"><i>🔄</i><span data-t="ma_repeat"></span><b>›</b></summary><div class="li-body">
@@ -1033,12 +1038,55 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     else if (state.fileId) { media = '<div class="muted">🖼 ' + esc(t('ma_media_attached')) + '</div>'; }
     var mark = me && me.plan.free ? '🤖 @' + esc(me.bot) + '\n\n' : '';
     $('pv').innerHTML = media + mark + (html || '<span class="muted">' + esc(t('ma_text_ph')) + '</span>');
-    var bt = $('b-text').value.trim();
-    $('pv-btn').innerHTML = bt ? '<div class="pbtn">' + esc(bt) + '</div>' : '';
+    $('pv-btn').innerHTML = btnRead('b-rows').map(function (r) {
+      return '<div class="pbrow">' + r.map(function (b) { return '<div class="pbtn">' + esc(b.t || '…') + '</div>'; }).join('') + '</div>';
+    }).join('');
     $('pv-hid').innerHTML = $('hid').value.trim() ? '<div class="pbtn">' + esc(t('ma_hidden_btn')) + '</div>' : '';
     $('pv-rx').innerHTML = state.reactions ? '<div class="rx">' + state.reactions.split(',').map(function (e) { return '<span>' + esc(e) + '</span>'; }).join('') + '</div>' : '';
   }
-  ['b-text', 'b-url'].forEach(function (id) { $(id).addEventListener('input', refreshPreview); });
+  // ---------- bir nechta havolali tugma: qatorlar (8 tagacha), qatorda 3 tagacha
+  function btnRead(boxId) {
+    var box = $(boxId); if (!box) { return []; }
+    var rows = [];
+    box.querySelectorAll('.bed-row').forEach(function (r) {
+      var row = [];
+      r.querySelectorAll('.bed-btn').forEach(function (b) {
+        var t2 = b.querySelector('.bt').value.trim(), u = b.querySelector('.bu').value.trim();
+        if (t2 || u) { row.push({t: t2, u: u}); }
+      });
+      if (row.length) { rows.push(row); }
+    });
+    return rows;
+  }
+  function btnEditor(boxId, rows, onChange) {
+    var box = $(boxId); if (!box) { return; }
+    rows = (rows || []).map(function (r) { return r.map(function (b) { return Array.isArray(b) ? {t: b[0], u: b[1]} : b; }); });
+    var draw = function () {
+      box.innerHTML = rows.map(function (r, i) {
+        return '<div class="bed-row">' + r.map(function (b, j) {
+          return '<div class="bed-btn"><input class="bt" maxlength="64" placeholder="' + esc(t('ma_button_text')) + '" value="' + esc(b.t || '') + '">' +
+            '<input class="bu" placeholder="' + esc(t('ma_url_ph')) + '" value="' + esc(b.u || '') + '"><button class="small ghost bx" data-bx="' + i + ':' + j + '">✕</button></div>';
+        }).join('') + (r.length < 3 ? '<button class="small ghost badd" data-bside="' + i + '">＋ ' + esc(t('ma_btn_side')) + '</button>' : '') + '</div>';
+      }).join('') + (rows.length < 8 ? '<button class="small ghost badd" data-brow="1">＋ ' + esc(t(rows.length ? 'ma_btn_row' : 'ma_btn_add')) + '</button>' : '');
+      box.querySelectorAll('input').forEach(function (inp) { inp.addEventListener('input', function () { if (onChange) { onChange(); } }); });
+      box.querySelectorAll('[data-bx]').forEach(function (b) { b.onclick = function () { rows = readRaw(); var k = b.getAttribute('data-bx').split(':');
+        rows[+k[0]].splice(+k[1], 1); rows = rows.filter(function (r) { return r.length; }); draw(); if (onChange) { onChange(); } }; });
+      box.querySelectorAll('[data-bside]').forEach(function (b) { b.onclick = function () { rows = readRaw(); rows[+b.getAttribute('data-bside')].push({t: '', u: ''}); draw(); }; });
+      box.querySelectorAll('[data-brow]').forEach(function (b) { b.onclick = function () { rows = readRaw(); rows.push([{t: '', u: ''}]); draw(); }; });
+    };
+    // ekrandagi (bo'sh qatorlarni ham saqlagan holda) qiymatlar
+    var readRaw = function () {
+      var out = [];
+      box.querySelectorAll('.bed-row').forEach(function (r) {
+        var row = [];
+        r.querySelectorAll('.bed-btn').forEach(function (b) { row.push({t: b.querySelector('.bt').value, u: b.querySelector('.bu').value}); });
+        out.push(row);
+      });
+      return out;
+    };
+    draw();
+  }
+  btnEditor('b-rows', [], refreshPreview);
 
   // ---------- media
   $('media-add').onclick = function () { $('media-file').click(); };
@@ -1089,7 +1137,17 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     var at = function (days, h) { var d = new Date(now.getTime()); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d; };
     var opts = [['ma_q_1h', new Date(now.getTime() + 3600000)], ['ma_q_today18', at(0, 18)], ['ma_q_tom09', at(1, 9)], ['ma_q_tom18', at(1, 18)]]
       .filter(function (o) { return o[1].getTime() > now.getTime() + 60000; });
-    $('when-quick').innerHTML = opts.map(function (o) { return '<span class="chip" data-wq="' + fmt(o[1]) + '">' + esc(t(o[0])) + '</span>'; }).join('');
+    var html = opts.map(function (o) { return '<span class="chip" data-wq="' + fmt(o[1]) + '">' + esc(t(o[0])) + '</span>'; }).join('');
+    // ⭐ eng yaxshi soat (faqat o'z postlari bo'yicha aniq ma'lumot bo'lsa)
+    if (bestTimeCache && bestTimeCache.data && bestTimeCache.hours.length) {
+      var h0 = bestTimeCache.hours[0], bd = at(0, h0);
+      if (bd.getTime() <= now.getTime() + 60000) { bd = at(1, h0); }
+      html = '<span class="chip" data-wq="' + fmt(bd) + '">' + esc(t('ma_q_best', {t: ('0' + h0).slice(-2) + ':00'})) + '</span>' + html;
+    } else if (bestTimeCache === null) {
+      bestTimeCache = false;
+      api('best_time').then(function (r) { if (r && r.ok) { bestTimeCache = r; if (r.data && $('when-box').style.display !== 'none') { quickWhen(); } } });
+    }
+    $('when-quick').innerHTML = html;
     document.querySelectorAll('[data-wq]').forEach(function (c) { c.onclick = function () {
       $('when').value = c.getAttribute('data-wq'); haptic();
       document.querySelectorAll('[data-wq]').forEach(function (x) { x.classList.toggle('on', x === c); });
@@ -1153,8 +1211,23 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
           ' · 7d ' + signed(c.d7) + ' · 30d ' + signed(c.d30) + '</div>' + bars +
           '<span class="tag">📝 ' + esc(t('ma_st_posts', {n: c.posts30})) + '</span><span class="tag">👍 ' + esc(c.votes30) + '</span>' +
           (c.opens30 || c.locked30 ? '<span class="tag">🔒 ' + esc(c.opens30) + ' / ' + esc(c.locked30) + '</span>' : '') + '</div>';
-      }).join('');
+      }).join('') + bestHtml(r.best) + topHtml(r.top || []);
+      if (r.best) { bestTimeCache = r.best; }
     });
+  }
+  // ⏰ eng yaxshi vaqt va 🏆 eng yaxshi postlar (statistika kartasida)
+  var bestTimeCache = null;
+  function bestHtml(b) {
+    if (!b) { return ''; }
+    return '<div class="st-sub"><b>⏰ ' + esc(t('ma_st_best')) + '</b><div class="chips" style="margin:6px 0">' + b.hours.map(function (h) {
+      return '<span class="tag">' + ('0' + h).slice(-2) + ':00</span>';
+    }).join('') + '</div><div class="muted">' + esc(b.data ? t('ma_st_best_own', {n: b.posts}) : t('ma_st_best_gen')) + '</div></div>';
+  }
+  function topHtml(list) {
+    return '<div class="st-sub"><b>🏆 ' + esc(t('ma_st_top')) + '</b>' + (list.length ? list.map(function (p, i) {
+      return '<div class="st-top"><span class="st-n">' + (i + 1) + '</span><div><div>' + esc(p.text) + '</div><div class="muted">👍 ' + p.votes + ' · 💬 ' + p.comments +
+        ' · 🔒 ' + p.opens + ' — ' + esc(p.channel) + ', ' + esc(p.at) + '</div></div></div>';
+    }).join('') : '<div class="muted">' + esc(t('ma_st_top_empty')) + '</div>') + '</div>';
   }
 
   // ---------- 📝 shablonlar (muharrir)
@@ -1170,7 +1243,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   }
   // shablon yoki «Nusxa» — muharrirni to'ldirish (bitta joy)
   function applyToEditor(d) {
-    setEditor(d.text); $('b-text').value = d.button_text || ''; $('b-url').value = d.button_url || '';
+    setEditor(d.text); btnEditor('b-rows', d.buttons && d.buttons.length ? d.buttons : (d.button_text ? [[[d.button_text, d.button_url || '']]] : []), refreshPreview);
     state.reactions = d.reactions || ''; renderReactions(); $('ad').value = String(d.delete_after || 0);
     state.opts = (d.options || []).slice(); renderOpts(); $('hid').value = d.hidden || '';
     state.type = d.type; state.fileId = d.file_id || ''; state.mediaUrl = '';
@@ -1189,7 +1262,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   $('tpl-save').onclick = function () {
     var ask = function (name) {
       if (!name) { return; }
-      var body = {name: name, type: state.type, file_id: state.fileId, text: editorHtml(), button_text: $('b-text').value.trim(), button_url: $('b-url').value.trim(),
+      var body = {name: name, type: state.type, file_id: state.fileId, text: editorHtml(), buttons: btnRead('b-rows'),
         reactions: state.reactions, delete_after: parseInt($('ad').value || '0', 10), options: state.opts, hidden: $('hid').value.trim()};
       api('template_save', body).then(function (r) {
         if (!r.ok) { toast(r.error === 'tpl_limit' ? t('ma_tpl_limit', {max: r.max}) : errText(r)); return; }
@@ -1307,7 +1380,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     if (!state.channel) { toast(t('ma_err_channel')); return; }
     var body = {channel_id: state.channel, extra_channel_ids: state.extra.filter(function (x) { return x !== state.channel; }),
       options: state.opts, hidden: $('hid').value.trim(), type: state.type, file_id: state.fileId, text: editorHtml(),
-      button_text: $('b-text').value.trim(), button_url: $('b-url').value.trim(), reactions: state.reactions,
+      buttons: btnRead('b-rows'), reactions: state.reactions,
       repeat: $('rep').value, time2: $('t2').value, delete_after: parseInt($('ad').value || '0', 10), when: 'now'};
     if (state.when === 'later') { if (!$('when').value) { toast(t('ma_err_bad_time')); return; } body.when = $('when').value; }
     var btn = this; btn.disabled = true; btn.textContent = '⏳';
@@ -1324,7 +1397,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     });
   };
   function resetEditor() {
-    setEditor(''); $('b-text').value = ''; $('b-url').value = ''; $('rep').value = ''; $('t2-box').style.display = 'none'; $('ad').value = '0';
+    setEditor(''); btnEditor('b-rows', [], refreshPreview); $('rep').value = ''; $('t2-box').style.display = 'none'; $('ad').value = '0';
     state.reactions = ''; renderReactions(); $('media-del').onclick();
     state.opts = []; state.extra = []; $('hid').value = ''; renderOpts(); renderExtra(); refreshPreview();
   }
@@ -1412,7 +1485,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     document.querySelectorAll('[data-edit]').forEach(function (b) { b.onclick = function () { editPost(qposts[parseInt(b.getAttribute('data-edit'), 10)]); }; });
     document.querySelectorAll('[data-copy]').forEach(function (b) { b.onclick = function () {
       var p = qposts[parseInt(b.getAttribute('data-copy'), 10)];
-      go('post'); applyToEditor({type: p.type, file_id: p.file_id, text: p.text, button_text: p.button ? p.button[0] : '', button_url: p.button ? p.button[1] : '',
+      go('post'); applyToEditor({type: p.type, file_id: p.file_id, text: p.text, buttons: p.buttons || [],
         reactions: p.reactions || '', delete_after: p.delete_after || 0, options: p.options || [], hidden: p.hidden || '', channel_ref: p.channel_ref});
       haptic('ok'); toast(t('ma_copied'));
     }; });
@@ -1512,8 +1585,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       '<label>' + esc(t('ma_when')) + '</label><input type="datetime-local" id="when2" value="' + esc(p.when_local) + '">' +
       '<label>' + esc(t('ma_repeat')) + '</label><select id="e-rep">' + repOpts + '</select>' +
       '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div>' +
-      '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="row"><input id="e-bt" maxlength="64" placeholder="' + esc(t('ma_button_text')) + '" value="' + esc(p.button ? p.button[0] : '') + '">' +
-      '<input id="e-bu" placeholder="' + esc(t('ma_url_ph')) + '" value="' + esc(p.button ? p.button[1] : '') + '"></div>' +
+      (p.type !== 'album' && p.type !== 'poll' ? '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="bed" id="e-rows"></div>' : '') +
       '<label>👍 ' + esc(t('ma_reactions')) + '</label><div class="chips" id="e-rx"></div>' +
       '<label>⏳ ' + esc(t('ma_autodel')) + '</label><select id="e-ad">' + adOpts + '</select>' +
       (p.type !== 'album' ? '<label>🔒 ' + esc(t('ma_hidden')) + '</label><textarea id="e-hid" rows="2" maxlength="180">' + esc(p.hidden || '') + '</textarea>' : '') +
@@ -1531,12 +1603,14 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       document.querySelectorAll('[data-eo]').forEach(function (c) { c.onclick = function () { var o = c.getAttribute('data-eo'), i = ed.opts.indexOf(o); if (i >= 0) { ed.opts.splice(i, 1); } else { ed.opts.push(o); } drawOpts(); }; });
     }
     drawRx(); drawOpts();
+    btnEditor('e-rows', p.buttons || [], null);
     $('e-rep').onchange = function () { $('e-t2').style.display = this.value === 'twice' ? '' : 'none'; };
     $('e-cancel').onclick = closeModal;
     $('e-save').onclick = function () {
-      var btn = this, body = {id: p.id, channel_id: parseInt($('e-ch').value, 10), button_text: $('e-bt').value.trim(), button_url: $('e-bu').value.trim(),
+      var btn = this, body = {id: p.id, channel_id: parseInt($('e-ch').value, 10), 
         reactions: ed.rx, delete_after: parseInt($('e-ad').value, 10) || 0, options: ed.opts.join(','), repeat: $('e-rep').value};
       if ($('ed2')) { body.text = toHtml($('ed2')).replace(/\n+$/, ''); }
+      if ($('e-rows')) { body.buttons = btnRead('e-rows'); }
       if ($('e-hid')) { body.hidden = $('e-hid').value.trim(); }
       if (body.repeat === 'twice') { body.time2 = $('e-time2').value; }
       if ($('when2').value && $('when2').value !== p.when_local) { body.when = $('when2').value; }
@@ -1626,7 +1700,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
         var d = r.draft; resetEditor(); setEditor(d.text); $('draft-banner').style.display = 'none';
         if (d.type !== 'text' && d.file_id) { state.type = d.type; state.fileId = d.file_id; $('media-box').style.display = 'flex'; $('media-add').style.display = 'none';
           $('media-thumb').textContent = '🖼'; $('media-name').textContent = t('ma_media_attached'); }
-        if (d.button_text) { $('b-text').value = d.button_text; $('b-url').value = d.button_url || ''; }
+        if (d.button_text) { btnEditor('b-rows', [[[d.button_text, d.button_url || '']]], refreshPreview); }
         if (d.reactions) { state.reactions = d.reactions; renderReactions(); }
         if (d.delete_after) { $('ad').value = String(d.delete_after); }
         if (d.channel_id && me.channels.some(function (c) { return c.id === d.channel_id; })) { state.channel = d.channel_id; renderChannels(); }

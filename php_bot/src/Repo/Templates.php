@@ -10,7 +10,7 @@ use PostAssist\Db;
 final class Templates
 {
     /** Shablonga yoziladigan qoralama kalitlari. */
-    public const KEYS = ['type', 'file_id', 'text', 'media', 'button_text', 'button_url', 'reactions', 'delete_after', 'options', 'hidden'];
+    public const KEYS = ['type', 'file_id', 'text', 'media', 'button_text', 'button_url', 'buttons', 'reactions', 'delete_after', 'options', 'hidden'];
     private Db $db;
 
     public function __construct(Db $db)

@@ -106,10 +106,49 @@ final class PostRender
         return $row ? [$row] : [];
     }
 
-    /** Kanal postining klaviaturasi: havolali tugma + reaksiyalar. */
+    /** Tugmalar ro'yxati (JSON yoki massiv) -> [[[matn, url]]]; bo'lmasa eski bitta tugma. */
+    public static function buttonList(array $post): array
+    {
+        $b = $post['buttons'] ?? null;
+        if (is_string($b) && $b !== '') {
+            $b = json_decode($b, true);
+        }
+        $rows = is_array($b) ? Links::cleanButtons($b) : null;
+        if ($rows) {
+            return $rows;
+        }
+        return (!empty($post['button_text']) && !empty($post['button_url'])) ? [[[(string) $post['button_text'], (string) $post['button_url']]]] : [];
+    }
+
+    /** Bazaga yozish uchun: 2+ tugma bo'lsa JSON, bitta yoki yo'q bo'lsa null (eski ustunlar yetarli). */
+    public static function buttonsJson($rows): ?string
+    {
+        if (!is_array($rows) || !$rows) {
+            return null;
+        }
+        $n = 0;
+        foreach ($rows as $r) {
+            $n += is_array($r) ? count($r) : 0;
+        }
+        return $n > 1 ? (string) json_encode(array_values($rows), JSON_UNESCAPED_UNICODE) : null;
+    }
+
+    /** Havolali tugmalar qatorlari (Telegram formatida). */
+    public static function buttonRows(array $post): array
+    {
+        $out = [];
+        foreach (self::buttonList($post) as $row) {
+            $out[] = array_map(static function ($b) {
+                return ['text' => $b[0], 'url' => $b[1]];
+            }, $row);
+        }
+        return $out;
+    }
+
+    /** Kanal postining klaviaturasi: havolali tugmalar + reaksiyalar. */
     public static function postRows(array $post, array $counts = []): array
     {
-        return array_merge(self::urlRows($post['button_text'] ?? null, $post['button_url'] ?? null), self::hiddenRow($post['hidden_text'] ?? null),
+        return array_merge(self::buttonRows($post), self::hiddenRow($post['hidden_text'] ?? null),
             self::reactionRow($post['reactions'] ?? null, $counts), self::commentsRow($post));
     }
 
