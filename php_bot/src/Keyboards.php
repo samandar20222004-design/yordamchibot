@@ -299,6 +299,11 @@ final class Keyboards
 
     public static function queueItem(int $id, string $lang): array
     {
-        return self::inline([[self::btn(I18n::t('btn_q_del', $lang), 'q:d:' . $id), self::btn(I18n::t('btn_back', $lang), 'q:list')]]);
+        $b = static fn (string $k, string $d) => self::btn(I18n::t($k, $lang), $d);
+        return self::inline([
+            [$b('btn_q_now', 'q:now:' . $id), $b('btn_q_time', 'q:t:' . $id)],
+            [$b('btn_q_copy', 'q:cp:' . $id), $b('btn_q_del', 'q:d:' . $id)],
+            self::navRow($lang, 'q:list'),
+        ]);
     }
 }

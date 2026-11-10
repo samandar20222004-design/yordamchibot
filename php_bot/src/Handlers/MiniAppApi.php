@@ -100,6 +100,8 @@ final class MiniAppApi
                     return self::sentDelete($ctx, (int) ($in['id'] ?? 0));
                 case 'failed_list':
                     return [200, self::failedList($ctx)];
+                case 'post_now':
+                    return self::postNow($ctx, (int) ($in['id'] ?? 0));
                 case 'post_retry':
                     return self::postRetry($ctx, (int) ($in['id'] ?? 0));
                 case 'plans':
@@ -333,6 +335,28 @@ final class MiniAppApi
         }, $rows)];
     }
 
+    /** Navbatdagi postni kutmasdan hozir chiqarish (botdagi «🚀 Hozir yuborish» bilan bir xil). */
+    private static function postNow(Ctx $ctx, int $id): array
+    {
+        $app = $ctx->app;
+        if (!$ctx->can('send_now')) {
+            return [403, ['ok' => false, 'error' => 'no_perm']];
+        }
+        if (!$app->posts->getOwnedPending($ctx->ownerId(), $id)) {
+            return [404, ['ok' => false, 'error' => 'not_found']];
+        }
+        $app->posts->updatePending($ctx->ownerId(), $id, null, $app->nowSql());
+        if (!$app->posts->claim($id)) {
+            return [200, ['ok' => true, 'status' => 'queued']];
+        }
+        $r = (new Scheduler($app))->deliver($app->posts->get($id) ?? []);
+        if ($r['status'] === 'sent') {
+            return [200, ['ok' => true, 'status' => 'sent']];
+        }
+        return $r['status'] === 'retry' ? [200, ['ok' => true, 'status' => 'queued']]
+            : [200, ['ok' => false, 'status' => 'failed', 'error' => 'send_failed', 'reason' => $ctx->t((string) $r['reason'])]];
+    }
+
     /** Chiqmagan postni qayta navbatga (hozirga) qo'yish. */
     private static function postRetry(Ctx $ctx, int $id): array
     {
@@ -359,6 +383,7 @@ final class MiniAppApi
             'reactions' => $p['reactions'], 'delete_after' => $p['delete_after'] !== null ? (int) $p['delete_after'] : null,
             'media_count' => $p['post_type'] === 'album' ? count(PostRender::albumMedia($p)) : ($p['file_id'] ? 1 : 0),
             // to'liq tahrirlash uchun xom qiymatlar
+            'file_id' => $p['post_type'] === 'album' ? '' : (string) ($p['file_id'] ?? ''),
             'channel_ref' => (int) (($ctx->app->channels->byChannelId((int) $p['channel_id']) ?? [])['id'] ?? 0),
             'options' => PostRender::options($p['options'] ?? null),
             'hidden' => (string) ((PostRender::hidden($p['hidden_text'] ?? null) ?? [])['t'] ?? ''),

@@ -334,6 +334,18 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .up{display:flex;gap:12px;align-items:center;padding:10px;border-radius:14px;background:var(--soft)}
 .up-t{flex:0 0 58px;text-align:center;font-weight:800;font-size:16px;line-height:1.1}.up-t small{display:block;font-size:11px;color:var(--hint);font-weight:600}
 .up-b{flex:1;min-width:0;display:flex;flex-direction:column}.up-b b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
+
+.q-search{margin-bottom:10px;border-radius:14px}
+.days{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 -16px 12px;padding:2px 16px 4px}.days::-webkit-scrollbar{display:none}
+.day{flex:0 0 52px;width:52px!important;display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 0 6px!important;border-radius:16px!important;
+  background:var(--glass)!important;color:var(--text)!important;border:1px solid var(--line)!important;box-shadow:none!important;font-weight:700}
+.day small{font-size:10.5px;color:var(--hint);font-weight:600;text-transform:capitalize}.day b{font-size:17px}.day i{font-style:normal;font-size:10px;height:13px;color:var(--accent)}
+.day.has i::before{content:"● "}
+.day.on{background:linear-gradient(135deg,var(--accent),var(--accent2))!important;color:#fff!important;border-color:transparent!important}.day.on small,.day.on i{color:rgba(255,255,255,.9)}
+.qp .body{width:100%}.pacts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}.pacts button{width:auto!important;padding:7px 10px!important;font-size:12.5px}
+.danger-t{color:var(--danger)!important}
+.when-q{margin:10px 0 2px}
+.chip.on{color:#fff!important}
 </style>
 </head>
 <body>
@@ -421,7 +433,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       <div class="card"><h3 data-t="ma_preview"></h3><div class="preview"><div class="bubble" id="pv"></div><div id="pv-btn"></div><div id="pv-hid"></div><div id="pv-rx"></div></div></div>
       <div class="card">
         <div class="chips seg"><span class="chip on" data-when="now" data-t="ma_now"></span><span class="chip" data-when="later" data-t="ma_later"></span></div>
-        <div id="when-box" style="display:none"><label data-t="ma_when"></label><input type="datetime-local" id="when"><div class="muted" id="when-tz"></div></div>
+        <div id="when-box" style="display:none"><div class="chips when-q" id="when-quick"></div><label data-t="ma_when"></label><input type="datetime-local" id="when"><div class="muted" id="when-tz"></div></div>
         <div style="margin-top:12px"><button id="submit" data-t="ma_send_now"></button></div>
         <div style="margin-top:8px"><button class="ghost" id="tpl-save">💾 <span data-t="ma_tpl_save"></span></button></div>
       </div>
@@ -431,6 +443,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   <section class="page" id="p-queue">
     <div class="hint" data-t="ma_hint_queue"></div>
     <div class="chips seg seg3" id="q-seg"><span class="chip on" data-seg="sched" data-t="ma_q_sched"></span><span class="chip" data-seg="sent" data-t="ma_q_sent"></span><span class="chip" data-seg="failed" data-t="ma_q_failed"></span></div>
+    <input id="q-search" class="q-search" data-ph="ma_q_search" type="search">
+    <div class="days" id="q-days"></div>
     <div id="q-list"></div>
   </section>
 
@@ -1065,11 +1079,28 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     });
   }
   $('rep').onchange = function () { $('t2-box').style.display = this.value === 'twice' ? '' : 'none'; };
+
+  // tezkor vaqt: bir bosishda (foydalanuvchi mintaqasidagi hozirgi vaqtdan)
+  function quickWhen() {
+    if (!me) { return; }
+    var now = new Date(me.now_local + ':00');
+    var pad = function (n) { return ('0' + n).slice(-2); };
+    var fmt = function (d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+    var at = function (days, h) { var d = new Date(now.getTime()); d.setDate(d.getDate() + days); d.setHours(h, 0, 0, 0); return d; };
+    var opts = [['ma_q_1h', new Date(now.getTime() + 3600000)], ['ma_q_today18', at(0, 18)], ['ma_q_tom09', at(1, 9)], ['ma_q_tom18', at(1, 18)]]
+      .filter(function (o) { return o[1].getTime() > now.getTime() + 60000; });
+    $('when-quick').innerHTML = opts.map(function (o) { return '<span class="chip" data-wq="' + fmt(o[1]) + '">' + esc(t(o[0])) + '</span>'; }).join('');
+    document.querySelectorAll('[data-wq]').forEach(function (c) { c.onclick = function () {
+      $('when').value = c.getAttribute('data-wq'); haptic();
+      document.querySelectorAll('[data-wq]').forEach(function (x) { x.classList.toggle('on', x === c); });
+    }; });
+  }
   document.querySelectorAll('[data-when]').forEach(function (c) {
     c.onclick = function () {
       state.when = c.getAttribute('data-when');
       document.querySelectorAll('[data-when]').forEach(function (x) { x.classList.toggle('on', x === c); });
       $('when-box').style.display = state.when === 'later' ? '' : 'none';
+      if (state.when === 'later') { quickWhen(); }
       $('submit').textContent = t(state.when === 'later' ? 'ma_schedule' : 'ma_send_now');
     };
   });
@@ -1137,18 +1168,22 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       $('tpl-card').style.display = r.templates.length ? '' : 'none';
     });
   }
+  // shablon yoki «Nusxa» — muharrirni to'ldirish (bitta joy)
+  function applyToEditor(d) {
+    setEditor(d.text); $('b-text').value = d.button_text || ''; $('b-url').value = d.button_url || '';
+    state.reactions = d.reactions || ''; renderReactions(); $('ad').value = String(d.delete_after || 0);
+    state.opts = (d.options || []).slice(); renderOpts(); $('hid').value = d.hidden || '';
+    state.type = d.type; state.fileId = d.file_id || ''; state.mediaUrl = '';
+    if (d.type !== 'text') { $('media-box').style.display = 'flex'; $('media-add').style.display = 'none'; $('media-thumb').textContent = '🖼'; $('media-name').textContent = t('ma_media_attached'); }
+    if (d.channel_ref && me && me.channels.some(function (c) { return c.id === d.channel_ref; })) { state.channel = d.channel_ref; renderChannels(); }
+    refreshPreview();
+  }
   $('tpl-sel').onchange = function () {
     var id = parseInt(this.value, 10); if (!id) { return; }
     api('template', {id: id}).then(function (r) {
       $('tpl-sel').value = '';
       if (!r.ok) { toast(errText(r)); return; }
-      var d = r.template;
-      setEditor(d.text); $('b-text').value = d.button_text; $('b-url').value = d.button_url;
-      state.reactions = d.reactions; renderReactions(); $('ad').value = String(d.delete_after || 0);
-      state.opts = d.options.slice(); renderOpts(); $('hid').value = d.hidden;
-      state.type = d.type; state.fileId = d.file_id; state.mediaUrl = '';
-      if (d.type !== 'text') { $('media-box').style.display = 'flex'; $('media-add').style.display = 'none'; $('media-thumb').textContent = '🖼'; $('media-name').textContent = t('ma_media_attached'); }
-      refreshPreview(); haptic('ok'); toast(t('ma_tpl_loaded'));
+      applyToEditor(r.template); haptic('ok'); toast(t('ma_tpl_loaded'));
     });
   };
   $('tpl-save').onclick = function () {
@@ -1332,26 +1367,70 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   }
 
   // ---------- navbat
+  var qposts = [], qday = '';
   function loadSched() {
     $('q-list').innerHTML = '<div class="empty"><span class="spin">⏳</span></div>';
     api('posts').then(function (r) {
       if (!r.ok) { $('q-list').innerHTML = '<div class="empty">' + esc(errText(r)) + '</div>'; return; }
-      if (!r.posts.length) {
-        $('q-list').innerHTML = '<div class="card empty"><b>📭</b>' + esc(t('ma_q_empty')) + '<div style="margin-top:12px"><button data-go="post">' + esc(t('ma_new_post')) + '</button></div></div>';
-        return;
-      }
-      $('q-list').innerHTML = r.posts.map(function (p, i) {
-        var d = document.createElement('div'); d.innerHTML = p.text; var plain = (d.textContent || '').trim() || '[' + p.type + ']';
-        return '<div class="card post"><div class="body"><b>🕒 ' + esc(p.when) + '</b><div class="muted">📢 ' + esc(p.channel) + '</div>' +
-          '<div class="t">' + (p.type !== 'text' ? '🖼 ' : '') + esc(plain) + '</div>' +
-          (p.repeat ? '<span class="tag">🔄 ' + esc(p.repeat) + '</span>' : '') + (p.delete_after ? '<span class="tag">⏳ ' + (p.delete_after / 60) + 'h</span>' : '') +
-          (p.reactions ? '<span class="tag">' + esc(p.reactions.split(',').join(' ')) + '</span>' : '') +
-          '</div><div><button class="small ghost" data-edit="' + i + '">✏️</button><div style="height:6px"></div><button class="small danger" data-del="' + p.id + '">🗑</button></div></div>';
-      }).join('');
-      document.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askCancel(parseInt(b.getAttribute('data-del'), 10)); }; });
-      document.querySelectorAll('[data-edit]').forEach(function (b) { b.onclick = function () { editPost(r.posts[parseInt(b.getAttribute('data-edit'), 10)]); }; });
+      qposts = r.posts; renderDays(); renderSched();
     });
   }
+  // 14 kunlik lenta: har kunda nechta post borligi — bosilsa o'sha kun postlari
+  function renderDays() {
+    if (qseg !== 'sched') { $('q-days').innerHTML = ''; return; }
+    var base = new Date((me ? me.now_local : new Date().toISOString().slice(0, 16)) + ':00'), html = '', fmt;
+    var wd = t('ma_wd').split(','); // brauzerlarda o'zbekcha sana nomlari yo'q — o'zimizning 3 tilli ro'yxat
+    fmt = {format: function (d) { return wd[d.getDay()] || ''; }};
+    var all = '<button class="day' + (qday === '' ? ' on' : '') + '" data-day=""><small>' + esc(t('ma_all')) + '</small><b>' + qposts.length + '</b></button>';
+    for (var i = 0; i < 14; i++) {
+      var d = new Date(base.getTime() + i * 86400000), key = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      var n = qposts.filter(function (p) { return p.when_local.slice(0, 10) === key; }).length;
+      html += '<button class="day' + (qday === key ? ' on' : '') + (n ? ' has' : '') + '" data-day="' + key + '"><small>' + esc(i === 0 ? t('ma_today') : (fmt ? fmt.format(d) : key.slice(5))) + '</small><b>' + d.getDate() + '</b><i>' + (n ? n : '') + '</i></button>';
+    }
+    $('q-days').innerHTML = all + html;
+    document.querySelectorAll('[data-day]').forEach(function (b) { b.onclick = function () { haptic(); qday = b.getAttribute('data-day'); renderDays(); renderSched(); }; });
+  }
+  function renderSched() {
+    var list = qposts.filter(function (p) { return !qday || p.when_local.slice(0, 10) === qday; });
+    if (!list.length) {
+      $('q-list').innerHTML = '<div class="card empty"><b>📭</b>' + esc(t(qposts.length ? 'ma_q_day_empty' : 'ma_q_empty')) + '<div style="margin-top:12px"><button data-go="post">' + esc(t('ma_new_post')) + '</button></div></div>';
+      return;
+    }
+    $('q-list').innerHTML = list.map(function (p) {
+      var i = qposts.indexOf(p), d = document.createElement('div'); d.innerHTML = p.text; var plain = (d.textContent || '').trim() || '[' + p.type + ']';
+      var canCopy = p.type !== 'album' && p.type !== 'poll';
+      return '<div class="card post qp"><div class="body"><b>🕒 ' + esc(p.when) + '</b><div class="muted">📢 ' + esc(p.channel) + '</div>' +
+        '<div class="t">' + (p.type !== 'text' ? '🖼 ' : '') + esc(plain) + '</div>' +
+        (p.repeat ? '<span class="tag">🔄 ' + esc(p.repeat) + '</span>' : '') + (p.delete_after ? '<span class="tag">⏳ ' + (p.delete_after / 60) + 'h</span>' : '') +
+        (p.reactions ? '<span class="tag">' + esc(p.reactions.split(',').join(' ')) + '</span>' : '') +
+        '<div class="pacts"><button class="small ghost" data-edit="' + i + '">✏️ ' + esc(t('ma_edit')) + '</button>' +
+        '<button class="small ghost" data-now="' + p.id + '">🚀 ' + esc(t('ma_now')) + '</button>' +
+        (canCopy ? '<button class="small ghost" data-copy="' + i + '">📋</button>' : '') +
+        '<button class="small ghost danger-t" data-del="' + p.id + '">🗑</button></div></div></div>';
+    }).join('');
+    document.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askCancel(parseInt(b.getAttribute('data-del'), 10)); }; });
+    document.querySelectorAll('[data-edit]').forEach(function (b) { b.onclick = function () { editPost(qposts[parseInt(b.getAttribute('data-edit'), 10)]); }; });
+    document.querySelectorAll('[data-copy]').forEach(function (b) { b.onclick = function () {
+      var p = qposts[parseInt(b.getAttribute('data-copy'), 10)];
+      go('post'); applyToEditor({type: p.type, file_id: p.file_id, text: p.text, button_text: p.button ? p.button[0] : '', button_url: p.button ? p.button[1] : '',
+        reactions: p.reactions || '', delete_after: p.delete_after || 0, options: p.options || [], hidden: p.hidden || '', channel_ref: p.channel_ref});
+      haptic('ok'); toast(t('ma_copied'));
+    }; });
+    document.querySelectorAll('[data-now]').forEach(function (b) { b.onclick = function () {
+      var id = parseInt(b.getAttribute('data-now'), 10);
+      var run = function (yes) { if (!yes) { return; } b.disabled = true;
+        api('post_now', {id: id}).then(function (x) { b.disabled = false; toast(x.ok ? t(x.status === 'sent' ? 'ma_sent' : 'ma_queued') : errText(x)); if (x.ok) { haptic('ok'); loadSched(); loadMe(); } }); };
+      if (tg && tg.showConfirm) { tg.showConfirm(t('ma_confirm_now'), run); } else { run(confirm(t('ma_confirm_now'))); }
+    }; });
+    filterSearch();
+  }
+  // qidiruv: ko'rinib turgan ro'yxatdagi postlarni matn/kanal bo'yicha saralaydi
+  function filterSearch() {
+    var q = ($('q-search').value || '').trim().toLowerCase();
+    document.querySelectorAll('#q-list .card.post').forEach(function (c) { c.style.display = !q || c.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none'; });
+  }
+  $('q-search').addEventListener('input', filterSearch);
+
   function askCancel(id) {
     var done = function (yes) {
       if (!yes) { return; }
@@ -1366,7 +1445,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   function plainOf(html) { var d = document.createElement('div'); d.innerHTML = String(html || ''); return (d.textContent || '').trim(); }
   function qseg_update() { document.querySelectorAll('[data-seg]').forEach(function (c) { c.classList.toggle('on', c.getAttribute('data-seg') === qseg); }); }
   function loadQueue() {
-    qseg_update();
+    qseg_update(); $('q-search').value = '';
+    if (qseg !== 'sched') { $('q-days').innerHTML = ''; }
     if (qseg === 'sent') { return loadSent(); }
     if (qseg === 'failed') { return loadFailed(); }
     return loadSched();

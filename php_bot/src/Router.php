@@ -203,6 +203,9 @@ final class Router
                 case 'sent_edit':
                     SentHandler::editInput($ctx, $state);
                     return;
+                case 'q_time':
+                    QueueHandler::timeInput($ctx, $state);
+                    return;
                 case 'post_hidden':
                     PostHandler::hiddenInput($ctx, $state);
                     return;
@@ -698,6 +701,14 @@ final class Router
             QueueHandler::askCancel($ctx, (int) $m[1]);
         } elseif (preg_match('/^q:dok:(\d{1,10})$/', $data, $m)) {
             QueueHandler::cancel($ctx, (int) $m[1]);
+        } elseif (preg_match('/^q:now:(\d{1,10})$/', $data, $m)) {
+            QueueHandler::sendNow($ctx, (int) $m[1]);
+        } elseif (preg_match('/^q:t:(\d{1,10})$/', $data, $m)) {
+            QueueHandler::askTime($ctx, (int) $m[1]);
+        } elseif (preg_match('/^q:tq:(\d{1,10}):(1h|today18|tom09)$/', $data, $m)) {
+            QueueHandler::quickTime($ctx, (int) $m[1], $m[2]);
+        } elseif (preg_match('/^q:cp:(\d{1,10})$/', $data, $m)) {
+            QueueHandler::duplicate($ctx, (int) $m[1]);
         }
     }
 }

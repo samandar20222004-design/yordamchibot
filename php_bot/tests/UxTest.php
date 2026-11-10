@@ -352,3 +352,32 @@ $pressU($B, 'lang:ru');
 $cm = $fake->of('setMyCommands')[0] ?? [];
 T::check('botda til ru: buyruqlar menyusi ham ruscha', strpos((string) ($cm['commands'] ?? ''), 'Главное меню') !== false);
 $pressU($B, 'lang:uz');
+
+// --- navbatdagi post: hozir yuborish, vaqtni o'zgartirish, nusxa (bot) va Mini App post_now
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at) VALUES (?, ?, 'text', 'Navbat posti', 'pending', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 3 DAY), UTC_TIMESTAMP())", [$B, $BC]);
+$qid = $db->lastId();
+$pressU($B, 'q:v:' . $qid);
+$qkb = $lastKb();
+T::check('bot: navbatdagi post — Hozir / Vaqt / Nusxa / Bekor qilish tugmalari', strpos($qkb, 'q:now:' . $qid) !== false && strpos($qkb, 'q:t:' . $qid) !== false
+    && strpos($qkb, 'q:cp:' . $qid) !== false && strpos($qkb, 'q:d:' . $qid) !== false);
+$pressU($B, 'q:t:' . $qid);
+T::eq('bot: vaqt so\'raldi (holat q_time)', $appU->states->get($B)['state'] ?? null, 'q_time');
+$textU($B, 'ertaga 09:00');
+T::check('bot: yangi vaqt saqlandi', strpos($fake->lastText(), '09:00') !== false && strpos((string) $db->value('SELECT scheduled_time FROM scheduled_posts WHERE id = ?', [$qid]), ':00:00') !== false
+    && $appU->states->get($B) === null);
+$pressU($B, 'q:tq:' . $qid . ':1h');
+T::check('bot: tezkor vaqt (+1 soat)', strpos($fake->lastText(), '✅') !== false);
+$pressU($B, 'q:cp:' . $qid);
+T::check('bot: nusxa — post ko\'rinishi (preview) ochildi', strpos(json_encode($fake->calls, JSON_UNESCAPED_UNICODE), 'Navbat posti') !== false && strpos($lastKb() . json_encode($fake->calls), 'p:now') !== false);
+$appU->states->clear($B);
+$fake->reset();
+$pressU($B, 'q:now:' . $qid);
+T::check('bot: «Hozir yuborish» — kanalga chiqdi', $db->value('SELECT status FROM scheduled_posts WHERE id = ?', [$qid]) === 'sent' && $fake->of('sendMessage') !== []);
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at) VALUES (?, ?, 'text', 'Mini navbat', 'pending', DATE_ADD(UTC_TIMESTAMP(), INTERVAL 3 DAY), UTC_TIMESTAMP())", [$B, $BC]);
+$qid2 = $db->lastId();
+T::eq('post_now: boshqa odam — 404', PostAssist\Handlers\MiniAppApi::handle($appU, 'post_now', ['id' => $qid2], $initZ)[0], 404);
+[$st, $r] = $call2('post_now', ['id' => $qid2]);
+T::check('Mini App post_now: yuborildi', $st === 200 && ($r['status'] ?? '') === 'sent' && $db->value('SELECT status FROM scheduled_posts WHERE id = ?', [$qid2]) === 'sent');
+$appSrcQ = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: kunlar lentasi, qidiruv, Hozir/Nusxa tugmalari', strpos($appSrcQ, 'function renderDays') !== false && strpos($appSrcQ, 'id="q-search"') !== false
+    && strpos($appSrcQ, "api('post_now'") !== false && strpos($appSrcQ, 'function applyToEditor') !== false);
