@@ -12,7 +12,7 @@ use PostAssist\Services\TimeParser;
 /**
  * 📦 Ko'p post rejasi: bir nechta xabarni (matn, rasm, video, GIF, hujjat, audio) ketma-ket yuborasiz → «✅ Tayyor» →
  * kanal → birinchi post vaqti → oraliq (1/3/6/12 soat yoki har kuni). Har biri alohida rejalashtirilgan postga aylanadi.
- * Albom bu rejimda qabul qilinmaydi (albomni oddiy post orqali qo'ying). Ko'pi bilan 30 ta; navbat limiti tekshiriladi.
+ * Albom (2–10 fayl) bitta post bo'lib qo'shiladi. Ko'pi bilan 30 ta; navbat limiti tekshiriladi.
  */
 final class BulkHandler
 {
@@ -39,35 +39,72 @@ final class BulkHandler
         return Keyboards::inline([[Keyboards::btn($ctx->t('btn_bk_done', ['n' => $n]), 'bk:done'), Keyboards::btn($ctx->t('btn_cancel'), 'p:cancel')]]);
     }
 
-    /** Navbatdagi xabar (holat bulk). */
+    /** Navbatdagi xabar (holat bulk). Albom — bitta post (oddiy postdagi kabi yig'iladi). */
     public static function add(Ctx $ctx, array $state): void
     {
         $msg = $ctx->message ?? [];
-        $items = (array) ($state['data']['items'] ?? []);
         if (!empty($msg['media_group_id'])) {
-            if ($ctx->app->albums->claim($ctx->userId, (string) $msg['media_group_id'])) {
-                $ctx->reply($ctx->t('bk_no_album'), self::doneKb($ctx, count($items)));
+            $group = (string) $msg['media_group_id'];
+            if (($state['data']['last_group'] ?? null) === $group && $ctx->app->albums->isDone($ctx->userId, $group)) {
+                self::albumLate($ctx, $state); // server band bo'lib kechikkan qism — oxirgi albomga qo'shiladi
+                return;
             }
-            return;
-        }
-        if (count($items) >= self::MAX) {
-            $ctx->reply($ctx->t('bk_full', ['max' => self::MAX]), self::doneKb($ctx, count($items)));
+            PostHandler::albumItem($ctx, $group);
             return;
         }
         $d = PostRender::draftFromMessage($msg);
         if ($d === null || ($d['type'] === 'text' && trim(Html::plain($d['text'])) === '')) {
-            $ctx->reply($ctx->t('post_unsupported'), self::doneKb($ctx, count($items)));
+            $ctx->reply($ctx->t('post_unsupported'), self::doneKb($ctx, count((array) ($state['data']['items'] ?? []))));
+            return;
+        }
+        self::addDraft($ctx, $state, $d);
+    }
+
+    /** Tayyor qoralamani ro'yxatga qo'shadi (matn, media yoki albom). */
+    public static function addDraft(Ctx $ctx, array $state, array $d): void
+    {
+        $items = (array) ($state['data']['items'] ?? []);
+        if (count($items) >= self::MAX) {
+            $ctx->reply($ctx->t('bk_full', ['max' => self::MAX]), self::doneKb($ctx, count($items)));
             return;
         }
         $len = Html::utf16Len(Html::plain((string) $d['text']));
-        $max = PostRender::limitFor($d['type']);
+        $max = PostRender::limitFor($d['type'] === 'album' ? 'photo' : $d['type']);
         if ($len > $max) {
             $ctx->reply($ctx->t($d['type'] === 'text' ? 'post_too_long_text' : 'post_too_long_caption', ['len' => $len, 'max' => $max]), self::doneKb($ctx, count($items)));
             return;
         }
+        $group = $d['group'] ?? null;
+        unset($d['group']);
         $items[] = $d;
+        $ctx->app->states->set($ctx->userId, 'bulk', ['items' => $items, 'last_group' => $group] + $state['data']);
+        $ctx->reply($ctx->t($d['type'] === 'album' ? 'bk_added_album' : 'bk_added', ['n' => count($items), 'k' => count($d['media'] ?? [])]), self::doneKb($ctx, count($items)));
+    }
+
+    /** Yig'ilgan albomga kechikib kelgan qism. */
+    private static function albumLate(Ctx $ctx, array $state): void
+    {
+        $items = (array) ($state['data']['items'] ?? []);
+        $i = count($items) - 1;
+        $d = PostRender::draftFromMessage($ctx->message ?? []);
+        if ($i < 0 || ($items[$i]['type'] ?? '') !== 'album' || $d === null || !in_array($d['type'], ['photo', 'video', 'document', 'audio'], true)) {
+            return;
+        }
+        $media = (array) $items[$i]['media'];
+        foreach ($media as $m) {
+            if ($m[1] === $d['file_id']) {
+                return;
+            }
+        }
+        $next = array_merge($media, [[$d['type'], (string) $d['file_id']]]);
+        if (count($next) > PostRender::ALBUM_MAX || !PostRender::albumValid($next)) {
+            return;
+        }
+        $items[$i]['media'] = $next;
+        if (trim((string) $items[$i]['text']) === '' && trim((string) $d['text']) !== '') {
+            $items[$i]['text'] = $d['text'];
+        }
         $ctx->app->states->set($ctx->userId, 'bulk', ['items' => $items] + $state['data']);
-        $ctx->reply($ctx->t('bk_added', ['n' => count($items)]), self::doneKb($ctx, count($items)));
     }
 
     private static function bulkState(Ctx $ctx): ?array
@@ -167,7 +204,8 @@ final class BulkHandler
             $app->posts->create($ctx->ownerId(), (int) $ch['channel_id'], $d, $when, true, null, $ctx->userId);
             if ($i < 10) {
                 $plain = trim(Html::plain((string) $d['text']));
-                $lines[] = '• ' . TimeParser::show($when, $ctx->tz()) . ' — ' . Html::e(mb_substr($plain !== '' ? $plain : '[' . $d['type'] . ']', 0, 40));
+                $lines[] = '• ' . TimeParser::show($when, $ctx->tz()) . ' — ' . ($d['type'] === 'album' ? '🖼×' . count($d['media'] ?? []) . ' ' : '')
+                    . Html::e(mb_substr($plain !== '' ? $plain : ($d['type'] === 'album' ? '' : '[' . $d['type'] . ']'), 0, 40));
             }
         }
         if ($n > 10) {

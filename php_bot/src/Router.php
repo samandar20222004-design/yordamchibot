@@ -148,6 +148,19 @@ final class Router
             PostHandler::albumLate($ctx, $state); // shu albomning kechikib kelgan qismi — qoralamaga qo'shiladi
             return;
         }
+        if ($group !== '' && ($state === null || $state['state'] === 'intake') && $ctx->can('create')) {
+            // dialogdan tashqari albom (aqlli qabul): oddiy post sifatida yig'iladi va preview ko'rsatiladi
+            if ($this->app->channels->countFor($ctx->ownerId()) === 0) {
+                if ($this->app->albums->claim($ctx->userId, $group)) {
+                    $ctx->replyMenu($ctx->t('ch_need_first'));
+                    ChannelHandler::askAdd($ctx);
+                }
+                return;
+            }
+            $this->app->states->set($ctx->userId, 'post_content', []);
+            PostHandler::content($ctx, ['state' => 'post_content', 'data' => []]);
+            return;
+        }
         if ($group !== '' && ($state === null || !in_array($state['state'], ['post_content', 'post_edit', 'bulk'], true))) {
             // albom post kutilmagan joyda keldi: har qismga emas, faqat bir marta javob
             if ($this->app->albums->claim($ctx->userId, $group)) {

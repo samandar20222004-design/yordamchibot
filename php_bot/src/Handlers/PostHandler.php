@@ -104,7 +104,7 @@ final class PostHandler
     // ------------------------------------------------------------------ albom
 
     /** Albom qismi: yoziladi; ~2 soniya yangi qism kelmasa — shu so'rov albomni yig'adi. */
-    private static function albumItem(Ctx $ctx, string $group): void
+    public static function albumItem(Ctx $ctx, string $group): void
     {
         $app = $ctx->app;
         $msg = $ctx->message ?? [];
@@ -137,9 +137,10 @@ final class PostHandler
             $ctx = new Ctx($app, $userId, $userId, I18n::norm($u['lang'] ?? 'uz'), (string) ($u['full_name'] ?? ''), null, null);
         }
         $state = $ctx->state();
-        if ($state === null || !in_array($state['state'], ['post_content', 'post_edit'], true)) {
+        if ($state === null || !in_array($state['state'], ['post_content', 'post_edit', 'bulk'], true)) {
             return true; // foydalanuvchi boshqa ishga o'tib ketgan
         }
+        $bulk = $state['state'] === 'bulk';
         $media = [];
         $caption = '';
         foreach ($items as $it) {
@@ -150,7 +151,7 @@ final class PostHandler
         }
         if (count($media) === 1) {
             $one = ['type' => $media[0][0], 'file_id' => $media[0][1], 'text' => $caption];
-            self::applyDraft($ctx, $state, $one);
+            $bulk ? BulkHandler::addDraft($ctx, $state, $one) : self::applyDraft($ctx, $state, $one);
             return true;
         }
         if (count($media) > PostRender::ALBUM_MAX) {
@@ -161,7 +162,8 @@ final class PostHandler
             $ctx->reply($ctx->t('album_mixed'));
             return true;
         }
-        self::applyDraft($ctx, $state, ['type' => 'album', 'file_id' => null, 'text' => $caption, 'media' => $media, 'group' => $group]);
+        $album = ['type' => 'album', 'file_id' => null, 'text' => $caption, 'media' => $media, 'group' => $group];
+        $bulk ? BulkHandler::addDraft($ctx, $state, $album) : self::applyDraft($ctx, $state, $album);
         return true;
     }
 

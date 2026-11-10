@@ -69,12 +69,51 @@ T::eq('yig\'ish rejimi', $app->states->get($XU)['state'] ?? null, 'bulk');
 $text($XU, 'Birinchi post');
 T::check('qo\'shildi, «Tayyor (1)»', strpos($fake->lastText(), '1-post') !== false && strpos($kbX(), 'bk:done') !== false && strpos($kbX(), '(1)') !== false);
 $send($XU, ['photo' => [['file_id' => 'PH_BULK', 'width' => 1, 'height' => 1]], 'caption' => 'Ikkinchi (rasm)']);
-$send($XU, ['media_group_id' => 'G1', 'photo' => [['file_id' => 'A1', 'width' => 1, 'height' => 1]]]);
-T::check('albom qabul qilinmaydi', strpos($fake->lastText(), 'Albom') !== false);
-$send($XU, ['media_group_id' => 'G1', 'photo' => [['file_id' => 'A2', 'width' => 1, 'height' => 1]]]);
-T::eq('albomning 2-qismiga qayta javob yo\'q', count($fake->of('sendMessage')), 0);
+// albom: kutish paytida qolgan qismlar keladi (parallel so'rovlar) — bitta post bo'lib qo'shiladi
+$bkAlbum = static function (string $file, int $mid, string $cap = '') use (&$upd, $XU): array {
+    return ['update_id' => $upd++, 'message' => ['message_id' => $mid, 'from' => ['id' => $XU, 'is_bot' => false, 'first_name' => 'X'], 'chat' => ['id' => $XU, 'type' => 'private'],
+        'date' => 0, 'media_group_id' => 'BKG1', 'photo' => [['file_id' => $file, 'width' => 1, 'height' => 1]], 'caption' => $cap]];
+};
+$bkQueue = [$bkAlbum('A2', 9102), $bkAlbum('A3', 9103)];
+$app->sleeper = static function (int $ms) use (&$bkQueue, $router): void {
+    if ($bkQueue) {
+        $router->handle(array_shift($bkQueue));
+    }
+};
+$fake->reset();
+$router->handle($bkAlbum('A1', 9101, 'Albom izohi'));
+$app->sleeper = static function (int $ms): void {
+};
+$bkItems = $app->states->get($XU)['data']['items'] ?? [];
+T::check('albom qabul qilindi: bitta post, 3 fayl, izoh bilan', count($bkItems) === 3 && ($bkItems[2]['type'] ?? '') === 'album' && count($bkItems[2]['media'] ?? []) === 3
+    && $bkItems[2]['text'] === 'Albom izohi' && count($fake->of('sendMessage')) === 1 && strpos($fake->lastText(), 'albom (3 ta fayl)') !== false);
+$fake->reset();
+$router->handle($bkAlbum('A4', 9104));
+T::check('kechikkan qism oxirgi albomga qo\'shiladi (jim)', count($app->states->get($XU)['data']['items'][2]['media'] ?? []) === 4 && $fake->of('sendMessage') === []);
+$router->handle($bkAlbum('A4', 9104));
+T::eq('takror qism qo\'shilmaydi', count($app->states->get($XU)['data']['items'][2]['media'] ?? []), 4);
 $text($XU, 'Uchinchi post');
-T::eq('3 ta yig\'ildi', count($app->states->get($XU)['data']['items'] ?? []), 3);
+T::eq('4 ta yig\'ildi (albom — bitta)', count($app->states->get($XU)['data']['items'] ?? []), 4);
+$bkSaved = $app->states->get($XU);
+// dialogdan tashqari albom (aqlli qabul): yo'qolmaydi — oddiy post preview'i
+$app->states->clear($XU);
+$dqQueue = [$bkAlbum('D2', 9202)];
+$app->sleeper = static function (int $ms) use (&$dqQueue, $router): void {
+    if ($dqQueue) {
+        $router->handle(array_shift($dqQueue));
+    }
+};
+$fake->reset();
+$dq = $bkAlbum('D1', 9201, 'Tashqi albom');
+$dq['message']['media_group_id'] = 'DQG1';
+$dqQueue[0]['message']['media_group_id'] = 'DQG1';
+$router->handle($dq);
+$app->sleeper = static function (int $ms): void {
+};
+$dqSt = $app->states->get($XU);
+T::check('dialogdan tashqari albom: post qoralamasi (2 fayl), «tushunmadim» emas', in_array($dqSt['state'] ?? '', ['post_preview', 'post_pick'], true)
+    && ($dqSt['data']['draft']['type'] ?? '') === 'album' && count($dqSt['data']['draft']['media'] ?? []) === 2 && strpos(json_encode($fake->calls, JSON_UNESCAPED_UNICODE), 'tushunmadim') === false);
+$app->states->set($XU, (string) $bkSaved['state'], $bkSaved['data']);
 $press($XU, 'bk:done');
 T::eq('bitta kanal: darhol vaqt so\'raladi', $app->states->get($XU)['state'] ?? null, 'bulk_time');
 $text($XU, 'qachondir');
@@ -83,6 +122,13 @@ $text($XU, 'ertaga 09:00');
 T::check('oraliq so\'raladi', ($app->states->get($XU)['state'] ?? '') === 'bulk_gap' && strpos($kbX(), 'bk:g:180') !== false && strpos($kbX(), 'bk:g:1440') !== false);
 $press($XU, 'bk:g:999');
 T::eq('noma\'lum oraliq — hech narsa yaratilmaydi', (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE user_id = ? AND status = 'pending'", [$XU]), 0);
+$app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'album', 'file_id' => null, 'text' => 'Rejadagi albom', 'media' => [['photo', 'R1'], ['photo', 'R2'], ['video', 'R3']]]],
+    'channel' => $XREF, 'start' => '2027-06-07 04:00:00']);
+$press($XU, 'bk:g:60');
+$bpa = $db->one("SELECT * FROM scheduled_posts WHERE user_id = ? AND text = 'Rejadagi albom'", [$XU]);
+T::check('ko\'p post: albom albom bo\'lib rejalashtirildi (3 fayl)', $bpa !== null && $bpa['post_type'] === 'album' && count(json_decode((string) $bpa['media'], true) ?: []) === 3
+    && strpos($fake->lastText(), '🖼×3') !== false, $fake->lastText());
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE id = ?", [(int) ($bpa['id'] ?? 0)]);
 $app->states->set($XU, 'bulk_gap', ['items' => [['type' => 'text', 'file_id' => null, 'text' => 'a'], ['type' => 'text', 'file_id' => null, 'text' => 'b'],
     ['type' => 'text', 'file_id' => null, 'text' => 'c']], 'channel' => $XREF, 'start' => '2027-06-05 04:00:00']);
 $press($XU, 'bk:g:180');
