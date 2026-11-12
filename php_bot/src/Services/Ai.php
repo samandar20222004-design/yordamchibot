@@ -28,6 +28,10 @@ final class Ai
     public array $lastStatus = [];
     /** @var callable|null fn(string $key, ?string $value = null): ?string — o'zi topgan model nomini saqlash (bot_settings) */
     public $store;
+    /** Oxirgi tarmoq xatosi (curl) — aniq sabab: ulanib bo'lmadi / javob kechikdi. */
+    private string $netError = '';
+    /** Gemini band yoki sekin bo'lganda vaqtincha ishlatilgan zaxira model: asosiy => zaxira. */
+    public array $fallbackUsed = [];
     /** Shu so'rovda o'zi almashtirgan modellar: name => 'eski → yangi' (setup.php va check.php ko'rsatadi). */
     public array $healed = [];
     private array $override = [];
@@ -57,6 +61,14 @@ final class Ai
         $out = [];
         foreach ($this->providers() as $p) {
             $raw = $this->callProvider($p, 'Reply with one word.', 'Say: OK');
+            if ($raw === null && $p['kind'] === 'gemini') {
+                $first = (string) ($this->lastStatus[$p['name']] ?? '');
+                $raw = $this->tryGeminiFallback($p, 'Reply with one word.', 'Say: OK', null);
+                if ($raw !== null) {
+                    $out[$p['name']] = 'OK (' . $this->fallbackUsed[$p['name']] . ' — zaxira; asosiy ' . $p['model'] . ': ' . $first . ')';
+                    continue;
+                }
+            }
             if ($raw !== null) {
                 $out[$p['name']] = 'OK (' . ($this->healed[$p['name']] ?? $p['model']) . ')' . (isset($this->healed[$p['name']]) ? ' — model avtomatik almashtirildi' : '');
                 continue;
@@ -166,6 +178,42 @@ final class Ai
             return $chat[0] ?? null;
         }
         return null;
+    }
+
+    /**
+     * Gemini modeli band (429/5xx) yoki javob bermadi (vaqt tugadi): boshqa Gemini modeli bilan bir marta urinish
+     * (masalan yengilroq «flash-lite»). Kalit xatosi (400/401/403) bo'lsa — urinilmaydi. Saqlanmaydi (vaqtinchalik).
+     */
+    private function tryGeminiFallback(array $p, string $system, string $prompt, ?array $media): ?string
+    {
+        $st = (string) ($this->lastStatus[$p['name']] ?? '');
+        if (!preg_match('/^(HTTP (429|5\d\d)|tarmoq|bo\'sh javob)/', $st)) {
+            return null;
+        }
+        $alt = self::pickAlternate($this->listModels($p), $p['model']);
+        if ($alt === null) {
+            return null;
+        }
+        $q = $p;
+        $q['model'] = $alt;
+        $q['url'] = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($alt) . ':generateContent';
+        $raw = $this->callProvider($q, $system, $prompt, $media);
+        if ($raw !== null) {
+            $this->fallbackUsed[$p['name']] = $alt;
+            if ($this->logger !== null) {
+                ($this->logger)('AI ' . $p['name'] . ': ' . $p['model'] . ' band/sekin — zaxira model ishladi: ' . $alt);
+            }
+        }
+        return $raw;
+    }
+
+    /** Joriydan boshqa Gemini modeli: avval eng yangi barqaror flash, keyin flash-lite (preview/exp/image/tts emas). */
+    public static function pickAlternate(array $ids, string $current): ?string
+    {
+        $ids = array_values(array_filter($ids, static function ($id) use ($current) {
+            return $id !== $current;
+        }));
+        return self::pickModel('gemini', $ids);
     }
 
     /** Model topilmadi (404): mavjud ro'yxatdan mosini topib, saqlaydi. Yangi nom yoki null. */
@@ -286,8 +334,12 @@ final class Ai
         if (!$providers) {
             return ['ok' => false, 'error' => 'disabled'];
         }
-        foreach ($providers as $p) {
+        foreach ($providers as $i => $p) {
             $raw = $this->callProvider($p, $system, $prompt, $media);
+            // zaxira Gemini modeli faqat boshqa yo'l qolmaganda (rasm/ovoz yoki oxirgi provayder) — matnda Groq tezroq
+            if ($raw === null && $p['kind'] === 'gemini' && ($media !== null || $i === count($providers) - 1)) {
+                $raw = $this->tryGeminiFallback($p, $system, $prompt, $media);
+            }
             if ($raw === null) {
                 continue;
             }
@@ -365,7 +417,9 @@ final class Ai
             $data = json_decode($resp, true);
             $err = is_array($data) ? ($data['error'] ?? '') : '';
             $why = is_array($err) ? (string) ($err['message'] ?? '') : (is_string($err) ? $err : '');
-            $msg = ($status === 0 ? 'tarmoq/vaqt tugadi' : 'HTTP ' . $status) . ($why !== '' ? ': ' . mb_substr(str_replace($p['key'], '***', $why), 0, 160) : '');
+            $net = $this->netError !== '' ? $this->netError : '';
+            $this->netError = '';
+            $msg = ($status === 0 ? 'tarmoq/vaqt tugadi' . ($net !== '' ? ' (' . mb_substr($net, 0, 120) . ')' : '') : 'HTTP ' . $status) . ($why !== '' ? ': ' . mb_substr(str_replace($p['key'], '***', $why), 0, 160) : '');
             $this->fail($p['name'], $msg);
             return null;
         }
@@ -423,6 +477,7 @@ final class Ai
         }
         $resp = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $this->netError = $resp === false ? (string) curl_error($ch) : '';
         curl_close($ch);
         return [$resp === false ? 0 : $status, $resp === false ? '' : (string) $resp];
     }

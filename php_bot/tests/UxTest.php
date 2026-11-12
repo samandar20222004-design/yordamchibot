@@ -831,3 +831,46 @@ $db->exec("UPDATE bot_settings SET v = '' WHERE k = 'webhook_tick'");
 T::eq('zaxira: cron ishlab tursa — tegmaydi', $fbS->fallbackTick(5), false);
 $whSrc = (string) file_get_contents(__DIR__ . '/../webhook.php');
 T::check('webhook.php: javobni qaytarib, keyin zaxira cron', strpos($whSrc, '$app->releaseClient();') !== false && strpos($whSrc, 'fallbackTick') !== false);
+
+// --- Gemini band yoki sekin (vaqt tugadi / 503): boshqa Gemini modeli bilan zaxira urinish; kalit xatosida — yo'q
+$fbCalls = [];
+$fbTr = static function (string $url, array $h, string $b) use (&$fbCalls): array {
+    $fbCalls[] = $url;
+    if ($b === '' && strpos($url, '/models?') !== false) {
+        return [200, json_encode(['models' => [
+            ['name' => 'models/gemini-3.8-flash', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.8-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.9-flash-preview', 'supportedGenerationMethods' => ['generateContent']],
+        ]])];
+    }
+    if (strpos($url, 'gemini-3.8-flash-lite:generate') !== false) {
+        return [200, json_encode(['candidates' => [['content' => ['parts' => [['text' => 'Zaxira javob']]]]]])];
+    }
+    return [0, '']; // asosiy model: javob yo'q (vaqt tugadi)
+};
+$aiFb = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'G']), $fbTr);
+$fbLog = [];
+$aiFb->logger = static function (string $m) use (&$fbLog): void {
+    $fbLog[] = $m;
+};
+$fr = $aiFb->generate('S', 'P', 500, ['mime' => 'image/jpeg', 'data' => 'x']);
+T::check('Gemini vaqt tugadi — rasm uchun zaxira model (flash-lite) javob berdi', $fr['ok'] === true && $fr['text'] === 'Zaxira javob' && ($aiFb->fallbackUsed['gemini'] ?? '') === 'gemini-3.8-flash-lite');
+T::check('zaxira model logga yozildi, preview tanlanmadi', count(array_filter($fbLog, static function ($m) {
+    return strpos($m, 'zaxira model ishladi: gemini-3.8-flash-lite') !== false;
+})) === 1 && count(array_filter($fbCalls, static function ($u) {
+    return strpos($u, 'preview') !== false;
+})) === 0);
+$aiFb2 = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'G']), $fbTr);
+$aiFb2->logger = static function (string $m): void {
+};
+$fc = $aiFb2->check();
+T::check('setup/check: «OK (zaxira)» va asosiy modelning sababi ko\'rinadi', strpos($fc['gemini'], 'OK (gemini-3.8-flash-lite — zaxira; asosiy gemini-3.8-flash: tarmoq') === 0, json_encode($fc));
+$keyErrCalls = 0;
+$aiKey = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'BAD']), static function (string $u, array $h, string $b) use (&$keyErrCalls): array {
+    $keyErrCalls++;
+    return [400, json_encode(['error' => ['message' => 'API key not valid.']])];
+});
+$aiKey->logger = static function (string $m): void {
+};
+T::check('kalit xatosida zaxira model sinalmaydi (bitta so\'rov)', $aiKey->generate('S', 'P', 100)['ok'] === false && $keyErrCalls === 1);
+T::eq('pickAlternate: joriydan boshqa eng yangi flash', PostAssist\Services\Ai::pickAlternate(['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.8-flash-lite'], 'gemini-3.8-flash'), 'gemini-3.5-flash');
