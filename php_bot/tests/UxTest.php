@@ -598,3 +598,76 @@ $logRow = $hcLookup($hcRows5, 'Oxirgi xatolar (bot.log)');
 T::check('sog\'lik: log xatosi ko\'rinadi, lekin maxfiy qism yashirilgan', $logRow !== null && $logRow[0] === 'warn' && strpos($logRow[2], 'DBPASS-SECRET') === false && strpos($logRow[2], '***') !== false);
 $appSrcC = (string) file_get_contents(dirname(__DIR__) . '/cron.php');
 T::check('cron.php: «cron_last» belgisini yozadi', strpos($appSrcC, "'cron_last'") !== false);
+
+// --- AI: model eskirsa (404) bot o'zi mavjud ro'yxatdan mosini topadi, saqlaydi va keyin shuni ishlatadi
+$aiStoreData = [];
+$aiStore = static function (string $k, ?string $v = null) use (&$aiStoreData): ?string {
+    if ($v !== null) {
+        $aiStoreData[$k] = $v;
+        return $v;
+    }
+    return $aiStoreData[$k] ?? null;
+};
+$aiCalls = [];
+$aiTr = static function (string $url, array $h, string $b) use (&$aiCalls): array {
+    $aiCalls[] = [$url, $b];
+    if ($b === '' && strpos($url, 'googleapis.com/v1beta/models?') !== false) { // modellar ro'yxati (GET)
+        return [200, json_encode(['models' => [
+            ['name' => 'models/gemini-2.5-flash', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.8-flash', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.8-flash-lite', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/gemini-3.9-flash-preview', 'supportedGenerationMethods' => ['generateContent']],
+            ['name' => 'models/embedding-001', 'supportedGenerationMethods' => ['embedContent']],
+        ]])];
+    }
+    if ($b === '' && strpos($url, 'api.groq.com/openai/v1/models') !== false) {
+        return [200, json_encode(['data' => [['id' => 'whisper-large-v3'], ['id' => 'llama-guard-4'], ['id' => 'llama-4-70b-versatile'], ['id' => 'gpt-oss-20b']]])];
+    }
+    if (strpos($url, 'googleapis.com') !== false) {
+        if (strpos($url, 'gemini-3.8-flash:generate') !== false) {
+            return [200, json_encode(['candidates' => [['content' => ['parts' => [['text' => 'Salom']]]]]])];
+        }
+        return [404, json_encode(['error' => ['code' => 404, 'message' => 'This model models/x is no longer available to new users.']])];
+    }
+    if (strpos($url, 'api.groq.com') !== false) {
+        if (strpos($b, 'llama-4-70b-versatile') !== false) {
+            return [200, json_encode(['choices' => [['message' => ['content' => 'Salom']]]])];
+        }
+        return [404, json_encode(['error' => ['message' => 'The model `x` does not exist or you do not have access to it.']])];
+    }
+    return [500, '{}'];
+};
+$aiH = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'G', 'groq_api_key' => 'Q', 'gemini_model' => 'gemini-2.5-flash']), $aiTr);
+$aiH->store = $aiStore;
+$aiHLogs = [];
+$aiH->logger = static function (string $m) use (&$aiHLogs): void {
+    $aiHLogs[] = $m;
+};
+$hRes = $aiH->generate('s', 'p', 500);
+T::check('AI: gemini modeli eskirgan (404) — bot gemini-3.8-flash ni topib ishladi', $hRes['ok'] === true && $hRes['provider'] === 'gemini' && ($aiH->healed['gemini'] ?? '') === 'gemini-2.5-flash → gemini-3.8-flash', json_encode($aiH->healed));
+T::check('AI: tanlov — preview/lite emas, eng yangi barqaror flash', ($aiStoreData['ai_model_gemini'] ?? '') === json_encode(['from' => 'gemini-2.5-flash', 'to' => 'gemini-3.8-flash']));
+T::check('AI: topilgan model logga yozildi', count(array_filter($aiHLogs, static function ($m) {
+    return strpos($m, 'avtomatik almashtirildi: gemini-3.8-flash') !== false;
+})) === 1);
+$aiCalls = [];
+$aiH2 = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'G', 'gemini_model' => 'gemini-2.5-flash']), $aiTr);
+$aiH2->store = $aiStore;
+$aiH2->generate('s', 'p', 500);
+T::check('AI: keyingi safar (yangi nusxa) saqlangan modelni darhol ishlatadi — ortiqcha so\'rov yo\'q', count($aiCalls) === 1 && strpos($aiCalls[0][0], 'gemini-3.8-flash:generate') !== false);
+$aiH3 = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'G', 'gemini_model' => 'boshqa-model-9']), $aiTr);
+$aiH3->store = $aiStore;
+T::eq('AI: config\'da model o\'zgartirilsa — eski saqlangan almashtirish ta\'sir qilmaydi', $aiH3->providers()[0]['model'], 'boshqa-model-9');
+$gq = new PostAssist\Services\Ai(new Config(['groq_api_key' => 'Q']), $aiTr);
+$gq->store = $aiStore;
+$gq->logger = static function (string $m): void {
+};
+$gres = $gq->check();
+T::check('AI: groq modeli yo\'q — whisper/guard o\'tkazib, llama-4-70b-versatile tanlandi', strpos($gres['groq'], 'OK (llama-3.3-70b-versatile → llama-4-70b-versatile)') === 0, json_encode($gres));
+T::eq('AI: pickModel — gemini', PostAssist\Services\Ai::pickModel('gemini', ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.0-flash-exp']), 'gemini-2.5-flash');
+T::eq('AI: pickModel — faqat lite bo\'lsa lite', PostAssist\Services\Ai::pickModel('gemini', ['gemini-2.5-flash-lite', 'gemini-pro']), 'gemini-2.5-flash-lite');
+T::eq('AI: pickModel — mos yo\'q: null', PostAssist\Services\Ai::pickModel('gemini', ['embedding-001']), null);
+$badKey = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'BAD']), static function (string $u, array $h, string $b): array {
+    return $b === '' ? [403, '{}'] : [400, json_encode(['error' => ['message' => 'API key not valid. Please pass a valid API key.']])];
+});
+$bk = $badKey->check();
+T::check('AI: noto\'g\'ri kalit modelni almashtirmaydi (adashmaydi)', strpos($bk['gemini'], 'HTTP 400') !== false && $badKey->healed === []);

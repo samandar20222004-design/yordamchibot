@@ -135,7 +135,11 @@ AI — ixtiyoriy. Kalitsiz ham bot to'liq ishlaydi (post, rejalash, kanallar, to
 - `openrouter_api_key` — https://openrouter.ai/keys (faqat matn, zaxira)
 
 `setup.php` har bir kalitni haqiqiy kichik so'rov bilan tekshiradi va natijani yozadi (`AI gemini OK (...)` yoki xato sababi).
-Model eskirsa (provayder o'chirsa) — `gemini_model` / `groq_model` / `openrouter_model` ga yangi nomni yozing (`config.example.php`).
+Model nomlari tez eskiradi — bot buni o'zi tuzatadi: Gemini yoki Groq «model topilmadi» (404) desa, bot provayderdan mavjud modellar
+ro'yxatini so'raydi, mosini tanlaydi (eng yangi barqaror Gemini Flash / eng katta Llama), eslab qoladi va logga yozadi.
+`setup.php` va `check.php` buni «model avtomatik almashtirildi» deb ko'rsatadi. Aniq modelni o'zingiz tanlamoqchi bo'lsangiz —
+`gemini_model` / `groq_model` / `openrouter_model` (OpenRouter modelini bot o'zi almashtirmaydi). Almashtirib bo'lmasa, `setup.php`
+mavjud modellar ro'yxatini chiqaradi.
 AI xatolari `storage/bot.log` ga yoziladi (kalitning o'zi yozilmaydi).
 
 Shundan keyin menyuda «✨ AI post» va preview → «⚙️ Qo'shimcha» → «✨ AI tahrir» chiqadi. Kunlik limit: FREE 5, PRO 40, ULTRA 100

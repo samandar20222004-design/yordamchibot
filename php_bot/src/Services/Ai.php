@@ -26,6 +26,12 @@ final class Ai
     public $logger;
     /** Oxirgi so'rov natijasi har provayder bo'yicha: name => 'ok' | 'HTTP 401: ...' (setup.php tekshiruvi uchun). */
     public array $lastStatus = [];
+    /** @var callable|null fn(string $key, ?string $value = null): ?string — o'zi topgan model nomini saqlash (bot_settings) */
+    public $store;
+    /** Shu so'rovda o'zi almashtirgan modellar: name => 'eski → yangi' (setup.php va check.php ko'rsatadi). */
+    public array $healed = [];
+    private array $override = [];
+    private bool $healing = false;
 
     public function __construct(Config $config, ?callable $transport = null)
     {
@@ -42,7 +48,16 @@ final class Ai
         $out = [];
         foreach ($this->providers() as $p) {
             $raw = $this->callProvider($p, 'Reply with one word.', 'Say: OK');
-            $out[$p['name']] = $raw !== null ? 'OK (' . $p['model'] . ')' : ($this->lastStatus[$p['name']] ?? 'xato') . ' — model: ' . $p['model'];
+            if ($raw !== null) {
+                $out[$p['name']] = 'OK (' . ($this->healed[$p['name']] ?? $p['model']) . ')' . (isset($this->healed[$p['name']]) ? ' — model avtomatik almashtirildi' : '');
+                continue;
+            }
+            $msg = ($this->lastStatus[$p['name']] ?? 'xato') . ' — model: ' . $p['model'];
+            $ids = stripos($msg, '404') !== false ? $this->listModels($p) : [];
+            if ($ids) {
+                $msg .= ' | mavjud modellar: ' . implode(', ', array_slice($ids, 0, 12)) . ' — config.php ga \'' . $p['name'] . '_model\' => \'NOM\' yozing';
+            }
+            $out[$p['name']] = $msg;
         }
         return $out;
     }
@@ -53,19 +68,122 @@ final class Ai
         $c = $this->config;
         $out = [];
         if ($c->str('gemini_api_key') !== '') {
-            $model = $c->str('gemini_model') ?: 'gemini-2.5-flash';
+            $model = $this->modelFor('gemini', $c->str('gemini_model') ?: 'gemini-3.8-flash');
             $out[] = ['name' => 'gemini', 'kind' => 'gemini', 'key' => $c->str('gemini_api_key'), 'model' => $model,
                 'url' => 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent'];
         }
         if ($c->str('groq_api_key') !== '') {
-            $out[] = ['name' => 'groq', 'kind' => 'openai', 'key' => $c->str('groq_api_key'), 'model' => $c->str('groq_model') ?: 'llama-3.3-70b-versatile',
+            $out[] = ['name' => 'groq', 'kind' => 'openai', 'key' => $c->str('groq_api_key'), 'model' => $this->modelFor('groq', $c->str('groq_model') ?: 'llama-3.3-70b-versatile'),
                 'url' => 'https://api.groq.com/openai/v1/chat/completions'];
         }
         if ($c->str('openrouter_api_key') !== '') {
             $out[] = ['name' => 'openrouter', 'kind' => 'openai', 'key' => $c->str('openrouter_api_key'),
-                'model' => $c->str('openrouter_model') ?: 'meta-llama/llama-3.3-70b-instruct:free', 'url' => 'https://openrouter.ai/api/v1/chat/completions'];
+                'model' => $this->modelFor('openrouter', $c->str('openrouter_model') ?: 'meta-llama/llama-3.3-70b-instruct:free'), 'url' => 'https://openrouter.ai/api/v1/chat/completions'];
         }
         return $out;
+    }
+
+    /** Model nomi: o'zi topib saqlagan almashtirish (faqat shu eski nom o'rniga) > sozlama/standart. */
+    private function modelFor(string $name, string $configured): string
+    {
+        if (!isset($this->override[$name]) && $this->store !== null) {
+            $raw = (string) (($this->store)('ai_model_' . $name) ?? '');
+            $j = $raw !== '' ? json_decode($raw, true) : null;
+            $this->override[$name] = is_array($j) && !empty($j['from']) && !empty($j['to']) ? $j : [];
+        }
+        $o = $this->override[$name] ?? [];
+        return !empty($o) && $o['from'] === $configured ? (string) $o['to'] : $configured;
+    }
+
+    /**
+     * Provayderdan mavjud modellar ro'yxatini so'raydi (kalit bilan). Gemini: generateContent'ni qo'llaydiganlar.
+     * @return string[]
+     */
+    public function listModels(array $p): array
+    {
+        if ($p['name'] === 'gemini') {
+            [$st, $resp] = $this->http('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', ['x-goog-api-key: ' . $p['key']], '');
+            $d = $st === 200 ? json_decode($resp, true) : null;
+            $out = [];
+            foreach (is_array($d['models'] ?? null) ? $d['models'] : [] as $m) {
+                if (in_array('generateContent', (array) ($m['supportedGenerationMethods'] ?? []), true)) {
+                    $out[] = preg_replace('#^models/#', '', (string) ($m['name'] ?? ''));
+                }
+            }
+            return array_values(array_filter($out));
+        }
+        if ($p['name'] === 'groq') {
+            [$st, $resp] = $this->http('https://api.groq.com/openai/v1/models', ['Authorization: Bearer ' . $p['key']], '');
+            $d = $st === 200 ? json_decode($resp, true) : null;
+            $out = [];
+            foreach (is_array($d['data'] ?? null) ? $d['data'] : [] as $m) {
+                $out[] = (string) ($m['id'] ?? '');
+            }
+            return array_values(array_filter($out));
+        }
+        return [];
+    }
+
+    /** Ro'yxatdan matn (chat) uchun eng mosini tanlaydi (eng yangi barqaror Flash / eng katta Llama). null — topilmadi. */
+    public static function pickModel(string $provider, array $ids): ?string
+    {
+        if ($provider === 'gemini') {
+            $best = null;
+            $bestV = '0';
+            foreach (['#^gemini-(\d+(?:\.\d+)?)-flash$#', '#^gemini-(\d+(?:\.\d+)?)-flash-lite$#'] as $re) {
+                foreach ($ids as $id) {
+                    if (preg_match($re, $id, $m) && version_compare($m[1], $bestV, '>')) {
+                        $best = $id;
+                        $bestV = $m[1];
+                    }
+                }
+                if ($best !== null) {
+                    return $best;
+                }
+            }
+            return null;
+        }
+        if ($provider === 'groq') {
+            $chat = array_values(array_filter($ids, static function ($id) {
+                return preg_match('#whisper|guard|tts|orpheus|playai|prompt|safeguard|embed#i', $id) !== 1;
+            }));
+            foreach (['#versatile#i', '#70b#i', '#120b#i', '#llama#i'] as $re) {
+                foreach ($chat as $id) {
+                    if (preg_match($re, $id)) {
+                        return $id;
+                    }
+                }
+            }
+            return $chat[0] ?? null;
+        }
+        return null;
+    }
+
+    /** Model topilmadi (404): mavjud ro'yxatdan mosini topib, saqlaydi. Yangi nom yoki null. */
+    private function heal(array $p): ?string
+    {
+        if ($this->healing) {
+            return null;
+        }
+        $this->healing = true;
+        try {
+            $new = self::pickModel($p['name'], $this->listModels($p));
+        } finally {
+            $this->healing = false;
+        }
+        if ($new === null || $new === $p['model']) {
+            return null;
+        }
+        $from = $this->config->str($p['name'] . '_model') ?: ($p['name'] === 'gemini' ? 'gemini-3.8-flash' : 'llama-3.3-70b-versatile');
+        $this->override[$p['name']] = ['from' => $from, 'to' => $new];
+        $this->healed[$p['name']] = $p['model'] . ' → ' . $new;
+        if ($this->store !== null) {
+            ($this->store)('ai_model_' . $p['name'], json_encode(['from' => $from, 'to' => $new]));
+        }
+        if ($this->logger !== null) {
+            ($this->logger)('AI ' . $p['name'] . ': model topilmadi (' . $p['model'] . '), avtomatik almashtirildi: ' . $new);
+        }
+        return $new;
     }
 
     public function enabled(): bool
@@ -217,6 +335,18 @@ final class Ai
             $headers = ['Content-Type: application/json', 'Authorization: Bearer ' . $p['key']];
         }
         [$status, $resp] = $this->http($p['url'], $headers, (string) $body);
+        if (($status === 404 || $status === 400) && $p['name'] !== 'openrouter' && !$this->healing && preg_match('#model|no longer available|not found|not exist#i', $resp)) {
+            $new = $this->heal($p);
+            if ($new !== null) {
+                $p['model'] = $new;
+                if ($p['kind'] === 'gemini') {
+                    $p['url'] = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($new) . ':generateContent';
+                } else {
+                    $body = (string) preg_replace('#"model":"[^"]*"#', '"model":' . json_encode($new), (string) $body, 1);
+                }
+                [$status, $resp] = $this->http($p['url'], $headers, (string) $body);
+            }
+        }
         if ($status < 200 || $status >= 300) {
             $data = json_decode($resp, true);
             $err = is_array($data) ? ($data['error'] ?? '') : '';
@@ -270,9 +400,13 @@ final class Ai
         }
         $ch = curl_init($url);
         curl_setopt_array($ch, [
-            CURLOPT_POST => true, CURLOPT_POSTFIELDS => $body, CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_HTTPHEADER => $headers,
             CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 8, CURLOPT_TIMEOUT => 25,
         ]);
+        if ($body !== '') { // bo'sh tana — GET (modellar ro'yxati)
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+        }
         $resp = curl_exec($ch);
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);

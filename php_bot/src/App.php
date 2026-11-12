@@ -111,6 +111,18 @@ final class App
         $this->ai->logger = function (string $m): void {
             $this->log($m);
         };
+        $this->ai->store = function (string $k, ?string $v = null): ?string {
+            try {
+                if ($v !== null) {
+                    $this->db->exec('INSERT INTO bot_settings (k, v, updated_at) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at)', [$k, $v]);
+                    return $v;
+                }
+                $r = $this->db->value('SELECT v FROM bot_settings WHERE k = ?', [$k]);
+                return $r === null ? null : (string) $r;
+            } catch (\Throwable $e) {
+                return null;
+            }
+        };
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
         };
