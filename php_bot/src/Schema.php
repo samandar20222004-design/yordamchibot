@@ -40,11 +40,13 @@ final class Schema
         ['scheduled_posts', 'sent_count', 'INT NOT NULL DEFAULT 0'],
         ['scheduled_posts', 'buttons', 'TEXT NULL'],
         ['sent_messages', 'buttons', 'TEXT NULL'],
+        ['market_listings', 'country', 'CHAR(2) NULL'],
     ];
     /** @var array<int, array{0:string,1:string,2:string}> [jadval, indeks, ustunlar] */
     private const INDEXES = [
         ['users', 'idx_users_referrer', 'referrer_id'],
         ['users', 'idx_users_plan', 'plan_type, subscription_expires_at'],
+        ['market_listings', 'idx_market_country', 'status, country'],
     ];
 
     /** @return array<int, string> qilingan o'zgarishlar ro'yxati */

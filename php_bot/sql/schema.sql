@@ -342,12 +342,14 @@ CREATE TABLE IF NOT EXISTS market_listings (
     currency VARCHAR(3) NOT NULL DEFAULT 'UZS',
     description VARCHAR(500) NULL,
     subscribers INT NOT NULL DEFAULT 0,
+    country CHAR(2) NULL,
     status VARCHAR(12) NOT NULL DEFAULT 'active',
     reports INT NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     UNIQUE KEY uq_market_channel (channel_id),
     KEY idx_market_cat (status, category, subscribers),
+    KEY idx_market_country (status, country),
     KEY idx_market_owner (owner_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

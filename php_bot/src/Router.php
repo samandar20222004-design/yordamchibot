@@ -557,10 +557,10 @@ final class Router
             MarketHandler::categories($ctx);
         } elseif (preg_match('/^mk:l:([a-z]{2,14}):(\d{1,4})$/', $data, $m)) {
             MarketHandler::listing($ctx, in_array($m[1], \PostAssist\Repo\Market::CATEGORIES, true) ? $m[1] : 'all', (int) $m[2]);
-        } elseif (preg_match('/^mk:(v|ask|rep|hide|del|upd|pc|re|ct|bl|fr|t):(\d{1,10})$/', $data, $m)) {
+        } elseif (preg_match('/^mk:(v|ask|rep|hide|del|upd|pc|re|ct|bl|fr|t|rg):(\d{1,10})$/', $data, $m)) {
             $id = (int) $m[2];
             $map = ['v' => 'view', 'ask' => 'ask', 'rep' => 'report', 'hide' => 'toggle', 'del' => 'delete', 'upd' => 'refresh', 'pc' => 'pickChannel',
-                're' => 'reply', 'ct' => 'contact', 'bl' => 'block', 'fr' => 'fraud', 't' => 'thread'];
+                're' => 'reply', 'ct' => 'contact', 'bl' => 'block', 'fr' => 'fraud', 't' => 'thread', 'rg' => 'region'];
             $fn = $map[$m[1]];
             MarketHandler::$fn($ctx, $id);
         } elseif ($data === 'mk:pub') {

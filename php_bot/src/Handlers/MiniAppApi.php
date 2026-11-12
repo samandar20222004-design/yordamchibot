@@ -880,6 +880,8 @@ final class MiniAppApi
         return ['id' => (int) $l['id'], 'title' => (string) ($l['title'] ?? ''), 'username' => (string) $l['username'],
             'subscribers' => (int) $l['subscribers'], 'price' => MarketHandler::price($l), 'category' => (string) $l['category'],
             'category_name' => I18n::t('mkc_' . $l['category'], $ctx->lang), 'description' => (string) ($l['description'] ?? ''),
+            'country' => (string) ($l['country'] ?? '') !== '' ? (string) $l['country'] : \PostAssist\Services\Region::GLOBAL,
+            'region' => \PostAssist\Services\Region::label((string) ($l['country'] ?? ''), $ctx->lang), 'flag' => MarketHandler::flagOf($l),
             'mine' => (int) $l['owner_id'] === $ctx->userId];
     }
 
@@ -888,7 +890,18 @@ final class MiniAppApi
         $app = $ctx->app;
         $cat = isset($in['cat']) && in_array($in['cat'], \PostAssist\Repo\Market::CATEGORIES, true) ? (string) $in['cat'] : null;
         $page = max(0, min(500, (int) ($in['page'] ?? 0)));
-        $res = $app->market->catalog($cat, $page);
+        $myCountry = $app->userCountry($ctx->userId);
+        $only = strtoupper((string) ($in['country'] ?? ''));
+        $only = $only !== '' && \PostAssist\Services\Region::valid($only) ? $only : null; // bo'sh — hammasi (o'z davlati birinchi)
+        $q = mb_substr(trim((string) ($in['q'] ?? '')), 0, 64);
+        $res = $app->market->catalog($cat, $page, $myCountry, $only, $q);
+        $countries = [];
+        foreach ($app->market->countries() as $code => $n) {
+            $countries[] = ['code' => $code, 'label' => \PostAssist\Services\Region::label($code, $ctx->lang), 'n' => $n, 'mine' => $code === $myCountry];
+        }
+        usort($countries, static function ($a, $b) {
+            return ($b['mine'] <=> $a['mine']) ?: ($b['n'] <=> $a['n']);
+        });
         $cats = [];
         foreach (\PostAssist\Repo\Market::CATEGORIES as $c) {
             $cats[] = ['key' => $c, 'name' => I18n::t('mkc_' . $c, $ctx->lang)];
@@ -897,6 +910,7 @@ final class MiniAppApi
             return self::listingOut($ctx, $l);
         }, $res['rows']), 'total' => $res['total'], 'page' => $page, 'pages' => (int) ceil($res['total'] / \PostAssist\Repo\Market::PAGE),
             'categories' => $cats, 'cat' => $cat, 'banned' => $app->market->isBanned($ctx->userId),
+            'my_country' => $myCountry, 'my_region' => \PostAssist\Services\Region::label($myCountry, $ctx->lang), 'countries' => $countries, 'country' => $only, 'q' => $q,
             'mine' => array_map(static function ($l) use ($ctx) {
                 return self::listingOut($ctx, $l) + ['status' => (string) $l['status']];
             }, $app->market->mine($ctx->userId))];

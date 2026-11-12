@@ -159,13 +159,16 @@ final class Posts
 
     public function userStats(int $userId): array
     {
-        $rows = $this->db->all('SELECT status, COUNT(*) AS n FROM scheduled_posts WHERE user_id = ? GROUP BY status', [$userId]);
+        // «yuborilgan» — haqiqiy chiqishlar soni (sent_count): takroriy post chiqqach yana navbatga qaytadi (status pending),
+        // shuning uchun status='sent' bo'yicha sanash takroriy postlarni hech qachon hisobga olmasdi
+        $rows = $this->db->all("SELECT status, COUNT(*) AS n, COALESCE(SUM(GREATEST(sent_count, IF(status = 'sent', 1, 0))), 0) AS s FROM scheduled_posts WHERE user_id = ? GROUP BY status", [$userId]);
         $out = ['pending' => 0, 'sent' => 0, 'failed' => 0];
         foreach ($rows as $r) {
-            if ($r['status'] === 'processing') {
+            $out['sent'] += (int) $r['s'];
+            if ($r['status'] === 'processing' || $r['status'] === 'pending') {
                 $out['pending'] += (int) $r['n'];
-            } elseif (isset($out[$r['status']])) {
-                $out[$r['status']] += (int) $r['n'];
+            } elseif ($r['status'] === 'failed') {
+                $out['failed'] += (int) $r['n'];
             }
         }
         return $out;

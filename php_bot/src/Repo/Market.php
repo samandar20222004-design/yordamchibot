@@ -22,21 +22,22 @@ final class Market
     }
 
     /** E'lon qo'yish / yangilash (bir kanal — bitta e'lon). */
-    public function upsert(int $ownerId, array $ch, int $price, string $currency, string $desc, string $cat, int $subs, DateTimeImmutable $nowUtc): int
+    public function upsert(int $ownerId, array $ch, int $price, string $currency, string $desc, string $cat, int $subs, DateTimeImmutable $nowUtc, ?string $country = null): int
     {
+        $country = $country !== null && \PostAssist\Services\Region::valid($country) ? $country : null;
         $now = $nowUtc->format('Y-m-d H:i:s');
         $cat = in_array($cat, self::CATEGORIES, true) ? $cat : 'other';
         $row = $this->db->one('SELECT id, status FROM market_listings WHERE channel_id = ?', [(int) $ch['channel_id']]);
         if ($row) {
             // bloklangan e'lonni egasi o'zi qayta ocha olmaydi
             $this->db->exec("UPDATE market_listings SET owner_id = ?, title = ?, username = ?, category = ?, price = ?, currency = ?, description = ?, subscribers = ?,
-                 status = CASE WHEN status = 'banned' THEN 'banned' ELSE 'active' END, updated_at = ? WHERE id = ?",
-                [$ownerId, mb_substr((string) $ch['title'], 0, 255), (string) $ch['username'], $cat, $price, $currency, $desc, $subs, $now, (int) $row['id']]);
+                 country = COALESCE(country, ?), status = CASE WHEN status = 'banned' THEN 'banned' ELSE 'active' END, updated_at = ? WHERE id = ?",
+                [$ownerId, mb_substr((string) $ch['title'], 0, 255), (string) $ch['username'], $cat, $price, $currency, $desc, $subs, $country, $now, (int) $row['id']]);
             return (int) $row['id'];
         }
-        $this->db->exec('INSERT INTO market_listings (owner_id, channel_id, title, username, category, price, currency, description, subscribers, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$ownerId, (int) $ch['channel_id'], mb_substr((string) $ch['title'], 0, 255), (string) $ch['username'],
-            $cat, $price, $currency, $desc, $subs, $now, $now]);
+        $this->db->exec('INSERT INTO market_listings (owner_id, channel_id, title, username, category, price, currency, description, subscribers, country, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [$ownerId, (int) $ch['channel_id'], mb_substr((string) $ch['title'], 0, 255), (string) $ch['username'],
+            $cat, $price, $currency, $desc, $subs, $country, $now, $now]);
         return $this->db->lastId();
     }
 
@@ -45,15 +46,68 @@ final class Market
         return $this->db->one('SELECT * FROM market_listings WHERE id = ?', [$id]);
     }
 
-    /** Katalog: faol e'lonlar (egasi ban qilinmagan), obunachi bo'yicha. @return array{rows:array, total:int} */
-    public function catalog(?string $cat, int $page): array
+    /**
+     * Katalog: faol e'lonlar (egasi ban qilinmagan).
+     * Tartib: ko'ruvchining o'z davlati → yaqin davlatlar → Global → boshqalar; har guruh ichida obunachi bo'yicha.
+     * $only — faqat shu davlat (boshqa davlat uchun reklama qidirish); $q — kanal nomi yoki @username bo'yicha qidiruv.
+     * @return array{rows:array, total:int}
+     */
+    public function catalog(?string $cat, int $page, string $viewer = '', ?string $only = null, string $q = ''): array
     {
-        $where = "l.status = 'active' AND u.market_banned = 0" . ($cat !== null ? ' AND l.category = ?' : '');
-        $args = $cat !== null ? [$cat] : [];
+        $where = "l.status = 'active' AND u.market_banned = 0";
+        $args = [];
+        if ($cat !== null) {
+            $where .= ' AND l.category = ?';
+            $args[] = $cat;
+        }
+        if ($only !== null && $only !== '') {
+            $where .= $only === \PostAssist\Services\Region::GLOBAL ? " AND (l.country IS NULL OR l.country = 'ZZ')" : ' AND l.country = ?';
+            if ($only !== \PostAssist\Services\Region::GLOBAL) {
+                $args[] = $only;
+            }
+        }
+        $q = trim(ltrim(trim($q), '@'));
+        if ($q !== '') {
+            $like = '%' . addcslashes(mb_substr($q, 0, 64), '%_\\') . '%';
+            $where .= ' AND (l.title LIKE ? OR l.username LIKE ? OR l.description LIKE ?)';
+            array_push($args, $like, $like, $like);
+        }
+        $near = \PostAssist\Services\Region::near($viewer);
+        $order = 'CASE WHEN l.country = ? THEN 0' . ($near ? ' WHEN l.country IN (' . implode(',', array_fill(0, count($near), '?')) . ') THEN 1' : '')
+            . " WHEN l.country IS NULL OR l.country = 'ZZ' THEN 2 ELSE 3 END";
+        $orderArgs = array_merge([$viewer], $near);
         $total = (int) $this->db->value("SELECT COUNT(*) FROM market_listings l JOIN users u ON u.user_id = l.owner_id WHERE {$where}", $args);
         $rows = $this->db->all("SELECT l.* FROM market_listings l JOIN users u ON u.user_id = l.owner_id WHERE {$where}
-             ORDER BY l.subscribers DESC, l.id DESC LIMIT " . self::PAGE . ' OFFSET ' . max(0, $page) * self::PAGE, $args);
+             ORDER BY {$order}, l.subscribers DESC, l.id DESC LIMIT " . self::PAGE . ' OFFSET ' . max(0, $page) * self::PAGE, array_merge($args, $orderArgs));
         return ['rows' => $rows, 'total' => $total];
+    }
+
+    /** Faol e'lonlar bor davlatlar: kod => soni (Global — «ZZ»). @return array<string,int> */
+    public function countries(): array
+    {
+        $out = [];
+        foreach ($this->db->all("SELECT COALESCE(l.country, 'ZZ') AS c, COUNT(*) AS n FROM market_listings l JOIN users u ON u.user_id = l.owner_id
+             WHERE l.status = 'active' AND u.market_banned = 0 GROUP BY COALESCE(l.country, 'ZZ') ORDER BY n DESC") as $r) {
+            $out[(string) $r['c']] = (int) $r['n'];
+        }
+        return $out;
+    }
+
+    public function setCountry(int $id, int $ownerId, string $country): bool
+    {
+        return \PostAssist\Services\Region::valid($country)
+            && $this->db->exec('UPDATE market_listings SET country = ? WHERE id = ? AND owner_id = ?', [$country, $id, $ownerId]) > 0;
+    }
+
+    /** Eski e'lonlar (davlati yo'q): egasining davlatini yozadi. @param callable $countryOf fn(int $ownerId): string */
+    public function backfillCountries(callable $countryOf): int
+    {
+        $n = 0;
+        foreach ($this->db->all('SELECT id, owner_id FROM market_listings WHERE country IS NULL LIMIT 1000') as $r) {
+            $this->db->exec('UPDATE market_listings SET country = ? WHERE id = ?', [$countryOf((int) $r['owner_id']), (int) $r['id']]);
+            $n++;
+        }
+        return $n;
     }
 
     public function mine(int $ownerId): array

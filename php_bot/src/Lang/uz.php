@@ -1012,4 +1012,9 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_rx_custom_hint' => "Emojilarni bosing (6 tagacha). Qayta bossangiz — olib tashlanadi.",
     'ma_rx_max' => "6 tadan ko'p reaksiya qo'shib bo'lmaydi.",
     'tz_not_chosen_hint' => "🌍 Vaqt hozircha Toshkent bo'yicha. Boshqa davlatda bo'lsangiz, /timezone bilan o'z vaqtingizni tanlang — postlar aynan sizning vaqtingizda chiqadi.",
+    'ma_mk_search' => "🔎 Kanal nomi yoki @username",
+    'ma_mk_all_countries' => "🌍 Hamma davlatlar",
+    'ma_mk_order' => "Avval {region}, keyin yaqin davlatlar va boshqalar. Boshqa davlat kerak bo'lsa — yuqoridan tanlang.",
+    'ma_mk_empty_filter' => "Bu qidiruv yoki davlat bo'yicha e'lon topilmadi.",
+    'mk_region_line' => "🌍 Hudud: {region}",
 ];

@@ -164,6 +164,12 @@ final class App
         return $this->tzCache[$userId];
     }
 
+    /** Foydalanuvchi davlati (vaqt mintaqasidan; birja tartibi uchun). Aniqlanmasa — Global «ZZ». */
+    public function userCountry(int $userId): string
+    {
+        return \PostAssist\Services\Region::countryOfZone($this->tzFor($userId)->getName()) ?? \PostAssist\Services\Region::GLOBAL;
+    }
+
     /** Foydalanuvchi vaqt mintaqasini o'zi tanlaganmi (yoki Mini App telefondan aniqlaganmi). */
     public function tzChosen(int $userId): bool
     {

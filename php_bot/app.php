@@ -222,6 +222,8 @@ button.ghost{background:var(--glass)}
 .chips.scroll .chip{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
 /* birja: ixcham */
 .mk-head{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.mk-filter{display:grid;grid-template-columns:1fr auto;gap:8px;margin:8px 0}.mk-filter input,.mk-filter select{margin:0}.mk-filter select{max-width:46vw}
+.mk-order{font-size:12.5px;margin:-2px 0 8px}
 .mk-head button{width:100%;padding:10px 12px;font-size:14px}
 .mk-note{font-size:12px;margin:0 4px 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mk-item{align-items:center;padding:12px 14px;margin-bottom:8px;cursor:pointer}
@@ -478,6 +480,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     <div class="mk-head"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
       <button class="small" data-br="mk:pub" data-bt="ma_mk_publish">➕ <span data-t="ma_mk_publish"></span></button></div>
     <div class="muted mk-note" id="mk-note" data-t="ma_mk_note"></div>
+    <div class="mk-filter"><input type="search" id="mk-q" data-ph="ma_mk_search" maxlength="64" autocomplete="off"><select id="mk-country"></select></div>
+    <div class="muted mk-order" id="mk-order"></div>
     <div class="chips scroll" id="mk-cats"></div>
     <div id="mk-mine"></div>
     <div id="mk-list"></div>
@@ -879,13 +883,27 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   };
 
   // ---------- 💰 birja: katalog, e'lon, suhbat (e'lon qo'yish va boshqarish — botda)
-  var mk = {cat: null, page: 0};
+  var mk = {cat: null, page: 0, q: '', country: ''};
+  // qidiruv (kanal nomi, @username, tavsif) — yozish to'xtagach; davlat — tanlash bilan
+  var mkQTimer = null;
+  $('mk-q').addEventListener('input', function () {
+    clearTimeout(mkQTimer); var v = this.value.trim();
+    mkQTimer = setTimeout(function () { if (v !== mk.q) { mk.q = v; mk.page = 0; loadMarket(); } }, 400);
+  });
+  $('mk-country').onchange = function () { mk.country = this.value; mk.page = 0; haptic(); loadMarket(); };
   var num = function (n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); };
   function mkErr(r) { return r.message || errText(r); }
   function loadMarket() {
     $('mk-list').innerHTML = '<div class="empty"><span class="spin">⏳</span></div>';
-    api('market', {cat: mk.cat, page: mk.page}).then(function (r) {
+    api('market', {cat: mk.cat, page: mk.page, q: mk.q, country: mk.country}).then(function (r) {
       if (!r.ok) { $('mk-list').innerHTML = '<div class="empty">' + esc(mkErr(r)) + '</div>'; return; }
+      // davlat tanlovi: «hammasi (o'z davlatim birinchi)» + e'lon bor davlatlar (soni bilan)
+      var opts = '<option value="">' + esc(t('ma_mk_all_countries')) + '</option>' + (r.countries || []).map(function (c) {
+        return '<option value="' + esc(c.code) + '"' + (r.country === c.code ? ' selected' : '') + '>' + esc(c.label) + ' (' + c.n + ')</option>';
+      }).join('');
+      if (r.country && !(r.countries || []).some(function (c) { return c.code === r.country; })) { opts += '<option value="' + esc(r.country) + '" selected>' + esc(r.country) + ' (0)</option>'; }
+      $('mk-country').innerHTML = opts; $('mk-country').value = r.country || '';
+      $('mk-order').textContent = r.country ? '' : t('ma_mk_order', {region: r.my_region});
       $('mk-cats').innerHTML = '<span class="chip' + (mk.cat ? '' : ' on') + '" data-cat="">' + esc(t('ma_mk_all')) + '</span>' +
         r.categories.map(function (c) { return '<span class="chip' + (mk.cat === c.key ? ' on' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.name) + '</span>'; }).join('');
       document.querySelectorAll('[data-cat]').forEach(function (el) { el.onclick = function () { haptic(); mk.cat = el.getAttribute('data-cat') || null; mk.page = 0; loadMarket(); }; });
@@ -893,11 +911,11 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
         return '<div class="muted">@' + esc(l.username) + ' · ' + esc(l.price) + ' · ' + esc(l.status) + '</div>';
       }).join('') + '<div style="margin-top:8px"><button class="small ghost" data-br="mk:my" data-bt="ma_mk_manage">⚙️ ' + esc(t('ma_mk_manage')) + '</button></div></div>' : '';
       if (r.banned) { $('mk-list').innerHTML = '<div class="card empty"><b>🚫</b>' + esc(t('ma_mk_banned')) + '</div>'; $('mk-pager').innerHTML = ''; return; }
-      if (!r.items.length) { $('mk-list').innerHTML = '<div class="empty slim"><b>📭</b>' + esc(t('ma_mk_empty')) + '</div>'; }
+      if (!r.items.length) { $('mk-list').innerHTML = '<div class="empty slim"><b>📭</b>' + esc(t(r.q || r.country ? 'ma_mk_empty_filter' : 'ma_mk_empty')) + '</div>'; }
       else {
         $('mk-list').innerHTML = r.items.map(function (l, i) {
-          return '<div class="card post mk-item" data-l="' + i + '"><div class="mk-av">' + esc(((l.title || l.username || '?').trim().charAt(0) || '?').toUpperCase()) + '</div><div class="body"><b class="t">' + esc(l.title || '@' + l.username) + '</b>' +
-            '<div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + '</div><span class="tag">' + esc(l.category_name) + '</span>' +
+          return '<div class="card post mk-item" data-l="' + i + '"><div class="mk-av">' + esc(((l.title || l.username || '?').trim().charAt(0) || '?').toUpperCase()) + '</div><div class="body"><b class="t">' + esc(l.flag + ' ' + (l.title || '@' + l.username)) + '</b>' +
+            '<div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + '</div><span class="tag">' + esc(l.region) + '</span><span class="tag">' + esc(l.category_name) + '</span>' +
             '<span class="tag">💵 ' + esc(l.price) + '</span></div><div class="chev">›</div></div>';
         }).join('');
         document.querySelectorAll('[data-l]').forEach(function (el) { el.onclick = function () { haptic(); mkView(r.items[parseInt(el.getAttribute('data-l'), 10)].id); }; });
@@ -918,7 +936,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     api('market_view', {id: id}).then(function (r) {
       if (!r.ok) { toast(mkErr(r)); return; }
       var l = r.listing;
-      var html = '<h3>' + esc(l.title || '@' + l.username) + '</h3><div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + ' · ' + esc(l.category_name) + '</div>' +
+      var html = '<h3>' + esc(l.title || '@' + l.username) + '</h3><div class="muted">@' + esc(l.username) + ' · 👥 ' + esc(num(l.subscribers)) + ' · ' + esc(l.category_name) + ' · ' + esc(l.region) + '</div>' +
         '<p><b>💵 ' + esc(l.price) + '</b></p>' + (l.description ? '<p style="white-space:pre-wrap">' + esc(l.description) + '</p>' : '') +
         '<button class="ghost" id="mk-open">📢 ' + esc(t('ma_mk_open_channel')) + '</button>';
       if (!l.mine) {

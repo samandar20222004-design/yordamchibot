@@ -61,6 +61,12 @@ try {
     exit(1);
 }
 $out('Baza jadvallari: OK' . ($changes ? ' (yangilandi: ' . implode(', ', $changes) . ')' : ''));
+$bf = $app->market->backfillCountries(static function (int $owner) use ($app): string {
+    return $app->userCountry($owner);
+});
+if ($bf > 0) {
+    $out("Birja: {$bf} ta e'longa davlat yozildi");
+}
 
 // Token va username: bot_username nishon va havolalarda ishlatiladi — haqiqiy bot bilan mos bo'lishi shart
 $me = $app->tg->call('getMe', []);

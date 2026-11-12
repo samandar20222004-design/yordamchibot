@@ -874,3 +874,80 @@ $aiKey->logger = static function (string $m): void {
 };
 T::check('kalit xatosida zaxira model sinalmaydi (bitta so\'rov)', $aiKey->generate('S', 'P', 100)['ok'] === false && $keyErrCalls === 1);
 T::eq('pickAlternate: joriydan boshqa eng yangi flash', PostAssist\Services\Ai::pickAlternate(['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.8-flash-lite'], 'gemini-3.8-flash'), 'gemini-3.5-flash');
+
+// --- «Yuborilgan» soni: takroriy post chiqqach yana navbatga qaytadi — har chiqish baribir sanaladi (oldin 0 ko'rinardi)
+$RSU = 7770;
+$RSC = -1001000000770;
+$textU($RSU, '/start');
+$db->exec("INSERT INTO channels (user_id, channel_id, title, is_active, created_at) VALUES (?, ?, 'Takror kanal', 1, UTC_TIMESTAMP())", [$RSU, $RSC]);
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, recurrence_type, recurrence_time, created_at)
+    VALUES (?, ?, 'text', 'Har kungi post', 'pending', ?, 'daily', 600, UTC_TIMESTAMP())", [$RSU, $RSC, $clock->modify('-2 minutes')->format('Y-m-d H:i:s')]);
+$rsId = $db->lastId();
+$db->exec("DELETE FROM bot_settings WHERE k = 'webhook_tick'");
+(new PostAssist\Services\Scheduler($appU, static function (int $us): void {
+}))->run(5);
+$rsRow = $db->one('SELECT status, sent_count FROM scheduled_posts WHERE id = ?', [$rsId]);
+$rsStats = $appU->posts->userStats($RSU);
+T::check('takroriy post chiqdi va yana navbatda; statistika: yuborilgan 1, navbatda 1', $rsRow['status'] === 'pending' && (int) $rsRow['sent_count'] === 1
+    && $rsStats['sent'] === 1 && $rsStats['pending'] === 1, json_encode([$rsRow, $rsStats]));
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at, sent_count) VALUES (?, ?, 'text', 'Eski bir martalik', 'sent', UTC_TIMESTAMP(), UTC_TIMESTAMP(), 0)", [$RSU, $RSC]);
+T::eq('eski yuborilgan post (sent_count=0) ham sanaladi', $appU->posts->userStats($RSU)['sent'], 2);
+$initRS = $mkInitU(['id' => $RSU, 'first_name' => 'R', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+T::eq('Mini App bosh sahifa: yuborilgan 2', PostAssist\Handlers\MiniAppApi::handle($appU, 'me', [], $initRS)[1]['stats']['sent'] ?? null, 2);
+
+// --- Birja: o'z davlati birinchi → yaqin davlatlar → Global → boshqalar; davlat filtri; qidiruv; hudud almashtirish
+$db->exec('DELETE FROM market_listings');
+$mkOwner = static function (int $uid, string $tz) use ($textU, $db): void {
+    $textU($uid, '/start');
+    $db->exec('UPDATE users SET timezone = ?, market_banned = 0 WHERE user_id = ?', [$tz, $uid]);
+};
+$mkOwner(7781, 'Asia/Tashkent');
+$mkOwner(7782, 'Asia/Almaty');
+$mkOwner(7783, 'Europe/Berlin');
+$mkOwner(7784, 'Asia/Tashkent');
+$appU->forgetTz(7781);
+$mkL = static function (int $owner, int $chId, string $title, string $user, int $subs, ?string $country) use ($appU, $clock): int {
+    return $appU->market->upsert($owner, ['channel_id' => $chId, 'title' => $title, 'username' => $user], 100, 'USD', 'Tavsif ' . $title, 'news', $subs, $clock, $country);
+};
+$mkL(7783, -1009001, 'Berlin News', 'berlinnews', 90000, 'DE');
+$mkL(7782, -1009002, 'Almaty Kanal', 'almatykanal', 50000, 'KZ');
+$gl = $mkL(7784, -1009003, 'World Global', 'worldglobal', 70000, 'ZZ');
+$mkL(7781, -1009004, 'Toshkent Yangiliklari', 'toshyangi', 1000, 'UZ');
+$catUz = $appU->market->catalog(null, 0, 'UZ');
+T::eq('tartib (UZ uchun): UZ → KZ (yaqin) → Global → DE (obunachi ko\'p bo\'lsa ham oxirida)', array_column($catUz['rows'], 'username'), ['toshyangi', 'almatykanal', 'worldglobal', 'berlinnews']);
+$catDe = $appU->market->catalog(null, 0, 'DE');
+T::eq('tartib (DE uchun): o\'zi birinchi', $catDe['rows'][0]['username'], 'berlinnews');
+T::eq('davlat filtri: faqat DE', array_column($appU->market->catalog(null, 0, 'UZ', 'DE')['rows'], 'username'), ['berlinnews']);
+T::eq('davlat filtri: Global', array_column($appU->market->catalog(null, 0, 'UZ', 'ZZ')['rows'], 'username'), ['worldglobal']);
+T::eq('qidiruv: nom bo\'yicha', array_column($appU->market->catalog(null, 0, 'UZ', null, 'almaty')['rows'], 'username'), ['almatykanal']);
+T::eq('qidiruv: @username bo\'yicha', array_column($appU->market->catalog(null, 0, 'UZ', null, '@berlin')['rows'], 'username'), ['berlinnews']);
+T::eq('qidiruv: % belgisi xavfsiz (hamma narsani qaytarmaydi)', $appU->market->catalog(null, 0, 'UZ', null, '%')['total'], 0);
+T::check('davlatlar ro\'yxati (soni bilan)', $appU->market->countries() == ['DE' => 1, 'KZ' => 1, 'ZZ' => 1, 'UZ' => 1] || count($appU->market->countries()) === 4);
+$initMk = $mkInitU(['id' => 7781, 'first_name' => 'M', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+[$st, $mr] = PostAssist\Handlers\MiniAppApi::handle($appU, 'market', [], $initMk);
+T::check('Mini App birja: o\'z davlati (UZ) birinchi, bayroq va hudud, davlatlar ro\'yxatida UZ birinchi', $st === 200 && $mr['my_country'] === 'UZ'
+    && $mr['items'][0]['username'] === 'toshyangi' && $mr['items'][0]['flag'] === '🇺🇿' && strpos($mr['items'][0]['region'], 'zbekiston') !== false
+    && $mr['countries'][0]['code'] === 'UZ', json_encode($mr['countries'] ?? null));
+[$st, $mr2] = PostAssist\Handlers\MiniAppApi::handle($appU, 'market', ['country' => 'de', 'q' => ''], $initMk);
+T::check('Mini App birja: boshqa davlatni tanlash (DE)', $st === 200 && $mr2['country'] === 'DE' && count($mr2['items']) === 1 && $mr2['items'][0]['country'] === 'DE');
+[$st, $mr3] = PostAssist\Handlers\MiniAppApi::handle($appU, 'market', ['q' => 'world'], $initMk);
+T::check('Mini App birja: qidiruv', $st === 200 && count($mr3['items']) === 1 && $mr3['items'][0]['flag'] === '🌍');
+T::eq('Mini App birja: noto\'g\'ri davlat kodi e\'tiborsiz', PostAssist\Handlers\MiniAppApi::handle($appU, 'market', ['country' => 'XX'], $initMk)[1]['country'], null);
+// bot: ro'yxatda bayroq; egasi hududni Global'ga almashtiradi
+$uzId = (int) $db->value("SELECT id FROM market_listings WHERE username = 'toshyangi'");
+$pressU(7781, 'mk:l:all:0');
+T::check('bot katalog: bayroq bilan, o\'z davlati birinchi', strpos($lastKb(), '🇺🇿 Toshkent') !== false && strpos($lastKb(), 'mk:v:' . $uzId) < strpos($lastKb(), 'berlinnews') + 99999);
+$pressU(7781, 'mk:rg:' . $uzId);
+T::eq('bot: hudud → Global', (string) $db->value('SELECT country FROM market_listings WHERE id = ?', [$uzId]), 'ZZ');
+$pressU(7781, 'mk:rg:' . $uzId);
+T::eq('bot: hudud → yana o\'z davlati', (string) $db->value('SELECT country FROM market_listings WHERE id = ?', [$uzId]), 'UZ');
+$pressU(7782, 'mk:rg:' . $uzId);
+T::eq('bot: begona e\'lon hududini o\'zgartirib bo\'lmaydi', (string) $db->value('SELECT country FROM market_listings WHERE id = ?', [$uzId]), 'UZ');
+$pressU(7781, 'mk:v:' . $uzId);
+T::check('bot e\'lon kartasi: hudud qatori', strpos($fake->lastText(), 'Hudud') !== false);
+$db->exec('UPDATE market_listings SET country = NULL WHERE id = ?', [$gl]);
+$bfN = $appU->market->backfillCountries(static function (int $o) use ($appU): string {
+    return $appU->userCountry($o);
+});
+T::check('eski e\'lonlar: davlat egasining vaqt mintaqasidan yoziladi (setup.php)', $bfN === 1 && (string) $db->value('SELECT country FROM market_listings WHERE id = ?', [$gl]) === 'UZ');
+$db->exec('DELETE FROM market_listings');

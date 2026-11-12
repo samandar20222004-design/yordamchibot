@@ -30,7 +30,7 @@ final class AdminHandler
             'users_today' => (int) $db->value('SELECT COUNT(*) FROM users WHERE created_at >= ?', [$today]),
             'channels' => (int) $db->value('SELECT COUNT(*) FROM channels WHERE is_active = 1'),
             'pending' => (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE status IN ('pending', 'processing')"),
-            'sent_today' => (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'sent' AND sent_at >= ?", [$today]),
+            'sent_today' => (int) $db->value('SELECT COUNT(*) FROM scheduled_posts WHERE sent_at >= ?', [$today]), // takroriylar ham (status pending bo'lsa ham)
             'failed_today' => (int) $db->value("SELECT COUNT(*) FROM scheduled_posts WHERE status = 'failed' AND created_at >= ?", [$today]),
             'pro' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'pro' AND subscription_expires_at > ?", [$now]),
             'ultra' => (int) $db->value("SELECT COUNT(*) FROM users WHERE plan_type = 'ultra' AND subscription_expires_at > ?", [$now]),

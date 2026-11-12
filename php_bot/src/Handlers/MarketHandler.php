@@ -12,6 +12,8 @@ use PostAssist\I18n;
 use PostAssist\Keyboards;
 use PostAssist\Repo\Market;
 use PostAssist\Services\MarketSafety;
+use PostAssist\Services\Region;
+use PostAssist\Services\Countries;
 
 /**
  * 💰 Reklama birjasi (Python `handlers/ad_market.py` qoidalari):
@@ -80,10 +82,11 @@ final class MarketHandler
 
     public static function listing(Ctx $ctx, string $cat, int $page): void
     {
-        $r = $ctx->app->market->catalog($cat === 'all' ? null : $cat, $page);
+        // o'z davlati birinchi, keyin yaqin davlatlar, Global va boshqalar
+        $r = $ctx->app->market->catalog($cat === 'all' ? null : $cat, $page, $ctx->app->userCountry($ctx->userId));
         $rows = [];
         foreach ($r['rows'] as $l) {
-            $rows[] = [Keyboards::btn('📢 ' . mb_substr((string) $l['title'], 0, 22) . ' · ' . self::fmtNum((int) $l['subscribers']) . ' · ' . self::price($l), 'mk:v:' . (int) $l['id'])];
+            $rows[] = [Keyboards::btn(self::flagOf($l) . ' ' . mb_substr((string) $l['title'], 0, 20) . ' · ' . self::fmtNum((int) $l['subscribers']) . ' · ' . self::price($l), 'mk:v:' . (int) $l['id'])];
         }
         $nav = [];
         if ($page > 0) {
@@ -98,6 +101,13 @@ final class MarketHandler
         $rows[] = Keyboards::navRow($ctx->lang, 'mk:cat');
         $title = $cat === 'all' ? $ctx->t('btn_mk_all') : $ctx->t('mkc_' . $cat);
         $ctx->edit($r['total'] > 0 ? $ctx->t('mk_list', ['cat' => $title, 'n' => $r['total']]) : $ctx->t('mk_list_empty', ['cat' => $title]), Keyboards::inline($rows));
+    }
+
+    /** E'lon davlati bayrog'i (Global — 🌍). */
+    public static function flagOf(array $l): string
+    {
+        $c = (string) ($l['country'] ?? '');
+        return $c === '' || $c === Region::GLOBAL ? '🌍' : Countries::flag($c);
     }
 
     public static function view(Ctx $ctx, int $id): void
@@ -116,7 +126,7 @@ final class MarketHandler
             'title' => Html::e((string) $l['title']), 'username' => Html::e((string) $l['username']), 'subs' => number_format((int) $l['subscribers'], 0, '', ' '),
             'cat' => $ctx->t('mkc_' . $l['category']), 'price' => self::price($l),
             'desc' => trim((string) $l['description']) !== '' ? Html::e((string) $l['description']) : '—',
-        ]), Keyboards::inline($rows));
+        ]) . "\n" . $ctx->t('mk_region_line', ['region' => Html::e(Region::label((string) ($l['country'] ?? ''), $ctx->lang))]), Keyboards::inline($rows));
     }
 
     // ------------------------------------------------------------------ e'lon qo'yish
@@ -251,7 +261,8 @@ final class MarketHandler
             return;
         }
         $d = $st['data'];
-        $id = $ctx->app->market->upsert($ctx->userId, $d['ch'], (int) $d['price'], (string) $d['currency'], (string) $d['desc'], $cat, (int) $d['subs'], $ctx->app->now());
+        $id = $ctx->app->market->upsert($ctx->userId, $d['ch'], (int) $d['price'], (string) $d['currency'], (string) $d['desc'], $cat, (int) $d['subs'], $ctx->app->now(),
+            $ctx->app->userCountry($ctx->userId)); // standart — egasining davlati; «Mening e'lonlarim»da Global'ga o'zgartiriladi
         $l = $ctx->app->market->get($id);
         $ctx->reply($ctx->t($l && $l['status'] === 'banned' ? 'mk_saved_banned' : 'mk_saved', ['title' => Html::e((string) $d['ch']['title'])]),
             Keyboards::inline([[Keyboards::btn($ctx->t('btn_mk_mine'), 'mk:my')], Keyboards::navRow($ctx->lang, 'mk:home')]));
@@ -263,15 +274,27 @@ final class MarketHandler
         $lines = [];
         foreach ($ctx->app->market->mine($ctx->userId) as $l) {
             $id = (int) $l['id'];
-            $lines[] = '• <b>' . Html::e((string) $l['title']) . '</b> — ' . self::price($l) . ' · ' . $ctx->t('mk_st_' . $l['status']);
+            $lines[] = '• ' . self::flagOf($l) . ' <b>' . Html::e((string) $l['title']) . '</b> — ' . self::price($l) . ' · ' . $ctx->t('mk_st_' . $l['status']);
             if ($l['status'] !== 'banned') {
                 $rows[] = [Keyboards::btn(($l['status'] === 'active' ? '🙈 ' : '👁 ') . mb_substr((string) $l['title'], 0, 12), 'mk:hide:' . $id),
-                    Keyboards::btn('🔄', 'mk:upd:' . $id), Keyboards::btn('🗑', 'mk:del:' . $id)];
+                    Keyboards::btn(self::flagOf($l), 'mk:rg:' . $id), Keyboards::btn('🔄', 'mk:upd:' . $id), Keyboards::btn('🗑', 'mk:del:' . $id)];
             }
         }
         $rows[] = [Keyboards::btn($ctx->t('btn_mk_publish'), 'mk:pub')];
         $rows[] = Keyboards::navRow($ctx->lang, 'mk:home');
         $ctx->edit($lines ? $ctx->t('mk_mine', ['list' => implode("\n", $lines)]) : $ctx->t('mk_mine_empty'), Keyboards::inline($rows));
+    }
+
+    /** Hudud: o'z davlatim ↔ 🌍 Global (boshqa davlatlarga ham reklama qabul qilaman). */
+    public static function region(Ctx $ctx, int $id): void
+    {
+        $l = $ctx->app->market->get($id);
+        if ($l && (int) $l['owner_id'] === $ctx->userId) {
+            $own = $ctx->app->userCountry($ctx->userId);
+            $cur = (string) ($l['country'] ?? '');
+            $ctx->app->market->setCountry($id, $ctx->userId, $cur === Region::GLOBAL || $cur === '' ? $own : Region::GLOBAL);
+        }
+        self::mine($ctx);
     }
 
     public static function toggle(Ctx $ctx, int $id): void

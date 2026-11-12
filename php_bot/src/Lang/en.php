@@ -1012,4 +1012,9 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_rx_custom_hint' => "Tap emojis (up to 6). Tap again to remove.",
     'ma_rx_max' => "You can't add more than 6 reactions.",
     'tz_not_chosen_hint' => "🌍 Times are in Tashkent time for now. If you're in another country, pick your time zone with /timezone — posts will go out exactly at your time.",
+    'ma_mk_search' => "🔎 Channel name or @username",
+    'ma_mk_all_countries' => "🌍 All countries",
+    'ma_mk_order' => "{region} first, then nearby countries and others. Need another country — pick it above.",
+    'ma_mk_empty_filter' => "No listings for this search or country.",
+    'mk_region_line' => "🌍 Region: {region}",
 ];
