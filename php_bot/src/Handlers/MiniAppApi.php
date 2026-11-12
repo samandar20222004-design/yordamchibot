@@ -759,7 +759,10 @@ final class MiniAppApi
             return [400, ['ok' => false, 'error' => 'bad_input']];
         }
         $day = $app->today();
-        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql());
+        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql(), $app->aiPerMinute($ctx->ownerId()));
+        if ($src === 'rate') {
+            return [429, ['ok' => false, 'error' => 'ai_rate', 'n' => $app->aiPerMinute($ctx->ownerId()), 's' => $app->aiUsage->rateWait($ctx->ownerId(), $app->nowSql())]];
+        }
         if ($src === null) {
             return [429, ['ok' => false, 'error' => 'ai_limit']];
         }

@@ -52,6 +52,8 @@ return [
     // 'openrouter_model' => 'meta-llama/llama-3.3-70b-instruct:free',
     // Kunlik AI so'rovlari (standart: free 5, pro 40, ultra 100). Tugasa — ballar ishlatiladi.
     // 'ai_daily' => ['free' => 5, 'pro' => 40, 'ultra' => 100],
+    // Bir daqiqada nechta AI so'rovi (standart: free 3, pro 6, ultra 10; admin cheksiz). Bepul kalit kvotasini bitta odam tugatib qo'ymasin.
+    // 'ai_per_minute' => ['free' => 3, 'pro' => 6, 'ultra' => 10],
 
     // Ixtiyoriy (2-bosqich): Telegram Stars narxlarini o'zgartirish. Yozilmasa — standart: PRO 195/510/910/1650,
     // ULTRA 470/1180/2260/4180 (1/3/6/12 oy). Kalitlar: 1m 3m 6m 1y (PRO), u1m u3m u6m u1y (ULTRA).

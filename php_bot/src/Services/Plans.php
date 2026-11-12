@@ -38,6 +38,8 @@ final class Plans
     ];
     /** Kunlik AI so'rovlari (Python FREE_DAILY_AI / PRO_DAILY_AI / ULTRA_DAILY_AI). */
     public const DEFAULT_AI = ['free' => 5, 'pro' => 40, 'ultra' => 100];
+    /** Bir daqiqada nechta AI so'rovi (bepul kalitlar kvotasini himoyalash). config: 'ai_per_minute' => ['pro' => 6, ...] */
+    public const DEFAULT_AI_PER_MINUTE = ['free' => 3, 'pro' => 6, 'ultra' => 10];
     public const NAMES = ['free' => 'FREE', 'pro' => 'PRO', 'ultra' => 'ULTRA', 'enterprise' => 'ENTERPRISE'];
     public const MAX_GRANT_DAYS = 3650;
 
@@ -112,6 +114,20 @@ final class Plans
     }
 
     /** Kunlik AI limiti (0 = cheksiz). config.php `ai_daily` => ['free' => 5, ...] bilan o'zgartiriladi. */
+    /** Daqiqalik AI cheklovi (0 = cheksiz; enterprise — cheksiz). */
+    public static function aiPerMinute(string $tier, ?Config $c = null): int
+    {
+        if ($tier === self::ENTERPRISE) {
+            return 0;
+        }
+        $v = self::DEFAULT_AI_PER_MINUTE[$tier] ?? self::DEFAULT_AI_PER_MINUTE['free'];
+        $over = $c !== null ? $c->get('ai_per_minute') : null;
+        if (is_array($over) && isset($over[$tier]) && (int) $over[$tier] >= 0) {
+            $v = (int) $over[$tier];
+        }
+        return max(0, $v);
+    }
+
     public static function aiDaily(string $tier, ?Config $c = null): int
     {
         if ($tier === self::ENTERPRISE) {

@@ -215,7 +215,11 @@ final class AiHandler
             return null;
         }
         $day = $app->today();
-        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql());
+        $src = $app->aiUsage->reserve($ctx->ownerId(), $app->aiLimit($ctx->ownerId()), $day, $app->nowSql(), $app->aiPerMinute($ctx->ownerId()));
+        if ($src === 'rate') {
+            $ctx->reply($ctx->t('ai_rate', ['n' => $app->aiPerMinute($ctx->ownerId()), 's' => $app->aiUsage->rateWait($ctx->ownerId(), $app->nowSql())]), Keyboards::nav($ctx->lang));
+            return null;
+        }
         if ($src === null) {
             $ctx->reply($ctx->t('ai_limit'), Keyboards::inline([
                 [Keyboards::btn($ctx->t('btn_plans'), 'pl:show'), Keyboards::btn($ctx->t('btn_invite'), 'ref:show')],

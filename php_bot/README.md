@@ -142,6 +142,10 @@ ro'yxatini so'raydi, mosini tanlaydi (eng yangi barqaror Gemini Flash / eng katt
 mavjud modellar ro'yxatini chiqaradi.
 AI xatolari `storage/bot.log` ga yoziladi (kalitning o'zi yozilmaydi).
 
+**Cheklovlar:** kunlik — FREE 5, PRO 40, ULTRA 100 (`ai_daily`; tugasa ballar); daqiqalik — FREE 3, PRO 6, ULTRA 10 (`ai_per_minute`),
+admin va autopilot cheklanmaydi. Daqiqalik cheklovga tushgan urinish kunlik limitni yemaydi. Provayder vaqtincha band bo'lsa (429/5xx)
+bot 2 soniyadan keyin bir marta qayta urinadi, keyin keyingi provayderga o'tadi.
+
 Shundan keyin menyuda «✨ AI post» va preview → «⚙️ Qo'shimcha» → «✨ AI tahrir» chiqadi. Kunlik limit: FREE 5, PRO 40, ULTRA 100
 (`ai_daily` bilan o'zgaradi); tugasa ballar ishlatiladi; AI javob bermasa so'rov qaytariladi.
 

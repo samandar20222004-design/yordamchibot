@@ -91,7 +91,7 @@ try {
 $db = new Db($pdo);
 $pdo->exec("SET time_zone = '+00:00'");
 $ALL_TABLES = ['processed_updates', 'scheduled_posts', 'channels', 'user_states', 'users', 'payments', 'promo_codes', 'promo_redemptions',
-    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage', 'payment_receipts', 'broadcasts', 'forced_channels', 'team_members', 'team_invites', 'market_listings', 'market_threads', 'market_messages', 'market_reports', 'content_plans', 'autopilots', 'autopilot_drafts', 'payme_orders', 'payme_transactions', 'rss_feeds', 'post_templates', 'channel_stats', 'post_comments', 'comment_bans', 'bot_settings'];
+    'promo_attempts', 'credits_ledger', 'tracked_links', 'tracked_link_visits', 'sent_messages', 'reaction_votes', 'album_items', 'album_done', 'ai_usage', 'payment_receipts', 'broadcasts', 'forced_channels', 'team_members', 'team_invites', 'market_listings', 'market_threads', 'market_messages', 'market_reports', 'content_plans', 'autopilots', 'autopilot_drafts', 'payme_orders', 'payme_transactions', 'rss_feeds', 'post_templates', 'channel_stats', 'post_comments', 'comment_bans', 'bot_settings', 'ai_rate'];
 foreach ($ALL_TABLES as $t) {
     $pdo->exec("DROP TABLE IF EXISTS {$t}");
 }
@@ -118,6 +118,7 @@ $config = new Config([
     'bot_token' => $BOT . ':' . str_repeat('A', 35), 'bot_username' => 'PostAssistrobot', 'admin_ids' => [$ADMIN],
     'webhook_secret' => str_repeat('s', 20), 'cron_key' => str_repeat('k', 20), 'timezone' => 'Asia/Tashkent',
     'free_max_channels' => 2, 'free_max_queued' => 3,
+    'ai_per_minute' => ['free' => 0, 'pro' => 0, 'ultra' => 0], // soat to'xtatilgan: daqiqalik cheklov alohida testda (UxTest)
 ]);
 $app = new App($config, $db, new Telegram('x', 'https://x', $fake), static function () use (&$clock) {
     return $clock;

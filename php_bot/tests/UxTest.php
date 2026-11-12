@@ -671,3 +671,66 @@ $badKey = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'BAD']), st
 });
 $bk = $badKey->check();
 T::check('AI: noto\'g\'ri kalit modelni almashtirmaydi (adashmaydi)', strpos($bk['gemini'], 'HTTP 400') !== false && $badKey->healed === []);
+
+// --- AI daqiqalik cheklov: FREE 3 / PRO 6 / ULTRA 10 / admin cheksiz; bloklangan urinish kunlik limitni yemaydi; jadval yo'q bo'lsa to'xtamaydi
+T::eq('daqiqalik standart: free 3, pro 6, ultra 10, enterprise cheksiz', [PostAssist\Services\Plans::aiPerMinute('free'), PostAssist\Services\Plans::aiPerMinute('pro'),
+    PostAssist\Services\Plans::aiPerMinute('ultra'), PostAssist\Services\Plans::aiPerMinute('enterprise')], [3, 6, 10, 0]);
+T::eq('daqiqalik: config bilan o\'zgaradi', PostAssist\Services\Plans::aiPerMinute('pro', new Config(['ai_per_minute' => ['pro' => 12]])), 12);
+$RU = 7740;
+$textU($RU, '/start');
+$rlClock = $clock;
+$rlNow = static function () use (&$rlClock): string {
+    return $rlClock->format('Y-m-d H:i:s');
+};
+$rlDay = $clock->format('Y-m-d');
+$db->exec('DELETE FROM ai_rate WHERE user_id = ?', [$RU]);
+$db->exec('DELETE FROM ai_usage WHERE user_id = ?', [$RU]);
+$rs = [];
+for ($i = 0; $i < 4; $i++) {
+    $rs[] = $appU->aiUsage->reserve($RU, 5, $rlDay, $rlNow(), 3);
+}
+T::eq('free: 3 ta o\'tadi, 4-si «rate»', $rs, ['daily', 'daily', 'daily', 'rate']);
+T::eq('bloklangan urinish kunlik limitni yemadi (3 ta)', $appU->aiUsage->usedOn($RU, $rlDay), 3);
+T::check('kutish vaqti 1–60 soniya', ($w = $appU->aiUsage->rateWait($RU, $rlNow())) >= 1 && $w <= 60);
+$rlClock = $clock->modify('+61 seconds');
+T::eq('61 soniyadan keyin yana ruxsat', $appU->aiUsage->reserve($RU, 5, $rlDay, $rlNow(), 3), 'daily');
+T::eq('cheklov 0 — cheksiz (admin / autopilot)', $appU->aiUsage->reserve($RU, 0, $rlDay, $rlNow(), 0), 'unlimited');
+$db->exec('RENAME TABLE ai_rate TO ai_rate_tmp');
+try {
+    T::eq('ai_rate jadvali yo\'q (setup.php ishlamagan) — bot to\'xtamaydi (ruxsat)', $appU->aiUsage->reserve($RU, 0, $rlDay, $rlNow(), 3), 'unlimited');
+} finally {
+    $db->exec('RENAME TABLE ai_rate_tmp TO ai_rate');
+}
+// bot oqimi: cheklovga tushsa — tushunarli xabar, AI chaqirilmaydi
+$cfgR = new Config(['bot_token' => $config->str('bot_token'), 'bot_username' => 'PostAssistrobot', 'admin_ids' => [$ADMIN], 'timezone' => 'Asia/Tashkent',
+    'gemini_api_key' => 'test', 'ai_per_minute' => ['free' => 1]]);
+$appR = new App($cfgR, $db, new Telegram('x', 'https://x', $fake), static function () use (&$clock) {
+    return $clock;
+});
+$appR->sleeper = static function (int $ms): void {
+};
+$rCalls = 0;
+$appR->ai = new PostAssist\Services\Ai($cfgR, static function () use (&$rCalls): array {
+    $rCalls++;
+    return [200, json_encode(['candidates' => [['content' => ['parts' => [['text' => 'AI matni']]]]]])];
+});
+$routerR = new Router($appR);
+$RB = 7741;
+$db->exec('DELETE FROM ai_rate WHERE user_id = ?', [$RB]);
+$sendR = static function (string $kind, string $v) use (&$upd, $routerR, $from, $fake, $RB) {
+    $fake->reset();
+    $u = $kind === 't' ? ['message' => ['message_id' => $upd, 'from' => $from($RB), 'chat' => ['id' => $RB, 'type' => 'private'], 'date' => 0, 'text' => $v]]
+        : ['callback_query' => ['id' => 'r' . $upd, 'from' => $from($RB), 'data' => $v, 'message' => ['message_id' => 77, 'chat' => ['id' => $RB, 'type' => 'private'], 'text' => 'x']]];
+    $routerR->handle(['update_id' => $upd++] + $u);
+};
+$sendR('t', '/start');
+$db->exec("INSERT INTO channels (user_id, channel_id, title, is_active, created_at) VALUES (?, -1001000000741, 'R kanal', 1, UTC_TIMESTAMP())", [$RB]);
+$appR->states->set($RB, 'ai_style', ['topic' => 'Birinchi mavzu haqida post']);
+$sendR('d', 'ai:s:news');
+T::eq('1-so\'rov: AI chaqirildi', $rCalls, 1);
+$appR->states->set($RB, 'ai_style', ['topic' => 'Ikkinchi mavzu haqida post']);
+$sendR('d', 'ai:s:news');
+T::check('2-so\'rov shu daqiqada: «Juda tez!» xabari, AI chaqirilmadi', $rCalls === 1 && strpos($fake->texts(), 'Juda tez') !== false && strpos($fake->texts(), '1 tagacha') !== false);
+$initR = $mkInitU(['id' => $RB, 'first_name' => 'R', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgR->str('bot_token'));
+[$st, $r] = PostAssist\Handlers\MiniAppApi::handle($appR, 'ai', ['mode' => 'post', 'topic' => 'Uchinchi mavzu haqida', 'style' => 'news'], $initR);
+T::check('Mini App: 429 ai_rate (n, s bilan)', $st === 429 && ($r['error'] ?? '') === 'ai_rate' && ($r['n'] ?? 0) === 1 && ($r['s'] ?? 0) >= 1, json_encode($r));

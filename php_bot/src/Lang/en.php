@@ -1003,4 +1003,6 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_st_best_own' => "Based on your {n} posts",
     'ma_st_top_empty' => "No activity yet: add reactions, comments or hidden text.",
     'ma_q_best' => "⭐ Best: {t}",
+    'ai_rate' => "⏳ Too fast! Up to {n} AI requests per minute.\nTry again in {s} seconds — your limit wasn't used.",
+    'ma_err_ai_rate' => "Too fast: up to {n} AI requests per minute. Try again in {s} s.",
 ];

@@ -32,11 +32,20 @@ final class Ai
     public array $healed = [];
     private array $override = [];
     private bool $healing = false;
+    /** @var callable fn(int $ms): void — qayta urinishdan oldingi kutish (testda o'chiriladi) */
+    public $sleeper;
+    /** Testlar: haqiqiy kutishsiz (tests/run.php yoqadi). */
+    public static bool $noSleep = false;
 
     public function __construct(Config $config, ?callable $transport = null)
     {
         $this->config = $config;
         $this->transport = $transport;
+        $this->sleeper = static function (int $ms): void {
+            if (!self::$noSleep) {
+                usleep($ms * 1000);
+            }
+        };
     }
 
     /**
@@ -335,6 +344,11 @@ final class Ai
             $headers = ['Content-Type: application/json', 'Authorization: Bearer ' . $p['key']];
         }
         [$status, $resp] = $this->http($p['url'], $headers, (string) $body);
+        if (in_array($status, [429, 500, 502, 503, 504], true)) {
+            // provayder vaqtincha band (ko'p talab / kvota soniyasi) — 2 soniyadan keyin bir marta qayta
+            ($this->sleeper)(2000);
+            [$status, $resp] = $this->http($p['url'], $headers, (string) $body);
+        }
         if (($status === 404 || $status === 400) && $p['name'] !== 'openrouter' && !$this->healing && preg_match('#model|no longer available|not found|not exist#i', $resp)) {
             $new = $this->heal($p);
             if ($new !== null) {

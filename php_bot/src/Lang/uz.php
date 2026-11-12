@@ -1003,4 +1003,6 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_st_best_own' => "{n} ta postingiz bo'yicha",
     'ma_st_top_empty' => "Hali faollik yo'q: reaksiya, izoh yoki yashirin matn qo'shing.",
     'ma_q_best' => "⭐ Eng yaxshi: {t}",
+    'ai_rate' => "⏳ Juda tez! Bir daqiqada {n} tagacha AI so'rovi mumkin.\n{s} soniyadan keyin qayta urinib ko'ring — limitingiz kamaymadi.",
+    'ma_err_ai_rate' => "Juda tez: daqiqasiga {n} tagacha AI so'rovi. {s} soniyadan keyin urinib ko'ring.",
 ];

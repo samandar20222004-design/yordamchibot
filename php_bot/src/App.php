@@ -306,6 +306,12 @@ final class App
         return \PostAssist\Services\PostRender::postRows($row, $this->messages->counts((int) $row['chat_id'], (int) $row['message_id']));
     }
 
+    /** Daqiqalik AI cheklovi (admin — cheksiz = 0). */
+    public function aiPerMinute(int $userId): int
+    {
+        return $this->isAdmin($userId) ? 0 : Plans::aiPerMinute($this->tier($userId), $this->config);
+    }
+
     /** Kunlik AI limiti (admin va enterprise — cheksiz = 0). */
     public function aiLimit(int $userId): int
     {

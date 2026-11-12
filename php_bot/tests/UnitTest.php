@@ -295,10 +295,18 @@ T::check('gemini: javob olinadi, «thought» qismi tashlanadi, kalit sarlavhada 
     && in_array('x-goog-api-key: G', $aiCalls[0][1], true) && strpos($aiCalls[0][0], 'G') === false
     && ($aiCalls[0][2]['systemInstruction']['parts'][0]['text'] ?? '') === 'SYS');
 $aiCalls = [];
-$aiQueue = [[503, 'overloaded'], [200, '{"choices":[]}'], $oai('OpenRouter javobi')];
+$aiQueue = [[503, 'overloaded'], [503, 'overloaded'], [200, '{"choices":[]}'], $oai('OpenRouter javobi')];
 $r = $ai2->generate('S', 'P', 1000);
-T::check('gemini 503, groq bo\'sh -> openrouter (Bearer kalit)', $r['ok'] && $r['provider'] === 'openrouter' && count($aiCalls) === 3
-    && in_array('Authorization: Bearer O', $aiCalls[2][1], true) && ($aiCalls[2][2]['messages'][0]['role'] ?? '') === 'system');
+T::check('gemini 503 (bir marta qayta urinildi), groq bo\'sh -> openrouter (Bearer kalit)', $r['ok'] && $r['provider'] === 'openrouter' && count($aiCalls) === 4
+    && strpos($aiCalls[1][0], 'googleapis') !== false && in_array('Authorization: Bearer O', $aiCalls[3][1], true) && ($aiCalls[3][2]['messages'][0]['role'] ?? '') === 'system');
+$aiCalls = [];
+$aiQueue = [[503, 'overloaded'], $gem('Ikkinchi urinishda')];
+$r = $ai2->generate('S', 'P', 1000);
+T::check('gemini 503 → 2 soniyadan keyin qayta → javob (Groq\'ga o\'tmaydi)', $r['ok'] && $r['provider'] === 'gemini' && $r['text'] === 'Ikkinchi urinishda' && count($aiCalls) === 2);
+$aiCalls = [];
+$aiQueue = [[400, json_encode(['error' => ['message' => 'Invalid argument']])], $oai('Groq')];
+$r = $ai2->generate('S', 'P', 1000);
+T::check('400 (doimiy xato) — qayta urinilmaydi, keyingi provayderga', $r['provider'] === 'groq' && count($aiCalls) === 2);
 $aiQueue = [[500, ''], [0, ''], [429, '']];
 T::eq('hammasi ishlamasa: failed', $ai2->generate('S', 'P', 1000)['error'] ?? '', 'failed');
 $aiQueue = [$gem(str_repeat('Uzun gap. ', 300))];

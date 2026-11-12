@@ -612,7 +612,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   }
   function errText(r) {
     var key = 'ma_err_' + (r.error || 'server');
-    var s = t(key, {max: r.max || '', len: r.len || '', max_mb: r.max_mb || ''});
+    var s = t(key, {max: r.max || '', len: r.len || '', max_mb: r.max_mb || '', n: r.n || '', s: r.s || ''});
     if (s === key) { s = t('ma_err_server'); }
     return r.reason ? s + ' ' + r.reason : s;
   }

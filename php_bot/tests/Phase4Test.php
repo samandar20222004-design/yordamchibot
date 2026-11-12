@@ -133,9 +133,10 @@ $aiQueue = [$gem('Второй вариант текста')];
 $press($W, 'ai:e:tr_ru');
 T::check('tarjima: rus tilida, matn almashdi', strpos($system(2), 'rus') !== false && strpos($prompt(2), 'Ikkinchi variant') !== false
     && ($app->states->get($W)['data']['draft']['text'] ?? '') === 'Второй вариант текста');
-$aiQueue = [[503, ''], [200, json_encode(['choices' => [['message' => ['content' => 'Groq javobi']]]])]];
+$aiQueue = [[503, ''], [503, ''], [200, json_encode(['choices' => [['message' => ['content' => 'Groq javobi']]]])]]; // 503 — bir marta qayta urinadi
 $press($W, 'ai:e:improve');
-T::check('Gemini ishlamasa — Groq javob beradi', strpos($fake->texts(), 'Groq javobi') !== false && strpos($aiCalls[4][0], 'groq.com') !== false);
+T::check('Gemini ishlamasa (qayta urinishdan keyin ham) — Groq javob beradi', strpos($fake->texts(), 'Groq javobi') !== false && strpos($aiCalls[4][0], 'googleapis') !== false
+    && strpos($aiCalls[5][0], 'groq.com') !== false);
 $usedBefore = $app->aiUsage->usedOn($W, $app->today());
 $aiQueue = [[500, ''], [500, '']];
 $press($W, 'ai:e:shorten');

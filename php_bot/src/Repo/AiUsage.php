@@ -26,11 +26,46 @@ final class AiUsage
     }
 
     /**
-     * @param int $limit kunlik limit (0 = cheksiz)
-     * @return string|null daily | credit | unlimited, yoki null (limit ham, ball ham tugagan)
+     * Daqiqalik cheklov (atomik, 60 soniyalik oyna). true — ruxsat; false — juda tez.
+     * Jadval hali yo'q bo'lsa (setup.php ishga tushmagan) — ruxsat beriladi (bot to'xtamaydi).
      */
-    public function reserve(int $userId, int $limit, string $day, string $nowSql): ?string
+    public function rateAllow(int $userId, int $perMinute, string $nowSql): bool
     {
+        if ($perMinute <= 0) {
+            return true;
+        }
+        try {
+            // MySQL ON DUPLICATE KEY UPDATE chapdan o'ngga: cnt eski win_start bilan hisoblanadi
+            $this->db->exec('INSERT INTO ai_rate (user_id, win_start, cnt) VALUES (?, ?, 1)
+                 ON DUPLICATE KEY UPDATE cnt = IF(win_start <= ? - INTERVAL 60 SECOND, 1, cnt + 1),
+                 win_start = IF(win_start <= ? - INTERVAL 60 SECOND, ?, win_start)', [$userId, $nowSql, $nowSql, $nowSql, $nowSql]);
+            return (int) $this->db->value('SELECT cnt FROM ai_rate WHERE user_id = ?', [$userId]) <= $perMinute;
+        } catch (\Throwable $e) {
+            return true;
+        }
+    }
+
+    /** Daqiqalik oyna qachon ochiladi (soniya). */
+    public function rateWait(int $userId, string $nowSql): int
+    {
+        try {
+            $start = (string) $this->db->value('SELECT win_start FROM ai_rate WHERE user_id = ?', [$userId]);
+        } catch (\Throwable $e) {
+            return 0;
+        }
+        return $start === '' ? 0 : max(1, 60 - (strtotime($nowSql . ' UTC') - strtotime($start . ' UTC')));
+    }
+
+    /**
+     * @param int $limit kunlik limit (0 = cheksiz)
+     * @param int $perMinute daqiqalik cheklov (0 = cheksiz)
+     * @return string|null daily | credit | unlimited | rate (juda tez — hech narsa band qilinmadi), yoki null (limit ham, ball ham tugagan)
+     */
+    public function reserve(int $userId, int $limit, string $day, string $nowSql, int $perMinute = 0): ?string
+    {
+        if (!$this->rateAllow($userId, $perMinute, $nowSql)) {
+            return 'rate';
+        }
         if ($limit <= 0) {
             return 'unlimited';
         }
@@ -71,5 +106,9 @@ final class AiUsage
     public function cleanup(string $beforeDay): void
     {
         $this->db->exec('DELETE FROM ai_usage WHERE day < ?', [$beforeDay]);
+        try {
+            $this->db->exec('DELETE FROM ai_rate WHERE win_start < ?', [$beforeDay]);
+        } catch (\Throwable $e) {
+        }
     }
 }

@@ -246,6 +246,13 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     PRIMARY KEY (user_id, day)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- AI daqiqalik cheklov (bitta foydalanuvchi bepul kalit kvotasini hamma uchun tugatib qo'ymasin): 60 soniyalik oyna
+CREATE TABLE IF NOT EXISTS ai_rate (
+    user_id BIGINT NOT NULL PRIMARY KEY,
+    win_start DATETIME NOT NULL,
+    cnt INT NOT NULL DEFAULT 0
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ===================== 5-bosqich: karta to'lovi (chek), hammaga xabar, majburiy obuna =====================
 
 -- Karta orqali to'lov cheklari. status: pending -> approved | rejected (qaror bir marta, atomik).

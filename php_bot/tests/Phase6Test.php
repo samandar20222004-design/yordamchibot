@@ -61,7 +61,8 @@ T::check('media: faqat Gemini, inlineData (base64) va matn', $r['ok'] && $r['pro
     && ($pt[0]['inlineData']['data'] ?? '') === base64_encode('RAWBYTES') && ($pt[1]['text'] ?? '') === 'P');
 $aiCalls = [];
 $aiQueue = [[500, '']];
-T::check('Gemini yiqilsa media uchun Groq ishlatilmaydi', ($aiG->generate('S', 'P', 900, ['mime' => 'image/jpeg', 'data' => 'x'])['error'] ?? '') === 'failed' && count($aiCalls) === 1);
+T::check('Gemini yiqilsa (qayta urinishdan keyin ham) media uchun Groq ishlatilmaydi', ($aiG->generate('S', 'P', 900, ['mime' => 'image/jpeg', 'data' => 'x'])['error'] ?? '') === 'failed'
+    && count($aiCalls) === 2 && strpos($aiCalls[0][0] . $aiCalls[1][0], 'groq') === false);
 $aiQ = new Ai(new Config(['groq_api_key' => 'QK']), $aiT);
 T::eq('faqat Groq: media uchun provayder yo\'q', [$aiQ->mediaEnabled(), $aiQ->generate('S', 'P', 900, ['mime' => 'a', 'data' => 'b'])['error'] ?? ''], [false, 'disabled']);
 T::check('promptlar: rasm (faktlarni o\'ylab topma), ovoz', strpos(Ai::imagePrompt('Yangi mahsulot', 'sales'), 'Yangi mahsulot') !== false && strpos(Ai::imagePrompt('', 'fun'), 'ko\'rinmagan') !== false
