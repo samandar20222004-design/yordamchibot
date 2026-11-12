@@ -63,7 +63,7 @@ try {
     if ($app !== null) {
         $app->log('webhook xato: ' . $line);
     } else {
-        @file_put_contents(__DIR__ . '/storage/bot.log', '[' . gmdate('Y-m-d H:i:s') . "] webhook xato: {$line}\n", FILE_APPEND | LOCK_EX);
+        postassist_log('webhook xato: ' . $line);
     }
 }
 if (!$released) {

@@ -190,6 +190,9 @@ final class Rss
         if (stripos($xml, '<!DOCTYPE') !== false || stripos($xml, '<!ENTITY') !== false) {
             return ['ok' => false, 'error' => 'parse'];
         }
+        if (!function_exists('simplexml_load_string')) {
+            return ['ok' => false, 'error' => 'parse']; // hostingda SimpleXML o'chiq — RSS ishlamaydi, qolgan bot ishlaydi
+        }
         $prev = libxml_use_internal_errors(true);
         $doc = simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NONET | LIBXML_NOCDATA);
         libxml_clear_errors();

@@ -108,6 +108,9 @@ final class App
         });
         $this->rssClient = new \PostAssist\Services\Rss();
         $this->ai = new Ai($config);
+        $this->ai->logger = function (string $m): void {
+            $this->log($m);
+        };
         $this->sleeper = static function (int $ms): void {
             usleep($ms * 1000);
         };
@@ -317,9 +320,8 @@ final class App
 
     public function log(string $msg): void
     {
-        $dir = dirname(__DIR__) . '/storage';
-        if (is_dir($dir) && is_writable($dir)) {
-            @file_put_contents($dir . '/bot.log', '[' . gmdate('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND | LOCK_EX);
+        if (function_exists('postassist_log')) {
+            postassist_log($msg);
         }
     }
 }

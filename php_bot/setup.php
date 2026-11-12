@@ -32,6 +32,7 @@ if (version_compare(PHP_VERSION, '7.4.0', '<')) {
 foreach (['pdo_mysql', 'curl', 'mbstring', 'json'] as $ext) {
     $out(sprintf('%-10s %s', $ext, extension_loaded($ext) ? 'OK' : 'YO\'Q — hosting panelida yoqing'));
 }
+$out(sprintf('%-10s %s', 'simplexml', extension_loaded('simplexml') ? 'OK' : 'yo\'q — faqat 📰 RSS ishlamaydi (ixtiyoriy)'));
 $problems = (new Config($cfg))->problems();
 if ($problems) {
     $out('config.php da to\'ldirilmagan: ' . implode(', ', $problems));
@@ -61,6 +62,33 @@ try {
 }
 $out('Baza jadvallari: OK' . ($changes ? ' (yangilandi: ' . implode(', ', $changes) . ')' : ''));
 
+// Token va username: bot_username nishon va havolalarda ishlatiladi — haqiqiy bot bilan mos bo'lishi shart
+$me = $app->tg->call('getMe', []);
+if (empty($me['ok'])) {
+    $desc = (string) ($me['description'] ?? '');
+    $out(stripos($desc, 'network') === 0 || $desc === ''
+        ? "XATO: Telegram'ga ulanib bo'lmadi ({$desc}). Hosting tashqi HTTPS so'rovlarni (api.telegram.org) to'smayotganini tekshiring."
+        : "XATO: bot_token ishlamayapti (Telegram: {$desc}). @BotFather dan tokenni qayta oling.");
+    exit(1);
+}
+$realName = (string) ($me['result']['username'] ?? '');
+if (strcasecmp($realName, ltrim((string) ($cfg['bot_username'] ?? ''), '@')) !== 0) {
+    $out("XATO: bot_username noto'g'ri — config'da «" . ($cfg['bot_username'] ?? '') . "», token esa @{$realName} botiniki. config.php da 'bot_username' => '{$realName}' yozing.");
+    exit(1);
+}
+$out("Bot: @{$realName} OK");
+$admins = array_filter((array) ($cfg['admin_ids'] ?? []), static function ($v) {
+    return (int) $v > 0;
+});
+if (!$admins) {
+    $out("OGOHLANTIRISH: admin_ids bo'sh — admin paneli ochilmaydi, karta cheklari hech kimga bormaydi. O'z Telegram ID'ingizni yozing (@userinfobot).");
+} else {
+    $out('Adminlar: ' . implode(', ', $admins));
+}
+if (trim((string) ($cfg['card_number'] ?? '')) !== '' && !$admins) {
+    $out("OGOHLANTIRISH: karta to'lovi yoqilgan, lekin cheklarni tasdiqlaydigan admin yo'q.");
+}
+
 $url = (string) ($cfg['webhook_url'] ?? '');
 if (strpos($url, 'https://') !== 0) {
     $out('webhook_url https:// bilan boshlanishi kerak');
@@ -88,5 +116,14 @@ if ($mini !== null) {
     $out('Mini App menyu tugmasi: ' . (!empty($r['ok']) ? 'OK — ' . $mini : 'XATO — ' . ($r['description'] ?? '')));
 } else {
     $out('Mini App: o\'chiq (webhook_url https://.../webhook.php bo\'lishi kerak yoki miniapp_url yozing)');
+}
+// ✨ AI kalitlari: har biri haqiqiy kichik so'rov bilan tekshiriladi
+if (!$app->ai->enabled()) {
+    $out('AI: kalit yo\'q — AI tugmalari ko\'rinmaydi (bot qolgan hamma ishni qiladi). Bepul kalit: gemini_api_key (aistudio.google.com/apikey).');
+} else {
+    foreach ($app->ai->check() as $name => $res) {
+        $out(sprintf('AI %-10s %s', $name, $res));
+    }
+    $out('Rasm/ovozdan post: ' . ($app->ai->mediaEnabled() ? 'yoqilgan (Gemini)' : 'o\'chiq — buning uchun gemini_api_key kerak'));
 }
 $out('Tayyor. Endi cron.php ni har daqiqaga qo\'ying (README.md).');

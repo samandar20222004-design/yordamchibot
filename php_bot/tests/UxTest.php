@@ -503,3 +503,48 @@ $pressU($B, 'lang:uz');
 $appSrcS = (string) file_get_contents(__DIR__ . '/../app.php');
 T::check('app.php: statistikada top/vaqt, tezkor vaqtda «⭐ Eng yaxshi»', strpos($appSrcS, 'function topHtml') !== false && strpos($appSrcS, "api('best_time')") !== false
     && strpos($appSrcS, "t('ma_q_best'") !== false);
+
+// --- AI: kalit/model xatosi yashirin qolmaydi (log + setup.php tekshiruvi), kalit logga tushmaydi
+$aiLogs = [];
+$aiT = new PostAssist\Services\Ai(new Config(['gemini_api_key' => 'GKEY-SECRET', 'groq_api_key' => 'QKEY']), static function (string $url, array $h, string $b): array {
+    if (strpos($url, 'googleapis') !== false) {
+        return [400, json_encode(['error' => ['code' => 400, 'message' => 'API key not valid: GKEY-SECRET', 'status' => 'INVALID_ARGUMENT']])];
+    }
+    return [200, json_encode(['choices' => [['message' => ['content' => 'OK']]]])];
+});
+$aiT->logger = static function (string $m) use (&$aiLogs): void {
+    $aiLogs[] = $m;
+};
+$chk = $aiT->check();
+T::check('AI tekshiruvi: gemini — sabab bilan xato, groq — OK', strpos($chk['gemini'], 'HTTP 400') !== false && strpos($chk['gemini'], 'API key not valid') !== false
+    && strpos($chk['groq'], 'OK (llama') === 0, json_encode($chk));
+T::check('AI xatosi logga yozildi, kalit yashirildi', count($aiLogs) === 1 && strpos($aiLogs[0], 'AI gemini ishlamadi') === 0 && strpos($aiLogs[0], 'GKEY-SECRET') === false
+    && strpos($aiLogs[0], '***') !== false);
+$g = $aiT->generate('s', 'p', 500);
+T::check('generate: gemini yiqilsa groq javob beradi', $g['ok'] === true && $g['provider'] === 'groq');
+$aiE = new PostAssist\Services\Ai(new Config(['groq_api_key' => 'Q']), static function (): array {
+    return [500, json_encode(['error' => ['code' => 500]])];
+});
+T::check('xato javobida message yo\'q — ogohlantirishsiz', strpos($aiE->check()['groq'], 'HTTP 500') === 0);
+$aiN = new PostAssist\Services\Ai(new Config(['groq_api_key' => 'Q']), static function (): array {
+    return [0, ''];
+});
+T::check('tarmoq yo\'q — aniq sabab', strpos($aiN->check()['groq'], 'tarmoq') === 0);
+
+// --- cron: bitta fon ish xato bersa ham qolganlari ishlaydi (oldin RSS xatosi tarif muddati/avto-o'chirishni to'xtatardi)
+$EXU = 7730;
+$textU($EXU, '/start');
+$db->exec("UPDATE users SET plan_type = 'pro', subscription_expires_at = ? WHERE user_id = ?", [$clock->modify('-1 hour')->format('Y-m-d H:i:s'), $EXU]);
+$db->exec('RENAME TABLE rss_feeds TO rss_feeds_tmp');
+$logFile = __DIR__ . '/../storage/bot.log';
+$logBefore = is_file($logFile) ? (int) filesize($logFile) : 0;
+try {
+    $schedX = new PostAssist\Services\Scheduler($appU, static function (int $us): void {
+    });
+    $schedX->run(5);
+} finally {
+    $db->exec('RENAME TABLE rss_feeds_tmp TO rss_feeds');
+}
+T::eq('RSS jadvali buzuq bo\'lsa ham tarif muddati ishladi (pro → free)', (string) $db->value('SELECT plan_type FROM users WHERE user_id = ?', [$EXU]), 'free');
+$logNew = is_file($logFile) ? (string) file_get_contents($logFile, false, null, $logBefore) : '';
+T::check('xato logga yozildi («rss»)', strpos($logNew, 'cron «rss» xato') !== false);

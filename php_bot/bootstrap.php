@@ -28,3 +28,17 @@ function postassist_config(): array
     }
     return $cfg;
 }
+
+/** Log yozish (storage/bot.log). 1 MB dan oshsa eski log bot.log.1 ga o'tadi — hosting diski to'lmaydi. */
+function postassist_log(string $msg): void
+{
+    $dir = __DIR__ . '/storage';
+    if (!is_dir($dir) || !is_writable($dir)) {
+        return;
+    }
+    $file = $dir . '/bot.log';
+    if (@filesize($file) > 1048576) {
+        @rename($file, $file . '.1');
+    }
+    @file_put_contents($file, '[' . gmdate('Y-m-d H:i:s') . '] ' . $msg . "\n", FILE_APPEND | LOCK_EX);
+}

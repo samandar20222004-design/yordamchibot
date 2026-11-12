@@ -12,7 +12,7 @@ Tashqi kutubxona (Composer) ishlatilmagan: fayllarni yuklasangiz bo'ldi.
 | | |
 |---|---|
 | PHP | **7.4** yoki yangi (8.x ham ishlaydi) |
-| Kengaytmalar | `pdo_mysql`, `curl`, `mbstring`, `json` (odatda hostingda yoqilgan) |
+| Kengaytmalar | `pdo_mysql`, `curl`, `mbstring`, `json` (odatda hostingda yoqilgan); `simplexml` — faqat 📰 RSS uchun (ixtiyoriy) |
 | Baza | MySQL 5.7+ yoki MariaDB 10.3+ |
 | Domen | **HTTPS** (bepul Let's Encrypt SSL yetadi) — Telegram webhook faqat HTTPS'ga yuboradi |
 | Cron | har daqiqada bir marta (rejalashtirilgan postlar uchun) |
@@ -115,16 +115,21 @@ Faqat Gemini rasm/ovozni tushunadi (Groq/OpenRouter — faqat matn). Fayl 5 MB g
 ## 📱 Mini App
 
 Qo'shimcha sozlash shart emas: `webhook_url` `https://.../webhook.php` bo'lsa, Mini App manzili avtomatik `.../app.php` bo'ladi.
-`setup.php` ni bir marta ochganda bot menyu tugmasi (chat pastidagi «Mini App») o'rnatiladi. Botda: asosiy menyuda «📱 Mini App»,
-`/app`, post preview'da «📱 Mini App'da» (qoralama shu yerda davom etadi). O'chirish: `config.php` → `'miniapp_enabled' => false`.
+`setup.php` ni bir marta ochganda bot menyu tugmasi (chat pastidagi «Mini App») o'rnatiladi. Botdan yana `/app` buyrug'i bilan
+ochiladi (pastki menyu va post preview'da alohida Mini App tugmasi yo'q — ataylab). O'chirish: `config.php` → `'miniapp_enabled' => false`.
 Ixtiyoriy: @BotFather → Bot → Bot Settings → Configure Mini App → shu manzil (chat ro'yxatidagi «Ochish» tugmasi uchun).
 
 ## ✨ AI yoqish
 
+AI — ixtiyoriy. Kalitsiz ham bot to'liq ishlaydi (post, rejalash, kanallar, to'lov, statistika, birja, jamoa); faqat AI tugmalari ko'rinmaydi.
 `config.php` ga kamida bitta bepul kalit yozing (bir nechta bo'lsa — biri ishlamasa keyingisi):
-- `gemini_api_key` — https://aistudio.google.com/apikey (tavsiya: o'zbek tilini yaxshi biladi)
-- `groq_api_key` — https://console.groq.com/keys
-- `openrouter_api_key` — https://openrouter.ai/keys
+- `gemini_api_key` — https://aistudio.google.com/apikey (tavsiya: o'zbek tilini yaxshi biladi; **rasm va ovozdan post faqat shu bilan**)
+- `groq_api_key` — https://console.groq.com/keys (faqat matn: AI post, tahrir, tarjima, kontent-reja, autopilot)
+- `openrouter_api_key` — https://openrouter.ai/keys (faqat matn, zaxira)
+
+`setup.php` har bir kalitni haqiqiy kichik so'rov bilan tekshiradi va natijani yozadi (`AI gemini OK (...)` yoki xato sababi).
+Model eskirsa (provayder o'chirsa) — `gemini_model` / `groq_model` / `openrouter_model` ga yangi nomni yozing (`config.example.php`).
+AI xatolari `storage/bot.log` ga yoziladi (kalitning o'zi yozilmaydi).
 
 Shundan keyin menyuda «✨ AI post» va preview → «⚙️ Qo'shimcha» → «✨ AI tahrir» chiqadi. Kunlik limit: FREE 5, PRO 40, ULTRA 100
 (`ai_daily` bilan o'zgaradi); tugasa ballar ishlatiladi; AI javob bermasa so'rov qaytariladi.
@@ -147,7 +152,7 @@ preview'dagi albomga qo'shiladi, jarayon uzilib qolsa — `cron.php` 10 soniyada
 
 ## Xatolarni ko'rish
 
-Xatolar `storage/bot.log` ga yoziladi (brauzerdan yopiq). Webhook holati:
+Xatolar `storage/bot.log` ga yoziladi (brauzerdan yopiq; 1 MB dan oshsa eskisi `bot.log.1` ga o'tadi — disk to'lmaydi). Webhook holati:
 `https://api.telegram.org/bot<TOKEN>/getWebhookInfo` — `last_error_message` maydoniga qarang.
 
 ## Testlar (dasturchi uchun)

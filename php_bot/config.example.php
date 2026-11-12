@@ -46,6 +46,10 @@ return [
     'gemini_api_key' => '',
     'groq_api_key' => '',
     'openrouter_api_key' => '',
+    // Model nomlari (ixtiyoriy). setup.php «model topilmadi» desa — provayder saytidagi yangi nomni shu yerga yozing.
+    // 'gemini_model' => 'gemini-2.5-flash',
+    // 'groq_model' => 'llama-3.3-70b-versatile',
+    // 'openrouter_model' => 'meta-llama/llama-3.3-70b-instruct:free',
     // Kunlik AI so'rovlari (standart: free 5, pro 40, ultra 100). Tugasa — ballar ishlatiladi.
     // 'ai_daily' => ['free' => 5, 'pro' => 40, 'ultra' => 100],
 

@@ -44,6 +44,6 @@ try {
     [$code, $data] = MiniAppApi::handle($app, $action, $in, $initData, $file);
     $out($code, $data);
 } catch (Throwable $e) {
-    @file_put_contents(__DIR__ . '/storage/bot.log', '[' . gmdate('Y-m-d H:i:s') . '] api xato: ' . $e->getMessage() . "\n", FILE_APPEND | LOCK_EX);
+    postassist_log('api xato: ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
     $out(500, ['ok' => false, 'error' => 'server']);
 }

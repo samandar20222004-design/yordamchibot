@@ -22,11 +22,29 @@ final class Ai
     private Config $config;
     /** @var callable|null */
     private $transport;
+    /** @var callable|null fn(string): void — provayder xatosi logga (kalitsiz) */
+    public $logger;
+    /** Oxirgi so'rov natijasi har provayder bo'yicha: name => 'ok' | 'HTTP 401: ...' (setup.php tekshiruvi uchun). */
+    public array $lastStatus = [];
 
     public function __construct(Config $config, ?callable $transport = null)
     {
         $this->config = $config;
         $this->transport = $transport;
+    }
+
+    /**
+     * Har bir ulangan AI kalitini kichik so'rov bilan tekshiradi (setup.php).
+     * @return array<string, string> name => 'OK (model)' yoki xato sababi
+     */
+    public function check(): array
+    {
+        $out = [];
+        foreach ($this->providers() as $p) {
+            $raw = $this->callProvider($p, 'Reply with one word.', 'Say: OK');
+            $out[$p['name']] = $raw !== null ? 'OK (' . $p['model'] . ')' : ($this->lastStatus[$p['name']] ?? 'xato') . ' — model: ' . $p['model'];
+        }
+        return $out;
     }
 
     /** @return array<int, array{name:string, kind:string, url:string, key:string, model:string}> */
@@ -200,10 +218,16 @@ final class Ai
         }
         [$status, $resp] = $this->http($p['url'], $headers, (string) $body);
         if ($status < 200 || $status >= 300) {
+            $data = json_decode($resp, true);
+            $err = is_array($data) ? ($data['error'] ?? '') : '';
+            $why = is_array($err) ? (string) ($err['message'] ?? '') : (is_string($err) ? $err : '');
+            $msg = ($status === 0 ? 'tarmoq/vaqt tugadi' : 'HTTP ' . $status) . ($why !== '' ? ': ' . mb_substr(str_replace($p['key'], '***', $why), 0, 160) : '');
+            $this->fail($p['name'], $msg);
             return null;
         }
         $data = json_decode($resp, true);
         if (!is_array($data)) {
+            $this->fail($p['name'], "javob JSON emas");
             return null;
         }
         if ($p['kind'] === 'gemini') {
@@ -214,10 +238,28 @@ final class Ai
                     $text .= (string) ($part['text'] ?? '');
                 }
             }
-            return $text !== '' ? $text : null;
+            if ($text === '') {
+                $this->fail($p['name'], "bo'sh javob (" . (string) ($data['candidates'][0]['finishReason'] ?? $data['promptFeedback']['blockReason'] ?? '?') . ')');
+                return null;
+            }
+            $this->lastStatus[$p['name']] = 'ok';
+            return $text;
         }
         $text = (string) ($data['choices'][0]['message']['content'] ?? '');
-        return $text !== '' ? $text : null;
+        if ($text === '') {
+            $this->fail($p['name'], "bo'sh javob");
+            return null;
+        }
+        $this->lastStatus[$p['name']] = 'ok';
+        return $text;
+    }
+
+    private function fail(string $name, string $msg): void
+    {
+        $this->lastStatus[$name] = $msg;
+        if ($this->logger !== null) {
+            ($this->logger)('AI ' . $name . ' ishlamadi: ' . $msg);
+        }
     }
 
     /** @return array{0:int,1:string} */

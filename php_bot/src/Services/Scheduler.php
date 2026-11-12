@@ -66,15 +66,44 @@ final class Scheduler
                     $stats[$r['status']]++;
                 }
             }
-            \PostAssist\Handlers\BroadcastHandler::work($this->app, $started + $budgetSec);
-            \PostAssist\Handlers\AutopilotHandler::work($this->app, $this, $started + $budgetSec);
-            \PostAssist\Handlers\RssHandler::work($this->app, $this, $started + $budgetSec);
-            \PostAssist\Handlers\StatsHandler::collect($this->app, $started + $budgetSec);
-            \PostAssist\Handlers\StatsHandler::weekly($this->app, $started + $budgetSec);
-            $this->autoDelete();
-            $this->finishStaleAlbums();
-            $this->planMaintenance();
-            $this->cleanup();
+            // Fon ishlar bir-biridan ajratilgan: bittasi xato bersa (masalan RSS), qolganlari (tarif muddati, avto-o'chirish...) to'xtamaydi
+            $deadline = $started + $budgetSec;
+            $jobs = [
+                'tarif muddati' => function (): void {
+                    $this->planMaintenance();
+                },
+                'avto-o\'chirish' => function (): void {
+                    $this->autoDelete();
+                },
+                'albom' => function (): void {
+                    $this->finishStaleAlbums();
+                },
+                'xabar tarqatish' => function () use ($deadline): void {
+                    \PostAssist\Handlers\BroadcastHandler::work($this->app, $deadline);
+                },
+                'autopilot' => function () use ($deadline): void {
+                    \PostAssist\Handlers\AutopilotHandler::work($this->app, $this, $deadline);
+                },
+                'rss' => function () use ($deadline): void {
+                    \PostAssist\Handlers\RssHandler::work($this->app, $this, $deadline);
+                },
+                'statistika' => function () use ($deadline): void {
+                    \PostAssist\Handlers\StatsHandler::collect($this->app, $deadline);
+                },
+                'haftalik hisobot' => function () use ($deadline): void {
+                    \PostAssist\Handlers\StatsHandler::weekly($this->app, $deadline);
+                },
+                'tozalash' => function (): void {
+                    $this->cleanup();
+                },
+            ];
+            foreach ($jobs as $name => $job) {
+                try {
+                    $job();
+                } catch (\Throwable $e) {
+                    $this->app->log('cron «' . $name . '» xato: ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine());
+                }
+            }
         } finally {
             $this->app->db->unlock(self::LOCK);
         }
