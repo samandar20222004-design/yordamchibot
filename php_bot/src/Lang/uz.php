@@ -16,7 +16,7 @@ return [
     'lang_choose' => "🌐 Tilni tanlang / Выберите язык / Choose language:",
     'lang_set' => "✅ Til o'zbekchaga o'zgartirildi.",
     'settings_title' => "⚙️ <b>Sozlamalar</b>\n\n👤 <b>{name}</b> · ID <code>{id}</code>\n\n<b>Hisob</b>\n{icon} Tarif: <b>{plan}</b> {until}\n📢 Kanallar: <b>{channels}</b>\n✨ AI (bugun qoldi): <b>{ai}</b>\n💰 Ball: <b>{balance}</b>\n\n<b>Sozlash</b>\n🌐 Til: <b>{lang}</b>\n🕒 Mintaqa: <b>{tz}</b> · {now}",
-    'btn_lang' => '🌐 Til / Язык',
+    'btn_lang' => "🌐 Til",
     'btn_help' => '❓ Yordam',
     'btn_back' => '◀️ Orqaga',
     'btn_cancel' => '❌ Bekor',
@@ -209,7 +209,8 @@ return [
     'rx_ask' => "👍 <b>Reaksiya tugmalari</b>\n\nObunachilar bosadi, sonlar postning o'zida ko'rinadi. To'plamni tanlang yoki o'zingiz yozing.",
     'rx_custom_ask' => "✍️ 1–6 ta emoji yuboring, probel bilan: <code>👍 ❤️ 🔥</code>",
     'rx_bad' => "❌ Faqat emoji yuboring (1–6 ta), masalan: <code>👍 ❤️ 🔥</code>",
-    'album_no_buttons' => "ℹ️ Albomga tugma va reaksiya qo'yib bo'lmaydi (Telegram cheklovi).",
+    'album_no_buttons' => "ℹ️ <b>Albomga havolali tugma va reaksiya qo'yib bo'lmaydi</b> — bu Telegram cheklovi (bir nechta rasm/video birga yuborilganda tugma qo'shilmaydi).
+Tugma kerak bo'lsa: bitta rasm yoki video bilan post qiling, yoki albomdan keyin tugmali alohida matn post yuboring.",
     'album_trimmed' => "ℹ️ Albomda ko'pi bilan {max} ta fayl bo'ladi — birinchi {max} tasi olindi.",
     'album_mixed' => "❌ Bu fayllarni bitta albomga qo'shib bo'lmaydi: rasm va video birga bo'ladi, hujjat va audio esa faqat o'z turi bilan.",
     'post_sent_repeat_notice' => "✅ Takroriy post chiqdi: <b>{channel}</b> ({when})\n🔄 Keyingisi: {next}. Endi har safar xabar bermayman.",
@@ -1067,4 +1068,6 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'fb_cancelled' => "Bekor qilindi.",
     'ma_fb' => "Taklif va xatolar",
     'btn_adm_fb' => "💬 Murojaatlar",
+    'ma_album_no_btn' => "ℹ️ Albomga tugma qo'yib bo'lmaydi (Telegram cheklovi). Tugma kerak bo'lsa — bitta rasm/video bilan post qiling.",
+    'album_preview_note' => "ℹ️ Albomga havolali tugma qo'yib bo'lmaydi (Telegram cheklovi). Tugma kerak bo'lsa — bitta rasm/video bilan post qiling.",
 ];

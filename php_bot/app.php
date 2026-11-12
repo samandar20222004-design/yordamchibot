@@ -1739,7 +1739,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
       '<label>' + esc(t('ma_repeat')) + '</label><select id="e-rep">' + repOpts + '</select>' +
       '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><div class="muted" style="margin:6px 0">' + esc(t('ma_twice_hint')) + '</div><div class="t12"><div><label>' + esc(t('ma_time1')) + '</label><input type="time" id="e-time1" value="' + esc(p.time1 || '') + '"></div>' +
       '<div><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div></div></div>' +
-      (p.type !== 'album' && p.type !== 'poll' ? '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="bed" id="e-rows"></div>' : '') +
+      (p.type !== 'album' && p.type !== 'poll' ? '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="bed" id="e-rows"></div>' : (p.type === 'album' ? '<div class="muted" style="margin-top:8px">' + esc(t('ma_album_no_btn')) + '</div>' : '')) +
       '<label>👍 ' + esc(t('ma_reactions')) + '</label><div id="e-rx"></div>' +
       '<label>⏳ ' + esc(t('ma_autodel')) + '</label><select id="e-ad">' + adOpts + '</select>' +
       (p.type !== 'album' ? '<label>🔒 ' + esc(t('ma_hidden')) + '</label><textarea id="e-hid" rows="2" maxlength="180">' + esc(p.hidden || '') + '</textarea>' : '') +

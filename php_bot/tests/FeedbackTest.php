@@ -106,3 +106,9 @@ T::check('app.php: Profilda «Taklif va xatolar»', strpos($appSrcU, 'data-br="f
 T::check('bot buyruqlari ro\'yxatida /feedback (3 tilda)', count(array_filter(['uz', 'ru', 'en'], static function ($l) {
     return in_array('feedback', array_column(PostAssist\Services\BotCommands::forLang($l), 'command'), true);
 })) === 3);
+
+// til tugmasi har tilda o'z nomida; albomga tugma qo'yib bo'lmasligi tushuntiriladi
+T::check('til tugmasi tarjima qilingan (uz/ru/en har xil)', PostAssist\I18n::t('btn_lang', 'uz') === '🌐 Til' && PostAssist\I18n::t('btn_lang', 'ru') === '🌐 Язык'
+    && PostAssist\I18n::t('btn_lang', 'en') === '🌐 Language');
+T::check('albom: tugma qo\'yib bo\'lmasligi 3 tilda tushuntirilgan, Mini App tahririda ham', strpos(PostAssist\I18n::t('album_preview_note', 'ru'), 'Telegram') !== false
+    && strpos(PostAssist\I18n::t('album_no_buttons', 'en'), 'Telegram') !== false && strpos($appSrcU, "t('ma_album_no_btn')") !== false);

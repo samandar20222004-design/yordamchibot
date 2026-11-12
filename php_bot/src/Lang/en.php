@@ -16,7 +16,7 @@ return [
     'lang_choose' => "🌐 Tilni tanlang / Выберите язык / Choose language:",
     'lang_set' => "✅ Language changed to English.",
     'settings_title' => "⚙️ <b>Settings</b>\n\n👤 <b>{name}</b> · ID <code>{id}</code>\n\n<b>Account</b>\n{icon} Plan: <b>{plan}</b> {until}\n📢 Channels: <b>{channels}</b>\n✨ AI (left today): <b>{ai}</b>\n💰 Points: <b>{balance}</b>\n\n<b>Preferences</b>\n🌐 Language: <b>{lang}</b>\n🕒 Time zone: <b>{tz}</b> · {now}",
-    'btn_lang' => '🌐 Til / Язык',
+    'btn_lang' => "🌐 Language",
     'btn_help' => '❓ Help',
     'btn_back' => '◀️ Back',
     'btn_cancel' => '❌ Cancel',
@@ -209,7 +209,8 @@ return [
     'rx_ask' => "👍 <b>Reaction buttons</b>\n\nSubscribers tap them and the counts show right on the post. Pick a set or write your own.",
     'rx_custom_ask' => "✍️ Send 1–6 emoji separated by spaces: <code>👍 ❤️ 🔥</code>",
     'rx_bad' => "❌ Send only emoji (1–6), e.g. <code>👍 ❤️ 🔥</code>",
-    'album_no_buttons' => "ℹ️ Albums can't have buttons or reactions (Telegram limitation).",
+    'album_no_buttons' => "ℹ️ <b>Albums can't have link buttons or reactions</b> — this is a Telegram limitation (buttons can't be attached to several photos/videos sent together).
+If you need a button: post a single photo or video, or send a separate text post with the button after the album.",
     'album_trimmed' => "ℹ️ An album can have at most {max} files — the first {max} were taken.",
     'album_mixed' => "❌ These files can't go in one album: photos and videos can be mixed, documents and audio only with their own type.",
     'post_sent_repeat_notice' => "✅ Repeating post published: <b>{channel}</b> ({when})\n🔄 Next: {next}. I won't notify you every time.",
@@ -1067,4 +1068,6 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'fb_cancelled' => "Cancelled.",
     'ma_fb' => "Feedback and bugs",
     'btn_adm_fb' => "💬 Feedback",
+    'ma_album_no_btn' => "ℹ️ Albums can't have buttons (Telegram limitation). Need a button — post a single photo/video.",
+    'album_preview_note' => "ℹ️ Albums can't have link buttons (Telegram limitation). Need a button — post a single photo/video.",
 ];

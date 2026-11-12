@@ -232,6 +232,9 @@ final class PostHandler
                 $ctx->reply($ctx->t('send_fail', ['reason' => $ctx->t(PostRender::reasonKey($res))]), Keyboards::inline($rows));
                 return;
             }
+            if ($d['type'] === 'album') {
+                $hint .= "\n\n" . $ctx->t('album_preview_note'); // tugma qo'yib bo'lmasligi oldindan aytiladi
+            }
             $ctx->reply($hint, Keyboards::inline($rows)); // albomga tugma ulanmaydi — boshqaruv alohida xabarda
             return;
         }

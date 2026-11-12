@@ -245,9 +245,9 @@ foreach ([901, 902, 903] as $m) {
 }
 T::eq('kutilmagan albom (preview paytida): faqat bitta «tushunmadim»', count($fake->of('sendMessage')), 1);
 $press($W, 'p:more');
-T::check('albomda tugma/reaksiya yo\'q (izoh bilan)', strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:btn') === false && strpos($fake->lastText(), 'Albomga tugma') !== false);
+T::check('albomda tugma/reaksiya yo\'q (izoh bilan)', strpos($mk($fake->of('sendMessage')[0] ?? []), 'p:btn') === false && strpos($fake->lastText(), 'Albomga havolali tugma') !== false);
 $press($W, 'p:btn');
-T::check('albomga tugma so\'ralmaydi', strpos($fake->lastText(), 'Albomga tugma') !== false);
+T::check('albomga tugma so\'ralmaydi', strpos($fake->lastText(), 'Albomga havolali tugma') !== false);
 $press($W, 'p:time');
 $press($W, 't:tom09');
 $ap = $last();
