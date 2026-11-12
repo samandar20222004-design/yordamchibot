@@ -260,6 +260,12 @@ $appU->links->create('mosl1', 'Sinov', $B, $ADMIN, $clock);
 T::check('havola egasida «🔗 Havolalarim» (Mini App\'da ham)', strpos(json_encode($r), 'ref:links') !== false);
 [$st, $r] = $br(['d' => 'ref:links']);
 T::check('ref:links — havolalar soni ko\'rinadi', strpos($r['screens'][0]['text'] ?? '', 'mosl1') !== false);
+T::check('boshlash kartasi: bajarilgan qadam ustidan chizilmaydi va xiralashmaydi (✓ belgi)', strpos($appSrcU, 'line-through') === false
+    && strpos($appSrcU, '.steps li.done::before{content:"✓"') !== false && strpos($appSrcU, "'ma_start_1_done'") !== false);
+foreach (['uz', 'ru', 'en'] as $lg) {
+    T::check("boshlash 3-qadam hozirgi bo'lim nomlari ($lg)", strpos(PostAssist\I18n::t('ma_start_3', $lg), PostAssist\I18n::t('ma_tab_posts', $lg)) !== false
+        && strpos(PostAssist\I18n::t('ma_ai_media', $lg), 'Gemini') === false);
+}
 T::check('app.php: ekran ichidagi «Orqaga» tugmasi yo\'q, Telegram BackButton ishlatiladi', strpos($appSrcU, 'id="br-back"') === false
     && strpos($appSrcU, 'id="mk-close"') === false && strpos($appSrcU, 'tg.BackButton.onClick') !== false);
 

@@ -283,7 +283,7 @@ input,select,textarea{padding:12px 13px}
 button.bbtn,a.bbtn{background:var(--glass)!important;color:var(--text)!important;box-shadow:var(--sh1)!important;border:1px solid var(--line)!important}
 .br-input{position:sticky;bottom:96px;display:flex;gap:8px;margin-top:10px;padding:8px;border-radius:18px;background:var(--glass);border:1px solid var(--line);box-shadow:var(--sh1);backdrop-filter:blur(14px)}
 .br-input input{flex:1}.br-input button{width:52px;padding:0}
-.steps{margin:0 0 12px;padding-left:20px;line-height:1.9;font-size:14px;color:var(--hint)}.steps li.now{color:var(--text);font-weight:700}.steps li.done{text-decoration:line-through;opacity:.6}
+.steps{margin:0 0 12px;padding:0;list-style:none;counter-reset:st;line-height:1.5;font-size:14px;color:var(--text)}.steps li{counter-increment:st;position:relative;padding:6px 0 6px 32px}.steps li::before{content:counter(st);position:absolute;left:0;top:5px;width:22px;height:22px;border-radius:50%;background:var(--soft);color:var(--hint);font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}.steps li.now{font-weight:700}.steps li.now::before{background:var(--accent);color:var(--accent-text)}.steps li.done::before{content:"✓";background:var(--ok,#22c55e);color:#fff}
 .card.start{border:1px solid var(--accent)}
 
 /* ---------- pastki panel: 4 bo'lim + «＋» (jami 5), chiziqli ikonkalar */
@@ -1830,6 +1830,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
     var step = !me.channels.length ? 1 : (me.stats.sent + me.stats.pending === 0 ? 2 : 0);
     $('start-card').style.display = step ? '' : 'none';
     ['stp1', 'stp2', 'stp3'].forEach(function (id, i) { $(id).className = i + 1 < step ? 'done' : (i + 1 === step ? 'now' : ''); });
+    $('stp1').setAttribute('data-t', step > 1 ? 'ma_start_1_done' : 'ma_start_1'); $('stp1').textContent = t($('stp1').getAttribute('data-t'));
     $('start-go').textContent = t(step === 1 ? 'ma_start_add' : 'ma_start_post');
     $('start-go').onclick = function () { if (step === 1) { brOpen('ch:add', 'ma_tab_channels', 'channels'); } else { go('post'); } };
   }

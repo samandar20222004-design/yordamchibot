@@ -901,7 +901,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_pl_paid' => "✅ Payment received! Plan activated.",
     'ma_pl_failed' => "Payment failed",
     'ma_ai_models' => "AI models",
-    'ma_ai_media' => "Post from photo and voice (Gemini)",
+    'ma_ai_media' => "Posts from photos and voice",
     'ma_ai_none' => "AI not connected: set gemini_api_key, groq_api_key or openrouter_api_key in config.php.",
     'ma_ai_main' => "main",
     'ma_tab_auto' => "Auto",
@@ -910,7 +910,7 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_start_title' => "🚀 Getting started — 3 steps",
     'ma_start_1' => "Connect your channel (the bot must be a channel admin)",
     'ma_start_2' => "Write your first post and choose «Now» or «Schedule»",
-    'ma_start_3' => "Track results in «Queue» and «Insights»",
+    'ma_start_3' => "Track results in «Posts» and Profile → «Insights»",
     'ma_start_add' => "📢 Connect channel",
     'ma_start_post' => "✍️ Write a post",
     'ma_hint_queue' => "All your posts here: waiting (edit or delete), published (text can be changed in the channel too) and failed (with the reason).",
@@ -1023,4 +1023,5 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'mk_search_ask' => "🔎 Type a channel name, @username or topic word (at least 2 letters).",
     'mk_search_res' => "🔎 Results for «{q}»: <b>{n}</b> channels. Your country first, then nearby ones.",
     'mk_search_empty' => "🔎 No channels found for «{q}». Try another word.",
+    'ma_start_1_done' => "Channel connected",
 ];

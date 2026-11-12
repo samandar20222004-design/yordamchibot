@@ -901,7 +901,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_pl_paid' => "✅ To'lov qabul qilindi! Tarif yoqildi.",
     'ma_pl_failed' => "To'lov amalga oshmadi",
     'ma_ai_models' => "AI modellar",
-    'ma_ai_media' => "Rasm va ovozdan post (Gemini)",
+    'ma_ai_media' => "Rasm va ovozdan post yozish",
     'ma_ai_none' => "AI ulanmagan: config.php da gemini_api_key, groq_api_key yoki openrouter_api_key kiriting.",
     'ma_ai_main' => "asosiy",
     'ma_tab_auto' => "Avto",
@@ -910,7 +910,7 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_start_title' => "🚀 Boshlash — 3 qadam",
     'ma_start_1' => "Kanalingizni ulang (bot kanalda admin bo'lishi kerak)",
     'ma_start_2' => "Birinchi postni yozing va «Hozir» yoki «Vaqt belgilash» ni tanlang",
-    'ma_start_3' => "Natijani «Reja» va «Tahlil» bo'limlarida kuzating",
+    'ma_start_3' => "Natijani «Postlar» bo'limida va Profil → «Tahlil»da kuzating",
     'ma_start_add' => "📢 Kanal ulash",
     'ma_start_post' => "✍️ Post yozish",
     'ma_hint_queue' => "Shu yerda hamma postlaringiz: kutayotganlar (tahrirlash va o'chirish mumkin), kanalga chiqqanlar (matnini kanalda ham o'zgartirish mumkin) va chiqmaganlar (sababi bilan).",
@@ -1023,4 +1023,5 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'mk_search_ask' => "🔎 Kanal nomi, @username yoki mavzu so'zini yozing (kamida 2 harf).",
     'mk_search_res' => "🔎 «{q}» bo'yicha: <b>{n}</b> ta kanal. Avval o'z davlatingiz, keyin yaqin davlatlar.",
     'mk_search_empty' => "🔎 «{q}» bo'yicha kanal topilmadi. Boshqa so'z bilan urinib ko'ring.",
+    'ma_start_1_done' => "Kanal ulandi",
 ];
