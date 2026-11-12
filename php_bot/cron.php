@@ -23,6 +23,13 @@ if (!$cli) {
 $app = App::fromConfig($cfg);
 try {
     $r = (new Scheduler($app))->run(50);
+    if (empty($r['locked'])) {
+        // «cron ishlayaptimi» belgisi (check.php shuni o'qiydi)
+        try {
+            $app->db->exec('INSERT INTO bot_settings (k, v, updated_at) VALUES (?, ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = VALUES(updated_at)', ['cron_last', gmdate('Y-m-d H:i:s')]);
+        } catch (Throwable $e) {
+        }
+    }
     echo $r['locked'] ? "boshqa cron ishlayapti\n" : "yuborildi={$r['sent']} qayta={$r['retry']} xato={$r['failed']}\n";
 } catch (Throwable $e) {
     $app->log('cron xato: ' . get_class($e) . ': ' . $e->getMessage());

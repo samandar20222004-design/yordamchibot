@@ -127,3 +127,4 @@ if (!$app->ai->enabled()) {
     $out('Rasm/ovozdan post: ' . ($app->ai->mediaEnabled() ? 'yoqilgan (Gemini)' : 'o\'chiq — buning uchun gemini_api_key kerak'));
 }
 $out('Tayyor. Endi cron.php ni har daqiqaga qo\'ying (README.md).');
+$out('Keyin hammasini bir sahifada tekshirish: check.php?key=CRON_KEY');

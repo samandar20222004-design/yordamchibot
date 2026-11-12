@@ -39,6 +39,13 @@ Tashqi kutubxona (Composer) ishlatilmagan: fayllarni yuklasangiz bo'ldi.
 6. **Tekshiring.** Botga `/start` yozing → menyu chiqadi. Botni kanalingizga admin qiling, «📢 Kanallarim» → «➕ Kanal ulash»,
    kanaldan postni forward qiling. «✍️ Post yaratish» → matn → «🚀 Hozir yuborish».
 
+## 🔎 Umumiy tekshiruv (`check.php`)
+
+`https://domeningiz.uz/PostAssist/check.php?key=CRON_KEY` — bitta sahifada: PHP va kengaytmalar, `config.php`, baza va jadvallar, bot tokeni,
+webhook (manzil, xato, kutilayotgan yangilanishlar), **cron ishlayaptimi**, kechikkan postlar, AI kalitlari, storage, oxirgi xatolar.
+✅ yaxshi, ⚠️ ogohlantirish, ❌ tuzatish kerak. Token, parol va kalit ko'rsatilmaydi, hech narsa o'zgartirilmaydi.
+AI so'rovisiz tezroq: `...&noai=1`. Sozlagandan keyin va muammo bo'lganda shuni oching.
+
 ## Yangilash (oldingi bosqich o'rnatilgan bo'lsa)
 
 1. Yangi fayllarni eskilari ustiga yuklang. **`config.php` va `storage/` ga tegmang.**

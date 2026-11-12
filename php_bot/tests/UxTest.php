@@ -548,3 +548,53 @@ try {
 T::eq('RSS jadvali buzuq bo\'lsa ham tarif muddati ishladi (pro → free)', (string) $db->value('SELECT plan_type FROM users WHERE user_id = ?', [$EXU]), 'free');
 $logNew = is_file($logFile) ? (string) file_get_contents($logFile, false, null, $logBefore) : '';
 T::check('xato logga yozildi («rss»)', strpos($logNew, 'cron «rss» xato') !== false);
+
+// --- check.php: umumiy sog'lik tekshiruvi (HealthCheck) — maxfiy qiymat chiqmaydi, muammolar topiladi
+$hcCfg = ['bot_token' => $config->str('bot_token'), 'bot_username' => 'PostAssistrobot', 'admin_ids' => [$ADMIN], 'webhook_url' => 'https://ex.uz/webhook.php',
+    'webhook_secret' => 'wsecret-1234567890', 'cron_key' => 'cronkey-1234567890', 'db_pass' => 'DBPASS-SECRET', 'gemini_api_key' => 'GEMINI-SECRET-KEY'];
+$hcLookup = static function (array $rows, string $name): ?array {
+    foreach ($rows as $r) {
+        if ($r[1] === $name) {
+            return $r;
+        }
+    }
+    return null;
+};
+$hcApp = new App(new Config($hcCfg), $db, new Telegram('x', 'https://x', $fake), static function () use (&$clock) {
+    return $clock;
+});
+$fake->forced['getMe'] = [['ok' => true, 'result' => ['username' => 'PostAssistrobot']]];
+$fake->forced['getWebhookInfo'] = [['ok' => true, 'result' => ['url' => 'https://ex.uz/webhook.php', 'pending_update_count' => 0]]];
+$db->exec("DELETE FROM bot_settings WHERE k = 'cron_last'");
+$hcRows = (new PostAssist\Services\HealthCheck($hcApp, $hcCfg, dirname(__DIR__)))->run(false);
+T::check('sog\'lik: baza, jadvallar, bot, webhook — OK', $hcLookup($hcRows, 'Baza')[0] === 'ok' && $hcLookup($hcRows, 'Jadvallar')[0] === 'ok'
+    && $hcLookup($hcRows, 'Bot')[0] === 'ok' && $hcLookup($hcRows, 'Webhook')[0] === 'ok', json_encode($hcRows, JSON_UNESCAPED_UNICODE));
+T::eq('sog\'lik: cron hali ishlamagan — xato', $hcLookup($hcRows, 'Cron')[0], 'fail');
+$db->exec("INSERT INTO bot_settings (k, v, updated_at) VALUES ('cron_last', ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE v = VALUES(v)", [gmdate('Y-m-d H:i:s')]);
+$fake->forced['getMe'] = [['ok' => true, 'result' => ['username' => 'PostAssistrobot']]];
+$fake->forced['getWebhookInfo'] = [['ok' => true, 'result' => ['url' => 'https://boshqa.uz/webhook.php', 'pending_update_count' => 50, 'last_error_message' => 'Connection timed out', 'last_error_date' => time()]]];
+$hcRows2 = (new PostAssist\Services\HealthCheck($hcApp, $hcCfg, dirname(__DIR__)))->run(false);
+T::eq('sog\'lik: cron yangi — OK', $hcLookup($hcRows2, 'Cron')[0], 'ok');
+T::eq('sog\'lik: webhook boshqa manzilda — xato', $hcLookup($hcRows2, 'Webhook')[0], 'fail');
+T::eq('sog\'lik: ko\'p kutilayotgan yangilanish — ogohlantirish', $hcLookup($hcRows2, 'Kutilayotgan yangilanishlar')[0], 'warn');
+T::eq('sog\'lik: Telegram webhook xatosi ko\'rinadi', $hcLookup($hcRows2, 'Telegram webhook xatosi (oxirgi soat)')[0], 'fail');
+$fake->forced['getMe'] = [['ok' => true, 'result' => ['username' => 'BoshqaBot']]];
+$fake->forced['getWebhookInfo'] = [['ok' => true, 'result' => ['url' => 'https://ex.uz/webhook.php']]];
+$hcRows3 = (new PostAssist\Services\HealthCheck($hcApp, $hcCfg, dirname(__DIR__)))->run(false);
+T::eq('sog\'lik: token boshqa botniki — xato', $hcLookup($hcRows3, 'Bot')[0], 'fail');
+$fake->forced['getMe'] = [['ok' => false, 'description' => 'Unauthorized']];
+$hcRows4 = (new PostAssist\Services\HealthCheck($hcApp, $hcCfg, dirname(__DIR__)))->run(false);
+T::check('sog\'lik: noto\'g\'ri token — sabab bilan xato', $hcLookup($hcRows4, 'Bot tokeni')[0] === 'fail' && strpos($hcLookup($hcRows4, 'Bot tokeni')[2], 'Unauthorized') !== false);
+$all = json_encode([$hcRows, $hcRows2, $hcRows3, $hcRows4], JSON_UNESCAPED_UNICODE);
+T::check('sog\'lik: token, parol, kalit natijada YO\'Q', strpos($all, 'DBPASS-SECRET') === false && strpos($all, 'GEMINI-SECRET-KEY') === false
+    && strpos($all, 'wsecret-1234567890') === false && strpos($all, $config->str('bot_token')) === false);
+T::check('sog\'lik: summary', strpos(PostAssist\Services\HealthCheck::summary($hcRows2), 'MUAMMO') !== false);
+$logSecret = dirname(__DIR__) . '/storage/bot.log';
+@file_put_contents($logSecret, '[' . gmdate('Y-m-d H:i:s') . '] webhook xato: so\'rov DBPASS-SECRET bilan yiqildi' . "\n", FILE_APPEND);
+$fake->forced['getMe'] = [['ok' => true, 'result' => ['username' => 'PostAssistrobot']]];
+$fake->forced['getWebhookInfo'] = [['ok' => true, 'result' => ['url' => 'https://ex.uz/webhook.php']]];
+$hcRows5 = (new PostAssist\Services\HealthCheck($hcApp, $hcCfg, dirname(__DIR__)))->run(false);
+$logRow = $hcLookup($hcRows5, 'Oxirgi xatolar (bot.log)');
+T::check('sog\'lik: log xatosi ko\'rinadi, lekin maxfiy qism yashirilgan', $logRow !== null && $logRow[0] === 'warn' && strpos($logRow[2], 'DBPASS-SECRET') === false && strpos($logRow[2], '***') !== false);
+$appSrcC = (string) file_get_contents(dirname(__DIR__) . '/cron.php');
+T::check('cron.php: «cron_last» belgisini yozadi', strpos($appSrcC, "'cron_last'") !== false);
