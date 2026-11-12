@@ -147,7 +147,8 @@ T::check('pastki menyu: Mini App yo\'q, «⚙️ Sozlamalar» qisqa', strpos($ma
 // --- Mini App premium qatlami va ixcham birja
 $appSrcU = (string) file_get_contents(__DIR__ . '/../app.php');
 T::check('app.php: premium uslub qatlami, Telegram Premium belgisi, ixcham birja', strpos($appSrcU, 'id="ui-premium"') !== false
-    && strpos($appSrcU, "setAttribute('data-tgp'") !== false && strpos($appSrcU, 'class="chips scroll" id="mk-cats"') !== false && strpos($appSrcU, 'class="mk-head"') !== false);
+    && strpos($appSrcU, "setAttribute('data-tgp'") !== false && strpos($appSrcU, 'class="chips scroll" id="mk-cats"') !== false && strpos($appSrcU, 'class="mk-bar"') !== false // birja: qidiruv · davlat · suhbat · e'lon — bitta qator
+    && strpos($appSrcU, 'id="ui-compact"') !== false && strpos($appSrcU, "closest('.hint, .mk-note')") !== false);
 
 // --- Mini App: tariflar va Stars to'lovi (createInvoiceLink)
 $mkInitU = static function (array $user, int $authDate, string $tok) {

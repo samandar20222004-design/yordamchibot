@@ -358,6 +358,57 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .rxp button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.rxsel{margin-top:8px;font-size:22px;letter-spacing:4px;min-height:28px}
 .pbrow{display:flex;gap:4px;max-width:92%}.pbrow .pbtn{flex:1;max-width:none}
 </style>
+<style id="ui-compact">
+/* Ixcham qatlam: hamma sahifada kichikroq bo'shliq va o'lchamlar (telefon ekraniga ko'proq sig'adi) */
+html body main{padding:0 12px}
+html body .card{padding:12px;margin:0 0 10px}
+html body .card h3{margin:0 0 8px;font-size:14.5px}
+html body .stats{gap:8px;margin-bottom:10px}
+html body .stat{padding:9px 6px}
+html body input,html body select,html body textarea{padding:9px 11px;font-size:15px}
+html body button,html body .btn{padding:10px 12px}
+html body button.small{padding:6px 10px;font-size:13px}
+html body .chips{gap:6px}
+html body .chip{padding:6px 11px;font-size:13px}
+html body .chips.seg{padding:3px}
+html body .chips.seg .chip{padding:7px 4px}
+html body .li{padding:10px 12px}
+html body .li i{width:28px;height:28px;flex-basis:28px;font-size:15px;border-radius:9px}
+html body .li-body{padding:2px 12px 12px}
+html body .list{margin-bottom:10px}
+/* uzun tushuntirishlar — 1 qator, bosilsa ochiladi */
+html body .hint,html body .mk-note{margin:0 2px 8px;padding:7px 10px;font-size:12.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+html body .hint:not(.open),html body .mk-note:not(.open){display:-webkit-box!important;-webkit-line-clamp:1;-webkit-box-orient:vertical;box-sizing:border-box;max-height:calc(1.4em + 14px)}
+html body .mk-note{padding:0 2px;background:none}
+html body .mk-note:not(.open){max-height:1.4em}
+html body .hint:not(.open),html body .mk-note:not(.open){white-space:nowrap;text-overflow:ellipsis}
+/* bosh sahifa: 4 ta asosiy amal bir qatorda (ikonka ustida, yozuv ostida) */
+html body #p-home .actions{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(0,1fr));gap:8px;margin-bottom:10px}
+html body #p-home .actions .big{min-height:0;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:5px;padding:10px 4px;border-radius:16px;font-size:12.5px;line-height:1.15}
+html body #p-home .actions .big span{width:34px;height:34px;font-size:18px;border-radius:11px;display:grid;place-items:center;margin:0}
+html body #p-home .actions .big b{font-weight:700}
+html body .stat b{font-size:20px}
+html body .hint.open,html body .mk-note.open{display:block}
+/* birja kartalari: ixcham, belgilar bir qatorda */
+html body .mk-item{padding:10px 12px;gap:10px;margin-bottom:8px}
+html body .mk-item .mk-av{width:36px;height:36px;flex-basis:36px;font-size:15px;border-radius:11px}
+html body .mk-item .t{font-size:14.5px}
+html body .mk-item .tag{font-size:11px;padding:2px 7px;margin:4px 4px 0 0}
+/* post sahifasi: kichik kartalar zichroq */
+html body #p-post .card{padding:10px 12px}
+html body .toolbar button{padding:7px 0}
+/* kunlar lentasi */
+html body .days{gap:5px;margin-bottom:8px}
+html body .day{flex-basis:44px;width:44px!important;padding:5px 0 4px!important;border-radius:13px!important}
+html body .day small{font-size:9.5px}html body .day b{font-size:15px}html body .day i{height:11px;font-size:9px}
+html body .q-search{margin-bottom:8px}
+/* birja: bitta qator — qidiruv · davlat · suhbatlar · e'lon qo'yish */
+html body .mk-bar{display:flex;gap:6px;align-items:center;margin:0 0 8px}
+html body .mk-bar input{flex:1;min-width:0}
+html body .mk-bar select{flex:0 0 auto;width:auto;max-width:34%;padding:9px 6px}
+html body .mk-bar button{flex:0 0 auto;width:40px;height:40px;padding:0;border-radius:12px;font-size:17px}
+html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
+</style>
 </head>
 <body>
 <header><div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3 10 14"/><path d="M21 3 14.5 21l-4.5-7-7-4.5z"/></svg></div><h1>PostAssist</h1><span class="badge" id="plan">…</span></header>
@@ -477,10 +528,9 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
   </section>
 
   <section class="page" id="p-market">
-    <div class="mk-head"><button class="small ghost" id="mk-threads">💬 <span data-t="ma_mk_threads"></span></button>
-      <button class="small" data-br="mk:pub" data-bt="ma_mk_publish">➕ <span data-t="ma_mk_publish"></span></button></div>
+    <div class="mk-bar"><input type="search" id="mk-q" data-ph="ma_mk_search" maxlength="64" autocomplete="off"><select id="mk-country"></select>
+      <button class="ghost" id="mk-threads" data-tip="ma_mk_threads">💬</button><button data-br="mk:pub" data-bt="ma_mk_publish" data-tip="ma_mk_publish">＋</button></div>
     <div class="muted mk-note" id="mk-note" data-t="ma_mk_note"></div>
-    <div class="mk-filter"><input type="search" id="mk-q" data-ph="ma_mk_search" maxlength="64" autocomplete="off"><select id="mk-country"></select></div>
     <div class="muted mk-order" id="mk-order"></div>
     <div class="chips scroll" id="mk-cats"></div>
     <div id="mk-mine"></div>
@@ -629,6 +679,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = t(el.getAttribute('data-t')); });
     $('ed').setAttribute('data-ph', t('ma_text_ph'));
     document.querySelectorAll('input[data-ph]').forEach(function (el) { el.placeholder = t(el.getAttribute('data-ph')); });
+    document.querySelectorAll('[data-tip]').forEach(function (el) { el.title = t(el.getAttribute('data-tip')); el.setAttribute('aria-label', el.title); });
     if (typeof renderUi === 'function') { renderUi(); }
   }
 
@@ -904,6 +955,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       if (r.country && !(r.countries || []).some(function (c) { return c.code === r.country; })) { opts += '<option value="' + esc(r.country) + '" selected>' + esc(r.country) + ' (0)</option>'; }
       $('mk-country').innerHTML = opts; $('mk-country').value = r.country || '';
       $('mk-order').textContent = r.country ? '' : t('ma_mk_order', {region: r.my_region});
+      $('mk-note').title = t('ma_mk_order', {region: r.my_region});
       $('mk-cats').innerHTML = '<span class="chip' + (mk.cat ? '' : ' on') + '" data-cat="">' + esc(t('ma_mk_all')) + '</span>' +
         r.categories.map(function (c) { return '<span class="chip' + (mk.cat === c.key ? ' on' : '') + '" data-cat="' + esc(c.key) + '">' + esc(c.name) + '</span>'; }).join('');
       document.querySelectorAll('[data-cat]').forEach(function (el) { el.onclick = function () { haptic(); mk.cat = el.getAttribute('data-cat') || null; mk.page = 0; loadMarket(); }; });
@@ -1073,6 +1125,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     var el = document.createElement(tag);
     try { el.appendChild(r.extractContents()); el.querySelectorAll(tag).forEach(function (x) { while (x.firstChild) { x.parentNode.insertBefore(x.firstChild, x); } x.remove(); }); r.insertNode(el); } catch (e) {}
   }
+  // uzun tushuntirish bloklari: 1 qatorda turadi, bosilsa to'liq ochiladi
+  document.addEventListener('click', function (e) { var h = e.target.closest('.hint, .mk-note'); if (h) { h.classList.toggle('open'); } });
   // ---------- gorizontal qatorlar (bo'limlar, toifalar, kunlar): bosilgani o'rtaga keladi; kompyuterda g'ildirak va sichqoncha bilan suriladi
   var HSEL = '.chips.scroll, .days';
   function hCenter(row, item) {
