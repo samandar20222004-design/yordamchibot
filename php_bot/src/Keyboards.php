@@ -97,12 +97,12 @@ final class Keyboards
     {
         $b = static fn (string $k, string $d) => self::btn(I18n::t($k, $lang), $d);
         $plan = in_array($tier, ['free'], true) ? 'btn_set_upgrade' : 'btn_set_plan';
-        $last = [$b('btn_help', 'set:help'), self::btn(I18n::t('btn_home', $lang), 'm:home')];
         return self::inline([
             [$b($plan, 'pl:show'), $b('btn_promo', 'promo:ask')],
             [$b('btn_lang', 'set:lang'), $b('btn_timezone', 'set:tz')],
             [$b('btn_team', 'set:team'), $b('btn_invite', 'ref:show')],
-            $last,
+            [$b('btn_feedback', 'fb:start'), $b('btn_help', 'set:help')], // 💬 taklif / xato — sozlamalar oxirida, yordam yonida
+            [self::btn(I18n::t('btn_home', $lang), 'm:home')],
         ]);
     }
 
@@ -269,8 +269,8 @@ final class Keyboards
             [self::btn(I18n::t('btn_adm_promos', $lang), 'a:promos'), self::btn(I18n::t('btn_adm_links', $lang), 'a:links')],
             [self::btn(I18n::t('btn_adm_bc', $lang), 'a:bc'), self::btn(I18n::t('btn_adm_fs', $lang), 'a:fs')],
             [self::btn(I18n::t('btn_adm_rc', $lang), 'a:rc'), self::btn(I18n::t('btn_adm_look', $lang), 'a:look')],
-            [self::btn(I18n::t('btn_adm_help', $lang), 'a:help'), self::btn(I18n::t('btn_refresh', $lang), 'a:stats')],
-            self::navRow($lang),
+            [self::btn(I18n::t('btn_adm_fb', $lang), 'a:fb'), self::btn(I18n::t('btn_adm_help', $lang), 'a:help')],
+            [self::btn(I18n::t('btn_refresh', $lang), 'a:stats'), self::btn(I18n::t('btn_home', $lang), 'm:home')],
         ]);
     }
 

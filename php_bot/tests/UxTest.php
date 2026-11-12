@@ -87,7 +87,8 @@ $kb = $lastKb();
 T::check('Sozlamalar: FREE da «💎 PRO olish», guruhlangan tugmalar, Mini App tugmasi yo\'q', strpos($kb, 'PRO olish') !== false && strpos($kb, 'set:tz') !== false
     && strpos($kb, 'set:team') !== false && strpos($kb, 'ref:show') !== false && strpos($kb, 'web_app') === false && strpos($kb, 'm:home') !== false);
 $s = json_decode($kb, true)['inline_keyboard'] ?? [];
-T::check('Sozlamalar: 2 ustunli, oxirida [Yordam][Menyu]', $rowsOk($s) && end($s)[0]['callback_data'] === 'set:help' && end($s)[1]['callback_data'] === 'm:home');
+T::check('Sozlamalar: 2 ustunli, oxirida [💬 Taklif / xato][Yordam] va [Menyu]', $rowsOk($s) && $s[count($s) - 2][0]['callback_data'] === 'fb:start'
+    && $s[count($s) - 2][1]['callback_data'] === 'set:help' && end($s)[0]['callback_data'] === 'm:home');
 
 // --- eski (Python bot) pastki menyu yorliqlari
 $textU($X, '⚙️ Sozlamalar / Ko\'proq');

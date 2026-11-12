@@ -9,6 +9,7 @@ use PostAssist\Handlers\AutopilotHandler;
 use PostAssist\Handlers\ContentPlanHandler;
 use PostAssist\Handlers\BroadcastHandler;
 use PostAssist\Handlers\CardHandler;
+use PostAssist\Handlers\FeedbackHandler;
 use PostAssist\Handlers\ForceSubHandler;
 use PostAssist\Handlers\HiddenHandler;
 use PostAssist\Handlers\BulkHandler;
@@ -245,6 +246,12 @@ final class Router
                 case 'mk_search':
                     MarketHandler::search($ctx, $text);
                     return;
+                case 'fb_text':
+                    FeedbackHandler::input($ctx, $state);
+                    return;
+                case 'fb_reply':
+                    FeedbackHandler::replyInput($ctx, $state);
+                    return;
                 case 'receipt_wait':
                     CardHandler::receipt($ctx, $state);
                     return;
@@ -372,6 +379,13 @@ final class Router
                 return true;
             case '/market':
                 MarketHandler::home($ctx);
+                return true;
+            case '/feedback':
+                if ($this->app->isAdmin($ctx->userId)) {
+                    FeedbackHandler::adminList($ctx);
+                } else {
+                    FeedbackHandler::start($ctx);
+                }
                 return true;
             case '/report':
                 StatsHandler::reportNow($ctx);
@@ -512,7 +526,16 @@ final class Router
         } elseif ($data === 'promo:ask') {
             PlansHandler::askPromo($ctx);
         } elseif ($data === 'set:help') {
-            $ctx->edit($ctx->t('help'), Keyboards::nav($ctx->lang, 'set:show'));
+            $ctx->edit($ctx->t('help'), Keyboards::inline([[Keyboards::btn($ctx->t('btn_feedback'), 'fb:start')], Keyboards::navRow($ctx->lang, 'set:show')]));
+        } elseif ($data === 'fb:start') {
+            FeedbackHandler::start($ctx, true);
+        } elseif (preg_match('/^fb:k:(bug|idea|q)$/', $data, $m)) {
+            FeedbackHandler::kind($ctx, $m[1]);
+        } elseif (preg_match('/^fb:(r|ok|bl|ub|v):(\d{1,20})$/', $data, $m)) {
+            FeedbackHandler::admin($ctx, $m[1], (int) $m[2]);
+        } elseif ($data === 'fb:cx') {
+            $this->app->states->clear($ctx->userId);
+            $ctx->replyMenu($ctx->t('fb_cancelled'));
         } elseif ($data === 'p:new') {
             $this->app->states->clear($ctx->userId);
             PostHandler::begin($ctx);
@@ -609,6 +632,10 @@ final class Router
             CardHandler::decide($ctx, $m[1], (int) $m[2]);
         } elseif (preg_match('/^bc:(go|no)$/', $data, $m)) {
             BroadcastHandler::confirm($ctx, $m[1] === 'go');
+        } elseif ($data === 'a:fb') {
+            if ($this->app->isAdmin($ctx->userId)) {
+                FeedbackHandler::adminList($ctx);
+            }
         } elseif (preg_match('/^a:(stats|promos|links|help|bc|fs|rc)$/', $data, $m)) {
             if ($this->app->isAdmin($ctx->userId)) {
                 $map = ['promos' => '/promos', 'links' => '/links', 'help' => '/admin_help', 'bc' => '/broadcast', 'fs' => '/force_list', 'rc' => '/receipts'];

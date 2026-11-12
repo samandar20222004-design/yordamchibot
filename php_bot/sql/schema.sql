@@ -518,3 +518,23 @@ CREATE TABLE IF NOT EXISTS bot_settings (
     v MEDIUMTEXT NOT NULL,
     updated_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 💬 Fikr-mulohaza: xato, taklif, savol (foydalanuvchi -> admin, admin javobi botdan)
+CREATE TABLE IF NOT EXISTS feedback (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    kind VARCHAR(10) NOT NULL,
+    body TEXT NOT NULL,
+    body_hash CHAR(40) NOT NULL,
+    file_id VARCHAR(255) NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'open',
+    created_at DATETIME NOT NULL,
+    answered_at DATETIME NULL,
+    KEY idx_fb_user (user_id, created_at),
+    KEY idx_fb_status (status, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS feedback_blocks (
+    user_id BIGINT PRIMARY KEY,
+    created_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

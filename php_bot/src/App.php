@@ -16,6 +16,7 @@ use PostAssist\Repo\Albums;
 use PostAssist\Repo\Broadcasts;
 use PostAssist\Repo\ForcedChannels;
 use PostAssist\Repo\Receipts;
+use PostAssist\Repo\Feedback;
 use PostAssist\Repo\Team;
 use PostAssist\Repo\Channels;
 use PostAssist\Repo\Credits;
@@ -48,6 +49,7 @@ final class App
     public Albums $albums;
     public AiUsage $aiUsage;
     public Receipts $receipts;
+    public Feedback $feedback;
     public Broadcasts $broadcasts;
     public ForcedChannels $forced;
     public Team $team;
@@ -89,6 +91,7 @@ final class App
         $this->albums = new Albums($db);
         $this->aiUsage = new AiUsage($db, $this->credits);
         $this->receipts = new Receipts($db);
+        $this->feedback = new Feedback($db);
         $this->broadcasts = new Broadcasts($db);
         $this->forced = new ForcedChannels($db);
         $this->team = new Team($db);

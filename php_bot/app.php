@@ -593,6 +593,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
     <div class="grp-t" data-t="ma_grp_app"></div>
     <div class="list">
       <button class="li" id="me-admin" data-go="admin" style="display:none"><i>👑</i><span data-t="ma_admin_title"></span><b>›</b></button>
+      <button class="li" data-br="fb:start" data-bt="ma_fb"><i>💬</i><span data-t="ma_fb"></span><b>›</b></button>
       <button class="li" data-br="set:help" data-bt="ma_li_help"><i>❓</i><span data-t="ma_li_help"></span><b>›</b></button>
       <button class="li" id="me-bot"><i>🤖</i><span data-t="ma_open_bot"></span><b>›</b></button>
     </div>
