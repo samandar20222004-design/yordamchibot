@@ -164,6 +164,12 @@ final class App
         return $this->tzCache[$userId];
     }
 
+    /** Foydalanuvchi vaqt mintaqasini o'zi tanlaganmi (yoki Mini App telefondan aniqlaganmi). */
+    public function tzChosen(int $userId): bool
+    {
+        return (string) $this->db->value('SELECT timezone FROM users WHERE user_id = ?', [$userId]) !== '';
+    }
+
     public function forgetTz(int $userId): void
     {
         unset($this->tzCache[$userId]);

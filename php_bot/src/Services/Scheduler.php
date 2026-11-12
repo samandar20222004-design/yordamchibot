@@ -35,6 +35,32 @@ final class Scheduler
     }
 
     /** @return array{sent:int, retry:int, failed:int, locked:bool} */
+    /**
+     * Zaxira: hostingda cron sozlanmagan yoki to'xtagan bo'lsa (oxirgisi 2 daqiqadan eski), webhook har yangilanishdan keyin
+     * navbatni o'zi yuboradi — daqiqasiga ko'pi bilan bir marta. Cron ishlab tursa hech narsa qilmaydi.
+     * @return bool ishga tushdimi
+     */
+    public function fallbackTick(int $budgetSec = 20): bool
+    {
+        $db = $this->app->db;
+        try {
+            $last = (string) $db->value("SELECT v FROM bot_settings WHERE k = 'cron_last'");
+            if ($last !== '' && strtotime($last . ' UTC') > $this->app->now()->getTimestamp() - 120) {
+                return false; // cron ishlayapti
+            }
+            $nowSql = $this->app->nowSql();
+            // daqiqasiga bir marta (atomik: faqat bitta so'rov «yutadi»)
+            $db->exec("INSERT IGNORE INTO bot_settings (k, v, updated_at) VALUES ('webhook_tick', '', ?)", [$nowSql]);
+            if ($db->exec("UPDATE bot_settings SET v = ?, updated_at = ? WHERE k = 'webhook_tick' AND (v = '' OR v <= ? - INTERVAL 60 SECOND)", [$nowSql, $nowSql, $nowSql]) === 0) {
+                return false;
+            }
+        } catch (\Throwable $e) {
+            return false; // jadval yo'q (setup.php ishlamagan) — zaxira o'chiq
+        }
+        $this->run($budgetSec);
+        return true;
+    }
+
     public function run(int $budgetSec = 50): array
     {
         $stats = ['sent' => 0, 'retry' => 0, 'failed' => 0, 'locked' => false];

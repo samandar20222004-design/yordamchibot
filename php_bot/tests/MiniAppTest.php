@@ -75,7 +75,7 @@ T::eq('noto\'g\'ri vaqt formati', $bad(['when' => '31.12 10:00']), '400:bad_time
 T::eq('noto\'g\'ri reaksiya', $bad(['reactions' => 'salom']), '400:reactions');
 T::eq('noto\'g\'ri avto-o\'chirish', $bad(['delete_after' => 7]), '400:delete_after');
 T::eq('noto\'g\'ri media file_id', $bad(['type' => 'photo', 'file_id' => '../x']), '400:file');
-T::eq('takror: ikki vaqt bir xil', $bad(['repeat' => 'twice', 'time2' => '09:00', 'when' => $clock->modify('+1 day')->setTimezone(new DateTimeZone('Europe/Moscow'))->format('Y-m-d') . 'T09:00']), '400:repeat');
+T::eq('takror: ikki vaqt bir xil', $bad(['repeat' => 'twice', 'time2' => '09:00', 'when' => $clock->modify('+1 day')->setTimezone(new DateTimeZone('Europe/Moscow'))->format('Y-m-d') . 'T09:00']), '400:twice'); // aniq xato kodi: Mini App «ikkala vaqtni kiriting» deydi
 // ro'yxat, tahrir, bekor
 [$st, $r] = $call('posts');
 T::check('posts: navbat ro\'yxati, takror belgisi', $st === 200 && count($r['posts']) >= 2 && in_array('Kuniga 2 marta: 09:00 va 18:30', array_column($r['posts'], 'repeat'), true));

@@ -351,6 +351,9 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
 .bed-btn{flex:1 1 140px;display:grid;grid-template-columns:1fr auto;gap:4px;min-width:0}.bed-btn .bt{grid-column:1}.bed-btn .bu{grid-column:1;font-size:13px}
 .bed-btn .bx{grid-column:2;grid-row:1/3;width:auto!important;padding:4px 8px!important;align-self:center}.badd{width:auto!important;align-self:flex-start}
 .st-sub{margin-top:12px;padding-top:10px;border-top:1px solid var(--line,rgba(127,127,127,.18))}.st-top{display:flex;gap:10px;margin-top:8px;align-items:flex-start}.st-n{flex:0 0 22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.t12{display:flex;gap:10px}.t12>div{flex:1}.t12 input{width:100%}
+.rxp{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.rxp button{font-size:20px;line-height:1;padding:7px 9px;border-radius:12px;background:var(--soft);border:1.5px solid transparent;color:inherit;min-width:42px}
+.rxp button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}.rxsel{margin-top:8px;font-size:22px;letter-spacing:4px;min-height:28px}
 .pbrow{display:flex;gap:4px;max-width:92%}.pbrow .pbtn{flex:1;max-width:none}
 </style>
 </head>
@@ -378,7 +381,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     <div class="card" id="up-card" style="display:none"><div class="row" style="align-items:center"><h3 style="flex:2;margin:0" data-t="ma_up_title"></h3>
       <button class="small ghost" data-go="queue" style="flex:0 0 auto" data-t="ma_all"></button></div><div id="up-list" class="up-list"></div></div>
     <div class="card" id="ai-card"><h3 data-t="ma_ai_title"></h3><div class="muted" id="ai-quota"></div>
-      <div class="set-row" data-t="ma_ai_models"></div><div id="ai-models" class="ai-models"></div></div>
+      <div id="ai-models" class="ai-models"></div></div>
     <div class="card" id="cm-card" style="display:none"><div class="row"><b style="flex:2">💬 <span data-t="ma_cm_title"></span> <span id="cm-count"></span></b>
       <button class="small ghost" id="cm-open" data-t="ma_open"></button></div></div>
     <div class="card" id="st-card" style="display:none"><h3>📊 <span data-t="ma_st_title"></span></h3><div id="st-list"></div></div>
@@ -422,12 +425,12 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
         <details class="li-d"><summary class="li"><i>🔗</i><span data-t="ma_button"></span><b>›</b></summary><div class="li-body">
           <div class="muted" data-t="ma_btns_hint" style="margin-bottom:6px"></div><div class="bed" id="b-rows"></div>
         </div></details>
-        <details class="li-d" id="rx-box"><summary class="li"><i>👍</i><span data-t="ma_reactions"></span><b>›</b></summary><div class="li-body"><div class="chips" id="rx-list" style="margin-top:8px"></div></div></details>
+        <details class="li-d" id="rx-box"><summary class="li"><i>👍</i><span data-t="ma_reactions"></span><b>›</b></summary><div class="li-body"><div id="rx-list" style="margin-top:8px"></div></div></details>
         <details class="li-d"><summary class="li"><i>🔄</i><span data-t="ma_repeat"></span><b>›</b></summary><div class="li-body">
           <select id="rep"><option value="" data-t="ma_rep_none"></option><option value="daily" data-t="ma_rep_daily"></option>
             <option value="weekly" data-t="ma_rep_weekly"></option><option value="monthly" data-t="ma_rep_monthly"></option><option value="twice" data-t="ma_rep_twice"></option>
             <option value="workdays" data-t="ma_rep_workdays"></option><option value="interval2" data-t="ma_rep_int2"></option><option value="interval3" data-t="ma_rep_int3"></option></select>
-          <div id="t2-box" style="display:none"><label data-t="ma_time2"></label><input type="time" id="t2"></div>
+          <div id="t2-box" style="display:none"><div class="muted" data-t="ma_twice_hint" style="margin:6px 0"></div><div class="t12"><div><label data-t="ma_time1"></label><input type="time" id="t1"></div><div><label data-t="ma_time2"></label><input type="time" id="t2"></div></div></div>
         </div></details>
         <details class="li-d"><summary class="li"><i>⏳</i><span data-t="ma_autodel"></span><b>›</b></summary><div class="li-body"><select id="ad"></select></div></details>
         <details class="li-d"><summary class="li"><i>⚙️</i><span data-t="ma_opts"></span><b>›</b></summary><div class="li-body"><div class="chips" id="opt-list" style="margin-top:8px"></div></div></details>
@@ -1005,7 +1008,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     return out;
   }
   function editorHtml() { return toHtml($('ed')).replace(/\n+$/, ''); }
-  function setEditor(html) { $('ed').innerHTML = String(html || '').replace(/\n/g, '<br>'); refreshPreview(); }
+  function setEditor(html) { $('ed').innerHTML = String(html || '').replace(/\n/g, '<br>'); $('ed')._hist = []; refreshPreview(); }
   function plainLen(html) { var d = document.createElement('div'); d.innerHTML = html; var s = d.textContent || ''; var n = 0; for (var ch of s) { n += ch.codePointAt(0) > 0xffff ? 2 : 1; } return n; }
 
   document.addEventListener('mousedown', function (e) { if (e.target.closest('.toolbar button')) { e.preventDefault(); } });
@@ -1013,17 +1016,79 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     var b = e.target.closest('.toolbar button'); if (!b) { return; }
     var box = b.closest('.card, .sheet'), edEl = (box && box.querySelector('.editor')) || $('ed');
     var c = b.getAttribute('data-cmd'); edEl.focus(); haptic();
-    if (c === 'link') { var u = prompt(t('ma_link_ph'), 'https://'); if (u) { document.execCommand('createLink', false, u); } }
-    else if (c === 'code' || c === 'quote') { wrap(c === 'code' ? 'code' : 'blockquote'); }
-    else if (c === 'clear') { document.execCommand('removeFormat'); document.execCommand('unlink'); }
-    else { document.execCommand(c); }
+    edEl._hist = edEl._hist || [];
+    if (c === 'clear') {
+      // ⌫ — oxirgi qo'shilgan formatlashdan boshlab bittadan bekor qiladi; tarix bo'sh bo'lsa — tanlangan joydagi hamma formatni olib tashlaydi
+      if (edEl._hist.length) { edEl.innerHTML = edEl._hist.pop(); }
+      else { document.execCommand('removeFormat'); document.execCommand('unlink'); unwrapAt(edEl, 'blockquote'); unwrapAt(edEl, 'code'); }
+    } else {
+      var before = edEl.innerHTML;
+      if (c === 'link') {
+        if (ancestor(edEl, 'a')) { unwrapAt(edEl, 'a'); }
+        else { var u = prompt(t('ma_link_ph'), 'https://'); if (u) { document.execCommand('createLink', false, u); } }
+      } else if (c === 'code' || c === 'quote') { toggleWrap(edEl, c === 'code' ? 'code' : 'blockquote'); }
+      else { document.execCommand(c); } // B/I/U/S — qayta bossa o'zi olib tashlanadi
+      if (edEl.innerHTML !== before) { edEl._hist.push(before); if (edEl._hist.length > 50) { edEl._hist.shift(); } }
+    }
     if (edEl === $('ed')) { refreshPreview(); }
   });
-  function wrap(tag) {
-    var sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { return; }
-    var r = sel.getRangeAt(0), el = document.createElement(tag);
-    try { el.appendChild(r.extractContents()); r.insertNode(el); } catch (e) {}
+  // tanlangan joy shu tegning ichidami (muharrir chegarasida)
+  function ancestor(edEl, tag) {
+    var sel = window.getSelection(); if (!sel.rangeCount) { return null; }
+    var n = sel.getRangeAt(0).commonAncestorContainer;
+    for (; n && n !== edEl; n = n.parentNode) { if (n.nodeType === 1 && n.tagName.toLowerCase() === tag) { return n; } }
+    return null;
   }
+  function unwrapAt(edEl, tag) {
+    var el = ancestor(edEl, tag); if (!el) { return false; }
+    while (el.firstChild) { el.parentNode.insertBefore(el.firstChild, el); }
+    el.parentNode.removeChild(el); return true;
+  }
+  // ❝ va </> — ikkinchi bosishda olib tashlanadi (ichma-ich qo'shilmaydi)
+  function toggleWrap(edEl, tag) {
+    if (unwrapAt(edEl, tag)) { return; }
+    var sel = window.getSelection(); if (!sel.rangeCount || sel.isCollapsed) { return; }
+    var r = sel.getRangeAt(0);
+    // belgilangan joyda shu teg allaqachon bor (masalan butun matn tanlangan) — olib tashlanadi
+    var inside = Array.prototype.filter.call(edEl.querySelectorAll(tag), function (x) { try { return r.intersectsNode(x); } catch (e) { return false; } });
+    if (inside.length) { inside.forEach(function (x) { while (x.firstChild) { x.parentNode.insertBefore(x.firstChild, x); } x.remove(); }); return; }
+    var el = document.createElement(tag);
+    try { el.appendChild(r.extractContents()); el.querySelectorAll(tag).forEach(function (x) { while (x.firstChild) { x.parentNode.insertBefore(x.firstChild, x); } x.remove(); }); r.insertNode(el); } catch (e) {}
+  }
+  // ---------- gorizontal qatorlar (bo'limlar, toifalar, kunlar): bosilgani o'rtaga keladi; kompyuterda g'ildirak va sichqoncha bilan suriladi
+  var HSEL = '.chips.scroll, .days';
+  function hCenter(row, item) {
+    if (!row || !item || row.scrollWidth <= row.clientWidth + 2) { return; }
+    var left = item.offsetLeft - (row.clientWidth - item.offsetWidth) / 2;
+    try { row.scrollTo({left: Math.max(0, left), behavior: 'smooth'}); } catch (e) { row.scrollLeft = Math.max(0, left); }
+  }
+  var hDrag = null, hMoved = false;
+  document.addEventListener('click', function (e) {
+    if (hMoved) { hMoved = false; e.preventDefault(); e.stopPropagation(); return; } // tortib surildi — bosish emas
+    var row = e.target.closest(HSEL); if (!row) { return; }
+    var item = e.target.closest('.chip, .day, button, a'); if (!item || !row.contains(item)) { return; }
+    var idx = Array.prototype.indexOf.call(row.children, item), rid = row.id;
+    hCenter(row, item);
+    // bosilgandan keyin qator qayta chizilsa ham (masalan toifa tanlanganda) — yangisini ham o'rtaga olamiz
+    setTimeout(function () { var r2 = (rid && $(rid)) || row; hCenter(r2, r2.children[idx]); }, 60);
+  }, true);
+  document.addEventListener('wheel', function (e) {
+    var row = e.target.closest(HSEL);
+    if (!row || row.scrollWidth <= row.clientWidth + 2 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) { return; }
+    row.scrollLeft += e.deltaY; e.preventDefault();
+  }, {passive: false});
+  document.addEventListener('pointerdown', function (e) {
+    if (e.pointerType !== 'mouse' || e.button !== 0) { return; }
+    var row = e.target.closest(HSEL); if (!row || row.scrollWidth <= row.clientWidth + 2) { return; }
+    hDrag = {row: row, x: e.clientX, left: row.scrollLeft}; hMoved = false;
+  });
+  document.addEventListener('pointermove', function (e) {
+    if (!hDrag) { return; }
+    var dx = e.clientX - hDrag.x;
+    if (Math.abs(dx) > 6) { hMoved = true; hDrag.row.scrollLeft = hDrag.left - dx; }
+  });
+  document.addEventListener('pointerup', function () { hDrag = null; setTimeout(function () { hMoved = false; }, 0); });
+
   $('ed').addEventListener('input', refreshPreview);
   $('ed').addEventListener('paste', function (e) {
     e.preventDefault(); var txt = (e.clipboardData || window.clipboardData).getData('text/plain'); document.execCommand('insertText', false, txt);
@@ -1118,13 +1183,29 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     });
     renderExtra();
   }
+  // reaksiyalar: tayyor to'plam yoki «✍️ O'zim tanlayman» — emojilarni bosib tanlash (6 tagacha, tartib saqlanadi)
+  var RX_EMOJI = ['👍', '👎', '❤️', '🔥', '😂', '😍', '😮', '😢', '😡', '👏', '🎉', '🤔', '💯', '🙏', '👌', '🤩', '😎', '🥰', '💔', '⚡', '✅', '❌', '⭐', '🚀'];
+  function rxPicker(box, get, set, onChange) {
+    var custom = false;
+    function draw() {
+      var cur = get(), isSet = cur === '' || me.reaction_sets.indexOf(cur) >= 0, own = custom || !isSet, list = cur ? cur.split(',') : [];
+      box.innerHTML = '<div class="chips">' + [''].concat(me.reaction_sets).map(function (s, i) {
+        return '<span class="chip' + (!own && s === cur ? ' on' : '') + '" data-rxs="' + i + '">' + (s ? esc(s.split(',').join(' ')) : esc(t('ma_rx_none'))) + '</span>';
+      }).join('') + '<span class="chip' + (own ? ' on' : '') + '" data-rxc="1">✍️ ' + esc(t('ma_rx_custom')) + '</span></div>' +
+        (own ? '<div class="muted" style="margin-top:8px">' + esc(t('ma_rx_custom_hint')) + '</div><div class="rxsel">' + (list.length ? esc(list.join(' ')) : '—') + '</div><div class="rxp">' +
+          RX_EMOJI.map(function (e) { return '<button type="button" class="' + (list.indexOf(e) >= 0 ? 'on' : '') + '" data-rxe="' + e + '">' + e + '</button>'; }).join('') + '</div>' : '');
+      box.querySelectorAll('[data-rxs]').forEach(function (c) { c.onclick = function () { custom = false; set(([''].concat(me.reaction_sets))[+c.getAttribute('data-rxs')]); draw(); if (onChange) { onChange(); } }; });
+      box.querySelector('[data-rxc]').onclick = function () { custom = true; draw(); };
+      box.querySelectorAll('[data-rxe]').forEach(function (b) { b.onclick = function () {
+        var e = b.getAttribute('data-rxe'), l = get() ? get().split(',') : [], i = l.indexOf(e);
+        if (i >= 0) { l.splice(i, 1); } else if (l.length < 6) { l.push(e); } else { toast(t('ma_rx_max')); return; }
+        set(l.join(',')); haptic(); draw(); if (onChange) { onChange(); }
+      }; });
+    }
+    draw();
+  }
   function renderReactions() {
-    var box = $('rx-list'); box.innerHTML = '';
-    [''].concat(me.reaction_sets).forEach(function (set) {
-      var el = document.createElement('span'); el.className = 'chip' + (set === state.reactions ? ' on' : '');
-      el.textContent = set ? set.split(',').join(' ') : t('ma_rx_none');
-      el.onclick = function () { state.reactions = set; renderReactions(); refreshPreview(); }; box.appendChild(el);
-    });
+    rxPicker($('rx-list'), function () { return state.reactions; }, function (v) { state.reactions = v; }, refreshPreview);
   }
   $('rep').onchange = function () { $('t2-box').style.display = this.value === 'twice' ? '' : 'none'; };
 
@@ -1382,6 +1463,10 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       options: state.opts, hidden: $('hid').value.trim(), type: state.type, file_id: state.fileId, text: editorHtml(),
       buttons: btnRead('b-rows'), reactions: state.reactions,
       repeat: $('rep').value, time2: $('t2').value, delete_after: parseInt($('ad').value || '0', 10), when: 'now'};
+    if (body.repeat === 'twice') {
+      if (!$('t1').value || !$('t2').value || $('t1').value === $('t2').value) { toast(t('ma_err_twice')); return; }
+      body.time1 = $('t1').value;
+    }
     if (state.when === 'later') { if (!$('when').value) { toast(t('ma_err_bad_time')); return; } body.when = $('when').value; }
     var btn = this; btn.disabled = true; btn.textContent = '⏳';
     api('post_create', body).then(function (r) {
@@ -1397,7 +1482,7 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     });
   };
   function resetEditor() {
-    setEditor(''); btnEditor('b-rows', [], refreshPreview); $('rep').value = ''; $('t2-box').style.display = 'none'; $('ad').value = '0';
+    setEditor(''); btnEditor('b-rows', [], refreshPreview); $('rep').value = ''; $('t1').value = ''; $('t2').value = ''; $('t2-box').style.display = 'none'; $('ad').value = '0';
     state.reactions = ''; renderReactions(); $('media-del').onclick();
     state.opts = []; state.extra = []; $('hid').value = ''; renderOpts(); renderExtra(); refreshPreview();
   }
@@ -1584,19 +1669,17 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       '<label>' + esc(t('ma_channel')) + '</label><select id="e-ch">' + chOpts + '</select>' +
       '<label>' + esc(t('ma_when')) + '</label><input type="datetime-local" id="when2" value="' + esc(p.when_local) + '">' +
       '<label>' + esc(t('ma_repeat')) + '</label><select id="e-rep">' + repOpts + '</select>' +
-      '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div>' +
+      '<div id="e-t2" style="display:' + (p.repeat_key === 'twice' ? '' : 'none') + '"><div class="muted" style="margin:6px 0">' + esc(t('ma_twice_hint')) + '</div><div class="t12"><div><label>' + esc(t('ma_time1')) + '</label><input type="time" id="e-time1" value="' + esc(p.time1 || '') + '"></div>' +
+      '<div><label>' + esc(t('ma_time2')) + '</label><input type="time" id="e-time2" value="' + esc(p.time2 || '') + '"></div></div></div>' +
       (p.type !== 'album' && p.type !== 'poll' ? '<label>🔗 ' + esc(t('ma_button')) + '</label><div class="bed" id="e-rows"></div>' : '') +
-      '<label>👍 ' + esc(t('ma_reactions')) + '</label><div class="chips" id="e-rx"></div>' +
+      '<label>👍 ' + esc(t('ma_reactions')) + '</label><div id="e-rx"></div>' +
       '<label>⏳ ' + esc(t('ma_autodel')) + '</label><select id="e-ad">' + adOpts + '</select>' +
       (p.type !== 'album' ? '<label>🔒 ' + esc(t('ma_hidden')) + '</label><textarea id="e-hid" rows="2" maxlength="180">' + esc(p.hidden || '') + '</textarea>' : '') +
       '<label>⚙️ ' + esc(t('ma_opts')) + '</label><div class="chips" id="e-opts"></div>' +
       '<div class="row" style="margin-top:16px"><button class="ghost" id="e-cancel">' + esc(t('ma_back')) + '</button><button id="e-save">' + esc(t('ma_save')) + '</button></div>');
     if ($('ed2')) { $('ed2').innerHTML = String(p.text || '').replace(/\n/g, '<br>'); }
     function drawRx() {
-      $('e-rx').innerHTML = [''].concat(me.reaction_sets).map(function (set) {
-        return '<span class="chip' + (ed.rx === set ? ' on' : '') + '" data-erx="' + esc(set) + '">' + (set ? esc(set.split(',').join(' ')) : esc(t('ma_rx_none'))) + '</span>';
-      }).join('');
-      document.querySelectorAll('[data-erx]').forEach(function (c) { c.onclick = function () { ed.rx = c.getAttribute('data-erx'); drawRx(); }; });
+      rxPicker($('e-rx'), function () { return ed.rx; }, function (v) { ed.rx = v; }, null);
     }
     function drawOpts() {
       $('e-opts').innerHTML = OPTS.map(function (o) { return '<span class="chip' + (ed.opts.indexOf(o) >= 0 ? ' on' : '') + '" data-eo="' + o + '">' + esc(t('ma_opt_' + o)) + '</span>'; }).join('');
@@ -1612,7 +1695,10 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
       if ($('ed2')) { body.text = toHtml($('ed2')).replace(/\n+$/, ''); }
       if ($('e-rows')) { body.buttons = btnRead('e-rows'); }
       if ($('e-hid')) { body.hidden = $('e-hid').value.trim(); }
-      if (body.repeat === 'twice') { body.time2 = $('e-time2').value; }
+      if (body.repeat === 'twice') {
+        if (!$('e-time1').value || !$('e-time2').value || $('e-time1').value === $('e-time2').value) { toast(t('ma_err_twice')); return; }
+        body.time1 = $('e-time1').value; body.time2 = $('e-time2').value;
+      }
       if ($('when2').value && $('when2').value !== p.when_local) { body.when = $('when2').value; }
       btn.disabled = true;
       api('post_update', body).then(function (r) { btn.disabled = false; if (!r.ok) { toast(errText(r)); return; } closeModal(); toast(t('ma_saved')); haptic('ok'); loadQueue(); });
@@ -1639,11 +1725,8 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     $('tzline').textContent = '🕒 ' + me.user.timezone + (me.workspace ? ' · ' + me.workspace.owner : '');
     $('s-pending').textContent = me.stats.pending; $('s-sent').textContent = me.stats.sent; $('s-channels').textContent = me.stats.channels;
     $('ai-quota').textContent = me.ai.enabled ? quotaText() : t('ma_ai_none');
-    var MN = {gemini: 'Google Gemini', groq: 'Groq', openrouter: 'OpenRouter'};
-    $('ai-models').innerHTML = (me.ai.models || []).map(function (m, i) {
-      return '<div class="aim"><span class="dot"></span><b>' + esc(MN[m.name] || m.name) + '</b><span class="muted">' + esc(m.model) + '</span>' +
-        (i === 0 ? '<em>' + esc(t('ma_ai_main')) + '</em>' : '') + '</div>';
-    }).join('') + (me.ai.media ? '<div class="muted" style="margin-top:6px">📷🎙 ' + esc(t('ma_ai_media')) + '</div>' : '');
+    // model nomlari ko'rsatilmaydi (foydalanuvchiga kerak emas) — faqat rasm/ovoz imkoniyati
+    $('ai-models').innerHTML = me.ai.media ? '<div class="muted" style="margin-top:6px">📷🎙 ' + esc(t('ma_ai_media')) + '</div>' : '';
     $('ai-row').style.display = me.ai.enabled ? '' : 'none'; $('home-ai').style.display = me.ai.enabled ? '' : 'none'; $('ai-card').style.display = '';
     var initial = (me.user.name || '🙂').trim().charAt(0).toUpperCase() || '🙂';
     $('me-name').textContent = me.user.name || '';
@@ -1683,13 +1766,24 @@ body{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
     $('start-go').textContent = t(step === 1 ? 'ma_start_add' : 'ma_start_post');
     $('start-go').onclick = function () { if (step === 1) { brOpen('ch:add', 'ma_tab_channels', 'channels'); } else { go('post'); } };
   }
+  // vaqt mintaqasi tanlanmagan bo'lsa — telefon/kompyuter mintaqasi saqlanadi (bir marta; qo'lda tanlov ustidan yozilmaydi)
+  var tzTried = false;
+  function autoTz() {
+    if (tzTried || !me || me.user.tz_set) { return; }
+    tzTried = true;
+    var z = ''; try { z = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+    if (!z) { return; }
+    api('settings', {timezone_auto: z}).then(function (r) { if (r && r.ok && z !== me.user.timezone) { loadMe(); } });
+  }
   function loadMe() {
     return api('me').then(function (r) {
       if (!r.ok) {
         $('boot').innerHTML = '<div class="empty"><b>🔒</b>' + esc(r.error === 'auth' ? t('ma_err_auth') : errText(r)) + '</div>';
         return false;
       }
-      me = r; lang = r.user.lang || lang; applyI18n(); render(); return true;
+      me = r; lang = r.user.lang || lang; applyI18n(); render();
+      autoTz();
+      return true;
     });
   }
   function checkDraft() {

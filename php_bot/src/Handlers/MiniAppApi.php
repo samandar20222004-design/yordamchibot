@@ -173,7 +173,7 @@ final class MiniAppApi
         }, $app->channels->listFor($own));
         $stats = $app->posts->userStats($own);
         return ['ok' => true,
-            'user' => ['id' => $ctx->userId, 'name' => $ctx->firstName, 'lang' => $ctx->lang, 'timezone' => $ctx->tzName(),
+            'user' => ['id' => $ctx->userId, 'name' => $ctx->firstName, 'lang' => $ctx->lang, 'timezone' => $ctx->tzName(), 'tz_set' => $app->tzChosen($ctx->userId),
                 'is_admin' => $app->isAdmin($ctx->userId)],
             'plan' => ['tier' => $tier, 'name' => Plans::NAMES[$tier], 'free' => $app->isFree($own),
                 'expires' => ($tier === Plans::PRO || $tier === Plans::ULTRA) && !empty($plan['subscription_expires_at'])
@@ -391,7 +391,8 @@ final class MiniAppApi
             'options' => PostRender::options($p['options'] ?? null),
             'hidden' => (string) ((PostRender::hidden($p['hidden_text'] ?? null) ?? [])['t'] ?? ''),
             'repeat_key' => empty($p['recurrence_type']) ? '' : ($p['recurrence_type'] === 'interval' ? 'interval' . (int) $p['recurrence_day'] : (string) $p['recurrence_type']),
-            'time2' => ($p['recurrence_type'] ?? '') === 'twice' && $p['recurrence_day'] !== null ? Recurrence::clock((int) $p['recurrence_day']) : ''];
+            'time2' => ($p['recurrence_type'] ?? '') === 'twice' && $p['recurrence_day'] !== null ? Recurrence::clock((int) $p['recurrence_day']) : '',
+            'time1' => ($p['recurrence_type'] ?? '') === 'twice' && $p['recurrence_time'] !== null ? Recurrence::clock((int) $p['recurrence_time']) : ''];
     }
 
     private static function posts(Ctx $ctx): array
@@ -475,9 +476,16 @@ final class MiniAppApi
             } elseif ($repeat === 'interval') {
                 $repeat = 'bad';
             }
-            $rec = Recurrence::fromFirst($repeat, $utc, $ctx->tz(), $second, $every);
+            $rec = $repeat === 'twice' && isset($in['time1']) && $in['time1'] !== ''
+                ? self::twiceRule($ctx, (string) $in['time1'], $second) : Recurrence::fromFirst($repeat, $utc, $ctx->tz(), $second, $every);
             if ($rec === null) {
-                return [400, ['ok' => false, 'error' => 'repeat']];
+                return [400, ['ok' => false, 'error' => $repeat === 'twice' ? 'twice' : 'repeat']];
+            }
+            if ($repeat === 'twice' && isset($in['time1']) && $in['time1'] !== '') {
+                // ikkala vaqt qo'lda tanlangan: birinchi chiqish — ulardan eng yaqini (sanadan boshlab, agar «keyinroq» tanlangan bo'lsa)
+                $from = $now ? $app->now() : max($app->now(), $utc->setTimezone($ctx->tz())->setTime(0, 0, 0)->setTimezone(new DateTimeZone('UTC')));
+                $utc = Recurrence::next('twice', (int) $rec['time'], (int) $rec['day'], $from, $ctx->tz()) ?? $utc;
+                $now = false;
             }
         }
         $out = [];
@@ -684,11 +692,18 @@ final class MiniAppApi
                     $every = (int) $im[1];
                     $repeat = in_array($every, Recurrence::INTERVALS, true) ? 'interval' : 'bad';
                 }
-                $rec = Recurrence::fromFirst($repeat, $base, $ctx->tz(), $second, $every);
+                $twice1 = $repeat === 'twice' && isset($in['time1']) && $in['time1'] !== '';
+                $rec = $twice1 ? self::twiceRule($ctx, (string) $in['time1'], $second) : Recurrence::fromFirst($repeat, $base, $ctx->tz(), $second, $every);
                 if ($rec === null) {
-                    return [400, ['ok' => false, 'error' => 'repeat']];
+                    return [400, ['ok' => false, 'error' => $repeat === 'twice' ? 'twice' : 'repeat']];
                 }
                 $cols += ['recurrence_type' => $rec['type'], 'recurrence_time' => $rec['time'], 'recurrence_day' => $rec['day']];
+                if ($twice1) {
+                    $nx = Recurrence::next('twice', (int) $rec['time'], (int) $rec['day'], max($ctx->app->now(), $base->setTimezone($ctx->tz())->setTime(0, 0, 0)->setTimezone(new DateTimeZone('UTC'))), $ctx->tz());
+                    if ($nx !== null) {
+                        $utcSql = $nx->format('Y-m-d H:i:s');
+                    }
+                }
             }
         }
         $ctx->app->posts->updatePending($ctx->ownerId(), (int) $p['id'], $text, $utcSql);
@@ -715,6 +730,14 @@ final class MiniAppApi
                 \PostAssist\Services\BotCommands::applyForChat($ctx->app, $ctx->userId, $new);
             }
         }
+        // telefon vaqt mintaqasi (Intl): FAQAT foydalanuvchi o'zi tanlamagan bo'lsa saqlanadi — qo'lda tanlov ustidan yozilmaydi
+        if (isset($in['timezone_auto']) && !$ctx->app->tzChosen($ctx->userId)) {
+            $auto = (string) $in['timezone_auto'];
+            if (in_array($auto, \DateTimeZone::listIdentifiers(), true)) {
+                $ctx->app->users->setTimezone($ctx->userId, $auto);
+                $ctx->app->forgetTz($ctx->userId);
+            }
+        }
         if (isset($in['timezone'])) {
             $tz = SettingsHandler::resolveTimezone((string) $in['timezone']);
             if ($tz === null) {
@@ -724,6 +747,16 @@ final class MiniAppApi
             $ctx->app->forgetTz($ctx->userId);
         }
         return [200, ['ok' => true]];
+    }
+
+    /** «Kuniga 2 marta»: ikkala vaqt qo'lda (HH:MM). Ikkalasi to'g'ri va har xil bo'lmasa — null. */
+    private static function twiceRule(Ctx $ctx, string $time1, ?int $second): ?array
+    {
+        $first = Recurrence::parseClock($time1);
+        if ($first === null || $second === null || $first === $second) {
+            return null;
+        }
+        return ['type' => 'twice', 'time' => min($first, $second), 'day' => max($first, $second)];
     }
 
     /** AI: {mode: post, topic, style} yoki {mode: edit, text, action}. @return array{0:int,1:array} */

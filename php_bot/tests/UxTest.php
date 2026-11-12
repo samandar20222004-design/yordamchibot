@@ -734,3 +734,100 @@ T::check('2-so\'rov shu daqiqada: «Juda tez!» xabari, AI chaqirilmadi', $rCall
 $initR = $mkInitU(['id' => $RB, 'first_name' => 'R', 'language_code' => 'uz'], $clock->getTimestamp() - 30, $cfgR->str('bot_token'));
 [$st, $r] = PostAssist\Handlers\MiniAppApi::handle($appR, 'ai', ['mode' => 'post', 'topic' => 'Uchinchi mavzu haqida', 'style' => 'news'], $initR);
 T::check('Mini App: 429 ai_rate (n, s bilan)', $st === 429 && ($r['error'] ?? '') === 'ai_rate' && ($r['n'] ?? 0) === 1 && ($r['s'] ?? 0) >= 1, json_encode($r));
+
+// --- «Kuniga 2 marta»: ikkala vaqt qo'lda; birinchi chiqish — eng yaqini (avtomatik «hozirgi soat» emas)
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['timezone' => 'Asia/Tashkent'], $initB);
+$bcRef = (int) $db->value('SELECT id FROM channels WHERE channel_id = ?', [$BC]);
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$B]);
+[$st, $r] = $call2('post_create', ['channel_id' => $bcRef, 'text' => 'Ikki vaqtli post', 'repeat' => 'twice', 'time1' => '09:00', 'time2' => '18:30', 'when' => 'now']);
+$tw = $db->one("SELECT * FROM scheduled_posts WHERE user_id = ? AND text = 'Ikki vaqtli post'", [$B]);
+// kutilgan: ikki vaqtdan hozirdan keyingi eng yaqini (Toshkent bo'yicha) — mustaqil hisoblanadi
+$nearest = static function (array $hhmm) use ($appU): string {
+    $tzT = new DateTimeZone('Asia/Tashkent');
+    $loc = $appU->now()->setTimezone($tzT);
+    $c = [];
+    foreach ([0, 1] as $add) {
+        foreach ($hhmm as $hm) {
+            [$h, $m] = array_map('intval', explode(':', $hm));
+            $d = $loc->modify('+' . $add . ' day')->setTime($h, $m, 0);
+            if ($d > $loc) {
+                $c[] = $d->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+            }
+        }
+    }
+    sort($c);
+    return $c[0];
+};
+T::check('twice: 1-vaqt 09:00, 2-vaqt 18:30; birinchi chiqish — ulardan eng yaqini, «hozirgi soat» emas', $st === 200 && $tw !== null && (int) $tw['recurrence_time'] === 540
+    && (int) $tw['recurrence_day'] === 1110 && $tw['scheduled_time'] === $nearest(['09:00', '18:30']) && $tw['status'] === 'pending', json_encode([$r, $tw]));
+T::eq('twice: bir xil vaqt — 400 twice', $call2('post_create', ['channel_id' => $bcRef, 'text' => 'x', 'repeat' => 'twice', 'time1' => '10:00', 'time2' => '10:00'])[0], 400);
+T::eq('twice: 2-vaqt yo\'q — 400 twice', $call2('post_create', ['channel_id' => $bcRef, 'text' => 'x', 'repeat' => 'twice', 'time1' => '10:00'])[1]['error'] ?? '', 'twice');
+$twOut = null;
+foreach ($call2('posts')[1]['posts'] ?? [] as $pp) {
+    if ((int) $pp['id'] === (int) $tw['id']) {
+        $twOut = $pp;
+    }
+}
+T::check('postOut: time1 va time2 qaytadi (tahrir oynasi uchun)', ($twOut['time1'] ?? '') === '09:00' && ($twOut['time2'] ?? '') === '18:30');
+[$st, $r] = $call2('post_update', ['id' => (int) $tw['id'], 'repeat' => 'twice', 'time1' => '07:15', 'time2' => '12:00']);
+$tw2 = $db->one('SELECT * FROM scheduled_posts WHERE id = ?', [(int) $tw['id']]);
+T::check('post_update: ikki vaqt o\'zgardi; keyingi chiqish — 07:15 yoki 12:00 dan eng yaqini', $st === 200 && (int) $tw2['recurrence_time'] === 435 && (int) $tw2['recurrence_day'] === 720
+    && $tw2['scheduled_time'] === $nearest(['07:15', '12:00']), json_encode($tw2));
+$db->exec("UPDATE scheduled_posts SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", [$B]);
+
+// --- vaqt mintaqasi: Mini App telefon zonasini FAQAT tanlanmagan bo'lsa saqlaydi
+$TZU = 7750;
+$textU($TZU, '/start');
+$initTZ = $mkInitU(['id' => $TZU, 'first_name' => 'T', 'language_code' => 'de'], $clock->getTimestamp() - 30, $cfgU->str('bot_token'));
+T::eq('me: zona tanlanmagan (tz_set=false)', PostAssist\Handlers\MiniAppApi::handle($appU, 'me', [], $initTZ)[1]['user']['tz_set'] ?? null, false);
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['timezone_auto' => 'Bad/Zone'], $initTZ);
+T::eq('noto\'g\'ri zona e\'tiborsiz', (string) $db->value('SELECT timezone FROM users WHERE user_id = ?', [$TZU]), '');
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['timezone_auto' => 'Europe/Berlin'], $initTZ);
+$meTZ = PostAssist\Handlers\MiniAppApi::handle($appU, 'me', [], $initTZ)[1];
+T::check('telefon zonasi saqlandi (Europe/Berlin), tz_set=true', ($meTZ['user']['timezone'] ?? '') === 'Europe/Berlin' && ($meTZ['user']['tz_set'] ?? false) === true);
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['timezone' => 'Asia/Tokyo'], $initTZ);
+PostAssist\Handlers\MiniAppApi::handle($appU, 'settings', ['timezone_auto' => 'America/New_York'], $initTZ);
+T::eq('qo\'lda tanlangan zona ustidan avtomatik yozilmaydi', (string) $db->value('SELECT timezone FROM users WHERE user_id = ?', [$TZU]), 'Asia/Tokyo');
+
+// --- bot: zona tanlanmagan bo'lsa rejalashtirilganda /timezone eslatmasi; tanlangan bo'lsa — yo'q
+$HZ = 7751;
+$textU($HZ, '/start');
+$db->exec("INSERT INTO channels (user_id, channel_id, title, is_active, created_at) VALUES (?, -1001000000751, 'HZ kanal', 1, UTC_TIMESTAMP())", [$HZ]);
+$textU($HZ, '/newpost');
+$textU($HZ, 'Zona eslatmasi uchun sinov posti');
+$pressU($HZ, 'p:time');
+$textU($HZ, 'ertaga 10:00');
+T::check('bot: zona tanlanmagan — «/timezone» eslatmasi', strpos($fake->texts(), 'Rejalashtirildi') !== false && strpos($fake->texts(), '/timezone') !== false);
+$db->exec("UPDATE users SET timezone = 'Asia/Tashkent' WHERE user_id = ?", [$HZ]);
+$appU->forgetTz($HZ);
+$textU($HZ, '/newpost');
+$textU($HZ, 'Ikkinchi sinov posti matni');
+$pressU($HZ, 'p:time');
+$textU($HZ, 'ertaga 11:00');
+T::check('bot: zona tanlangan — eslatma yo\'q', strpos($fake->texts(), 'Rejalashtirildi') !== false && strpos($fake->texts(), '/timezone') === false);
+
+$appSrcX = (string) file_get_contents(__DIR__ . '/../app.php');
+T::check('app.php: reaksiya qo\'lda (rxPicker), ⌫ tarix bilan, ❝/</> ikkinchi bosishda olib tashlanadi', strpos($appSrcX, 'function rxPicker') !== false
+    && strpos($appSrcX, '_hist.pop()') !== false && strpos($appSrcX, 'function toggleWrap') !== false && strpos($appSrcX, "ancestor(edEl, 'a')") !== false);
+T::check('app.php: ikki vaqt (t1/t2, e-time1), avtomatik zona, gorizontal qatorlar o\'rtaga/g\'ildirak/tortish', strpos($appSrcX, 'id="t1"') !== false && strpos($appSrcX, 'e-time1') !== false
+    && strpos($appSrcX, 'timezone_auto') !== false && strpos($appSrcX, 'function hCenter') !== false && strpos($appSrcX, "addEventListener('wheel'") !== false);
+T::check('app.php: AI model nomlari ko\'rsatilmaydi', strpos($appSrcX, "'Google Gemini'") === false && strpos($appSrcX, 'm.model') === false);
+
+// --- zaxira cron: cron sozlanmagan bo'lsa webhook navbatni o'zi yuboradi (daqiqasiga bir marta); cron ishlasa — tegmaydi
+$FBU = 7760;
+$FBC = -1001000000760;
+$textU($FBU, '/start');
+$db->exec("INSERT INTO channels (user_id, channel_id, title, is_active, created_at) VALUES (?, ?, 'Zaxira kanal', 1, UTC_TIMESTAMP())", [$FBU, $FBC]);
+$db->exec("INSERT INTO scheduled_posts (user_id, channel_id, post_type, text, status, scheduled_time, created_at) VALUES (?, ?, 'text', 'Zaxira cron posti', 'pending', ?, UTC_TIMESTAMP())",
+    [$FBU, $FBC, $clock->modify('-5 minutes')->format('Y-m-d H:i:s')]);
+$fbId = $db->lastId();
+$db->exec("DELETE FROM bot_settings WHERE k IN ('cron_last', 'webhook_tick')");
+$fbS = new PostAssist\Services\Scheduler($appU, static function (int $us): void {
+});
+T::eq('zaxira: cron hech qachon ishlamagan — navbat yuborildi', [$fbS->fallbackTick(5), (string) $db->value('SELECT status FROM scheduled_posts WHERE id = ?', [$fbId])], [true, 'sent']);
+T::eq('zaxira: shu daqiqada ikkinchi marta ishlamaydi', $fbS->fallbackTick(5), false);
+$db->exec("INSERT INTO bot_settings (k, v, updated_at) VALUES ('cron_last', ?, UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE v = VALUES(v)", [$clock->format('Y-m-d H:i:s')]);
+$db->exec("UPDATE bot_settings SET v = '' WHERE k = 'webhook_tick'");
+T::eq('zaxira: cron ishlab tursa — tegmaydi', $fbS->fallbackTick(5), false);
+$whSrc = (string) file_get_contents(__DIR__ . '/../webhook.php');
+T::check('webhook.php: javobni qaytarib, keyin zaxira cron', strpos($whSrc, '$app->releaseClient();') !== false && strpos($whSrc, 'fallbackTick') !== false);

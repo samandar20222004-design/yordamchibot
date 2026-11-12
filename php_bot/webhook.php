@@ -57,6 +57,14 @@ try {
         }
     };
     (new Router($app))->handle($update);
+    // cron sozlanmagan/to'xtagan bo'lsa — rejalangan postlar shu yerdan ketadi (javob Telegram'ga oldin qaytariladi)
+    try {
+        $sched = new PostAssist\Services\Scheduler($app);
+        $app->releaseClient();
+        $sched->fallbackTick(20);
+    } catch (Throwable $e) {
+        $app->log('webhook zaxira cron xato: ' . $e->getMessage());
+    }
 } catch (Throwable $e) {
     // Xato tafsiloti faqat logga (foydalanuvchiga emas); Telegram qayta yubormasligi uchun 200 qaytariladi.
     $line = get_class($e) . ': ' . $e->getMessage() . ' @ ' . basename($e->getFile()) . ':' . $e->getLine();

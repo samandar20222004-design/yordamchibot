@@ -93,7 +93,7 @@ final class HealthCheck
         } catch (\Throwable $e) {
         }
         if ($last === '') {
-            $r[] = ['fail', 'Cron', 'hali bir marta ham ishlamagan — hostingda cron.php ni HAR DAQIQA ishga tushiring (rejalangan postlar chiqmaydi)'];
+            $r[] = ['fail', 'Cron', 'hali bir marta ham ishlamagan — hostingda cron.php ni HAR DAQIQA ishga tushiring. Hozir zaxira rejim: postlar faqat botga kimdir yozganda/tugma bosganda ketadi, o\'z vaqtida emas.'];
         } else {
             $ago = time() - (int) strtotime($last . ' UTC');
             $r[] = $ago <= 180 ? ['ok', 'Cron', 'ishlayapti (oxirgisi ' . max(0, $ago) . ' soniya oldin)']

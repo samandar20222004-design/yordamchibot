@@ -546,7 +546,8 @@ final class PostHandler
             }, $channels)),
             'when' => TimeParser::show($utcSql, $ctx->tz()),
             'tz' => Html::e($ctx->tzName()),
-        ]) . ($rec !== null ? "\n🔄 " . self::repeatLabel($ctx, $rec) : ''));
+        ]) . ($rec !== null ? "\n🔄 " . self::repeatLabel($ctx, $rec) : '')
+            . ($ctx->app->tzChosen($ctx->userId) ? '' : "\n\n" . $ctx->t('tz_not_chosen_hint')));
     }
 
     /** Post chiqadigan kanallar: asosiy + «📢 Yana kanallar» (faqat egasiniki, takrorsiz). */
