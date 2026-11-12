@@ -89,6 +89,21 @@ T::check('Sozlamalar: FREE da «💎 PRO olish», guruhlangan tugmalar, Mini App
 $s = json_decode($kb, true)['inline_keyboard'] ?? [];
 T::check('Sozlamalar: 2 ustunli, oxirida [Yordam][Menyu]', $rowsOk($s) && end($s)[0]['callback_data'] === 'set:help' && end($s)[1]['callback_data'] === 'm:home');
 
+// --- eski (Python bot) pastki menyu yorliqlari
+$textU($X, '⚙️ Sozlamalar / Ko\'proq');
+T::check('eski yorliq: pastki menyu yangisiga almashadi', strpos($fake->texts(), 'Menyu yangilandi') !== false
+    && strpos(json_encode($fake->of('sendMessage'), JSON_UNESCAPED_UNICODE), 'Sozlamalar / Ko') === false);
+$textU($ADMIN, '⚙️ Admin Panel');
+T::check('eski «⚙️ Admin Panel» (Python bot) — admin paneli ochiladi, aqlli qabul emas', strpos($fake->texts(), 'Bu bilan nima qilamiz') === false
+    && $fake->of('sendMessage') !== [] && ($appU->states->get($ADMIN)['state'] ?? null) !== 'intake' && strpos($fake->texts(), 'Menyu yangilandi') !== false);
+T::check('eski yorliqda admin statistikasi chiqdi', strpos($fake->texts(), 'Foydalanuvchilar') !== false);
+$textU($ADMIN, '👑 Admin panel');
+T::check('yangi admin yorlig\'i: panel, menyu qayta yuborilmaydi', strpos($fake->texts(), 'Foydalanuvchilar') !== false && strpos($fake->texts(), 'Menyu yangilandi') === false);
+$textU($X, '⚙️ Admin Panel');
+T::check('oddiy foydalanuvchiga eski admin yorlig\'i paneli ochmaydi', strpos($fake->texts(), 'Bu bilan nima qilamiz') === false && strpos($fake->texts(), 'Foydalanuvchilar') === false);
+$textU($X, '🔙 Asosiy menyu');
+T::check('eski «🔙 Asosiy menyu» — yangi menyu yuboriladi', strpos($fake->texts(), 'Menyu yangilandi') !== false && strpos($fake->texts(), 'Bu bilan nima qilamiz') === false);
+
 // --- so'mda to'lov: tasdiqsiz muddat/karta tugmasini chetlab o'tib bo'lmaydi
 $pressU($X, 'pl:ct:pro');
 T::check('tasdiqsiz pl:ct -> raqam so\'raladi', ($appU->states->get($X)['state'] ?? '') === 'uz_verify' && strpos($mk($fake->of('sendMessage')[0] ?? []), 'request_contact') !== false);
@@ -206,6 +221,47 @@ T::eq('bridge_reset: holat tozalandi', $appU->states->get($B), null);
 T::eq('ko\'prik: bo\'sh so\'rov rad', $br([])[0], 400);
 [$st, $r] = $br(['d' => 'm:home']);
 T::check('ko\'prik: m:home — bosh menyu belgisi', $st === 200 && $r['menu'] === true);
+$allBtns = static function (array $r): array {
+    $o = [];
+    foreach ($r['screens'] as $sc) {
+        foreach ($sc['rows'] as $row) {
+            foreach ($row as $b) {
+                $o[] = $b;
+            }
+        }
+    }
+    return $o;
+};
+$navLeft = 0;
+foreach (['ap:show', 'rss:show', 'ref:show', 'tpl:list', 'cp:show', 'st:show', 'ch:list'] as $scr) {
+    foreach ($allBtns($br(['d' => $scr])[1]) as $b) {
+        if (($b['d'] ?? '') === 'm:home' || in_array(PostAssist\I18n::bare($b['t']), ['Orqaga', 'Menyu'], true)) {
+            $navLeft++;
+        }
+    }
+}
+T::eq('ko\'prik: Mini App\'da «◀️ Orqaga» / «🏠 Menyu» tugmalari yo\'q (tepada Telegram orqaga, pastda bosh sahifa)', $navLeft, 0);
+// --- moslik: birja qidiruvi botda ham, manba havolalari (/mylinks) Mini App'da ham
+$appU->market->upsert($ADMIN, ['channel_id' => -1007790, 'title' => 'Qidiruv sinov kanali', 'username' => 'qidiruv_sinov'], 100000, 'UZS', 'Futbol yangiliklari', 'sport', 5000, $clock);
+[$st, $r] = $br(['d' => 'mk:cat']);
+T::check('bot birjasi: toifalarda «🔎 Qidirish»', strpos(json_encode($r, JSON_UNESCAPED_UNICODE), 'mk:q') !== false);
+$br(['d' => 'mk:q']);
+T::eq('mk:q — qidiruv so\'zi kutiladi', $appU->states->get($B)['state'] ?? null, 'mk_search');
+[$st, $r] = $br(['t' => 'futbol']);
+T::check('qidiruv tavsifdan topdi', strpos($r['screens'][0]['text'] ?? '', '<b>1</b>') !== false && strpos(json_encode($r, JSON_UNESCAPED_UNICODE), 'Qidiruv sinov') !== false
+    && ($appU->states->get($B)['state'] ?? null) === null);
+$br(['d' => 'mk:q']);
+[$st, $r] = $br(['t' => 'yoqkanalxyz']);
+T::check('qidiruv: topilmasa tushunarli xabar', strpos($r['screens'][0]['text'] ?? '', 'topilmadi') !== false);
+[$st, $r] = $br(['d' => 'ref:show']);
+T::check('havolasi yo\'q foydalanuvchida «Havolalarim» yo\'q', strpos(json_encode($r), 'ref:links') === false);
+$appU->links->create('mosl1', 'Sinov', $B, $ADMIN, $clock);
+[$st, $r] = $br(['d' => 'ref:show']);
+T::check('havola egasida «🔗 Havolalarim» (Mini App\'da ham)', strpos(json_encode($r), 'ref:links') !== false);
+[$st, $r] = $br(['d' => 'ref:links']);
+T::check('ref:links — havolalar soni ko\'rinadi', strpos($r['screens'][0]['text'] ?? '', 'mosl1') !== false);
+T::check('app.php: ekran ichidagi «Orqaga» tugmasi yo\'q, Telegram BackButton ishlatiladi', strpos($appSrcU, 'id="br-back"') === false
+    && strpos($appSrcU, 'id="mk-close"') === false && strpos($appSrcU, 'tg.BackButton.onClick') !== false);
 
 // --- kuzatish: yuborilgan va chiqmagan postlar
 $call2 = static function (string $a, array $in = []) use ($appU, $initB): array {

@@ -5,6 +5,7 @@ namespace PostAssist\Handlers;
 
 use PostAssist\Ctx;
 use PostAssist\Html;
+use PostAssist\Keyboards;
 use PostAssist\Repo\TrackedLinks;
 use PostAssist\Services\TimeParser;
 
@@ -154,13 +155,13 @@ final class LinksHandler
     {
         $rows = $ctx->app->links->listAll($ctx->userId, 50);
         if (!$rows) {
-            $ctx->reply($ctx->t('mylinks_empty'));
+            $ctx->reply($ctx->t('mylinks_empty'), Keyboards::nav($ctx->lang, 'ref:show'));
             return;
         }
         $lines = [];
         foreach ($rows as $l) {
             $lines[] = self::line($l, false) . "\n    " . Html::e(self::url($ctx, (string) $l['code']));
         }
-        $ctx->reply($ctx->t('mylinks_title', ['lines' => implode("\n", $lines)]));
+        $ctx->reply($ctx->t('mylinks_title', ['lines' => implode("\n", $lines)]), Keyboards::nav($ctx->lang, 'ref:show'));
     }
 }

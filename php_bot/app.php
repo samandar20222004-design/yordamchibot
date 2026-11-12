@@ -522,7 +522,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
   </section>
 
   <section class="page" id="p-bot">
-    <div class="br-head"><button class="ghost small" id="br-back">‹ <span data-t="ma_back"></span></button><b id="br-title"></b></div>
+    <div class="br-head"><b id="br-title"></b></div>
     <div id="br-body"></div>
     <div class="br-input" id="br-input" style="display:none"><input id="br-text" data-ph="ma_br_type" maxlength="4000"><button id="br-send">➤</button></div>
   </section>
@@ -724,7 +724,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
   if (tg && tg.BackButton) { tg.BackButton.onClick(function () {
     if ($('modal').classList.contains('on')) { closeModal(); }
     else if (cur === 'bot' && br.stack.length > 1) { brBack(); }
-    else { go('home'); }
+    else { go(cur === 'bot' && br.nav && !BR_PAGES[br.nav] ? br.nav : 'home'); }
   }); }
 
   var BOT_SECTIONS = ['go_market', 'go_team', 'go_plans', 'go_channels'];
@@ -821,7 +821,6 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
   }
   function brBack() { br.stack.pop(); brRender(br.stack[br.stack.length - 1]); }
   function brLeave() { if (br.state) { api('bridge_reset', {}); br.state = null; } br.stack = []; loadMe(); } // bot ekranida o'zgargan narsa (yangi kanal, tarif, til) Mini App'ga ham tushsin
-  $('br-back').onclick = function () { haptic(); if (br.stack.length > 1) { brBack(); } else { go('home'); } };
   $('br-send').onclick = function () { var v = $('br-text').value.trim(); if (v) { brCall({t: v}); } };
   $('br-text').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); $('br-send').click(); } });
   // bot tugmalari: Mini App'ning o'z bo'limiga yo'naltiriladiganlar
@@ -996,10 +995,9 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
           : '<label>' + esc(t('ma_mk_write')) + '</label><textarea id="mk-text" rows="4" maxlength="1000" placeholder="' + esc(t('ma_mk_write_ph')) + '"></textarea>' +
             '<div class="muted">' + esc(t('ma_mk_safety')) + '</div><div style="height:8px"></div><button id="mk-send">' + esc(t('ma_mk_send')) + '</button>';
       }
-      html += '<div style="height:8px"></div><button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>';
+      
       modal(html);
       $('mk-open').onclick = function () { openChannel(l.username); };
-      $('mk-close').onclick = closeModal;
       if ($('mk-chat')) { $('mk-chat').onclick = function () { mkThread(r.thread); }; }
       if ($('mk-send')) {
         $('mk-send').onclick = function () {
@@ -1019,8 +1017,7 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
       modal('<h3>💬 ' + esc(t('ma_mk_threads')) + '</h3>' + (r.threads.length ? r.threads.map(function (x, i) {
         return '<div class="card post" data-th="' + x.id + '"><div class="body"><b>' + esc(x.title || '@' + x.username) + '</b><div class="muted">' +
           esc(t(x.role === 'owner' ? 'ma_mk_buyer' : 'ma_mk_owner')) + ' · ' + esc(x.last) + (x.blocked ? ' · 🚫' : '') + '</div></div><div>›</div></div>';
-      }).join('') : '<div class="empty">' + esc(t('ma_mk_no_threads')) + '</div>') + '<button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>');
-      $('mk-close').onclick = closeModal;
+      }).join('') : '<div class="empty">' + esc(t('ma_mk_no_threads')) + '</div>'));
       document.querySelectorAll('[data-th]').forEach(function (el) { el.onclick = function () { mkThread(parseInt(el.getAttribute('data-th'), 10)); }; });
     });
   }
@@ -1038,11 +1035,9 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
         html += '<label>' + esc(t('ma_mk_reply')) + '</label><textarea id="mk-text" rows="3" maxlength="1000"></textarea>' +
           '<div class="muted">' + esc(t('ma_mk_safety')) + '</div><div style="height:8px"></div><button id="mk-send">' + esc(t('ma_mk_send')) + '</button>';
       }
-      html += '<div style="height:8px"></div><button class="ghost" data-br="mk:home" data-bt="ma_go_market">🤖 ' + esc(t('ma_mk_in_bot')) + '</button>' +
-        '<div style="height:8px"></div><button class="ghost" id="mk-close">' + esc(t('ma_back')) + '</button>';
+      html += '<div style="height:8px"></div><button class="ghost" data-br="mk:home" data-bt="ma_go_market">🤖 ' + esc(t('ma_mk_in_bot')) + '</button>';
       modal(html);
       var box = $('mk-msgs'); box.scrollTop = box.scrollHeight;
-      $('mk-close').onclick = closeModal;
       if ($('mk-send')) {
         $('mk-send').onclick = function () {
           var b = $('mk-send'); b.disabled = true;
@@ -1057,8 +1052,9 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
   }
   $('mk-threads').onclick = function () { haptic(); mkThreads(); };
 
-  function modal(html) { $('sheet').innerHTML = html; $('modal').classList.add('on'); }
-  function closeModal() { $('modal').classList.remove('on'); }
+  // oyna yopiladi: tepadagi Telegram «orqaga» yoki fon bosilsa (alohida «Orqaga» tugmasi yo'q)
+  function modal(html) { $('sheet').innerHTML = html; $('modal').classList.add('on'); if (tg && tg.BackButton) { tg.BackButton.show(); } }
+  function closeModal() { $('modal').classList.remove('on'); if (tg && tg.BackButton && cur === 'home') { tg.BackButton.hide(); } }
   $('modal').addEventListener('click', function (e) { if (e.target.id === 'modal') { closeModal(); } });
 
   // ---------- muharrir: DOM -> Telegram HTML
@@ -1443,9 +1439,8 @@ html body .mk-head,html body .mk-filter,html body .mk-order{display:none}
       return '<div class="card"><div class="muted">📝 ' + esc(c.post) + ' · ' + esc(c.at) + '</div><b>' + (c.mine ? '⭐ ' : '') + esc(c.name) + '</b>: ' + esc(c.text) +
         '<div class="row" style="margin-top:8px"><button class="small ghost" data-cr="' + c.post_id + '">↩️ ' + esc(t('ma_cm_reply')) + '</button>' +
         (c.mine ? '' : '<button class="small ghost" data-cx="' + c.id + '">🗑</button><button class="small danger" data-cb="' + c.id + '">🚫</button>') + '</div></div>';
-    }).join('') : '<div class="empty">' + esc(t('ma_cm_empty')) + '</div>') + '<button class="ghost" id="cm-close">' + esc(t('ma_back')) + '</button>';
+    }).join('') : '<div class="empty">' + esc(t('ma_cm_empty')) + '</div>');
     modal(html);
-    $('cm-close').onclick = closeModal;
     var mod = function (id, act) {
       var go2 = function (yes) {
         if (!yes) { return; }

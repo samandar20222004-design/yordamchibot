@@ -75,7 +75,7 @@ final class MarketHandler
         if ($row) {
             $rows[] = $row;
         }
-        array_unshift($rows, [Keyboards::btn($ctx->t('btn_mk_all'), 'mk:l:all:0')]);
+        array_unshift($rows, [Keyboards::btn($ctx->t('btn_mk_all'), 'mk:l:all:0'), Keyboards::btn($ctx->t('btn_mk_search'), 'mk:q')]);
         $rows[] = Keyboards::navRow($ctx->lang, 'mk:home');
         $ctx->edit($ctx->t('mk_pick_cat'), Keyboards::inline($rows));
     }
@@ -101,6 +101,31 @@ final class MarketHandler
         $rows[] = Keyboards::navRow($ctx->lang, 'mk:cat');
         $title = $cat === 'all' ? $ctx->t('btn_mk_all') : $ctx->t('mkc_' . $cat);
         $ctx->edit($r['total'] > 0 ? $ctx->t('mk_list', ['cat' => $title, 'n' => $r['total']]) : $ctx->t('mk_list_empty', ['cat' => $title]), Keyboards::inline($rows));
+    }
+
+    /** 🔎 Qidiruv: kanal nomi, @username yoki tavsifdagi so'z (Mini App qidiruvi bilan bir xil). */
+    public static function searchAsk(Ctx $ctx): void
+    {
+        $ctx->app->states->set($ctx->userId, 'mk_search', []);
+        $ctx->reply($ctx->t('mk_search_ask'), Keyboards::nav($ctx->lang, 'mk:cat'));
+    }
+
+    public static function search(Ctx $ctx, string $q): void
+    {
+        $q = trim(mb_substr($q, 0, 60));
+        if (mb_strlen($q) < 2) {
+            $ctx->reply($ctx->t('mk_search_ask'), Keyboards::nav($ctx->lang, 'mk:cat'));
+            return;
+        }
+        $ctx->app->states->clear($ctx->userId);
+        $r = $ctx->app->market->catalog(null, 0, $ctx->app->userCountry($ctx->userId), null, $q);
+        $rows = [];
+        foreach ($r['rows'] as $l) {
+            $rows[] = [Keyboards::btn(self::flagOf($l) . ' ' . mb_substr((string) $l['title'], 0, 20) . ' · ' . self::fmtNum((int) $l['subscribers']) . ' · ' . self::price($l), 'mk:v:' . (int) $l['id'])];
+        }
+        $rows[] = [Keyboards::btn($ctx->t('btn_mk_search'), 'mk:q')];
+        $rows[] = Keyboards::navRow($ctx->lang, 'mk:cat');
+        $ctx->reply($r['total'] > 0 ? $ctx->t('mk_search_res', ['q' => Html::e($q), 'n' => $r['total']]) : $ctx->t('mk_search_empty', ['q' => Html::e($q)]), Keyboards::inline($rows));
     }
 
     /** E'lon davlati bayrog'i (Global — 🌍). */

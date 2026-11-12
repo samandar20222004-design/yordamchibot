@@ -22,7 +22,7 @@ $plan = static function (int $uid) use ($db): array {
 };
 
 // --- tariflar ekrani
-$text($U, '⚙️ Sozlamalar / Ko\'proq');
+$text($U, '⚙️ Sozlamalar');
 $kb = $mk($fake->of('sendMessage')[0] ?? []);
 T::check('sozlamalar: tarif, taklif, promo tugmalari', strpos($kb, 'pl:show') !== false && strpos($kb, 'ref:show') !== false && strpos($kb, 'promo:ask') !== false);
 T::check('sozlamalarda joriy tarif: FREE', strpos($fake->lastText(), 'Tarif: <b>FREE</b>') !== false);

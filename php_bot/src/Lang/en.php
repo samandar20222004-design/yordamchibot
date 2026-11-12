@@ -1017,4 +1017,10 @@ Tap a button or type a <b>country</b> or <b>city</b> — any country: <code>Germ
     'ma_mk_order' => "{region} first, then nearby countries and others. Need another country — pick it above.",
     'ma_mk_empty_filter' => "No listings for this search or country.",
     'mk_region_line' => "🌍 Region: {region}",
+    'menu_refreshed' => "🔄 Menu updated.",
+    'btn_mylinks' => "🔗 My links",
+    'btn_mk_search' => "🔎 Search",
+    'mk_search_ask' => "🔎 Type a channel name, @username or topic word (at least 2 letters).",
+    'mk_search_res' => "🔎 Results for «{q}»: <b>{n}</b> channels. Your country first, then nearby ones.",
+    'mk_search_empty' => "🔎 No channels found for «{q}». Try another word.",
 ];

@@ -39,7 +39,7 @@ final class Router
 {
     public const GO_TARGETS = ['go_market', 'go_team', 'go_plans', 'go_channels'];
 
-    private const MENU_KEYS = ['btn_create_content', 'btn_ai_post', 'btn_my_channels', 'btn_scheduled', 'btn_statistics', 'btn_settings', 'btn_admin'];
+    private const MENU_KEYS = ['btn_create_content', 'btn_ai_post', 'btn_my_channels', 'btn_scheduled', 'btn_statistics', 'btn_settings', 'btn_admin', 'menu_home'];
 
     private App $app;
 
@@ -134,7 +134,12 @@ final class Router
         $menu = $text !== '' ? I18n::keyOf($text, self::MENU_KEYS) : null;
         if ($menu !== null) {
             $this->app->states->clear($ctx->userId);
-            $this->menu($ctx, $menu);
+            if ($menu === 'menu_home' || I18n::isAlias($text)) {
+                $ctx->replyMenu($ctx->t('menu_refreshed')); // eski klaviatura — yangisi bilan almashadi
+            }
+            if ($menu !== 'menu_home') {
+                $this->menu($ctx, $menu);
+            }
             return;
         }
         $state = $ctx->state();
@@ -236,6 +241,9 @@ final class Router
                     return;
                 case 'mk_msg':
                     MarketHandler::message($ctx, $state);
+                    return;
+                case 'mk_search':
+                    MarketHandler::search($ctx, $text);
                     return;
                 case 'receipt_wait':
                     CardHandler::receipt($ctx, $state);
@@ -497,6 +505,10 @@ final class Router
             PlansHandler::invoice($ctx, $m[1]);
         } elseif ($data === 'ref:show') {
             PlansHandler::referral($ctx);
+        } elseif ($data === 'ref:links') {
+            LinksHandler::mine($ctx);
+        } elseif ($data === 'mk:q') {
+            MarketHandler::searchAsk($ctx);
         } elseif ($data === 'promo:ask') {
             PlansHandler::askPromo($ctx);
         } elseif ($data === 'set:help') {

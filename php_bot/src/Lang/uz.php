@@ -1017,4 +1017,10 @@ Tugmadan tanlang yoki <b>davlat</b> yoxud <b>shahar</b> nomini yozing — istalg
     'ma_mk_order' => "Avval {region}, keyin yaqin davlatlar va boshqalar. Boshqa davlat kerak bo'lsa — yuqoridan tanlang.",
     'ma_mk_empty_filter' => "Bu qidiruv yoki davlat bo'yicha e'lon topilmadi.",
     'mk_region_line' => "🌍 Hudud: {region}",
+    'menu_refreshed' => "🔄 Menyu yangilandi.",
+    'btn_mylinks' => "🔗 Havolalarim",
+    'btn_mk_search' => "🔎 Qidirish",
+    'mk_search_ask' => "🔎 Kanal nomi, @username yoki mavzu so'zini yozing (kamida 2 harf).",
+    'mk_search_res' => "🔎 «{q}» bo'yicha: <b>{n}</b> ta kanal. Avval o'z davlatingiz, keyin yaqin davlatlar.",
+    'mk_search_empty' => "🔎 «{q}» bo'yicha kanal topilmadi. Boshqa so'z bilan urinib ko'ring.",
 ];

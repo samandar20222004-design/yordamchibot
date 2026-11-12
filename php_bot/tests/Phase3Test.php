@@ -31,7 +31,7 @@ T::check('tugma bilan: Europe/Moscow, hozirgi soat ko\'rsatiladi', ($app->users-
     && strpos($fake->lastText(), '13:00') !== false);
 $press($W, 'tz:Mars/Base');
 T::eq('soxta zona tugmasi rad', $app->users->get($W)['timezone'] ?? null, 'Europe/Moscow');
-$text($W, '⚙️ Sozlamalar / Ko\'proq');
+$text($W, '⚙️ Sozlamalar');
 T::check('sozlamalarda zona', strpos($fake->lastText(), 'Europe/Moscow') !== false && strpos($mk($fake->of('sendMessage')[0] ?? []), 'set:tz') !== false);
 $draftText('Moskva vaqti');
 $press($W, 'p:time');

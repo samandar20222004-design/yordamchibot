@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace PostAssist\Handlers;
 
 use PostAssist\App;
+use PostAssist\I18n;
 use PostAssist\Router;
 use PostAssist\Telegram;
 
@@ -34,11 +35,17 @@ final class MiniAppBridge
             $update = ['update_id' => 0, 'message' => ['message_id' => 1, 'from' => $from, 'chat' => $chat, 'date' => time(), 'text' => (string) $text]];
         }
 
+        // «◀️ Orqaga» va «🏠 Menyu» faqat botda: Mini App'da tepada Telegram «orqaga» tugmasi, pastda bosh sahifa bor
+        $nav = [];
+        foreach (I18n::LANGS as $l) {
+            $nav[I18n::bare(I18n::t('btn_back', $l))] = true;
+            $nav[I18n::bare(I18n::t('btn_home', $l))] = true;
+        }
         $screens = [];
         $menu = false;
         $botLink = false;
         $real = $app->tg;
-        $transport = static function (string $method, array $p) use (&$screens, &$menu, &$botLink, $real, $uid): array {
+        $transport = static function (string $method, array $p) use (&$screens, &$menu, &$botLink, $real, $uid, $nav): array {
             $private = isset($p['chat_id']) && (int) $p['chat_id'] === $uid;
             if ($method === 'answerCallbackQuery') {
                 return ['ok' => true, 'result' => true];
@@ -55,6 +62,9 @@ final class MiniAppBridge
                         $r = [];
                         foreach ((array) $row as $b) {
                             if (!isset($b['text'])) {
+                                continue;
+                            }
+                            if (($b['callback_data'] ?? '') === 'm:home' || isset($nav[I18n::bare((string) $b['text'])])) {
                                 continue;
                             }
                             $item = ['t' => (string) $b['text']];

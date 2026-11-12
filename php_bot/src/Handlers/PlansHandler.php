@@ -222,7 +222,12 @@ final class PlansHandler
         $text = $ctx->t('ref_title', ['link' => Html::e($link), 'top' => Credits::TOP_REWARD, 'base' => Credits::BASE_REWARD,
             'invited' => $s['invited'], 'active' => $s['active'], 'earned' => $s['earned'], 'balance' => $app->credits->balance($ctx->userId)]);
         $share = 'https://t.me/share/url?url=' . rawurlencode($link) . '&text=' . rawurlencode($ctx->t('share_text'));
-        $kb = Keyboards::inline([[['text' => $ctx->t('btn_share'), 'url' => $share]], Keyboards::navRow($ctx->lang, 'set:show')]);
+        $rows = [[['text' => $ctx->t('btn_share'), 'url' => $share]]];
+        if ($app->links->listAll($ctx->userId, 1)) {
+            $rows[] = [Keyboards::btn($ctx->t('btn_mylinks'), 'ref:links')]; // manba havolasi egasi (/mylinks) — Mini App'da ham shu tugma
+        }
+        $rows[] = Keyboards::navRow($ctx->lang, 'set:show');
+        $kb = Keyboards::inline($rows);
         $edit ? $ctx->edit($text, $kb) : $ctx->reply($text, $kb);
     }
 

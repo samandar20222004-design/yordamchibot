@@ -59,7 +59,35 @@ final class I18n
 
     /** Berilgan matn qaysi tildagi qaysi kalitga teng (eski klaviatura boshqa tilda qolgan bo'lsa ham ishlaydi). */
     /** Eski tugma yorliqlari (foydalanuvchida eski klaviatura qolgan bo'lsa ham taniladi). */
-    public const ALIASES = ['btn_settings' => ["Sozlamalar / Ko'proq", 'Настройки / Ещё', 'Settings / More']];
+    /** Eski (Python bot) pastki menyu yorliqlari — Telegram eski klaviaturani saqlab qoladi, bosilsa ham ishlasin. */
+    public const ALIASES = [
+        'btn_settings' => ["Sozlamalar / Ko'proq", 'Настройки / Ещё', 'Settings / More', "Qo'shimcha funksiyalar", 'Дополнительные функции', 'Extra features'],
+        'btn_admin' => ['Admin Panel', 'Admin panel', 'Панель администратора', 'Админ панель', 'Админ-панель'],
+        'btn_create_content' => ['Yangi post', 'Новый пост', 'New post'],
+        'btn_ai_post' => ['AI Yordamchi', 'AI Помощник', 'AI-помощник', 'AI Assistant', 'AI Post Yordamchi', 'Magic Post'],
+        'btn_my_channels' => ['Kanal/Guruhlar', 'Каналы/Группы', 'Channels/Groups'],
+        'btn_scheduled' => ['Kutilayotgan postlar', 'Ожидающие посты', 'Pending posts'],
+        'menu_home' => ['Asosiy menyu', 'Главное меню', 'Main menu', "To'liq menyuni ochish", 'Открыть полное меню', 'Open full menu'],
+    ];
+
+    /** Matn eski (hozirgi menyuda yo'q) yorliqmi — klaviaturani yangilash kerak. */
+    public static function isAlias(string $text): bool
+    {
+        $bare = self::bare($text);
+        foreach (self::LANGS as $l) {
+            foreach (self::table($l) as $k => $v) {
+                if (strpos((string) $k, 'btn_') === 0 && is_string($v) && self::bare($v) === $bare) {
+                    return false; // hozirgi yorliq (masalan «👑 Admin panel») — eski emas
+                }
+            }
+        }
+        foreach (self::ALIASES as $list) {
+            if ($bare !== '' && in_array($bare, $list, true)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static function keyOf(string $text, array $keys): ?string
     {
